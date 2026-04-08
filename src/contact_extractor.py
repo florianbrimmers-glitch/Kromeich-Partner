@@ -44,7 +44,7 @@ Email-Inhalt:
 CATEGORIZATION_PROMPT = """\
 Du bist ein Experte für die Immobilien- und Logistikbranche in Deutschland.
 
-Bestimme für den folgenden Kontakt die passende(n) Kategorie(n). Es gibt drei Kategorien:
+Bestimme für den folgenden Kontakt die passende(n) Kategorie(n). Es gibt sechs Kategorien:
 
 1. **Eigentümer** (ID: 507350) – Immobilieneigentümer, Asset Manager, Property Manager, Vermieter von Gewerbe-/Logistikflächen, Bestandshalter. Beispiele: Logicor, CTP, Prologis, Segro, VGP, Goodman, P3 Logistic Parks, Panattoni, etc.
 
@@ -52,9 +52,15 @@ Bestimme für den folgenden Kontakt die passende(n) Kategorie(n). Es gibt drei K
 
 3. **Logistiker** (ID: 636740) – Logistikunternehmen, Speditionen, Fulfillment-Dienstleister, Intralogistik-Hersteller, Supply-Chain-Unternehmen. Beispiele: Logwin, DHL, Jungheinrich, AutoStore, KNAPP, Amazon Logistics, Kühne+Nagel, etc.
 
+4. **Makler** (ID: 409483) – Immobilienmakler, Gewerbemakler, Industriemakler, Beratungsunternehmen für Gewerbeimmobilien. Beispiele: CBRE, JLL, Cushman & Wakefield, Colliers, BNP Paribas Real Estate, Realogis, Logivest, etc.
+
+5. **Produzent** (ID: 641030) – Produzierende Unternehmen, Hersteller, Industrieunternehmen, die Gewerbe-/Logistikflächen als Mieter oder Nutzer benötigen. Beispiele: Automobilhersteller, Maschinenbauer, Konsumgüterhersteller, Lebensmittelproduzenten, etc.
+
+6. **Handel** (ID: 641031) – Handelsunternehmen, Einzelhändler, Großhändler, E-Commerce-Unternehmen, die Lager- und Logistikflächen nutzen. Beispiele: Amazon, Zalando, REWE, ALDI, Lidl, Otto, MediaMarkt, etc.
+
 Regeln:
-- Ein Kontakt kann MEHRERE Kategorien haben (z.B. ein Logistik-Investor).
-- Wenn der Kontakt NICHT eindeutig in eine der drei Kategorien passt: gib ein leeres Array zurück.
+- Ein Kontakt kann MEHRERE Kategorien haben (z.B. ein Logistik-Investor oder ein Handelsunternehmen mit eigenen Logistikflächen).
+- Wenn der Kontakt NICHT eindeutig in eine der sechs Kategorien passt: gib ein leeres Array zurück.
 - Nutze den Firmennamen, die Position, und den Email-Kontext für deine Entscheidung.
 
 Kontaktdaten:
@@ -68,7 +74,7 @@ Email-Kontext (Betreff + Auszug):
 
 Antworte ausschließlich mit einem JSON-Objekt:
 {{
-  "categories": ["Eigentümer" und/oder "Investor" und/oder "Logistiker"],
+  "categories": ["Eigentümer" und/oder "Investor" und/oder "Logistiker" und/oder "Makler" und/oder "Produzent" und/oder "Handel"],
   "reasoning": "Kurze Begründung"
 }}
 """
@@ -174,7 +180,7 @@ def categorize_contact(
             logger.info(
                 "Kein Merkmal zugewiesen für %s – %s",
                 contact.email,
-                reasoning or "Unternehmen passt nicht eindeutig in Eigentümer/Investor/Logistiker",
+                reasoning or "Unternehmen passt nicht eindeutig in eine der Kategorien",
             )
 
         return group_ids

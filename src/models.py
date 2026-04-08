@@ -59,12 +59,18 @@ class GroupCategory(str, Enum):
     EIGENTUEMER = "Eigentümer"
     INVESTOR = "Investor"
     LOGISTIKER = "Logistiker"
+    MAKLER = "Makler"
+    PRODUZENT = "Produzent"
+    HANDEL = "Handel"
 
 
 GROUP_ID_MAP: dict[GroupCategory, int] = {
     GroupCategory.EIGENTUEMER: 507350,
     GroupCategory.INVESTOR: 507349,
     GroupCategory.LOGISTIKER: 636740,
+    GroupCategory.MAKLER: 409483,
+    GroupCategory.PRODUZENT: 641030,
+    GroupCategory.HANDEL: 641031,
 }
 
 
