@@ -58,10 +58,10 @@ SKIP_SUBJECT_PATTERNS = [
 ]
 
 
-def _build_credentials() -> Credentials:
+def _build_credentials(refresh_token: str) -> Credentials:
     creds = Credentials(
         token=None,
-        refresh_token=os.environ["GOOGLE_REFRESH_TOKEN"],
+        refresh_token=refresh_token,
         token_uri="https://oauth2.googleapis.com/token",
         client_id=os.environ["GOOGLE_CLIENT_ID"],
         client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
@@ -71,8 +71,8 @@ def _build_credentials() -> Credentials:
     return creds
 
 
-def _get_gmail_service():
-    creds = _build_credentials()
+def _get_gmail_service(refresh_token: str):
+    creds = _build_credentials(refresh_token)
     return build("gmail", "v1", credentials=creds)
 
 
@@ -121,8 +121,8 @@ def _decode_body(payload: dict) -> str:
     return ""
 
 
-def search_recent_emails(hours: int = 24, limit: int = 50) -> list[EmailData]:
-    service = _get_gmail_service()
+def _fetch_emails_for_account(refresh_token: str, account_label: str, hours: int = 24, limit: int = 50) -> list[EmailData]:
+    service = _get_gmail_service(refresh_token)
     query = "newer_than:1d"
 
     results = (
@@ -134,10 +134,10 @@ def search_recent_emails(hours: int = 24, limit: int = 50) -> list[EmailData]:
 
     messages = results.get("messages", [])
     if not messages:
-        logger.info("No emails found in the last %d hours", hours)
+        logger.info("[%s] No emails found in the last %d hours", account_label, hours)
         return []
 
-    logger.info("Found %d emails in the last %d hours", len(messages), hours)
+    logger.info("[%s] Found %d emails in the last %d hours", account_label, len(messages), hours)
     emails: list[EmailData] = []
 
     for msg_ref in messages:
@@ -157,11 +157,11 @@ def search_recent_emails(hours: int = 24, limit: int = 50) -> list[EmailData]:
 
         skip, reason = _is_skip_sender(sender)
         if skip:
-            logger.info("Skipping email from %s (reason: %s)", sender_email, reason)
+            logger.info("[%s] Skipping email from %s (reason: %s)", account_label, sender_email, reason)
             continue
 
         if _is_skip_subject(subject):
-            logger.info("Skipping email with subject '%s' (auto/newsletter)", subject)
+            logger.info("[%s] Skipping email with subject '%s' (auto/newsletter)", account_label, subject)
             continue
 
         body = _decode_body(msg.get("payload", {}))
@@ -177,5 +177,20 @@ def search_recent_emails(hours: int = 24, limit: int = 50) -> list[EmailData]:
             )
         )
 
-    logger.info("Returning %d emails after filtering", len(emails))
+    logger.info("[%s] Returning %d emails after filtering", account_label, len(emails))
     return emails
+
+
+def search_recent_emails(hours: int = 24, limit: int = 50) -> list[EmailData]:
+    all_emails: list[EmailData] = []
+
+    token_1 = os.environ.get("GOOGLE_REFRESH_TOKEN")
+    if token_1:
+        all_emails.extend(_fetch_emails_for_account(token_1, "Account 1", hours, limit))
+
+    token_2 = os.environ.get("GOOGLE_REFRESH_TOKEN_2")
+    if token_2:
+        all_emails.extend(_fetch_emails_for_account(token_2, "Account 2", hours, limit))
+
+    logger.info("Total: %d emails from %d account(s)", len(all_emails), (1 if token_1 else 0) + (1 if token_2 else 0))
+    return all_emails
