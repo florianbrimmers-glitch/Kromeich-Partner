@@ -19,6 +19,8 @@ def _format_contact_line(result: ContactResult) -> str:
     parts = [f"*{result.name}*"]
 
     details = []
+    if result.company:
+        details.append(result.company)
     if result.group_labels:
         details.append(", ".join(result.group_labels))
 

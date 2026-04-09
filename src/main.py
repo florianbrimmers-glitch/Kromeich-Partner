@@ -103,6 +103,7 @@ def run_pipeline() -> PipelineReport:
                 result = ContactResult(
                     email=contact.email,
                     name=name,
+                    company=contact.company,
                     status=ContactStatus.SKIPPED_DUPLICATE,
                     group_ids=group_ids,
                     group_labels=group_labels,
@@ -129,6 +130,7 @@ def run_pipeline() -> PipelineReport:
             result = ContactResult(
                 email=contact.email,
                 name=name,
+                company=contact.company,
                 status=ContactStatus.CREATED,
                 group_ids=group_ids,
                 group_labels=group_labels,

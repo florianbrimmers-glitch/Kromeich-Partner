@@ -77,6 +77,7 @@ GROUP_ID_MAP: dict[GroupCategory, int] = {
 class ContactResult(BaseModel):
     email: str
     name: str = ""
+    company: str | None = None
     status: ContactStatus
     group_ids: list[int] = Field(default_factory=list)
     group_labels: list[str] = Field(default_factory=list)
