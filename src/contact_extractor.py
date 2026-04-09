@@ -20,7 +20,7 @@ Regeln:
 - Die Email-Adresse ist ein PFLICHTFELD – wenn keine Email erkennbar ist, verwende die Absender-Email.
 
 Antworte ausschließlich mit einem JSON-Objekt in diesem Format:
-{
+{{
   "first_name": "string oder null",
   "last_name": "string oder null",
   "email": "string (Pflichtfeld)",
@@ -31,7 +31,7 @@ Antworte ausschließlich mit einem JSON-Objekt in diesem Format:
   "house_number": "string oder null (NUR die Hausnummer)",
   "zip_code": "string oder null",
   "city": "string oder null"
-}
+}}
 
 Absender: {sender}
 Absender-Email: {sender_email}
