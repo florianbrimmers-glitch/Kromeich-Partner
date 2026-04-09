@@ -61,6 +61,16 @@ def run_pipeline() -> PipelineReport:
                 report.contacts_skipped_no_email += 1
                 continue
 
+            if not contact.first_name or not contact.last_name:
+                logger.info(
+                    "Skipping %s – missing first_name or last_name (got: %s %s)",
+                    contact.email,
+                    contact.first_name or "None",
+                    contact.last_name or "None",
+                )
+                report.contacts_skipped_no_email += 1
+                continue
+
             # Step 6: Session deduplication
             if contact.email in processed_emails:
                 logger.info("Session duplicate: %s", contact.email)
@@ -81,12 +91,12 @@ def run_pipeline() -> PipelineReport:
                     apollo_enriched = True
                     enriched_fields = enrichment.enriched_fields
                     logger.info("Apollo enriched %s: %s", contact.email, enriched_fields)
-                time.sleep(0.5)
+                time.sleep(1.5)
 
             # Step 5: Categorize contact
             group_ids = categorize_contact(contact, email_data.subject, email_data.body[:2000])
             group_labels = [GROUP_LABEL_MAP.get(gid, str(gid)) for gid in group_ids]
-            time.sleep(0.5)
+            time.sleep(1.5)
 
             # Step 7: Propstack duplicate check
             if check_duplicate(contact.email):
@@ -128,7 +138,7 @@ def run_pipeline() -> PipelineReport:
             report.contacts_created.append(result)
             logger.info("Kontakt angelegt: %s (%s) – Merkmale: %s", name, contact.email, group_labels)
 
-            time.sleep(0.5)
+            time.sleep(1.5)
 
         except Exception as e:
             logger.error("Error processing email from %s: %s", email_data.sender_email, e, exc_info=True)
