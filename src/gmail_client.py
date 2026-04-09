@@ -42,6 +42,12 @@ SKIP_PREFIXES = {
     "billing",
     "invoices",
     "feedback",
+    "booking",
+    "reservierung",
+    "buchung",
+    "orders",
+    "sales",
+    "accounts",
 }
 SKIP_SUBJECT_PATTERNS = [
     re.compile(r"newsletter", re.IGNORECASE),
