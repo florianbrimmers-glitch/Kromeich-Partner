@@ -1,8 +1,12 @@
 name: Android APK Build
 
-# Manuelle Trigger only: bis Main.tscn voll funktionsfaehig ist, wird dieser
-# Workflow nicht bei jedem Push ausgefuehrt. Aufrufbar ueber die GitHub-UI
-# "Run workflow" oder via API.
+# Trigger:
+# - workflow_dispatch: manueller Start ueber GitHub-UI. Funktioniert nur
+#   wenn die Workflow-Datei auf dem Default-Branch (main) liegt. Solange
+#   das noch nicht der Fall ist, laeuft der Build via push-Trigger unten.
+# - push: bei jedem Push auf die aktive Feature-Branch, begrenzt auf
+#   aenderungen im game/ Verzeichnis oder am Workflow selbst, damit
+#   nicht jeder Kontakt-Import-Commit den Android-Build kostet.
 on:
   workflow_dispatch:
     inputs:
@@ -14,6 +18,12 @@ on:
         options:
           - debug
           - release
+  push:
+    branches:
+      - 'claude/heroes-mobile-game-**'
+    paths:
+      - 'game/**'
+      - '.github/workflows/game-android-build.yml'
 
 env:
   GODOT_VERSION: 4.2.2
@@ -112,9 +122,12 @@ jobs:
 
       - name: Export Android APK
         working-directory: game
+        env:
+          # Auf push-Events ist inputs.build_type leer -> default debug.
+          BUILD_TYPE: ${{ github.event.inputs.build_type || 'debug' }}
         run: |
           mkdir -p build
-          if [ "${{ github.event.inputs.build_type }}" = "release" ]; then
+          if [ "$BUILD_TYPE" = "release" ]; then
             ../godot --headless --export-release "Android" build/KromeichHeroes.apk
           else
             ../godot --headless --export-debug "Android" build/KromeichHeroes.apk
@@ -124,7 +137,7 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: KromeichHeroes-${{ github.event.inputs.build_type }}-${{ github.sha }}
+          name: KromeichHeroes-${{ github.event.inputs.build_type || 'debug' }}-${{ github.sha }}
           path: game/build/*.apk
           retention-days: 14
 
