@@ -24,12 +24,29 @@ var _seed: int = 42
 var _side0: Array = []
 var _side1: Array = []
 
+func _set_status(s: String) -> void:
+	var lbl := get_node_or_null(status_label_path) as Label
+	if lbl != null:
+		lbl.text = s
+	print("[BattleScreen] " + s)
+
 func _ready() -> void:
-	(get_node(rematch_button_path) as Button).pressed.connect(_on_rematch)
-	(get_node(back_button_path) as Button).pressed.connect(_on_back)
+	_set_status("STEP 1: _ready")
+	var rbtn := get_node_or_null(rematch_button_path) as Button
+	if rbtn == null:
+		_set_status("ERR: RematchBtn nicht gefunden unter " + str(rematch_button_path))
+		return
+	rbtn.pressed.connect(_on_rematch)
+	var bbtn := get_node_or_null(back_button_path) as Button
+	if bbtn == null:
+		_set_status("ERR: BackBtn nicht gefunden unter " + str(back_button_path))
+		return
+	bbtn.pressed.connect(_on_back)
+	_set_status("STEP 2: Buttons verdrahtet")
 	_start_battle(_seed)
 
 func _start_battle(seed: int) -> void:
+	_set_status("STEP 3: start_battle seed=%d" % seed)
 	_event_index = 0
 	_accum = 0.0
 	_clear_children(get_node(side0_container_path))
@@ -37,22 +54,54 @@ func _start_battle(seed: int) -> void:
 	_clear_children(get_node(log_list_path))
 	_stack_labels.clear()
 
-	var demo := DemoArmy.build_men_vs_orks()
-	_side0 = demo["side0"]
-	_side1 = demo["side1"]
-	(get_node(side0_label_path) as Label).text = demo["label0"]
-	(get_node(side1_label_path) as Label).text = demo["label1"]
+	_set_status("STEP 4: lade units.json")
+	var units_dict: Dictionary = {}
+	var f := FileAccess.open("res://data/units.json", FileAccess.READ)
+	if f == null:
+		_set_status("ERR: units.json kann nicht geoeffnet werden. res:// Listing: " + str(DirAccess.get_files_at("res://data")))
+		return
+	var raw := f.get_as_text()
+	f.close()
+	_set_status("STEP 5: units.json gelesen (%d Zeichen)" % raw.length())
+	var parsed: Variant = JSON.parse_string(raw)
+	if not parsed is Dictionary:
+		_set_status("ERR: JSON.parse_string Ergebnis ist " + str(typeof(parsed)))
+		return
+	var units_arr: Array = parsed["units"]
+	_set_status("STEP 6: %d Units geparsed" % units_arr.size())
+	for u in units_arr:
+		units_dict[u["id"]] = u
+
+	_set_status("STEP 7: baue Demo-Armee")
+	_side0 = [
+		Battle.Stack.new(units_dict["men_angel"],    2,  0),
+		Battle.Stack.new(units_dict["men_cavalier"], 6,  0),
+		Battle.Stack.new(units_dict["men_crusader"], 14, 0),
+		Battle.Stack.new(units_dict["men_archer"],   20, 0),
+		Battle.Stack.new(units_dict["men_spearman"], 40, 0),
+	]
+	_side1 = [
+		Battle.Stack.new(units_dict["ork_behemoth"], 2,  1),
+		Battle.Stack.new(units_dict["ork_cyclops"],  4,  1),
+		Battle.Stack.new(units_dict["ork_ogre"],     8,  1),
+		Battle.Stack.new(units_dict["ork_orc"],      20, 1),
+		Battle.Stack.new(units_dict["ork_goblin"],   60, 1),
+	]
+
+	(get_node(side0_label_path) as Label).text = "Menschen"
+	(get_node(side1_label_path) as Label).text = "Orkstaemme"
 	_build_stack_row(_side0, get_node(side0_container_path))
 	_build_stack_row(_side1, get_node(side1_container_path))
 
+	_set_status("STEP 8: simuliere")
 	var sim0 := _clone_stacks(_side0, 0)
 	var sim1 := _clone_stacks(_side1, 1)
 	var result := Battle.simulate(sim0, sim1, DeterministicRng.new(seed))
 	_events = result["events"]
 
-	(get_node(status_label_path) as Label).text = "Seed %d  |  Runden %d  |  %s" % [
-		seed, result["turns"], _outcome_label(result["outcome"])
-	]
+	_set_status("Seed %d  |  Runden %d  |  %s  |  Events %d" % [
+		seed, result["turns"], _outcome_label(result["outcome"]), _events.size()
+	])
 
 func _process(delta: float) -> void:
 	if _event_index >= _events.size():
