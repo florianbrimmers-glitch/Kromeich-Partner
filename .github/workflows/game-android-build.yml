@@ -55,7 +55,14 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
+          # Godot 4.2 braucht net6.0 (default) fuer Standalone und net7.0
+          # fuer Android/iOS-Export (Mono-Export-Template). Wir installieren
+          # beide + net8 fuer Forward-Compat. setup-dotnet@v4 akzeptiert
+          # multi-line dotnet-version.
+          dotnet-version: |
+            6.0.x
+            7.0.x
+            8.0.x
 
       - name: Download Godot headless (Mono)
         run: |
