@@ -50,12 +50,15 @@ public sealed class BattleStack
 
 public enum BattleOutcome { Side0Wins, Side1Wins, Draw }
 
+public sealed record BattleEvent(int Turn, string AttackerId, string TargetId, int Damage, int TargetCountAfter);
+
 public sealed class BattleResult
 {
     public BattleOutcome Outcome { get; init; }
     public int Side0Casualties { get; init; }
     public int Side1Casualties { get; init; }
     public int Turns { get; init; }
+    public List<BattleEvent> Events { get; init; } = new();
 }
 
 // Deterministische, simplifizierte Kampf-Engine fuer MVP + Balance-Simulator.
@@ -75,6 +78,7 @@ public sealed class BattleEngine
 
         var side0Start = side0.Sum(s => s.Count);
         var side1Start = side1.Sum(s => s.Count);
+        var events = new List<BattleEvent>();
 
         for (int turn = 1; turn <= MaxTurns; turn++)
         {
@@ -93,25 +97,27 @@ public sealed class BattleEngine
 
                 var dmg = ComputeDamage(attacker, target, rng);
                 target.TakeDamage(dmg);
+                events.Add(new BattleEvent(turn, attacker.Unit.Id, target.Unit.Id, dmg, target.Count));
 
                 if (!target.HasAbility("no_retaliation") && target.IsAlive)
                 {
                     var retal = ComputeDamage(target, attacker, rng) / 2;
                     attacker.TakeDamage(retal);
+                    events.Add(new BattleEvent(turn, target.Unit.Id, attacker.Unit.Id, retal, attacker.Count));
                 }
             }
 
             var s0Alive = side0.Any(s => s.IsAlive);
             var s1Alive = side1.Any(s => s.IsAlive);
             if (!s0Alive && !s1Alive)
-                return Done(BattleOutcome.Draw, side0, side1, side0Start, side1Start, turn);
+                return Done(BattleOutcome.Draw, side0, side1, side0Start, side1Start, turn, events);
             if (!s0Alive)
-                return Done(BattleOutcome.Side1Wins, side0, side1, side0Start, side1Start, turn);
+                return Done(BattleOutcome.Side1Wins, side0, side1, side0Start, side1Start, turn, events);
             if (!s1Alive)
-                return Done(BattleOutcome.Side0Wins, side0, side1, side0Start, side1Start, turn);
+                return Done(BattleOutcome.Side0Wins, side0, side1, side0Start, side1Start, turn, events);
         }
 
-        return Done(BattleOutcome.Draw, side0, side1, side0Start, side1Start, MaxTurns);
+        return Done(BattleOutcome.Draw, side0, side1, side0Start, side1Start, MaxTurns, events);
     }
 
     private static BattleStack? PickTarget(BattleStack attacker, List<BattleStack> pool)
@@ -153,7 +159,7 @@ public sealed class BattleEngine
 
     private static BattleResult Done(
         BattleOutcome o, List<BattleStack> s0, List<BattleStack> s1,
-        int s0Start, int s1Start, int turns)
+        int s0Start, int s1Start, int turns, List<BattleEvent> events)
     {
         return new BattleResult
         {
@@ -161,6 +167,7 @@ public sealed class BattleEngine
             Side0Casualties = s0Start - s0.Sum(x => x.Count),
             Side1Casualties = s1Start - s1.Sum(x => x.Count),
             Turns = turns,
+            Events = events,
         };
     }
 }

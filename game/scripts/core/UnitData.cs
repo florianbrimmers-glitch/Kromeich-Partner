@@ -32,10 +32,12 @@ public sealed class UnitsFile
 public static class UnitRepository
 {
     public static Dictionary<string, UnitData> LoadFromFile(string path)
+        => ParseFromJson(File.ReadAllText(path));
+
+    public static Dictionary<string, UnitData> ParseFromJson(string json)
     {
-        var json = File.ReadAllText(path);
         var file = JsonSerializer.Deserialize<UnitsFile>(json)
-                   ?? throw new InvalidDataException($"Kann {path} nicht lesen");
+                   ?? throw new InvalidDataException("Kann units.json nicht deserialisieren");
         var dict = new Dictionary<string, UnitData>();
         foreach (var u in file.Units) dict[u.Id] = u;
         return dict;
