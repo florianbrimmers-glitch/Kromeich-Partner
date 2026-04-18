@@ -27,7 +27,7 @@ on:
       - '.github/workflows/game-android-build.yml'
 
 env:
-  GODOT_VERSION: 4.2.2
+  GODOT_VERSION: 4.3
   GODOT_STATUS: stable
 
 jobs:
