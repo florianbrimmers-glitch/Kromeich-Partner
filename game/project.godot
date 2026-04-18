@@ -7,7 +7,11 @@ config_version=5
 
 config/name="Kromeich Heroes"
 config/description="Rundenbasiertes HoMM3-inspiriertes Handyspiel. Async-Multiplayer."
-run/main_scene="res://scenes/Main.tscn"
+; DIAG: SafeMode.tscn ist eine reine GDScript-Startseite ohne C#, um zu
+; testen ob der Android-Crash vom .NET-Runtime-Laden kommt. Wenn diese
+; Szene startet, wissen wir: nur C# ist das Problem, Godot selbst laeuft.
+; Zurueck auf Main.tscn, sobald die Diagnose durch ist.
+run/main_scene="res://scenes/SafeMode.tscn"
 config/features=PackedStringArray("4.3", "C#", "Mobile")
 config/icon="res://assets/icon.svg"
 
@@ -25,5 +29,9 @@ window/stretch/aspect="expand"
 
 [rendering]
 
-renderer/rendering_method="mobile"
+; DIAG: gl_compatibility statt "mobile" (Vulkan-Mobile). Vulkan-Treiber
+; sind auf manchen Android-Geraeten kaputt und crashen beim Bootstrap.
+; OpenGL ES 3 ist der kompatibelste Renderer.
+renderer/rendering_method="gl_compatibility"
+renderer/rendering_method.mobile="gl_compatibility"
 textures/vram_compression/import_etc2_astc=true
