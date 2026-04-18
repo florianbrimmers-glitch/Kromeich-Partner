@@ -11,22 +11,26 @@ Dieses Verzeichnis enthaelt das **Scaffold** und die Balance-Datenbasis.
 Was laeuft:
 
 - `data/*.json` — 4 Fraktionen, 28 Einheiten, 22 Spells, 20 Artefakte
-  (davon 8 `game_changer`). Jede Zeile mit `balance_source`-Kommentar.
-- `data/balance_notes.md` — Audit-Trail fuer jede Abweichung von HoMM3/HotA
-  mit Equilibris-Begruendung.
-- `scripts/core/Battle.cs` + `DeterministicRng.cs` — deterministische,
-  xorshift64-basierte Kampfengine (C#, .NET 8).
-- `tools/balance_sim.py` — Monte-Carlo-Simulator fuer Fraktion-vs-Fraktion;
-  spiegelt die Kampfformel aus Battle.cs.
-- `tests/` — pytest-Suite (8 Tests, alle gruen).
+  (davon 8 `game_changer`) und 2 Karten-Templates. Jede Zeile mit
+  `balance_source`-Kommentar.
+- `data/balance_notes.md` — Audit-Trail fuer jede Abweichung von HoMM3/HotA.
+- `scripts/core/Battle.cs` + `DeterministicRng.cs` + `MapGen.cs` —
+  deterministische, xorshift64-basierte Engine (C#, .NET 8).
+- `scripts/net/SupabaseClient.cs` + `supabase_schema.sql` —
+  Multiplayer-Schema (matches, moves, match_players) mit RLS + Client-Stub.
+- `tools/balance_sim.py` — Monte-Carlo-Simulator mit Helden, Spells, Morale.
+- `tools/map_gen.py` — Zonen-basierter Zufallskarten-Generator,
+  ASCII-Render fuer Debug, exakt spiegelgleich zu MapGen.cs.
+- `tools/play_battle.py` — CLI-Kampf mit Turn-Log.
+- `tests/` — **19 pytest-Tests**, alle gruen.
 
 Was **noch nicht** laeuft (geplant fuer Folge-Commits):
 
 - Godot-Szenen (Weltkarte, Stadt, Kampf-UI)
-- Zufallskarten-Generator (`scripts/core/MapGen.cs`)
-- Supabase-Multiplayer-Client
-- Android-Build-Pipeline
+- Android-Build-Pipeline (Signing + Play-Internal-Testing)
+- Eigentlicher Supabase-Realtime-WebSocket-Client (bisher nur REST-Stub)
 - C#-Test-Runner (bisher nur Python-Tests)
+- Artefakt-Effekte in Battle.cs (Daten da, Logik fehlt)
 
 ## Setup
 
@@ -38,9 +42,19 @@ python -m pytest game/tests/ -v
 # Balance-Simulator
 python game/tools/balance_sim.py --runs 1000 --week 4 --seed 42
 
+# Einen Kampf live anschauen
+python game/tools/play_battle.py --a menschen --b totenreich --seed 42 --verbose
+
+# Zufallskarte generieren und rendern
+python game/tools/map_gen.py --template duell_klein --seed 42 --render
+
 # Godot-Projekt (erst sinnvoll, wenn Scenes da sind)
 # 1. Godot 4.2+ mit .NET/C# Unterstuetzung installieren
 # 2. game/project.godot oeffnen
+
+# Supabase (Multiplayer): scripts/net/supabase_schema.sql im SQL-Editor
+# eines neuen Supabase-Projekts ausfuehren. SUPABASE_URL + ANON_KEY in
+# Godot-Projekt-Settings als Autoload-Variable hinterlegen.
 ```
 
 ## Design-Philosophie

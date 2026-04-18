@@ -83,11 +83,29 @@ class Unit:
 
 
 @dataclasses.dataclass
+class Hero:
+    name: str = "Held"
+    att: int = 0
+    def_: int = 0
+    spell_power: int = 1
+    knowledge: int = 1
+    morale: int = 0   # -3..+3
+    spell_points: int = 10
+    spellbook: list[str] = dataclasses.field(default_factory=list)
+
+
+@dataclasses.dataclass
 class Stack:
     unit: Unit
     count: int
     top_hp: int
     side: int
+    bless: int = 0     # Runden bless aktiv -> dmg_lo = dmg_hi
+    curse: int = 0     # Runden curse aktiv -> dmg_hi = dmg_lo
+    haste: int = 0     # Runden +3 speed
+    slow: int = 0      # Runden -3 speed
+    weakness: int = 0  # Runden -3 att
+    shield: int = 0    # Runden -15% melee dmg taken
 
     @property
     def alive(self) -> bool:
@@ -97,9 +115,21 @@ class Stack:
     def total_hp(self) -> int:
         return (self.count - 1) * self.unit.hp + self.top_hp
 
+    @property
+    def effective_speed(self) -> int:
+        return self.unit.speed + (3 if self.haste > 0 else 0) - (3 if self.slow > 0 else 0)
+
+    def decay_buffs(self) -> None:
+        for f in ("bless", "curse", "haste", "slow", "weakness", "shield"):
+            v = getattr(self, f)
+            if v > 0:
+                setattr(self, f, v - 1)
+
     def take_damage(self, dmg: int) -> None:
         if dmg <= 0:
             return
+        if self.shield > 0:
+            dmg = max(1, int(dmg * 0.85))
         total = self.total_hp - dmg
         if total <= 0:
             self.count = 0
@@ -114,10 +144,26 @@ class Stack:
 # -------- Kampf --------
 
 
-def compute_damage(attacker: Stack, target: Stack, rng: DeterministicRng) -> int:
-    base = rng.next_int(attacker.unit.dmg_lo, attacker.unit.dmg_hi)
+def compute_damage(
+    attacker: Stack,
+    target: Stack,
+    rng: DeterministicRng,
+    hero_att_bonus: int = 0,
+    hero_def_bonus: int = 0,
+) -> int:
+    # bless / curse / weakness modifizieren Wuerfelbereich und att
+    lo = attacker.unit.dmg_lo if attacker.curse <= 0 else attacker.unit.dmg_lo
+    hi = attacker.unit.dmg_hi if attacker.bless <= 0 else attacker.unit.dmg_hi
+    if attacker.bless > 0:
+        lo = hi = attacker.unit.dmg_hi
+    elif attacker.curse > 0:
+        lo = hi = attacker.unit.dmg_lo
+    base = rng.next_int(lo, hi) if lo < hi else lo
     stack_dmg = base * attacker.count
-    diff = attacker.unit.att - target.unit.def_
+
+    att = attacker.unit.att + hero_att_bonus - (3 if attacker.weakness > 0 else 0)
+    defn = target.unit.def_ + hero_def_bonus
+    diff = att - defn
     if diff > 0:
         mod = 1.0 + min(3.0, 0.05 * diff)
     elif diff < 0:
@@ -125,36 +171,154 @@ def compute_damage(attacker: Stack, target: Stack, rng: DeterministicRng) -> int
     else:
         mod = 1.0
     if "defense_ignore_40pct" in attacker.unit.abilities:
-        mod *= 1.0 + 0.4 * max(0, target.unit.def_) / max(1, attacker.unit.att)
+        mod *= 1.0 + 0.4 * max(0, defn) / max(1, att)
     if "double_attack" in attacker.unit.abilities:
         mod *= 1.5
     return max(1, int(stack_dmg * mod))
 
 
-def simulate_battle(side0: list[Stack], side1: list[Stack], rng: DeterministicRng) -> str:
+@dataclasses.dataclass
+class TurnEvent:
+    turn: int
+    actor: str
+    action: str
+
+
+SPELL_EFFECTS: dict[str, dict] = {
+    "bless":      {"target": "friendly", "duration": 3, "apply": lambda s: setattr(s, "bless", 3)},
+    "haste":      {"target": "friendly", "duration": 3, "apply": lambda s: setattr(s, "haste", 3)},
+    "shield":     {"target": "friendly", "duration": 3, "apply": lambda s: setattr(s, "shield", 3)},
+    "slow":       {"target": "enemy",    "duration": 3, "apply": lambda s: setattr(s, "slow", 3)},
+    "weakness":   {"target": "enemy",    "duration": 3, "apply": lambda s: setattr(s, "weakness", 3)},
+    "curse":      {"target": "enemy",    "duration": 3, "apply": lambda s: setattr(s, "curse", 3)},
+    "magic_arrow": {"target": "enemy",   "dmg": "10+10*power"},
+    "fire_bolt":   {"target": "enemy",   "dmg": "15+15*power"},
+    "implosion":   {"target": "enemy",   "dmg": "75+25*power", "sp_cost": 35},
+}
+
+SPELL_SP_COST = {
+    "bless": 5, "haste": 6, "shield": 5, "slow": 8, "weakness": 5, "curse": 7,
+    "magic_arrow": 5, "fire_bolt": 8, "implosion": 35,
+}
+
+
+def _eval_spell_damage(formula: str, power: int) -> int:
+    # minimaler Parser fuer Strings wie "75+25*power"
+    base, _, rest = formula.partition("+")
+    per_power, _, _ = rest.partition("*power")
+    return int(base) + int(per_power) * power
+
+
+def _pick_spell_for_hero(hero: Hero, own_stacks: list[Stack], enemy_stacks: list[Stack]) -> str | None:
+    # Greedy: wenn genug SP fuer Burst-Spell und Gegner-Stack > attacker-Stack-HP, cast.
+    # Sonst: Bless auf groessten eigenen Stack wenn noch nicht geblessed.
+    for spell in ("implosion", "fire_bolt", "magic_arrow"):
+        if spell in hero.spellbook and hero.spell_points >= SPELL_SP_COST[spell]:
+            return spell
+    for spell in ("bless", "haste"):
+        if spell in hero.spellbook and hero.spell_points >= SPELL_SP_COST[spell]:
+            if any(getattr(s, spell.split("_")[0], 0) == 0 for s in own_stacks if s.alive):
+                return spell
+    for spell in ("slow", "weakness"):
+        if spell in hero.spellbook and hero.spell_points >= SPELL_SP_COST[spell]:
+            return spell
+    return None
+
+
+def _cast_spell(spell: str, hero: Hero, own_stacks: list[Stack], enemy_stacks: list[Stack], rng: DeterministicRng, log: list[TurnEvent]) -> None:
+    cfg = SPELL_EFFECTS[spell]
+    hero.spell_points -= SPELL_SP_COST[spell]
+    if cfg.get("dmg"):
+        target = max((s for s in enemy_stacks if s.alive), key=lambda s: s.total_hp, default=None)
+        if target:
+            dmg = _eval_spell_damage(cfg["dmg"], hero.spell_power)
+            target.take_damage(dmg)
+            log.append(TurnEvent(0, hero.name, f"wirkt {spell} auf {target.unit.id} ({dmg} Schaden)"))
+    elif cfg.get("apply"):
+        pool = own_stacks if cfg["target"] == "friendly" else enemy_stacks
+        target = max((s for s in pool if s.alive), key=lambda s: s.count, default=None)
+        if target:
+            cfg["apply"](target)
+            log.append(TurnEvent(0, hero.name, f"wirkt {spell} auf {target.unit.id}"))
+
+
+def _maybe_morale_skip_or_extra(stack: Stack, hero_morale: int, rng: DeterministicRng, log: list[TurnEvent]) -> str:
+    # HoMM3-Stil: +N Morale -> N*4 Prozent Chance Extra-Zug. -N -> N*3 Prozent Skip.
+    if "undead" in stack.unit.abilities:
+        return "normal"
+    m = hero_morale
+    if m > 0 and rng.next_double() < m * 0.04:
+        log.append(TurnEvent(0, stack.unit.id, "hohe Moral! zusaetzlicher Zug"))
+        return "extra"
+    if m < 0 and rng.next_double() < abs(m) * 0.03:
+        log.append(TurnEvent(0, stack.unit.id, "schlechte Moral! Zug ausgelassen"))
+        return "skip"
+    return "normal"
+
+
+def simulate_battle(
+    side0: list[Stack],
+    side1: list[Stack],
+    rng: DeterministicRng,
+    hero0: Hero | None = None,
+    hero1: Hero | None = None,
+    log: list[TurnEvent] | None = None,
+) -> str:
     if not side0 or not side1:
         return "draw"
-    for _turn in range(100):
+    hero0 = hero0 or Hero()
+    hero1 = hero1 or Hero()
+    _log = log if log is not None else []
+
+    for turn in range(1, 101):
+        # Helden-Spellphase (1x pro Runde, zuerst der schnellere Held)
+        for side, hero, own, enemy in [
+            (0, hero0, side0, side1), (1, hero1, side1, side0),
+        ]:
+            spell = _pick_spell_for_hero(hero, own, enemy)
+            if spell:
+                _cast_spell(spell, hero, own, enemy, rng, _log)
+
         order = sorted(
             (s for s in side0 + side1 if s.alive),
-            key=lambda s: (-s.unit.speed, -s.count),
+            key=lambda s: (-s.effective_speed, -s.count),
         )
+
         for attacker in order:
             if not attacker.alive:
                 continue
-            pool = side1 if attacker.side == 0 else side0
-            alive_targets = [s for s in pool if s.alive]
-            if not alive_targets:
-                break
-            target = max(
-                alive_targets,
-                key=lambda t: (t.unit.dmg_lo + t.unit.dmg_hi) * t.count / max(1, attacker.total_hp),
+            morale_state = _maybe_morale_skip_or_extra(
+                attacker, hero0.morale if attacker.side == 0 else hero1.morale, rng, _log,
             )
-            dmg = compute_damage(attacker, target, rng)
-            target.take_damage(dmg)
-            if "no_retaliation" not in target.unit.abilities and target.alive:
-                retal = compute_damage(target, attacker, rng) // 2
-                attacker.take_damage(retal)
+            if morale_state == "skip":
+                continue
+            actions = 2 if morale_state == "extra" else 1
+
+            for _ in range(actions):
+                if not attacker.alive:
+                    break
+                pool = side1 if attacker.side == 0 else side0
+                alive_targets = [s for s in pool if s.alive]
+                if not alive_targets:
+                    break
+                target = max(
+                    alive_targets,
+                    key=lambda t: (t.unit.dmg_lo + t.unit.dmg_hi) * t.count / max(1, attacker.total_hp),
+                )
+                h_att = (hero0 if attacker.side == 0 else hero1).att
+                h_def = (hero1 if attacker.side == 0 else hero0).def_
+                dmg = compute_damage(attacker, target, rng, h_att, h_def)
+                target.take_damage(dmg)
+                _log.append(TurnEvent(turn, attacker.unit.id, f"-> {target.unit.id}: {dmg} dmg"))
+                if "no_retaliation" not in target.unit.abilities and target.alive:
+                    th_att = (hero1 if attacker.side == 0 else hero0).att
+                    th_def = (hero0 if attacker.side == 0 else hero1).def_
+                    retal = compute_damage(target, attacker, rng, th_att, th_def) // 2
+                    attacker.take_damage(retal)
+
+        for s in side0 + side1:
+            s.decay_buffs()
+
         s0 = any(s.alive for s in side0)
         s1 = any(s.alive for s in side1)
         if not s0 and not s1:

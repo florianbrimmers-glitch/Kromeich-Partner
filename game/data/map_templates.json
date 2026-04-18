@@ -1,0 +1,47 @@
+{
+  "$schema_version": 1,
+  "$notes": "Templates fuer den Zufallskarten-Generator. Angelehnt an HotA RMG. Jedes Template definiert Zonen, Verbindungen und Ressourcen-Dichte.",
+  "templates": [
+    {
+      "id": "duell_klein",
+      "display_name": "Duell (klein, 2 Spieler)",
+      "size": [24, 24],
+      "players": 2,
+      "water_pct": 0,
+      "richness": "normal",
+      "zones": [
+        { "id": "p1_home",   "kind": "player_start", "owner": 0, "center": [4, 4],   "radius": 5 },
+        { "id": "p2_home",   "kind": "player_start", "owner": 1, "center": [19, 19], "radius": 5 },
+        { "id": "neutral_a", "kind": "neutral_rich", "center": [4, 19],  "radius": 4 },
+        { "id": "neutral_b", "kind": "neutral_rich", "center": [19, 4],  "radius": 4 }
+      ],
+      "connections": [
+        ["p1_home", "neutral_a"],
+        ["p1_home", "neutral_b"],
+        ["p2_home", "neutral_a"],
+        ["p2_home", "neutral_b"],
+        ["neutral_a", "neutral_b"]
+      ]
+    },
+    {
+      "id": "familie_mittel",
+      "display_name": "Familien-Match (mittel, 3 Spieler)",
+      "size": [36, 36],
+      "players": 3,
+      "water_pct": 10,
+      "richness": "rich",
+      "zones": [
+        { "id": "p1_home", "kind": "player_start", "owner": 0, "center": [6, 6],   "radius": 6 },
+        { "id": "p2_home", "kind": "player_start", "owner": 1, "center": [30, 6],  "radius": 6 },
+        { "id": "p3_home", "kind": "player_start", "owner": 2, "center": [18, 30], "radius": 6 },
+        { "id": "center",  "kind": "neutral_rich", "center": [18, 18], "radius": 6 }
+      ],
+      "connections": [
+        ["p1_home", "center"],
+        ["p2_home", "center"],
+        ["p3_home", "center"],
+        ["p1_home", "p2_home"]
+      ]
+    }
+  ]
+}
