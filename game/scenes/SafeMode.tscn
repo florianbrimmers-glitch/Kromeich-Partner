@@ -1,6 +1,7 @@
-[gd_scene load_steps=2 format=3]
+[gd_scene load_steps=3 format=3]
 
 [ext_resource type="Script" path="res://scripts/ui/SafeMode.gd" id="1_safe"]
+[ext_resource type="Script" path="res://scripts/ui/CSharpProbe.cs" id="2_cs"]
 
 [node name="SafeMode" type="Control"]
 layout_mode = 3
@@ -28,3 +29,19 @@ offset_bottom = -48.0
 theme_override_font_sizes/font_size = 40
 text = "Kromeich Heroes Safe Mode"
 autowrap_mode = 3
+
+[node name="CSharpStatusLabel" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -800.0
+offset_top = 48.0
+offset_right = -48.0
+offset_bottom = 108.0
+theme_override_font_sizes/font_size = 32
+text = "C# Probe: NICHT geladen (crasht?)"
+autowrap_mode = 3
+
+[node name="CSharpProbe" type="Node" parent="."]
+script = ExtResource("2_cs")
