@@ -45,8 +45,8 @@ func _ready() -> void:
 	_set_status("STEP 2: Buttons verdrahtet")
 	_start_battle(_seed)
 
-func _start_battle(seed: int) -> void:
-	_set_status("STEP 3: start_battle seed=%d" % seed)
+func _start_battle(start_seed: int) -> void:
+	_set_status("STEP 3: start_battle seed=%d" % start_seed)
 	_event_index = 0
 	_accum = 0.0
 	_clear_children(get_node(side0_container_path))
@@ -93,14 +93,19 @@ func _start_battle(seed: int) -> void:
 	_build_stack_row(_side0, get_node(side0_container_path))
 	_build_stack_row(_side1, get_node(side1_container_path))
 
-	_set_status("STEP 8: simuliere")
+	_set_status("STEP 8a: clone_stacks side0")
 	var sim0 := _clone_stacks(_side0, 0)
+	_set_status("STEP 8b: clone_stacks side1")
 	var sim1 := _clone_stacks(_side1, 1)
-	var result := Battle.simulate(sim0, sim1, DeterministicRng.new(seed))
+	_set_status("STEP 8c: rng init")
+	var rng := DeterministicRng.new(start_seed)
+	_set_status("STEP 8d: simulate")
+	var result := Battle.simulate(sim0, sim1, rng)
+	_set_status("STEP 8e: events=%d" % int((result["events"] as Array).size()))
 	_events = result["events"]
 
 	_set_status("Seed %d  |  Runden %d  |  %s  |  Events %d" % [
-		seed, result["turns"], _outcome_label(result["outcome"]), _events.size()
+		start_seed, result["turns"], _outcome_label(result["outcome"]), _events.size()
 	])
 
 func _process(delta: float) -> void:
