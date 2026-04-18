@@ -133,7 +133,7 @@ jobs:
         working-directory: game
         timeout-minutes: 3
         run: |
-          # Godot 4.2 --install-android-build-template haengt im headless-
+          # Godot 4.x --install-android-build-template haengt im headless-
           # Modus (bekannter Bug). Workaround: das android_source.zip aus
           # den Export-Templates selbst nach android/build/ entpacken - das
           # ist exakt, was der Command sonst macht.
@@ -144,7 +144,12 @@ jobs:
           # .gdignore markiert den Ordner als nicht-import-bar fuer Godot,
           # sonst versucht der Editor die Gradle-Quellen als Assets zu importieren.
           touch android/build/.gdignore
-          ls -la android/build/ | head -20
+          # .build_version enthaelt VERSION_FULL_CONFIG (z.B. 4.3.stable.mono).
+          # Ohne diese Datei bricht der Export mit "no version info for it exists" ab.
+          # Godot's --install-android-build-template schreibt sie normalerweise selbst.
+          echo "${GODOT_VERSION}.${GODOT_STATUS}.mono" > android/.build_version
+          ls -la android/build/ | head -10
+          cat android/.build_version
 
       - name: Export Android APK
         working-directory: game
