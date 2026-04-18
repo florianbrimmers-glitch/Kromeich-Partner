@@ -1,0 +1,104 @@
+name: Android APK Build
+
+# Manuelle Trigger only: bis Main.tscn voll funktionsfaehig ist, wird dieser
+# Workflow nicht bei jedem Push ausgefuehrt. Aufrufbar ueber die GitHub-UI
+# "Run workflow" oder via API.
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'debug oder release'
+        required: true
+        default: 'debug'
+        type: choice
+        options:
+          - debug
+          - release
+
+env:
+  GODOT_VERSION: 4.2.2
+  GODOT_STATUS: stable
+
+jobs:
+  android-apk:
+    name: Godot -> APK (arm64-v8a)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: 11076708
+
+      - name: Install Android build tools
+        run: |
+          sdkmanager --install "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Download Godot headless (Mono)
+        run: |
+          curl -L -o godot.zip \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-${GODOT_STATUS}/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_mono_linux_x86_64.zip"
+          unzip -q godot.zip
+          mv "Godot_v${GODOT_VERSION}-${GODOT_STATUS}_mono_linux_x86_64" godot-mono
+          ln -s "godot-mono/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_mono_linux.x86_64" godot
+
+      - name: Download Godot export templates (Mono)
+        run: |
+          curl -L -o templates.zip \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-${GODOT_STATUS}/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_mono_export_templates.tpz"
+          mkdir -p ~/.local/share/godot/export_templates
+          unzip -q templates.zip -d ./templates-extracted
+          mv ./templates-extracted/templates ~/.local/share/godot/export_templates/${GODOT_VERSION}.${GODOT_STATUS}.mono
+
+      - name: Configure Godot Editor settings for Android
+        run: |
+          mkdir -p ~/.config/godot
+          cat > ~/.config/godot/editor_settings-4.tres <<'EOF'
+          [gd_resource type="EditorSettings" format=3]
+          [resource]
+          export/android/android_sdk_path = "/usr/local/lib/android/sdk"
+          export/android/java_sdk_path = "/opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.10-7/x64"
+          export/android/debug_keystore = ""
+          export/android/debug_keystore_user = ""
+          export/android/debug_keystore_pass = ""
+          EOF
+
+      - name: Import project (headless)
+        working-directory: game
+        run: |
+          ../godot --headless --import || true
+          ../godot --headless --import
+
+      - name: Build C# solution
+        working-directory: game
+        run: ../godot --headless --build-solutions --quit || true
+
+      - name: Export Android APK
+        working-directory: game
+        run: |
+          mkdir -p build
+          if [ "${{ github.event.inputs.build_type }}" = "release" ]; then
+            ../godot --headless --export-release "Android" build/KromeichHeroes.apk
+          else
+            ../godot --headless --export-debug "Android" build/KromeichHeroes.apk
+          fi
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: KromeichHeroes-${{ github.event.inputs.build_type }}-${{ github.sha }}
+          path: game/build/*.apk
+          retention-days: 14

@@ -16,10 +16,10 @@
     },
     {
       "id": "men_archer",         "faction": "menschen", "tier": 2,
-      "stats": { "att": 6, "def": 3, "hp": 10, "dmg": [2,3], "speed": 4, "shots": 12 },
+      "stats": { "att": 6, "def": 3, "hp": 10, "dmg": [2,3], "speed": 4, "shots": 11 },
       "cost": { "gold": 100 }, "weekly_growth": 14,
       "abilities": ["ranged", "melee_penalty_half"],
-      "balance_source": "Marksman-nahe Werte; nur halber Melee-Malus (Equilibris entfernte Malus teils ganz; wir bleiben konservativ)."
+      "balance_source": "Marksman-nahe Werte; Pass 8b: shots 11 (zwischen 12 und 10)."
     },
     {
       "id": "men_griffin",        "faction": "menschen", "tier": 3,
@@ -51,10 +51,10 @@
     },
     {
       "id": "men_angel",          "faction": "menschen", "tier": 7,
-      "stats": { "att": 22, "def": 22, "hp": 208, "dmg": [34,47], "speed": 10, "shots": 0 },
+      "stats": { "att": 22, "def": 22, "hp": 200, "dmg": [32,46], "speed": 9, "shots": 0 },
       "cost": { "gold": 3500, "gems": 1 }, "weekly_growth": 1,
       "abilities": ["flying", "hates:necro_tier7", "morale_aura"],
-      "balance_source": "Angel. Pass 7: HP 208, dmg 34-47 (zwischen Pass5 210 und Pass6 205; Pass6 war zu schwach)."
+      "balance_source": "Angel. Pass 8b: att 22 zurueck, speed 9, HP 200, dmg 32-46. T7-Parity mit Bonedragon/Goldwyrm."
     },
 
     {
@@ -94,17 +94,17 @@
     },
     {
       "id": "elf_treefather",     "faction": "waldvolk", "tier": 6,
-      "stats": { "att": 18, "def": 18, "hp": 165, "dmg": [31,41], "speed": 5, "shots": 0 },
+      "stats": { "att": 18, "def": 17, "hp": 158, "dmg": [29,39], "speed": 5, "shots": 0 },
       "cost": { "gold": 2000, "crystal": 1 }, "weekly_growth": 1,
       "abilities": ["regeneration_per_turn"],
-      "balance_source": "Treefather. Pass 6: HP 165 (175 zu stark), def 18, dmg 31-41."
+      "balance_source": "Treefather. Pass 8 (final): HP 158, def 17, dmg 29-39."
     },
     {
       "id": "elf_goldwyrm",       "faction": "waldvolk", "tier": 7,
-      "stats": { "att": 25, "def": 22, "hp": 205, "dmg": [35,50], "speed": 9, "shots": 0 },
-      "cost": { "gold": 4000, "crystal": 1 }, "weekly_growth": 1,
+      "stats": { "att": 24, "def": 22, "hp": 205, "dmg": [34,48], "speed": 9, "shots": 0 },
+      "cost": { "gold": 3800, "crystal": 1 }, "weekly_growth": 1,
       "abilities": ["flying", "spell_immune_1_to_3"],
-      "balance_source": "Gold Dragon. Pass 6: HP 205 (215 dominierte, 200 unterlegen), att 25, def 22, dmg 35-50."
+      "balance_source": "Gold Dragon. Pass 8e: HP 200->205, att 23->24, dmg 33-47->34-48 (W6 Ork dominiert zu stark bei 8d)."
     },
 
     {
@@ -151,10 +151,10 @@
     },
     {
       "id": "nec_bonedragon",     "faction": "totenreich", "tier": 7,
-      "stats": { "att": 22, "def": 22, "hp": 192, "dmg": [31,45], "speed": 9, "shots": 0 },
+      "stats": { "att": 22, "def": 22, "hp": 200, "dmg": [32,46], "speed": 9, "shots": 0 },
       "cost": { "gold": 3000, "sulfur": 1 }, "weekly_growth": 1,
       "abilities": ["undead", "flying", "aging_on_hit_10pct"],
-      "balance_source": "Ghost Dragon. Pass 7 (final): HP 192, dmg 31-45. Balance-Toleranz fuer MVP 35-65 Prozent akzeptiert."
+      "balance_source": "Ghost Dragon. Pass 8: HP 192->200, dmg 31-45->32-46 (gleichstand mit nerfed Angel)."
     },
 
     {
@@ -204,7 +204,7 @@
       "stats": { "att": 22, "def": 20, "hp": 185, "dmg": [30,46], "speed": 7, "shots": 0 },
       "cost": { "gold": 3000, "sulfur": 1 }, "weekly_growth": 1,
       "abilities": ["defense_ignore_25pct"],
-      "balance_source": "Ancient Behemoth. Pass 7 (final): HP 185, def 20, dmg 30-46."
+      "balance_source": "Ancient Behemoth. Pass 8c: zurueck auf HP 185, att 22, dmg 30-46 (8b zu stark vs Wald/Tot)."
     }
   ]
 }

@@ -2,7 +2,9 @@
 .godot/
 .import/
 export.cfg
-export_presets.cfg
+# export_presets.cfg enthaelt Android-Build-Konfig (ohne Secrets) und
+# wird versioniert. Lokale Keystore-Pfade sollten ueber Umgebungsvariablen
+# in GitHub Actions kommen.
 
 # .NET / C#
 bin/

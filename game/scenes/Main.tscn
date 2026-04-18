@@ -1,0 +1,71 @@
+[gd_scene load_steps=2 format=3 uid="uid://dhmkrhheroes01"]
+
+[sub_resource type="LabelSettings" id="LabelSettings_title"]
+font_size = 64
+
+[node name="Main" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.0666667, 0.0784314, 0.109804, 1)
+
+[node name="Title" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -400.0
+offset_top = 240.0
+offset_right = 400.0
+offset_bottom = 340.0
+grow_horizontal = 2
+text = "Kromeich Heroes"
+label_settings = SubResource("LabelSettings_title")
+horizontal_alignment = 1
+
+[node name="Subtitle" type="Label" parent="."]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -400.0
+offset_top = 360.0
+offset_right = 400.0
+offset_bottom = 420.0
+grow_horizontal = 2
+text = "MVP Skeleton - Battle Engine ready"
+horizontal_alignment = 1
+
+[node name="NewGameBtn" type="Button" parent="."]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -200.0
+offset_top = 900.0
+offset_right = 200.0
+offset_bottom = 980.0
+grow_horizontal = 2
+text = "Neues Spiel"
+
+[node name="ContinueBtn" type="Button" parent="."]
+layout_mode = 1
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -200.0
+offset_top = 1000.0
+offset_right = 200.0
+offset_bottom = 1080.0
+grow_horizontal = 2
+text = "Fortsetzen"
+disabled = true

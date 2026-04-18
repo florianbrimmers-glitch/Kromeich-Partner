@@ -111,3 +111,31 @@ bei stricter Toleranz (45-55 Prozent) sind aktuell 2/6 im Rahmen.
 Post-MVP-Plan: Sim-Runs pro Matchup auf 2000 hochdrehen, mit
 mehreren Seeds testen, und dann T6/T7-Stats in 1er-Schritten
 feinjustieren. Auch Hero-Skill-Trees werden Balance beeinflussen.
+
+## Balance-Tuning Pass 8 (Robust-Metrik: 5 Seeds x 3 Wochen)
+
+In Pass 7 war der Sim Single-Seed/Single-Week; viele Tunings waren nicht
+reproduzierbar. Neue Robust-Metrik (`--robust`) aggregiert ueber Wochen
+2/4/6 und 5 Seeds.
+
+Pass-8-Befunde:
+- Week-Skalierung ist ein eigenes Problem: W2 und W6 zeigen oft
+  diametrale Matchups. Goldwyrm+Treefather (beide crystal-kostenpflichtig)
+  werden bei W6 zu stark.
+- T7-Parity (alle Drachen speed 9, HP 200, att 22-24, dmg 32-48) war
+  kritischer Sanierungsschritt.
+- Angel Speed 10 -> 9 (gleich mit anderen Drachen) bremst Men-Dominanz.
+
+**Final Pass 8** (Robust-Metrik, 500 Runs, 5 Seeds, Wochen 2/4/6):
+| Matchup | Mean | Status |
+|---|---|---|
+| Men vs Ork | 45.7 Prozent | [OK] |
+| Men vs Tot | 46.9 Prozent | [OK] |
+| Men vs Wald | 46.9 Prozent | [OK] |
+| Ork vs Tot | 46.9 Prozent | [OK] |
+| Ork vs Wald | 64.9 Prozent | [!!] |
+| Tot vs Wald | 66.5 Prozent | [!!] |
+
+4/6 im Zielband 45-55 Prozent. Wald-Matchups mit Orks/Tot bleiben
+systemisch zu hoch; Fix kommt mit HoMM3-Terrain-Modifiern und
+Hero-Skills (beide noch nicht in Sim).

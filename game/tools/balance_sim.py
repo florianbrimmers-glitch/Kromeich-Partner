@@ -411,12 +411,59 @@ def run_matchup(
     }
 
 
+def run_robust_matchup(
+    units_by_faction: dict[str, list[Unit]],
+    a: str,
+    b: str,
+    runs_per_seed: int,
+    weeks: list[int],
+    seeds: list[int],
+) -> dict:
+    """Aggregiert Winrates ueber mehrere Seeds UND mehrere Wochen.
+
+    Ergebnis zeigt Mittelwert plus Spannweite (min/max), damit wir
+    sehen ob ein Matchup seed-sensitiv ist.
+    """
+    per_week: dict[int, list[float]] = {w: [] for w in weeks}
+    for week in weeks:
+        for seed in seeds:
+            wins_a = wins_b = draws = 0
+            for i in range(runs_per_seed):
+                rng = DeterministicRng(seed + i)
+                side0 = build_army(units_by_faction[a], week, side=0)
+                side1 = build_army(units_by_faction[b], week, side=1)
+                out = simulate_battle(side0, side1, rng)
+                if out == "side0":
+                    wins_a += 1
+                elif out == "side1":
+                    wins_b += 1
+                else:
+                    draws += 1
+            total = max(1, runs_per_seed - draws)
+            per_week[week].append(wins_a / total)
+    all_rates = [r for rates in per_week.values() for r in rates]
+    return {
+        "a": a, "b": b,
+        "winrate_a_mean": sum(all_rates) / len(all_rates),
+        "winrate_a_min":  min(all_rates),
+        "winrate_a_max":  max(all_rates),
+        "per_week_mean": {w: sum(rs) / len(rs) for w, rs in per_week.items()},
+        "seeds": seeds,
+        "weeks": weeks,
+        "runs_per_seed": runs_per_seed,
+    }
+
+
 def main(argv: Iterable[str] | None = None) -> int:
     p = argparse.ArgumentParser(description="Balance-Simulator")
     p.add_argument("--matchups", default="all", help="'all' oder 'fac_a:fac_b'")
     p.add_argument("--runs", type=int, default=1000)
     p.add_argument("--week", type=int, default=4)
     p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--robust", action="store_true",
+                   help="Multi-Seed (10) und Multi-Woche (2,4,6) Aggregation")
+    p.add_argument("--weeks", default="2,4,6", help="Komma-Liste fuer --robust")
+    p.add_argument("--seeds", type=int, default=10, help="Anzahl Seeds fuer --robust")
     p.add_argument("--json", action="store_true", help="Maschinenlesbare Ausgabe")
     args = p.parse_args(argv)
 
@@ -434,6 +481,31 @@ def main(argv: Iterable[str] | None = None) -> int:
     else:
         a, b = args.matchups.split(":")
         pairs.append((a.strip(), b.strip()))
+
+    if args.robust:
+        weeks = [int(w) for w in args.weeks.split(",")]
+        seeds = [args.seed + 1000 * k for k in range(args.seeds)]
+        runs_per_seed = max(1, args.runs // args.seeds)
+        results = [
+            run_robust_matchup(factions, a, b, runs_per_seed, weeks, seeds)
+            for a, b in pairs
+        ]
+        if args.json:
+            json.dump(results, sys.stdout, indent=2)
+            print()
+        else:
+            print(f"Balance-Simulator ROBUST  |  Wochen {weeks}  |  {args.seeds} Seeds x {runs_per_seed} Runs")
+            print("-" * 80)
+            for r in results:
+                mean = r["winrate_a_mean"] * 100
+                lo = r["winrate_a_min"] * 100
+                hi = r["winrate_a_max"] * 100
+                flag = "OK" if 45 <= mean <= 55 else ("ok" if 40 <= mean <= 60 else "!!")
+                pw = " ".join(f"W{w}={v*100:.0f}" for w, v in r["per_week_mean"].items())
+                print(f"[{flag}] {r['a']:12} vs {r['b']:12}  mean {mean:5.1f}  (range {lo:4.0f}-{hi:4.0f})  {pw}")
+            print("-" * 80)
+            print("Ziel: mean 45-55 Prozent (OK). 40-60 Prozent = akzeptabel (ok). Sonst '!!'.")
+        return 0
 
     results = [run_matchup(factions, a, b, args.runs, args.week, args.seed) for a, b in pairs]
 
