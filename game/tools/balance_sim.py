@@ -63,6 +63,8 @@ class Unit:
     speed: int
     shots: int
     abilities: list[str]
+    cost: dict[str, int]
+    weekly_growth: int = 0
 
     @classmethod
     def from_json(cls, obj: dict) -> "Unit":
@@ -79,6 +81,8 @@ class Unit:
             speed=s["speed"],
             shots=s.get("shots", 0),
             abilities=obj.get("abilities", []),
+            cost=dict(obj.get("cost", {"gold": 100})),
+            weekly_growth=obj.get("weekly_growth", 1),
         )
 
 
@@ -170,7 +174,9 @@ def compute_damage(
         mod = max(0.3, 1.0 + 0.025 * diff)
     else:
         mod = 1.0
-    if "defense_ignore_40pct" in attacker.unit.abilities:
+    if "defense_ignore_25pct" in attacker.unit.abilities:
+        mod *= 1.0 + 0.25 * max(0, defn) / max(1, att)
+    elif "defense_ignore_40pct" in attacker.unit.abilities:
         mod *= 1.0 + 0.4 * max(0, defn) / max(1, att)
     if "double_attack" in attacker.unit.abilities:
         mod *= 1.5
@@ -332,23 +338,36 @@ def simulate_battle(
 
 # -------- Armee-Bau: Wochen-basiert --------
 
-WEEKLY_GROWTH_DEFAULTS = {1: 22, 2: 12, 3: 7, 4: 4, 5: 3, 6: 2, 7: 1}
-
-
 def build_army(units_of_faction: list[Unit], week: int, side: int, start_gold: int = 10000) -> list[Stack]:
-    # Einfacher Ansatz: kauft von T7 abwaerts, solange Gold reicht;
-    # Anzahl = weekly_growth * (week Wochen), keine Upgrades.
+    """Baut eine Test-Armee gemaess wirklichen Unit-Kosten.
+
+    Budget: start_gold + 2500*(week-1). Sekundaer-Ressourcen bewusst knapp
+    gehalten (crystal/gems/sulfur/mercury je 4 + week-1), damit T7-spam
+    limitiert ist wie im Original.
+    """
     by_tier = sorted(units_of_faction, key=lambda u: -u.tier)
-    gold = start_gold + 2000 * (week - 1)
+    purse = {
+        "gold":    start_gold + 2500 * (week - 1),
+        "wood":    10 + 3 * (week - 1),
+        "ore":     10 + 3 * (week - 1),
+        "mercury": 4 + (week - 1),
+        "sulfur":  4 + (week - 1),
+        "crystal": 4 + (week - 1),
+        "gems":    4 + (week - 1),
+    }
     stacks: list[Stack] = []
     for u in by_tier:
-        available = WEEKLY_GROWTH_DEFAULTS.get(u.tier, 1) * week
-        cost_guess = {1: 60, 2: 120, 3: 250, 4: 500, 5: 800, 6: 1500, 7: 3000}.get(u.tier, 500)
-        buyable = min(available, gold // max(1, cost_guess))
-        if buyable <= 0:
+        available = u.weekly_growth * week
+        # Wie viele sind mit Gold und allen Nebenressourcen kaufbar?
+        max_buy = available
+        for res, cost in u.cost.items():
+            if cost > 0:
+                max_buy = min(max_buy, purse.get(res, 0) // cost)
+        if max_buy <= 0:
             continue
-        gold -= buyable * cost_guess
-        stacks.append(Stack(unit=u, count=buyable, top_hp=u.hp, side=side))
+        for res, cost in u.cost.items():
+            purse[res] = purse.get(res, 0) - cost * max_buy
+        stacks.append(Stack(unit=u, count=max_buy, top_hp=u.hp, side=side))
     return stacks
 
 

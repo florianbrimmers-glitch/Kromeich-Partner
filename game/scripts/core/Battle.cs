@@ -139,7 +139,9 @@ public sealed class BattleEngine
         else if (attDiff < 0)
             mod *= System.Math.Max(0.3, 1.0 + 0.025 * attDiff);
 
-        if (attacker.HasAbility("defense_ignore_40pct"))
+        if (attacker.HasAbility("defense_ignore_25pct"))
+            mod *= 1.0 + 0.25 * System.Math.Max(0, target.EffectiveDef) / System.Math.Max(1, attacker.EffectiveAtt);
+        else if (attacker.HasAbility("defense_ignore_40pct"))
             mod *= 1.0 + 0.4 * System.Math.Max(0, target.EffectiveDef) / System.Math.Max(1, attacker.EffectiveAtt);
         if (attacker.HasAbility("double_attack"))
             mod *= 1.5;

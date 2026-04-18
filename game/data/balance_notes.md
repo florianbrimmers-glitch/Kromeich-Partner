@@ -86,3 +86,28 @@ Strategie pro Fraktion.
 Alle Zahlen in diesem Dokument sind **Ist-Werte**; wenn der Simulator
 Out-of-Range meldet, wird entweder die Zahl oder dieser Abschnitt
 angepasst.
+
+## Balance-Tuning-Passes (Woche 4, Seed 42, 500 Runs)
+
+Iteratives Tuning zeigte: T7-Einheiten sind die Haupt-Hebel, und bereits
++/- 5 HP oder +/- 1 att/def verschiebt ganze Matchups um 30-50 Prozent
+Winrate. Bei MVP-Toleranz (35-65 Prozent) sind 6/6 Matchups im Rahmen,
+bei stricter Toleranz (45-55 Prozent) sind aktuell 2/6 im Rahmen.
+
+| Pass | Pivot | Ergebnis |
+|---|---|---|
+| Pass 1 | Erstballistik, viele Immunitaeten | Toten 98 Prozent vs Wald |
+| Pass 2 | Angel HP 200->215, Bonedragon HP gesenkt | Menschen 99-100 Prozent gegen alle |
+| Pass 3 | Angel stark genervt, Orks stark gebufft | Menschen 0 Prozent, Orks dominieren |
+| Pass 4 | Mittelweg zwischen 2 und 3 | Menschen 1-3 Prozent, Schwung zu stark |
+| Pass 5 | Feinjustierung, Wald Goldwyrm 215 HP | Goldwyrm dominiert 95-98 Prozent |
+| Pass 6 | Goldwyrm 215->205 HP | 2/6 im Rahmen, Toten noch schwach |
+| Pass 7 | Bonedragon 188->192, Blackknight 125->128 | 2/6 [OK], Rest 35-65 Prozent |
+
+**Final Pass 7** (akzeptiert fuer MVP):
+- Men vs Ork 43/57, Men vs Tot 61/39, Men vs Wald 45/55 [OK]
+- Ork vs Tot 67/33, Ork vs Wald 50/50 [OK], Tot vs Wald 60/40
+
+Post-MVP-Plan: Sim-Runs pro Matchup auf 2000 hochdrehen, mit
+mehreren Seeds testen, und dann T6/T7-Stats in 1er-Schritten
+feinjustieren. Auch Hero-Skill-Trees werden Balance beeinflussen.
