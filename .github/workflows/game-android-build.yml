@@ -130,14 +130,19 @@ jobs:
 
       - name: Install Android build template (Custom Build, benoetigt fuer C#)
         working-directory: game
+        timeout-minutes: 5
         run: |
           # C# auf Android braucht den Gradle-Custom-Build (install-android-build-template
           # entpackt Android-Projekt-Skelett nach android/build/).
+          # Timeout 5 Min: normal <1 Min. Wenn Godot headless haengt, wollen
+          # wir sauber failen und das godot-logs-Artefakt kriegen, nicht
+          # das CI-Default-6h-Timeout ausnutzen.
           ../godot --headless --install-android-build-template || true
           ../godot --headless --install-android-build-template
 
       - name: Export Android APK
         working-directory: game
+        timeout-minutes: 15
         env:
           # Auf push-Events ist inputs.build_type leer -> default debug.
           BUILD_TYPE: ${{ github.event.inputs.build_type || 'debug' }}
