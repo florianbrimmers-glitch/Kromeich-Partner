@@ -7,6 +7,7 @@ name: Android APK Build
 # - push: bei jedem Push auf die aktive Feature-Branch, begrenzt auf
 #   aenderungen im game/ Verzeichnis oder am Workflow selbst, damit
 #   nicht jeder Kontakt-Import-Commit den Android-Build kostet.
+# (retrigger marker)
 on:
   workflow_dispatch:
     inputs:
