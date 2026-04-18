@@ -27,10 +27,10 @@ on:
       - '.github/workflows/game-android-build.yml'
 
 env:
-  # Godot 4.4.1 statt 4.3: offizielle Stabilitaet fuer .NET auf Android,
-  # inkl. 16KB-Page-Size-Fix fuer Android 15 auf Samsung S25-Series.
-  # 4.3 crasht beim .NET-Runtime-Laden auf SM-S938B (bestaetigt 2026-04).
-  GODOT_VERSION: 4.4.1
+  # Godot 4.5 statt 4.4.1: auch 4.4.1 crasht beim .NET-Laden auf SM-S938B
+  # (Snapdragon 8 Elite / Android 15). 4.5 hat Oct 2025 weitere Android-
+  # C#-Fixes bekommen (u.a. 16KB-Pages, MonoVM-Updates).
+  GODOT_VERSION: 4.5
   GODOT_STATUS: stable
 
 jobs:

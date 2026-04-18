@@ -12,7 +12,7 @@ config/description="Rundenbasiertes HoMM3-inspiriertes Handyspiel. Async-Multipl
 ; Szene startet, wissen wir: nur C# ist das Problem, Godot selbst laeuft.
 ; Zurueck auf Main.tscn, sobald die Diagnose durch ist.
 run/main_scene="res://scenes/SafeMode.tscn"
-config/features=PackedStringArray("4.4", "C#", "Mobile")
+config/features=PackedStringArray("4.5", "C#", "Mobile")
 config/icon="res://assets/icon.svg"
 
 [dotnet]
