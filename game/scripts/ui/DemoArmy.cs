@@ -35,7 +35,8 @@ public static class DemoArmy
 
     private static Dictionary<string, UnitData> LoadUnits()
     {
-        using var f = FileAccess.Open(UnitsPath, FileAccess.ModeFlags.Read);
+        // Fully-qualified, weil System.IO.FileAccess via ImplicitUsings sichtbar ist.
+        using var f = Godot.FileAccess.Open(UnitsPath, Godot.FileAccess.ModeFlags.Read);
         if (f == null)
             throw new System.IO.FileNotFoundException($"units.json nicht gefunden: {UnitsPath}");
         var json = f.GetAsText();
