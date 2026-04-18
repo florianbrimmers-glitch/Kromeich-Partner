@@ -1,0 +1,106 @@
+{
+  "$schema_version": 1,
+  "$notes": "20 Artefakte fuer MVP. 8 davon als 'game_changer' markiert: ermoeglichen Builds, die sonst nicht spielbar waeren. Tags steuern Balance-Simulator.",
+  "slots": ["head", "neck", "torso", "feet", "weapon", "shield", "ring_1", "ring_2", "misc_1", "misc_2"],
+  "artifacts": [
+    { "id": "ring_of_wisdom", "slot": "ring_1", "tier": "minor",
+      "effects": { "spell_power": 2 },
+      "tags": [], "game_changer": false,
+      "balance_source": "HoMM3 Baseline; Tier-Minor-Drop." },
+
+    { "id": "boots_of_speed", "slot": "feet", "tier": "minor",
+      "effects": { "hero_move": 400 },
+      "tags": [], "game_changer": false,
+      "balance_source": "HoMM3 Boots of Speed." },
+
+    { "id": "amulet_of_nobility", "slot": "neck", "tier": "minor",
+      "effects": { "income_gold_per_day": 250 },
+      "tags": [], "game_changer": false,
+      "balance_source": "HoMM3 Endless Bag of Gold analog, abgeschwaecht." },
+
+    { "id": "cloak_of_shadows", "slot": "torso", "tier": "major",
+      "effects": { "stealth_on_adventure": true },
+      "tags": ["scout_build"], "game_changer": false,
+      "balance_source": "Neu. Kein HoMM3-Aequivalent, aber analog HoMM4 Rogue-Skill." },
+
+    { "id": "blade_of_dragonslaying", "slot": "weapon", "tier": "major",
+      "effects": { "dmg_vs_dragon": 2.0 },
+      "tags": ["counter:dragon"], "game_changer": false,
+      "balance_source": "HoMM3 Dragon Slayer. Faktor 2x (HoMM3: +50 Prozent); Sim zeigte zu schwach." },
+
+    { "id": "crown_of_elements", "slot": "head", "tier": "major",
+      "effects": { "unlock_fourth_school_expert": true },
+      "tags": ["build:magic_versatile"], "game_changer": true,
+      "balance_source": "Equilibris-Aequivalent in HoMM4: erlaubt 4. Schule auf Experten-Stufe. Ermoeglicht neue Archmage-Builds." },
+
+    { "id": "amulet_of_armageddon", "slot": "neck", "tier": "relic",
+      "effects": { "own_army_immune_to_armageddon": true },
+      "tags": ["build:armageddon_dragon_slave"], "game_changer": true,
+      "balance_source": "HoMM3 Orb of Vulnerability umgedreht. Zentral fuer 'Dragon-Slave-Build': nur Drachen + Artefakt-Traeger ueberleben Armageddon." },
+
+    { "id": "chalice_of_necromancy", "slot": "misc_1", "tier": "relic",
+      "effects": { "necromancy_skill": "+30pct", "penalty_morale_living_units": -2 },
+      "tags": ["build:necromancer", "faction:totenreich"], "game_changer": true,
+      "balance_source": "Neu. Starker Necro-Buff aber Penalty: funktioniert nur, wenn Armee zu >80 Prozent undead (Equilibris-Prinzip: Tradeoffs statt reiner Buff)." },
+
+    { "id": "ogre_totem", "slot": "misc_1", "tier": "major",
+      "effects": { "att_bonus_per_stack_size_50plus": 1 },
+      "tags": ["build:swarm", "faction:orkstaemme"], "game_changer": true,
+      "balance_source": "Neu. Skaliert mit Stack-Groesse; synergisiert mit cheap-growth Goblin/Skeleton-Spam." },
+
+    { "id": "horn_of_the_forest", "slot": "misc_2", "tier": "relic",
+      "effects": { "summon_treants_per_day": 3 },
+      "tags": ["build:summoner", "faction:waldvolk"], "game_changer": true,
+      "balance_source": "Neu. Aehnlich HoMM4-Faerie-Dragon-Gedanke: taegliches freies Unit-Income, gedeckelt." },
+
+    { "id": "gauntlets_of_the_conqueror", "slot": "misc_2", "tier": "relic",
+      "effects": { "siege_dmg_bonus": 2.0, "wall_break_guaranteed": true },
+      "tags": ["build:siege"], "game_changer": true,
+      "balance_source": "Neu. Oeffnet 'Siege-Haupt-Strategie' als Alternative zu open-field-Armeen." },
+
+    { "id": "orb_of_silence", "slot": "neck", "tier": "relic",
+      "effects": { "enemy_cannot_cast_level_4_5": true },
+      "tags": ["counter:magic_build"], "game_changer": true,
+      "balance_source": "HoMM3 Orb of Inhibition light. Nur L4-5 statt alle Levels (Equilibris-Stil: harte Effekte abstufen)." },
+
+    { "id": "pendant_of_courage", "slot": "neck", "tier": "major",
+      "effects": { "morale": 2, "luck": 1 },
+      "tags": [], "game_changer": false,
+      "balance_source": "HoMM3 Pendants gebuendelt." },
+
+    { "id": "spellbook_of_echo", "slot": "misc_1", "tier": "relic",
+      "effects": { "cast_spell_twice_per_combat": true },
+      "tags": ["build:burst_mage"], "game_changer": true,
+      "balance_source": "Neu. Einmal pro Kampf gewaehlten Spell doppelt casten; ermoeglicht Implosion-Burst-Builds." },
+
+    { "id": "ring_of_life", "slot": "ring_2", "tier": "major",
+      "effects": { "hero_hp_pool": 50 },
+      "tags": ["for:homm4_style_hero_combat"], "game_changer": false,
+      "balance_source": "Platzhalter: wenn wir HoMM4-Helden-in-Kampf-Mechanik spaeter einbauen." },
+
+    { "id": "shield_of_the_damned", "slot": "shield", "tier": "major",
+      "effects": { "block_first_spell_per_combat": true },
+      "tags": ["counter:magic_build"], "game_changer": false,
+      "balance_source": "Neu. Eine kostenlose Spell-Negation pro Kampf. Counter zu burst_mage." },
+
+    { "id": "helmet_of_clarity", "slot": "head", "tier": "minor",
+      "effects": { "spell_sp_regen_per_turn": 2 },
+      "tags": [], "game_changer": false,
+      "balance_source": "Neu. Kleine Regen fuer lange Siege-Kaempfe." },
+
+    { "id": "sash_of_plundering", "slot": "torso", "tier": "minor",
+      "effects": { "extra_loot_gold_pct": 25 },
+      "tags": ["economy"], "game_changer": false,
+      "balance_source": "Neu. Economy-Artefakt ohne Kampf-Impact." },
+
+    { "id": "banner_of_the_unyielding", "slot": "misc_2", "tier": "major",
+      "effects": { "army_cannot_flee": true, "morale": 1, "dmg_taken_last_stand_bonus": 0.5 },
+      "tags": ["build:turtle"], "game_changer": false,
+      "balance_source": "Neu. Verteidigungsspieler-Artefakt." },
+
+    { "id": "staff_of_the_equinox", "slot": "weapon", "tier": "relic",
+      "effects": { "swap_own_army_schools": "light_dark_switch_each_turn" },
+      "tags": ["build:switchmage"], "game_changer": true,
+      "balance_source": "Neu, echte Equilibris-Hommage: zwingt zu dynamischem Schulwechsel, belohnt Meta-Mastery." }
+  ]
+}

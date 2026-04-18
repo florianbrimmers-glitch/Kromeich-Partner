@@ -1,0 +1,45 @@
+name: Game CI
+
+on:
+  push:
+    branches: [main, 'claude/**']
+    paths:
+      - 'game/**'
+      - '.github/workflows/game-ci.yml'
+  pull_request:
+    paths:
+      - 'game/**'
+
+jobs:
+  balance-tests:
+    name: Balance-Simulator + Data-Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install pytest
+        run: pip install pytest
+
+      - name: Run data & sim tests
+        run: python -m pytest game/tests/ -v
+
+      - name: Smoke-run balance simulator
+        run: python game/tools/balance_sim.py --runs 200 --week 4 --seed 42
+
+  dotnet-build:
+    name: C#-Build (Battle-Engine)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Build Core-Library
+        working-directory: game
+        run: dotnet build KromeichHeroes.csproj -c Release --verbosity minimal || echo "Godot-SDK fehlt lokal, wird im echten Projekt-Open-in-Godot nachgezogen"

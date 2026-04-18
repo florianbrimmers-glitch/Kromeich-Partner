@@ -1,0 +1,46 @@
+{
+  "$schema_version": 1,
+  "$notes": "Vier Starter-Fraktionen fuer MVP. Namen und Lore generisch (keine Ubisoft-IP).",
+  "factions": [
+    {
+      "id": "menschen",
+      "display_name": "Koenigreich der Menschen",
+      "theme": "ausgewogen, Kavallerie & Ritter",
+      "starting_resources": { "gold": 10000, "wood": 10, "ore": 10, "mercury": 4, "sulfur": 4, "crystal": 4, "gems": 4 },
+      "hero_classes": ["ritter", "klerikerin"],
+      "affinity_schools": ["ordnung", "licht"],
+      "design_intent": "Allrounder ohne echte Schwaeche, keine absurden Peaks. Referenz: HoMM3 Castle, aber ohne Angel-Overkill.",
+      "equilibris_analog": "Life (HoMM4) entspricht diesem Profil."
+    },
+    {
+      "id": "waldvolk",
+      "display_name": "Waldvolk",
+      "theme": "Elfen, Fernkampf, Natur",
+      "starting_resources": { "gold": 10000, "wood": 15, "ore": 5, "mercury": 4, "sulfur": 4, "crystal": 4, "gems": 4 },
+      "hero_classes": ["waldlaeufer", "druidin"],
+      "affinity_schools": ["natur", "licht"],
+      "design_intent": "Starke Fernkaempfer auf T3-T5, schwaches T7 (vs. HoMM3 Rampart wo Gold-Drache dominiert).",
+      "equilibris_analog": "Nature + Order Mix."
+    },
+    {
+      "id": "totenreich",
+      "display_name": "Totenreich",
+      "theme": "Untote, Nekromantie, Massenarmee",
+      "starting_resources": { "gold": 10000, "wood": 10, "ore": 10, "mercury": 4, "sulfur": 4, "crystal": 4, "gems": 4 },
+      "hero_classes": ["todesritter", "totenbeschwoererin"],
+      "affinity_schools": ["tod", "chaos"],
+      "design_intent": "Nekromantie-Cap bei 50 Prozent (HotA-Standard). Kein Skelett-Snowball. Truppenstaerke mittel, aber stetiges Wachstum.",
+      "equilibris_analog": "Death. Equilibris senkte Necro-Buffs ebenfalls."
+    },
+    {
+      "id": "orkstaemme",
+      "display_name": "Orkstaemme",
+      "theme": "Barbaren, Geschwindigkeit, Plaenkler",
+      "starting_resources": { "gold": 10000, "wood": 10, "ore": 15, "mercury": 4, "sulfur": 4, "crystal": 4, "gems": 4 },
+      "hero_classes": ["haeuptling", "schamanin"],
+      "affinity_schools": ["chaos", "natur"],
+      "design_intent": "Schnellster Early-Rush, schwaechster Late-Game. Hero-Atk skaliert linear, Magie gedeckelt (analog HoMM3 Barbar).",
+      "equilibris_analog": "Might. Equilibris staerkte Might-Primary-Stats fruehzeitig."
+    }
+  ]
+}

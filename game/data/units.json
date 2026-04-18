@@ -1,0 +1,210 @@
+{
+  "$schema_version": 1,
+  "$notes": "28 Einheiten (4 Fraktionen x 7 Tiers). Stats sind balance-getuned, nicht 1:1 HoMM3. Jede Zeile nennt Quelle.",
+  "$conventions": {
+    "stats": "att, def, hp, speed: ganze Zahlen. dmg: [min, max]. shots: 0 = Nahkampf.",
+    "cost": "Ressourcen pro Einheit pro Woche. weekly_growth: Basis-Rekrutierung pro Woche ohne Upgrade.",
+    "abilities": "Flags, die Battle.cs liest. Quelltext in scripts/core/Abilities.cs."
+  },
+  "units": [
+    {
+      "id": "men_spearman",       "faction": "menschen", "tier": 1,
+      "stats": { "att": 4, "def": 5, "hp": 10, "dmg": [1,3], "speed": 4, "shots": 0 },
+      "cost": { "gold": 60 }, "weekly_growth": 22,
+      "abilities": ["polearm_bonus_vs_cavalry"],
+      "balance_source": "HotA Halberdier abgeschwaecht (def 5 statt 8). Equilibris-Prinzip: T1 nicht zu def-stark, damit T4-T7 sich lohnt."
+    },
+    {
+      "id": "men_archer",         "faction": "menschen", "tier": 2,
+      "stats": { "att": 6, "def": 3, "hp": 10, "dmg": [2,3], "speed": 4, "shots": 12 },
+      "cost": { "gold": 100 }, "weekly_growth": 14,
+      "abilities": ["ranged", "melee_penalty_half"],
+      "balance_source": "Marksman-nahe Werte; nur halber Melee-Malus (Equilibris entfernte Malus teils ganz; wir bleiben konservativ)."
+    },
+    {
+      "id": "men_griffin",        "faction": "menschen", "tier": 3,
+      "stats": { "att": 8, "def": 8, "hp": 25, "dmg": [3,6], "speed": 6, "shots": 0 },
+      "cost": { "gold": 200 }, "weekly_growth": 7,
+      "abilities": ["flying", "unlimited_retaliations"],
+      "balance_source": "Royal Griffin bei T3 statt T4: HoMM3-Community-Konsens, dass Griffin unterbezahlt war."
+    },
+    {
+      "id": "men_crusader",       "faction": "menschen", "tier": 4,
+      "stats": { "att": 12, "def": 12, "hp": 35, "dmg": [7,10], "speed": 6, "shots": 0 },
+      "cost": { "gold": 400 }, "weekly_growth": 4,
+      "abilities": ["double_attack"],
+      "balance_source": "Crusader-Linie; dmg leicht gesenkt (7-10 statt 7-10+) gegenueber HotA fuer Equilibris-Ziel."
+    },
+    {
+      "id": "men_monk",           "faction": "menschen", "tier": 5,
+      "stats": { "att": 12, "def": 7, "hp": 30, "dmg": [10,12], "speed": 5, "shots": 12 },
+      "cost": { "gold": 450 }, "weekly_growth": 3,
+      "abilities": ["ranged", "no_melee_penalty"],
+      "balance_source": "Zealot. Shots 12 statt 24 (HoMM3), um Fernkampf-Dominanz zu drosseln."
+    },
+    {
+      "id": "men_cavalier",       "faction": "menschen", "tier": 6,
+      "stats": { "att": 15, "def": 15, "hp": 100, "dmg": [15,25], "speed": 7, "shots": 0 },
+      "cost": { "gold": 1000 }, "weekly_growth": 2,
+      "abilities": ["jousting_bonus"],
+      "balance_source": "Champion; speed 7 statt 9, jousting-Bonus abgeschwaecht (+3 Prozent pro Hex statt +5)."
+    },
+    {
+      "id": "men_angel",          "faction": "menschen", "tier": 7,
+      "stats": { "att": 20, "def": 20, "hp": 200, "dmg": [50,50], "speed": 10, "shots": 0 },
+      "cost": { "gold": 3500, "gems": 1 }, "weekly_growth": 1,
+      "abilities": ["flying", "hates:necro_tier7", "morale_aura"],
+      "balance_source": "Angel. Gold 3500 statt 3000 (HoMM3 Angel war zu billig). Kein Resurrect im T7-Base (in Artefakt verlagert)."
+    },
+
+    {
+      "id": "elf_dwarf",          "faction": "waldvolk", "tier": 1,
+      "stats": { "att": 6, "def": 7, "hp": 20, "dmg": [2,4], "speed": 3, "shots": 0 },
+      "cost": { "gold": 120 }, "weekly_growth": 14,
+      "abilities": ["magic_resistance_20"],
+      "balance_source": "Battle Dwarf. 20 Prozent MR statt 40 (Equilibris-Prinzip: passive %-Resistenzen gefaehrlich fuer Balance)."
+    },
+    {
+      "id": "elf_archer",         "faction": "waldvolk", "tier": 2,
+      "stats": { "att": 9, "def": 3, "hp": 15, "dmg": [3,5], "speed": 5, "shots": 16 },
+      "cost": { "gold": 200 }, "weekly_growth": 9,
+      "abilities": ["ranged", "double_shot"],
+      "balance_source": "Grand Elf mit Double-Shot auf T2; shots 16 statt 24. HotA-Tests zeigten T2-Fernkaempfer oft OP."
+    },
+    {
+      "id": "elf_pegasus",        "faction": "waldvolk", "tier": 3,
+      "stats": { "att": 9, "def": 8, "hp": 30, "dmg": [5,9], "speed": 8, "shots": 0 },
+      "cost": { "gold": 250 }, "weekly_growth": 5,
+      "abilities": ["flying", "spell_reduction_aura_1"],
+      "balance_source": "Pegasus; Aura reduziert Gegner-Spellpoints um 1 pro Runde (HoMM3-Feature, behalten)."
+    },
+    {
+      "id": "elf_treant",         "faction": "waldvolk", "tier": 4,
+      "stats": { "att": 9, "def": 9, "hp": 65, "dmg": [10,14], "speed": 4, "shots": 0 },
+      "cost": { "gold": 450 }, "weekly_growth": 3,
+      "abilities": ["root_enemy_on_hit_20pct"],
+      "balance_source": "Dendroid. HoMM3-Dendroid-Bind war auto-success, hier 20 Prozent Chance (Equilibris-stil: RNG-Abhaengigkeit abschwaechen)."
+    },
+    {
+      "id": "elf_unicorn",        "faction": "waldvolk", "tier": 5,
+      "stats": { "att": 15, "def": 14, "hp": 90, "dmg": [18,22], "speed": 7, "shots": 0 },
+      "cost": { "gold": 850 }, "weekly_growth": 2,
+      "abilities": ["blind_enemy_on_hit_15pct", "magic_damper_20"],
+      "balance_source": "War Unicorn. Blind-Chance 15 Prozent (HoMM3 hatte 20); Magic-Damper-Aura 20 Prozent statt 40."
+    },
+    {
+      "id": "elf_treefather",     "faction": "waldvolk", "tier": 6,
+      "stats": { "att": 18, "def": 17, "hp": 160, "dmg": [30,40], "speed": 5, "shots": 0 },
+      "cost": { "gold": 2000, "crystal": 1 }, "weekly_growth": 1,
+      "abilities": ["regeneration_per_turn"],
+      "balance_source": "Neuer Slot. Ersetzt duplizierten Dragon-Slot; Regeneration als Keystone-Ability."
+    },
+    {
+      "id": "elf_goldwyrm",       "faction": "waldvolk", "tier": 7,
+      "stats": { "att": 25, "def": 22, "hp": 220, "dmg": [40,50], "speed": 9, "shots": 0 },
+      "cost": { "gold": 4000, "crystal": 2 }, "weekly_growth": 1,
+      "abilities": ["flying", "spell_immune_1_to_3"],
+      "balance_source": "Gold Dragon; Immunitaet nur gegen Spells Level 1-3 (HoMM3: 1-4). Equilibris-stil: pauschale Immunitaeten kappen."
+    },
+
+    {
+      "id": "nec_skeleton",       "faction": "totenreich", "tier": 1,
+      "stats": { "att": 5, "def": 4, "hp": 6, "dmg": [1,3], "speed": 4, "shots": 0 },
+      "cost": { "gold": 60 }, "weekly_growth": 18,
+      "abilities": ["undead"],
+      "balance_source": "Skeleton. Growth 18 statt 22 (HotA-Community sieht Skelett-Flut als Hauptproblem)."
+    },
+    {
+      "id": "nec_zombie",         "faction": "totenreich", "tier": 2,
+      "stats": { "att": 5, "def": 5, "hp": 20, "dmg": [2,3], "speed": 3, "shots": 0 },
+      "cost": { "gold": 120 }, "weekly_growth": 10,
+      "abilities": ["undead", "disease_on_hit"],
+      "balance_source": "Walking Dead. Disease-Debuff (-2 att/def fuer 3 Runden) als Kompensation fuer low speed."
+    },
+    {
+      "id": "nec_wight",          "faction": "totenreich", "tier": 3,
+      "stats": { "att": 7, "def": 7, "hp": 25, "dmg": [3,5], "speed": 5, "shots": 0 },
+      "cost": { "gold": 200 }, "weekly_growth": 6,
+      "abilities": ["undead", "flying", "regeneration_if_half_hp"],
+      "balance_source": "Wight/Wraith. Regen nur wenn <50 Prozent HP (HoMM3: immer voll); Equilibris-Einschraenkung."
+    },
+    {
+      "id": "nec_vampire",        "faction": "totenreich", "tier": 4,
+      "stats": { "att": 10, "def": 9, "hp": 40, "dmg": [5,8], "speed": 6, "shots": 0 },
+      "cost": { "gold": 500 }, "weekly_growth": 3,
+      "abilities": ["undead", "life_drain_50pct", "no_retaliation"],
+      "balance_source": "Vampire Lord. Life-Drain halbiert (50 Prozent statt 100); kritischster Nerf (HoMM3-Vampire war Balance-Breaker)."
+    },
+    {
+      "id": "nec_lich",           "faction": "totenreich", "tier": 5,
+      "stats": { "att": 13, "def": 10, "hp": 35, "dmg": [11,15], "speed": 6, "shots": 12 },
+      "cost": { "gold": 600 }, "weekly_growth": 2,
+      "abilities": ["undead", "ranged", "death_cloud_aoe_small"],
+      "balance_source": "Power Lich. AoE-Cloud nur 3 Hexe Radius (HoMM3: 5). Shots 12 statt 24."
+    },
+    {
+      "id": "nec_blackknight",    "faction": "totenreich", "tier": 6,
+      "stats": { "att": 18, "def": 18, "hp": 120, "dmg": [20,30], "speed": 7, "shots": 0 },
+      "cost": { "gold": 1800 }, "weekly_growth": 1,
+      "abilities": ["undead", "curse_on_hit_10pct"],
+      "balance_source": "Dread Knight. Curse 10 statt 20 Prozent (Equilibris-Stil: RNG-Nerf)."
+    },
+    {
+      "id": "nec_bonedragon",     "faction": "totenreich", "tier": 7,
+      "stats": { "att": 22, "def": 22, "hp": 180, "dmg": [25,50], "speed": 9, "shots": 0 },
+      "cost": { "gold": 3000, "sulfur": 1 }, "weekly_growth": 1,
+      "abilities": ["undead", "flying", "aging_on_hit_10pct"],
+      "balance_source": "Ghost Dragon. HP 180 statt 200; HotA senkte bereits. Aging 10 Prozent (HoMM3: 20)."
+    },
+
+    {
+      "id": "ork_goblin",         "faction": "orkstaemme", "tier": 1,
+      "stats": { "att": 4, "def": 2, "hp": 5, "dmg": [1,2], "speed": 5, "shots": 0 },
+      "cost": { "gold": 40 }, "weekly_growth": 28,
+      "abilities": [],
+      "balance_source": "Goblin; cheapest. Growth 28 (HoMM3: 22) weil Stats bewusst schwach."
+    },
+    {
+      "id": "ork_wolfrider",      "faction": "orkstaemme", "tier": 2,
+      "stats": { "att": 7, "def": 5, "hp": 10, "dmg": [2,4], "speed": 7, "shots": 0 },
+      "cost": { "gold": 100 }, "weekly_growth": 12,
+      "abilities": ["jousting_bonus_light"],
+      "balance_source": "Wolf Raider. Light-Jousting (+2 Prozent pro Hex) als Markenzeichen."
+    },
+    {
+      "id": "ork_orc",            "faction": "orkstaemme", "tier": 3,
+      "stats": { "att": 9, "def": 4, "hp": 20, "dmg": [2,5], "speed": 4, "shots": 10 },
+      "cost": { "gold": 140 }, "weekly_growth": 8,
+      "abilities": ["ranged"],
+      "balance_source": "Orc Chieftain. Shots 10 (HoMM3: 24). Equilibris-Prinzip: nur eine Fraktion darf Fernkampf-Dominanz haben."
+    },
+    {
+      "id": "ork_ogre",           "faction": "orkstaemme", "tier": 4,
+      "stats": { "att": 13, "def": 7, "hp": 60, "dmg": [12,18], "speed": 4, "shots": 0 },
+      "cost": { "gold": 400 }, "weekly_growth": 3,
+      "abilities": ["bash_stun_10pct"],
+      "balance_source": "Ogre Magi, aber ohne Magi-Spells (werden dem Helden zugeschlagen, HoMM4-Equilibris-Stil)."
+    },
+    {
+      "id": "ork_roc",            "faction": "orkstaemme", "tier": 5,
+      "stats": { "att": 14, "def": 13, "hp": 70, "dmg": [13,20], "speed": 8, "shots": 0 },
+      "cost": { "gold": 750 }, "weekly_growth": 2,
+      "abilities": ["flying"],
+      "balance_source": "Thunderbird. Chain-Lightning entfernt (HoMM3-OP-Ability); stattdessen solide Flieger-Stats."
+    },
+    {
+      "id": "ork_cyclops",        "faction": "orkstaemme", "tier": 6,
+      "stats": { "att": 17, "def": 13, "hp": 85, "dmg": [16,24], "speed": 6, "shots": 16 },
+      "cost": { "gold": 1100, "crystal": 1 }, "weekly_growth": 2,
+      "abilities": ["ranged", "attack_wall"],
+      "balance_source": "Cyclops King. Shots 16 (HoMM3: 24). Koennen Stadtmauern direkt attackieren (Feature behalten)."
+    },
+    {
+      "id": "ork_behemoth",       "faction": "orkstaemme", "tier": 7,
+      "stats": { "att": 22, "def": 18, "hp": 160, "dmg": [30,50], "speed": 7, "shots": 0 },
+      "cost": { "gold": 2500, "sulfur": 1 }, "weekly_growth": 1,
+      "abilities": ["defense_ignore_40pct"],
+      "balance_source": "Ancient Behemoth. Def-Ignore 40 statt 80 Prozent (HoMM3); Haupt-Equilibris-Eingriff."
+    }
+  ]
+}

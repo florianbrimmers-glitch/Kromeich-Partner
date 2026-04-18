@@ -1,0 +1,16 @@
+# Godot
+.godot/
+.import/
+export.cfg
+export_presets.cfg
+
+# .NET / C#
+bin/
+obj/
+*.user
+*.suo
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
