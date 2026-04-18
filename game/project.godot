@@ -1,5 +1,10 @@
-; Godot 4.x Projekt-Skelett fuer Kromeich Heroes.
-; Wird beim ersten Oeffnen in Godot vervollstaendigt.
+; Godot 4.5 Projekt fuer Kromeich Heroes.
+; Reine GDScript-App. C# crasht auf Android 15 + Snapdragon 8 Elite
+; (Samsung S25 Ultra), siehe Diagnose in Commits d5388a6..fbd7c35.
+; Die C#-Dateien in scripts/ bleiben fuer Desktop-Unit-Tests und den
+; Balance-Simulator erhalten, werden aber von keiner Szene geladen
+; und "C#" ist aus config/features entfernt, damit die .NET-Runtime
+; auf Android gar nicht erst gestartet wird.
 
 config_version=5
 
@@ -7,17 +12,9 @@ config_version=5
 
 config/name="Kromeich Heroes"
 config/description="Rundenbasiertes HoMM3-inspiriertes Handyspiel. Async-Multiplayer."
-; DIAG: SafeMode.tscn ist eine reine GDScript-Startseite ohne C#, um zu
-; testen ob der Android-Crash vom .NET-Runtime-Laden kommt. Wenn diese
-; Szene startet, wissen wir: nur C# ist das Problem, Godot selbst laeuft.
-; Zurueck auf Main.tscn, sobald die Diagnose durch ist.
-run/main_scene="res://scenes/SafeMode.tscn"
-config/features=PackedStringArray("4.5", "C#", "Mobile")
+run/main_scene="res://scenes/Main.tscn"
+config/features=PackedStringArray("4.5", "Mobile")
 config/icon="res://assets/icon.svg"
-
-[dotnet]
-
-project/assembly_name="KromeichHeroes"
 
 [display]
 
@@ -29,9 +26,8 @@ window/stretch/aspect="expand"
 
 [rendering]
 
-; DIAG: gl_compatibility statt "mobile" (Vulkan-Mobile). Vulkan-Treiber
-; sind auf manchen Android-Geraeten kaputt und crashen beim Bootstrap.
-; OpenGL ES 3 ist der kompatibelste Renderer.
+; gl_compatibility (GLES3) statt Vulkan-Mobile: robuster auf Android,
+; insbesondere auf Samsung-Geraeten mit One UI.
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
 textures/vram_compression/import_etc2_astc=true

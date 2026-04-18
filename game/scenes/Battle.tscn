@@ -1,6 +1,6 @@
 [gd_scene load_steps=2 format=3 uid="uid://dhmkrhbattle01"]
 
-[ext_resource type="Script" path="res://scripts/ui/BattleScreen.cs" id="1_battle"]
+[ext_resource type="Script" path="res://scripts/ui/BattleScreen.gd" id="1_battle"]
 
 [node name="BattleRoot" type="Control"]
 layout_mode = 3
