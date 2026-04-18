@@ -1,16 +1,13 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Godot.NET.Sdk/4.2.2">
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <TargetFramework>net6.0</TargetFramework>
+    <!-- Godot 4.2 Android-Export braucht net7.0 (Mono-Export-Template). -->
+    <TargetFramework Condition=" '$(GodotTargetPlatform)' == 'android' ">net7.0</TargetFramework>
+    <TargetFramework Condition=" '$(GodotTargetPlatform)' == 'ios' ">net7.0</TargetFramework>
     <LangVersion>12</LangVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>KromeichHeroes</RootNamespace>
-    <AssemblyName>KromeichHeroes</AssemblyName>
-    <!-- Godot fuegt beim Oeffnen automatisch Godot.NET.Sdk hinzu. -->
+    <EnableDynamicLoading>true</EnableDynamicLoading>
   </PropertyGroup>
-  <ItemGroup>
-    <Compile Include="scripts/**/*.cs" />
-    <Compile Remove="scripts/**/obj/**" />
-    <Compile Remove="scripts/**/bin/**" />
-  </ItemGroup>
 </Project>
