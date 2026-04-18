@@ -26,11 +26,33 @@ Was laeuft:
 
 Was **noch nicht** laeuft (geplant fuer Folge-Commits):
 
-- Godot-Szenen (Weltkarte, Stadt, Kampf-UI)
-- Android-Build-Pipeline (Signing + Play-Internal-Testing)
-- Eigentlicher Supabase-Realtime-WebSocket-Client (bisher nur REST-Stub)
+- Godot-Szenen: Main.tscn (Titel) und Battle.tscn (Auto-Replay-Kampf)
+  sind da. Weltkarte, Stadt, Held-Screen folgen.
+- Android-Build-Pipeline: Workflow ist eingerichtet (siehe unten),
+  aber noch nicht ueber CI verifiziert.
+- Supabase-Realtime-WebSocket-Client (bisher nur REST-Stub)
 - C#-Test-Runner (bisher nur Python-Tests)
-- Artefakt-Effekte in Battle.cs (Daten da, Logik fehlt)
+- Artefakt-Effekte in Battle.cs (Daten da, Python-Sim hat sie; C# noch nicht)
+
+## Android-APK bauen (CI)
+
+1. GitHub-UI → Actions → "Android APK Build" → "Run workflow".
+2. `build_type` waehlen (`debug` zum Probieren, `release` erst wenn wir
+   eine echte Signing-Keystore in Secrets hinterlegt haben).
+3. Nach ~10-15 Minuten erscheint ein APK-Artefakt (`KromeichHeroes-debug-<sha>`).
+4. Download -> auf Android-Handy installieren (Einstellungen ->
+   "Installation aus unbekannten Quellen" einmalig erlauben).
+
+**Wichtig:** Godot-4.2-C#-nach-Android gilt als experimentell. Erste
+Builds scheitern meist an einem der folgenden Punkte; beide sind
+dokumentiert/fixbar:
+- Android-Build-Template nicht installiert -> Step
+  `Install Android build template` im Workflow soll das machen.
+- Debug-Keystore fehlt -> Workflow legt `~/.android/debug.keystore` an.
+- Java-SDK-Pfad falsch -> Workflow zieht ihn aus `JAVA_HOME`.
+
+Bei Failure zieht der Workflow `godot-logs-<sha>` als Artefakt;
+dort stehen die naechsten Schritte drin.
 
 ## Setup
 

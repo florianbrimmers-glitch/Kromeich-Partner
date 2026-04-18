@@ -63,28 +63,52 @@ jobs:
           unzip -q templates.zip -d ./templates-extracted
           mv ./templates-extracted/templates ~/.local/share/godot/export_templates/${GODOT_VERSION}.${GODOT_STATUS}.mono
 
+      - name: Create debug keystore
+        run: |
+          mkdir -p ~/.android
+          keytool -keyalg RSA -genkeypair -alias androiddebugkey \
+            -keypass android -keystore ~/.android/debug.keystore \
+            -storepass android -dname "CN=Android Debug,O=Android,C=US" \
+            -validity 9999 -deststoretype pkcs12
+
       - name: Configure Godot Editor settings for Android
         run: |
           mkdir -p ~/.config/godot
-          cat > ~/.config/godot/editor_settings-4.tres <<'EOF'
+          # Wichtig: export/android/java_sdk_path muss auf JAVA_HOME zeigen,
+          # das setup-java v4 per env gesetzt hat. Der Debug-Keystore wird
+          # vom vorigen Step in ~/.android/debug.keystore abgelegt.
+          cat > ~/.config/godot/editor_settings-4.tres <<EOF
           [gd_resource type="EditorSettings" format=3]
           [resource]
-          export/android/android_sdk_path = "/usr/local/lib/android/sdk"
-          export/android/java_sdk_path = "/opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.10-7/x64"
-          export/android/debug_keystore = ""
-          export/android/debug_keystore_user = ""
-          export/android/debug_keystore_pass = ""
+          export/android/android_sdk_path = "${ANDROID_HOME}"
+          export/android/java_sdk_path = "${JAVA_HOME}"
+          export/android/debug_keystore = "${HOME}/.android/debug.keystore"
+          export/android/debug_keystore_user = "androiddebugkey"
+          export/android/debug_keystore_pass = "android"
           EOF
 
       - name: Import project (headless)
         working-directory: game
         run: |
+          # Erster Import initialisiert .godot/ und .godot/mono/
           ../godot --headless --import || true
           ../godot --headless --import
 
-      - name: Build C# solution
+      - name: Restore NuGet packages
         working-directory: game
-        run: ../godot --headless --build-solutions --quit || true
+        run: |
+          # Godot 4.x ruft `dotnet publish` selbst beim Export auf. Wir
+          # restoren hier vorher, damit die Export-Phase nicht erst NuGet
+          # kontaktieren muss (und wir sehen NuGet-Fehler frueher).
+          dotnet restore
+
+      - name: Install Android build template (Custom Build, benoetigt fuer C#)
+        working-directory: game
+        run: |
+          # C# auf Android braucht den Gradle-Custom-Build (install-android-build-template
+          # entpackt Android-Projekt-Skelett nach android/build/).
+          ../godot --headless --install-android-build-template || true
+          ../godot --headless --install-android-build-template
 
       - name: Export Android APK
         working-directory: game
@@ -95,6 +119,7 @@ jobs:
           else
             ../godot --headless --export-debug "Android" build/KromeichHeroes.apk
           fi
+          ls -la build/
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -102,3 +127,13 @@ jobs:
           name: KromeichHeroes-${{ github.event.inputs.build_type }}-${{ github.sha }}
           path: game/build/*.apk
           retention-days: 14
+
+      - name: Upload Godot logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: godot-logs-${{ github.sha }}
+          path: |
+            ~/.local/share/godot/app_userdata/**/logs/
+            game/.godot/mono/build_logs/
+          retention-days: 7
