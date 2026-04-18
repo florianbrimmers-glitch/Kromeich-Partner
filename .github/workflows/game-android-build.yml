@@ -120,15 +120,6 @@ jobs:
           # kontaktieren muss (und wir sehen NuGet-Fehler frueher).
           dotnet restore
 
-      - name: Build C# assembly
-        working-directory: game
-        run: |
-          # Godot kann Scripts erst instanzieren, wenn die Assembly existiert.
-          # Ohne diesen Step schlaegt --install-android-build-template mit
-          # "class could not be found" fehl, weil z.B. MainController.cs auf
-          # der Root-Szene referenziert ist.
-          dotnet build --configuration Debug --no-restore
-
       - name: Install Android build template (Custom Build, benoetigt fuer C#)
         working-directory: game
         timeout-minutes: 3
