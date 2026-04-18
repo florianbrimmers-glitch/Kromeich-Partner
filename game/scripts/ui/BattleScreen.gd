@@ -74,18 +74,18 @@ func _start_battle(seed: int) -> void:
 
 	_set_status("STEP 7: baue Demo-Armee")
 	_side0 = [
-		Battle.Stack.new(units_dict["men_angel"],    2,  0),
-		Battle.Stack.new(units_dict["men_cavalier"], 6,  0),
-		Battle.Stack.new(units_dict["men_crusader"], 14, 0),
-		Battle.Stack.new(units_dict["men_archer"],   20, 0),
-		Battle.Stack.new(units_dict["men_spearman"], 40, 0),
+		BattleStack.new(units_dict["men_angel"],    2,  0),
+		BattleStack.new(units_dict["men_cavalier"], 6,  0),
+		BattleStack.new(units_dict["men_crusader"], 14, 0),
+		BattleStack.new(units_dict["men_archer"],   20, 0),
+		BattleStack.new(units_dict["men_spearman"], 40, 0),
 	]
 	_side1 = [
-		Battle.Stack.new(units_dict["ork_behemoth"], 2,  1),
-		Battle.Stack.new(units_dict["ork_cyclops"],  4,  1),
-		Battle.Stack.new(units_dict["ork_ogre"],     8,  1),
-		Battle.Stack.new(units_dict["ork_orc"],      20, 1),
-		Battle.Stack.new(units_dict["ork_goblin"],   60, 1),
+		BattleStack.new(units_dict["ork_behemoth"], 2,  1),
+		BattleStack.new(units_dict["ork_cyclops"],  4,  1),
+		BattleStack.new(units_dict["ork_ogre"],     8,  1),
+		BattleStack.new(units_dict["ork_orc"],      20, 1),
+		BattleStack.new(units_dict["ork_goblin"],   60, 1),
 	]
 
 	(get_node(side0_label_path) as Label).text = "Menschen"
@@ -156,7 +156,7 @@ func _build_stack_row(stacks: Array, host: Node) -> void:
 func _clone_stacks(src: Array, side: int) -> Array:
 	var out: Array = []
 	for s in src:
-		out.append(Battle.Stack.new(s.unit, s.count, side))
+		out.append(BattleStack.new(s.unit, s.count, side))
 	return out
 
 func _clear_children(n: Node) -> void:
