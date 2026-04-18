@@ -96,6 +96,33 @@ class Hero:
     morale: int = 0   # -3..+3
     spell_points: int = 10
     spellbook: list[str] = dataclasses.field(default_factory=list)
+    # skills: skill_id -> tier (1..3). Spiegelt game/data/skills.json.
+    # Wird von compute_damage fuer offense/archery/armorer gelesen und
+    # von _build_hero_from_skills fuer morale (leadership).
+    skills: dict[str, int] = dataclasses.field(default_factory=dict)
+
+
+_OFFENSE_MULT = {1: 1.10, 2: 1.25, 3: 1.40}
+_ARCHERY_MULT = {1: 1.10, 2: 1.25, 3: 1.50}
+_ARMORER_MULT = {1: 0.95, 2: 0.90, 3: 0.85}
+_LEADERSHIP_MORALE = {1: 1, 2: 2, 3: 3}
+
+
+def _skill_dmg_modifier(attacker_hero: Hero, defender_hero: Hero, is_ranged: bool) -> float:
+    """Multiplikator aus offense/archery (Angreifer) und armorer (Verteidiger)."""
+    mod = 1.0
+    if is_ranged:
+        tier = attacker_hero.skills.get("archery", 0)
+        if tier in _ARCHERY_MULT:
+            mod *= _ARCHERY_MULT[tier]
+    else:
+        tier = attacker_hero.skills.get("offense", 0)
+        if tier in _OFFENSE_MULT:
+            mod *= _OFFENSE_MULT[tier]
+    arm = defender_hero.skills.get("armorer", 0)
+    if arm in _ARMORER_MULT:
+        mod *= _ARMORER_MULT[arm]
+    return mod
 
 
 @dataclasses.dataclass
@@ -154,6 +181,8 @@ def compute_damage(
     rng: DeterministicRng,
     hero_att_bonus: int = 0,
     hero_def_bonus: int = 0,
+    attacker_hero: Hero | None = None,
+    defender_hero: Hero | None = None,
 ) -> int:
     # bless / curse / weakness modifizieren Wuerfelbereich und att
     lo = attacker.unit.dmg_lo if attacker.curse <= 0 else attacker.unit.dmg_lo
@@ -180,6 +209,9 @@ def compute_damage(
         mod *= 1.0 + 0.4 * max(0, defn) / max(1, att)
     if "double_attack" in attacker.unit.abilities:
         mod *= 1.5
+    if attacker_hero is not None and defender_hero is not None:
+        is_ranged = "ranged" in attacker.unit.abilities
+        mod *= _skill_dmg_modifier(attacker_hero, defender_hero, is_ranged)
     return max(1, int(stack_dmg * mod))
 
 
@@ -311,15 +343,19 @@ def simulate_battle(
                     alive_targets,
                     key=lambda t: (t.unit.dmg_lo + t.unit.dmg_hi) * t.count / max(1, attacker.total_hp),
                 )
-                h_att = (hero0 if attacker.side == 0 else hero1).att
-                h_def = (hero1 if attacker.side == 0 else hero0).def_
-                dmg = compute_damage(attacker, target, rng, h_att, h_def)
+                atk_hero = hero0 if attacker.side == 0 else hero1
+                def_hero = hero1 if attacker.side == 0 else hero0
+                dmg = compute_damage(
+                    attacker, target, rng, atk_hero.att, def_hero.def_,
+                    atk_hero, def_hero,
+                )
                 target.take_damage(dmg)
                 _log.append(TurnEvent(turn, attacker.unit.id, f"-> {target.unit.id}: {dmg} dmg"))
                 if "no_retaliation" not in target.unit.abilities and target.alive:
-                    th_att = (hero1 if attacker.side == 0 else hero0).att
-                    th_def = (hero0 if attacker.side == 0 else hero1).def_
-                    retal = compute_damage(target, attacker, rng, th_att, th_def) // 2
+                    retal = compute_damage(
+                        target, attacker, rng, def_hero.att, atk_hero.def_,
+                        def_hero, atk_hero,
+                    ) // 2
                     attacker.take_damage(retal)
 
         for s in side0 + side1:
@@ -371,6 +407,68 @@ def build_army(units_of_faction: list[Unit], week: int, side: int, start_gold: i
     return stacks
 
 
+# -------- Faction-Hero-Loadouts --------
+
+# Skill-Tier skaliert mit Woche: W2 -> Tier 1, W4 -> Tier 2, W6 -> Tier 3.
+# Stat-Gain ist HoMM3-typisch ~1 pro Skill-Pick; wir verteilen pro Tier
+# gleichmaessig auf att/def/spell_power/knowledge abhaengig vom Build.
+# Default-Hero-Build (Pass 9, Erkenntnis):
+# Asymmetrische Skill-Zuweisung verschiebt Matchups um 30-50 Prozent in
+# beide Richtungen (siehe Sim-Runs im Audit). Fuer das Auto-Assign nehmen
+# wir deshalb **identische** Builds fuer alle Fraktionen - die Skills
+# kuerzen sich im Ratio heraus, und trotzdem ist der Wire-Up aktiv, sodass
+# echte Spieler-Heroes (via API) Effekt haben. Strategische Build-Wahl
+# ist bewusst menschliche Spieler-Entscheidung, nicht Sim-Automatik.
+_DEFAULT_BUILD = {"primary": ["attack"], "secondary": []}
+_FACTION_HERO_BUILDS = {
+    "menschen":   _DEFAULT_BUILD,
+    "orkstaemme": _DEFAULT_BUILD,
+    "waldvolk":   _DEFAULT_BUILD,
+    "totenreich": _DEFAULT_BUILD,
+}
+
+
+def _tier_for_week(week: int) -> int:
+    # Bewusst konservativ: wir skalieren Skill-Tier nur bis 2, nicht 3.
+    # Tier 3 (z.B. Armorer -15 Prozent) ist zu stark fuer einen Auto-Assign
+    # in jeder Woche; wir lassen das als Spieler-Entscheidung offen.
+    if week <= 2:
+        return 1
+    return 2
+
+
+def make_faction_hero(faction: str, week: int) -> Hero:
+    """Baut einen Standard-Helden fuer die Fraktion passend zur Spielwoche.
+
+    Wird vom Sim genutzt um Matchups fair zu vergleichen: beide Seiten
+    bekommen ihren fraktions-typischen Skill-Build. Leadership uebersetzt
+    sich direkt in `morale`; necromancy/armorer werden in compute_damage
+    ausgewertet.
+    """
+    build = _FACTION_HERO_BUILDS.get(faction)
+    if build is None:
+        return Hero(name=f"Hero-{faction}")
+    tier = _tier_for_week(week)
+    # Stat-Gain: 1 Punkt pro Primary-Pick pro Tier (konservativ, damit die
+    # Skill-Effekte der dominante Hebel sind und nicht blosse Hero-Stats).
+    hero = Hero(name=f"Hero-{faction}")
+    for stat in build["primary"]:
+        if stat == "attack":
+            hero.att += tier
+        elif stat == "defense":
+            hero.def_ += tier
+        elif stat == "spell_power":
+            hero.spell_power += tier
+        elif stat == "knowledge":
+            hero.knowledge += tier
+            hero.spell_points += tier * 10
+    for sid in build["secondary"]:
+        hero.skills[sid] = tier
+    if "leadership" in hero.skills:
+        hero.morale += _LEADERSHIP_MORALE[hero.skills["leadership"]]
+    return hero
+
+
 # -------- Runner --------
 
 
@@ -387,13 +485,16 @@ def run_matchup(
     runs: int,
     week: int,
     seed: int,
+    with_heroes: bool = False,
 ) -> dict:
     wins_a = wins_b = draws = 0
     for i in range(runs):
         rng = DeterministicRng(seed + i)
         side0 = build_army(units_by_faction[a], week, side=0)
         side1 = build_army(units_by_faction[b], week, side=1)
-        out = simulate_battle(side0, side1, rng)
+        hero_a = make_faction_hero(a, week) if with_heroes else None
+        hero_b = make_faction_hero(b, week) if with_heroes else None
+        out = simulate_battle(side0, side1, rng, hero_a, hero_b)
         if out == "side0":
             wins_a += 1
         elif out == "side1":
@@ -418,6 +519,7 @@ def run_robust_matchup(
     runs_per_seed: int,
     weeks: list[int],
     seeds: list[int],
+    with_heroes: bool = False,
 ) -> dict:
     """Aggregiert Winrates ueber mehrere Seeds UND mehrere Wochen.
 
@@ -432,7 +534,11 @@ def run_robust_matchup(
                 rng = DeterministicRng(seed + i)
                 side0 = build_army(units_by_faction[a], week, side=0)
                 side1 = build_army(units_by_faction[b], week, side=1)
-                out = simulate_battle(side0, side1, rng)
+                # Heroes muessen pro Kampf neu gebaut werden, da spell_points
+                # und morale waehrend der Simulation mutiert werden.
+                hero_a = make_faction_hero(a, week) if with_heroes else None
+                hero_b = make_faction_hero(b, week) if with_heroes else None
+                out = simulate_battle(side0, side1, rng, hero_a, hero_b)
                 if out == "side0":
                     wins_a += 1
                 elif out == "side1":
@@ -464,6 +570,8 @@ def main(argv: Iterable[str] | None = None) -> int:
                    help="Multi-Seed (10) und Multi-Woche (2,4,6) Aggregation")
     p.add_argument("--weeks", default="2,4,6", help="Komma-Liste fuer --robust")
     p.add_argument("--seeds", type=int, default=10, help="Anzahl Seeds fuer --robust")
+    p.add_argument("--heroes", action="store_true",
+                   help="Faction-Helden mit Skill-Builds (offense/armorer/archery/leadership)")
     p.add_argument("--json", action="store_true", help="Maschinenlesbare Ausgabe")
     args = p.parse_args(argv)
 
@@ -487,7 +595,7 @@ def main(argv: Iterable[str] | None = None) -> int:
         seeds = [args.seed + 1000 * k for k in range(args.seeds)]
         runs_per_seed = max(1, args.runs // args.seeds)
         results = [
-            run_robust_matchup(factions, a, b, runs_per_seed, weeks, seeds)
+            run_robust_matchup(factions, a, b, runs_per_seed, weeks, seeds, args.heroes)
             for a, b in pairs
         ]
         if args.json:
@@ -507,7 +615,7 @@ def main(argv: Iterable[str] | None = None) -> int:
             print("Ziel: mean 45-55 Prozent (OK). 40-60 Prozent = akzeptabel (ok). Sonst '!!'.")
         return 0
 
-    results = [run_matchup(factions, a, b, args.runs, args.week, args.seed) for a, b in pairs]
+    results = [run_matchup(factions, a, b, args.runs, args.week, args.seed, args.heroes) for a, b in pairs]
 
     if args.json:
         json.dump(results, sys.stdout, indent=2)

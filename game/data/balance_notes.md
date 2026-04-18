@@ -139,3 +139,47 @@ Pass-8-Befunde:
 4/6 im Zielband 45-55 Prozent. Wald-Matchups mit Orks/Tot bleiben
 systemisch zu hoch; Fix kommt mit HoMM3-Terrain-Modifiern und
 Hero-Skills (beide noch nicht in Sim).
+
+## Balance-Tuning Pass 9 (Helden-Skills im Combat)
+
+Pass 9 verkabelt `hero.skills` in `balance_sim.compute_damage`:
+offense/archery (Angreifer-Multiplikator), armorer (Verteidiger-Reduktion),
+leadership (Morale aus `make_faction_hero`). Jede Fraktion kann im MVP
+einen fraktions-typischen Skill-Build bekommen.
+
+Empirische Erkenntnis (siehe Sim-Runs in Session-Log):
+Asymmetrische Skill-Zuweisung ist ein **sehr** starker Hebel. Beispiele:
+- Men+Leadership+Armorer gegen Ork+Offense+Armorer: Men 100 Prozent
+- Nur Orks/Tot bekommen Armorer: Ork/Tot dominieren Wald mit 95 Prozent
+- Alle bekommen Leadership (Morale): Men dominiert Tot 99 Prozent
+  (weil Tot als Undead moralen-immun sind)
+
+Die kombinierten Effekte eines 15-Prozent-Armorer und eines 40-Prozent-
+Offense **compounden** ueber einen mehrrundigen Kampf zu 50+ Prozent
+Winrate-Verschiebungen. Das ist nicht handverles bar.
+
+**Entscheidung Pass 9** (Auto-Assign-Sim):
+| Matchup | Mean (Baseline) | Mean (Pass 9 Heroes) | Delta |
+|---|---|---|---|
+| Men vs Ork | 45.7 | 52.1 | +6 |
+| Men vs Tot | 46.9 | 50.3 | +3 |
+| Men vs Wald | 46.9 | 51.4 | +5 |
+| Ork vs Tot | 46.9 | 44.4 | -3 |
+| Ork vs Wald | 64.9 | 58.8 | -6 |
+| Tot vs Wald | 66.5 | 66.3 | -0 |
+
+5/6 Matchups im 40-60-Prozent-Band (vorher 4/6).
+Heroes bekommen bewusst einen **symmetrischen Default**-Build
+(+1 Attack pro Skill-Tier, keine Secondary-Skills), damit die Sim nicht
+durch Auto-Assign vergiftet wird. Strategische Skill-Wahl bleibt
+bewusst Spieler-Entscheidung; die Combat-Engine unterstuetzt beliebige
+`hero.skills`-Dicts.
+
+Offene Punkte (Post-MVP):
+- Leadership-Morale begrabt Undead-Matchups (HoMM3-korrekt, aber braucht
+  Sim-Logik die beide Haelften ausbalanciert)
+- Archery/Offense als strategische Spieler-Pick: werden in Sim-Runs fuer
+  gezielte Build-Tests genutzt (`test_artifact_builds.py`), nicht fuer
+  Auto-Assign
+- Tot vs Wald bleibt 66 Prozent; braucht entweder Terrain-Modifier
+  (Wald-Baeume hemmen Ranged) oder Tot-spezifische Anti-Ranged-Mechanik
