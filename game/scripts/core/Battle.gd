@@ -18,6 +18,14 @@ const OUTCOME_DRAW := 2
 # werden koennen.
 
 
+static func _compare_initiative(a: BattleStack, b: BattleStack) -> bool:
+	var sa: int = int(a.unit["stats"]["speed"])
+	var sb: int = int(b.unit["stats"]["speed"])
+	if sa != sb:
+		return sa > sb
+	return a.count > b.count
+
+
 static func simulate(side0: Array, side1: Array, rng: DeterministicRng) -> Dictionary:
 	# Returns Dictionary mit keys: outcome, turns, events, side0_casualties, side1_casualties
 	var events: Array = []
@@ -25,25 +33,26 @@ static func simulate(side0: Array, side1: Array, rng: DeterministicRng) -> Dicti
 		return _done(OUTCOME_DRAW, side0, side1, 0, 0, 0, events)
 
 	var s0_start := 0
-	for s in side0: s0_start += s.count
+	for s0 in side0:
+		s0_start += (s0 as BattleStack).count
 	var s1_start := 0
-	for s in side1: s1_start += s.count
+	for s1 in side1:
+		s1_start += (s1 as BattleStack).count
 
 	for turn in range(1, MAX_TURNS + 1):
 		var order: Array = []
 		for s in side0:
-			if s.is_alive(): order.append(s)
+			var st: BattleStack = s
+			if st.is_alive():
+				order.append(st)
 		for s in side1:
-			if s.is_alive(): order.append(s)
-		order.sort_custom(func(a, b):
-			var sa: int = int(a.unit["stats"]["speed"])
-			var sb: int = int(b.unit["stats"]["speed"])
-			if sa != sb:
-				return sa > sb
-			return a.count > b.count
-		)
+			var st: BattleStack = s
+			if st.is_alive():
+				order.append(st)
+		order.sort_custom(_compare_initiative)
 
-		for attacker in order:
+		for a in order:
+			var attacker: BattleStack = a
 			if not attacker.is_alive():
 				continue
 			var pool: Array = side1 if attacker.side == 0 else side0
@@ -75,12 +84,12 @@ static func simulate(side0: Array, side1: Array, rng: DeterministicRng) -> Dicti
 
 		var s0_alive := false
 		for s in side0:
-			if s.is_alive():
+			if (s as BattleStack).is_alive():
 				s0_alive = true
 				break
 		var s1_alive := false
 		for s in side1:
-			if s.is_alive():
+			if (s as BattleStack).is_alive():
 				s1_alive = true
 				break
 		if not s0_alive and not s1_alive:
@@ -93,27 +102,28 @@ static func simulate(side0: Array, side1: Array, rng: DeterministicRng) -> Dicti
 	return _done(OUTCOME_DRAW, side0, side1, s0_start, s1_start, MAX_TURNS, events)
 
 
-static func _pick_target(attacker, pool: Array):
-	var best = null
+static func _pick_target(attacker: BattleStack, pool: Array) -> BattleStack:
+	var best: BattleStack = null
 	var best_threat := -INF
 	for s in pool:
-		if not s.is_alive():
+		var st: BattleStack = s
+		if not st.is_alive():
 			continue
-		var t := _threat(attacker, s)
+		var t := _threat(attacker, st)
 		if t > best_threat:
 			best_threat = t
-			best = s
+			best = st
 	return best
 
 
-static func _threat(attacker, target) -> float:
+static func _threat(attacker: BattleStack, target: BattleStack) -> float:
 	var dmg_min: int = int(target.unit["stats"]["dmg"][0])
 	var dmg_max: int = int(target.unit["stats"]["dmg"][1])
 	var dmg := (dmg_min + dmg_max) * 0.5 * target.count
 	return dmg / max(1, attacker.total_hp())
 
 
-static func _compute_damage(attacker, target, rng: DeterministicRng) -> int:
+static func _compute_damage(attacker: BattleStack, target: BattleStack, rng: DeterministicRng) -> int:
 	var dmg_min: int = int(attacker.unit["stats"]["dmg"][0])
 	var dmg_max: int = int(attacker.unit["stats"]["dmg"][1])
 	var base := rng.next_int(dmg_min, dmg_max)
@@ -138,9 +148,11 @@ static func _compute_damage(attacker, target, rng: DeterministicRng) -> int:
 
 static func _done(outcome: int, s0: Array, s1: Array, s0_start: int, s1_start: int, turns: int, events: Array) -> Dictionary:
 	var s0_sum := 0
-	for s in s0: s0_sum += s.count
+	for s in s0:
+		s0_sum += (s as BattleStack).count
 	var s1_sum := 0
-	for s in s1: s1_sum += s.count
+	for s in s1:
+		s1_sum += (s as BattleStack).count
 	return {
 		"outcome": outcome,
 		"turns": turns,
