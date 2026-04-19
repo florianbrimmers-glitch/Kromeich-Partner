@@ -23,6 +23,13 @@ const FACTION_COLORS := [
 	Color(0.95, 0.35, 0.30),   # Orks - rot
 ]
 
+# Gebaeude: id/Name/Kosten. Pro Stadt als Liste von ids in city["buildings"].
+const BUILDINGS := [
+	{"id": "kaserne", "name": "Kaserne", "cost": 500},
+	{"id": "spaeher", "name": "Spaeher", "cost": 300},
+	{"id": "markt", "name": "Markt", "cost": 800},
+]
+
 @export var status_label_path: NodePath    = ^"TopBar/StatusLabel"
 @export var mp_label_path: NodePath        = ^"TopBar/MPLabel"
 @export var end_turn_button_path: NodePath = ^"BottomBar/EndTurnBtn"
@@ -36,9 +43,14 @@ var _seed: int = 42
 var _costs: Dictionary = {}
 var _tile_size: float = 64.0
 var _map_area: Control
-# Staedte: Array aus { "pos": Vector2i, "faction": int }. Die Faction-ID
-# indiziert FACTION_NAMES/FACTION_COLORS.
+# Staedte: Array aus { "pos": Vector2i, "faction": int, "owner": int,
+# "buildings": Array[String] }. Faction-ID indiziert FACTION_NAMES/_COLORS.
 var _cities: Array = []
+var _city_panel: Panel
+var _city_title: Label
+var _city_gold: Label
+var _buildings_box: VBoxContainer
+var _selected_city: int = -1
 
 
 func _set_status(s: String) -> void:
@@ -54,6 +66,7 @@ func _ready() -> void:
 	_map_area.gui_input.connect(_on_map_input)
 	_map_area.draw.connect(_draw_map)
 	_map_area.resized.connect(_on_map_resized)
+	_build_city_panel()
 
 	(get_node(end_turn_button_path) as Button).pressed.connect(_on_end_turn)
 	(get_node(reroll_button_path) as Button).pressed.connect(_on_reroll)
@@ -212,6 +225,7 @@ func _start(seed_value: int) -> void:
 			"pos": candidate,
 			"faction": _cities.size(),
 			"owner": OWNER_NEUTRAL,
+			"buildings": [],
 		})
 
 	_recompute_costs()
@@ -390,13 +404,17 @@ func _on_map_input(event: InputEvent) -> void:
 		_set_status("Tap ausserhalb (%d,%d)" % [tx, ty])
 		return
 	var target := Vector2i(tx, ty)
+	var target_city_idx: int = _city_at(target)
 	if target == _hero.position:
-		_set_status("Tap auf Held (%d,%d)" % [tx, ty])
+		if target_city_idx >= 0 and int(_cities[target_city_idx]["owner"]) == OWNER_HERO:
+			_show_city(target_city_idx)
+		else:
+			_set_status("Tap auf Held (%d,%d)" % [tx, ty])
 		return
-	var city_id: int = _city_at(target)
 	if not _costs.has(target):
-		if city_id >= 0:
-			_set_status("Stadt %s (%d,%d)" % [FACTION_NAMES[city_id], tx, ty])
+		if target_city_idx >= 0:
+			var fid0: int = int(_cities[target_city_idx]["faction"])
+			_set_status("Stadt %s (%d,%d)" % [FACTION_NAMES[fid0], tx, ty])
 		else:
 			var tiles: Array = _map["tiles"]
 			var tt: int = int(tiles[ty * MAP_WIDTH + tx])
@@ -409,29 +427,125 @@ func _on_map_input(event: InputEvent) -> void:
 	_hero.mp -= cost
 	_hero.position = target
 	var claimed := false
-	if city_id >= 0:
-		for city in _cities:
-			if city["pos"] == target and int(city["owner"]) != OWNER_HERO:
-				city["owner"] = OWNER_HERO
-				claimed = true
-				break
+	if target_city_idx >= 0 and int(_cities[target_city_idx]["owner"]) != OWNER_HERO:
+		_cities[target_city_idx]["owner"] = OWNER_HERO
+		claimed = true
 	_recompute_costs()
 	_map_area.queue_redraw()
 	_update_labels()
 	if claimed:
-		_set_status("Stadt %s eingenommen (%d MP)" % [FACTION_NAMES[city_id], cost])
-	elif city_id >= 0:
-		_set_status("Stadt %s (%d MP)" % [FACTION_NAMES[city_id], cost])
+		var fid1: int = int(_cities[target_city_idx]["faction"])
+		_set_status("Stadt %s eingenommen (%d MP)" % [FACTION_NAMES[fid1], cost])
+	elif target_city_idx >= 0:
+		var fid2: int = int(_cities[target_city_idx]["faction"])
+		_set_status("Stadt %s (%d MP)" % [FACTION_NAMES[fid2], cost])
 	else:
 		_set_status("Zug -> (%d,%d) fuer %d MP" % [tx, ty, cost])
 
 
 func _city_at(p: Vector2i) -> int:
-	# Liefert Fraktions-ID der Stadt auf Feld p oder -1.
-	for city in _cities:
-		if city["pos"] == p:
-			return int(city["faction"])
+	# Liefert Index in _cities oder -1.
+	for i in range(_cities.size()):
+		if _cities[i]["pos"] == p:
+			return i
 	return -1
+
+
+func _build_city_panel() -> void:
+	var panel := Panel.new()
+	panel.visible = false
+	panel.anchor_left = 0.5
+	panel.anchor_top = 0.5
+	panel.anchor_right = 0.5
+	panel.anchor_bottom = 0.5
+	panel.offset_left = -440
+	panel.offset_top = -600
+	panel.offset_right = 440
+	panel.offset_bottom = 600
+	add_child(panel)
+	_city_panel = panel
+
+	var vb := VBoxContainer.new()
+	vb.anchor_right = 1.0
+	vb.anchor_bottom = 1.0
+	vb.offset_left = 32
+	vb.offset_top = 32
+	vb.offset_right = -32
+	vb.offset_bottom = -32
+	vb.add_theme_constant_override("separation", 24)
+	panel.add_child(vb)
+
+	_city_title = Label.new()
+	_city_title.text = "Stadt"
+	vb.add_child(_city_title)
+
+	_city_gold = Label.new()
+	_city_gold.text = "Gold: 0"
+	vb.add_child(_city_gold)
+
+	_buildings_box = VBoxContainer.new()
+	_buildings_box.add_theme_constant_override("separation", 12)
+	vb.add_child(_buildings_box)
+
+	var spacer := Control.new()
+	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vb.add_child(spacer)
+
+	var close_btn := Button.new()
+	close_btn.text = "Schliessen"
+	close_btn.custom_minimum_size = Vector2(0, 96)
+	close_btn.pressed.connect(_hide_city)
+	vb.add_child(close_btn)
+
+
+func _show_city(city_idx: int) -> void:
+	_selected_city = city_idx
+	var city: Dictionary = _cities[city_idx]
+	var fid: int = int(city["faction"])
+	_city_title.text = "Stadt " + FACTION_NAMES[fid]
+	_city_gold.text = "Gold: " + str(_hero.gold)
+	for c in _buildings_box.get_children():
+		c.queue_free()
+	var built: Array = city["buildings"]
+	for i in range(BUILDINGS.size()):
+		var b: Dictionary = BUILDINGS[i]
+		var bid: String = b["id"]
+		var bname: String = b["name"]
+		var cost: int = int(b["cost"])
+		var btn := Button.new()
+		btn.custom_minimum_size = Vector2(0, 96)
+		if built.has(bid):
+			btn.text = bname + "  (Gebaut)"
+			btn.disabled = true
+		else:
+			btn.text = bname + "  -  " + str(cost) + " G"
+			if _hero.gold < cost:
+				btn.disabled = true
+			btn.pressed.connect(_buy_building.bind(city_idx, i))
+		_buildings_box.add_child(btn)
+	_city_panel.visible = true
+
+
+func _hide_city() -> void:
+	_city_panel.visible = false
+	_selected_city = -1
+
+
+func _buy_building(city_idx: int, bld_idx: int) -> void:
+	var b: Dictionary = BUILDINGS[bld_idx]
+	var bid: String = b["id"]
+	var cost: int = int(b["cost"])
+	if _hero.gold < cost:
+		return
+	var city: Dictionary = _cities[city_idx]
+	var built: Array = city["buildings"]
+	if built.has(bid):
+		return
+	built.append(bid)
+	_hero.gold -= cost
+	_update_labels()
+	_set_status("Gebaut: " + str(b["name"]))
+	_show_city(city_idx)
 
 
 func _on_end_turn() -> void:
