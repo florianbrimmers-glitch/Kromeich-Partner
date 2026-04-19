@@ -45,30 +45,29 @@ offset_top = 360.0
 offset_right = 400.0
 offset_bottom = 420.0
 grow_horizontal = 2
-text = "MVP Skeleton - Battle Engine ready"
+text = "MVP"
 horizontal_alignment = 1
 
-[node name="NewGameBtn" type="Button" parent="."]
+[node name="WorldMapBtn" type="Button" parent="."]
 layout_mode = 1
 anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
-offset_left = -200.0
-offset_top = 900.0
-offset_right = 200.0
-offset_bottom = 980.0
+offset_left = -240.0
+offset_top = 800.0
+offset_right = 240.0
+offset_bottom = 900.0
 grow_horizontal = 2
-text = "Neues Spiel"
+text = "Weltkarte"
 
-[node name="ContinueBtn" type="Button" parent="."]
+[node name="BattleBtn" type="Button" parent="."]
 layout_mode = 1
 anchors_preset = 5
 anchor_left = 0.5
 anchor_right = 0.5
-offset_left = -200.0
-offset_top = 1000.0
-offset_right = 200.0
-offset_bottom = 1080.0
+offset_left = -240.0
+offset_top = 920.0
+offset_right = 240.0
+offset_bottom = 1020.0
 grow_horizontal = 2
-text = "Fortsetzen"
-disabled = true
+text = "Kampf-Test"
