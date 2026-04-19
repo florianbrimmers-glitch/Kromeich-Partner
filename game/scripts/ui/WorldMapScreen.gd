@@ -38,6 +38,10 @@ const LEVEL_COMBAT_BONUS := 1
 
 # Schmiede: pro eigener Stadt mit Schmiede +1 Armee/Zug (Ende-Zug).
 const SCHMIEDE_ARMY_PER_TURN := 1
+# Wachturm: pro eigener Stadt +1 Kampfkraft-Bonus (stapelt mit Level-Bonus).
+const WACHTURM_COMBAT_BONUS := 1
+# Kapelle: +XP pro Zug pro Stadt mit Kapelle.
+const KAPELLE_XP_PER_TURN := 10
 
 # Monster-Aufklaerung: exakte Staerke nur sichtbar, wenn der Held in
 # Manhattan-Reichweite ist. Weiter weg erscheint "?" (Info-Vorteil fuer
@@ -59,9 +63,11 @@ const FACTION_COLORS := [
 # Pro Stadt als Liste von ids in city["buildings"].
 const BUILDINGS := [
 	{"id": "kaserne",  "name": "Kaserne",  "cost": 500, "effect": "Erlaubt Rekrutierung"},
-	{"id": "spaeher",  "name": "Spaeher",  "cost": 300, "effect": "+2 max MP/Zug"},
+	{"id": "spaeher",  "name": "Spaeher",  "cost": 300, "effect": "+2 max Schritte/Zug"},
 	{"id": "markt",    "name": "Markt",    "cost": 800, "effect": "+200 Gold/Zug"},
 	{"id": "schmiede", "name": "Schmiede", "cost": 700, "effect": "+1 Armee/Zug"},
+	{"id": "wachturm", "name": "Wachturm", "cost": 400, "effect": "+1 Kampfkraft (dauerhaft)"},
+	{"id": "kapelle",  "name": "Kapelle",  "cost": 500, "effect": "+10 XP/Zug"},
 ]
 
 @export var status_label_path: NodePath    = ^"TopBar/StatusLabel"
@@ -389,12 +395,12 @@ func _update_labels() -> void:
 		var army: int = int(_hero.army)
 		var lvl: int = int(_hero.level)
 		var xp: int = int(_hero.xp)
-		var bonus: int = LEVEL_COMBAT_BONUS * max(0, lvl - 1)
+		var bonus: int = _combat_bonus()
 		var bonus_str: String = ""
 		if bonus > 0:
 			bonus_str = "(+" + str(bonus) + ")"
 		# "Schritte" statt "MP", damit klar ist, was das ist.
-		# A 1 (+2) bedeutet: 1 Armee + 2 Kampfkraft-Bonus aus Leveln.
+		# A 1 (+2) bedeutet: 1 Armee + 2 Kampfkraft-Bonus (Level + Wachturm).
 		ml.text = "L " + str(lvl) + "  Schritte " + str(mp) + "/" + str(mmax) + "  G " + str(gold) + "  A " + str(army) + bonus_str + "  XP " + str(xp)
 
 
@@ -461,13 +467,13 @@ func _draw_map() -> void:
 		else:
 			_map_area.draw_rect(crect, Color(0.1, 0.1, 0.12), false, 2.0)
 
-	# Monster: grauer Kreis mit Staerke-Zahl in der Mitte. Farbe der Zahl
-	# sagt sofort, wie der Kampf ausgehen wuerde:
+	# Monster: grauer Kreis mit Staerke-Zahl. Zahl UND Ring sind farbig
+	# nach Kampf-Prognose:
 	#   gruen = kein Verlust (Kampfkraft-Bonus deckt Schaden)
 	#   gelb  = Sieg mit Verlusten
 	#   rot   = Niederlage (Kampfkraft < Monster-Staerke)
-	# Ausserhalb MONSTER_VIEW_RANGE erscheint "?" in Grau.
-	var cbonus: int = LEVEL_COMBAT_BONUS * max(0, _hero.level - 1)
+	# Ausserhalb MONSTER_VIEW_RANGE erscheint "?" mit grauem Ring.
+	var cbonus: int = _combat_bonus()
 	var eff: int = _hero.army + cbonus
 	var mfont: Font = ThemeDB.fallback_font
 	var mfsize: int = int(_tile_size * 0.55)
@@ -476,8 +482,6 @@ func _draw_map() -> void:
 		var mstr: int = int(m["strength"])
 		var mpx := origin + Vector2(mp.x * _tile_size + _tile_size * 0.5, mp.y * _tile_size + _tile_size * 0.5)
 		var mrad := _tile_size * 0.36
-		_map_area.draw_circle(mpx, mrad, Color(0.20, 0.20, 0.22))
-		_map_area.draw_arc(mpx, mrad, 0.0, TAU, 20, Color(0.85, 0.25, 0.25), 3.0)
 		var dist: int = abs(mp.x - _hero.position.x) + abs(mp.y - _hero.position.y)
 		var txt: String
 		var tcol: Color
@@ -492,6 +496,8 @@ func _draw_map() -> void:
 		else:
 			txt = "?"
 			tcol = Color(0.75, 0.75, 0.75)
+		_map_area.draw_circle(mpx, mrad, Color(0.20, 0.20, 0.22))
+		_map_area.draw_arc(mpx, mrad, 0.0, TAU, 20, tcol, 4.0)
 		var ts := mfont.get_string_size(txt, HORIZONTAL_ALIGNMENT_CENTER, -1, mfsize)
 		var tp := mpx + Vector2(-ts.x * 0.5, ts.y * 0.35)
 		_map_area.draw_string(mfont, tp, txt, HORIZONTAL_ALIGNMENT_CENTER, -1, mfsize, tcol)
@@ -584,8 +590,9 @@ func _on_map_input(event: InputEvent) -> void:
 	var mon_idx: int = _monster_at(target)
 	if mon_idx >= 0:
 		var mstr: int = int(_monsters[mon_idx]["strength"])
-		# Kampfkraft = Armee + Level-Bonus. Bonus reduziert auch Verluste.
-		var combat_bonus: int = LEVEL_COMBAT_BONUS * max(0, _hero.level - 1)
+		# Kampfkraft = Armee + Level-Bonus + Wachturm-Bonus.
+		# Bonus reduziert auch Verluste.
+		var combat_bonus: int = _combat_bonus()
 		var eff_strength: int = _hero.army + combat_bonus
 		if eff_strength < mstr:
 			var msg_fail: String = "NIEDERLAGE: Kampfkraft %d < Monster %d" % [eff_strength, mstr]
@@ -668,6 +675,15 @@ func _show_victory_panel() -> void:
 		if stats != null:
 			stats.text = "Level " + str(_hero.level) + "   XP " + str(_hero.xp) + "\nGold " + str(_hero.gold) + "   Armee " + str(_hero.army)
 	_victory_panel.visible = true
+
+
+func _combat_bonus() -> int:
+	# Kampfkraft-Bonus: Level-Bonus plus Wachturm-Bonus pro eigener Stadt.
+	var b: int = LEVEL_COMBAT_BONUS * max(0, _hero.level - 1)
+	for c in _cities:
+		if int(c["owner"]) == OWNER_HERO and (c["buildings"] as Array).has("wachturm"):
+			b += WACHTURM_COMBAT_BONUS
+	return b
 
 
 func _check_level_up() -> bool:
@@ -894,11 +910,14 @@ func _on_end_turn() -> void:
 	#   Spaeher  -> max_mp hoch
 	#   Markt    -> Gold-Einkommen hoch
 	#   Schmiede -> pro Zug +1 Armee
+	#   Wachturm -> +1 Kampfkraft (via _combat_bonus() dauerhaft)
+	#   Kapelle  -> +10 XP pro Zug, kann Level-Up ausloesen
 	# Level-Up-Bonus: pro Level (ueber 1) zusaetzlich +1 max_mp.
 	var owned := 0
 	var spaeher_count := 0
 	var markt_count := 0
 	var schmiede_count := 0
+	var kapelle_count := 0
 	for city in _cities:
 		if int(city["owner"]) == OWNER_HERO:
 			owned += 1
@@ -909,6 +928,8 @@ func _on_end_turn() -> void:
 				markt_count += 1
 			if bl.has("schmiede"):
 				schmiede_count += 1
+			if bl.has("kapelle"):
+				kapelle_count += 1
 	var level_bonus_mp: int = LEVEL_BONUS_MP * max(0, _hero.level - 1)
 	_hero.max_mp = BASE_MAX_MP + MP_BONUS_SPAEHER * spaeher_count + level_bonus_mp
 	_hero.end_turn()
@@ -916,10 +937,15 @@ func _on_end_turn() -> void:
 	_hero.gold += income
 	var army_gain: int = schmiede_count * SCHMIEDE_ARMY_PER_TURN
 	_hero.army += army_gain
+	var xp_gain: int = kapelle_count * KAPELLE_XP_PER_TURN
+	if xp_gain > 0:
+		_hero.xp += xp_gain
+		if _check_level_up():
+			_set_combat("Level-Up durch Kapelle! -> LEVEL %d" % _hero.level)
 	_recompute_costs()
 	_map_area.queue_redraw()
 	_update_labels()
-	_set_status("Zug beendet: +%d G, +%d A (%d Staedte)" % [income, army_gain, owned])
+	_set_status("Zug beendet: +%d G, +%d A, +%d XP (%d Staedte)" % [income, army_gain, xp_gain, owned])
 
 
 func _on_reroll() -> void:
