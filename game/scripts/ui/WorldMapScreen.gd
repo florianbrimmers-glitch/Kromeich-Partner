@@ -24,6 +24,12 @@ const MONSTER_COUNT := 8
 const MONSTER_MIN_DIST := 5
 const MONSTER_VICTORY_GOLD := 120
 
+# Stadt-Wachen: jede neutrale Stadt hat eine zufaellige Wache. Sie muss
+# vor der Einnahme besiegt werden (selbe Combat-Formel wie Monster).
+# Die Start-Stadt des Helden hat Garrison 0.
+const GARRISON_MIN := 2
+const GARRISON_MAX := 5
+
 # Held-Progression. XP_PER_STRENGTH * Monster-Staerke = XP pro Kill.
 # LEVEL_THRESHOLDS[i] ist die XP-Schwelle, um von Level i auf i+1 zu
 # springen (Level 1 = Startlevel, Index 0 ungenutzt zur Klarheit).
@@ -245,12 +251,12 @@ func _start(seed_value: int) -> void:
 		"hero_spawn": spawn,
 	}
 	_set_status("STEP 4: MapGen fertig, spawn %s" % str(spawn))
-	_hero = Hero.new(spawn, 12)
+	_hero = Hero.new(spawn, BASE_MAX_MP)
 	_set_status("STEP 5: Hero erstellt")
 
 	# Staedte platzieren: deterministisch, nur Gras-Felder, Mindestabstand
-	# zu Held und untereinander. Bis zu 400 Versuche, danach wird
-	# aufgegeben und einfach weniger Staedte platziert.
+	# untereinander. Spawn-Abstand wird NICHT geprueft, weil eine der
+	# Staedte selbst zum Start-Ort des Helden wird.
 	_set_status("STEP 5a: Staedte platzieren")
 	_cities.clear()
 	var city_attempts := 0
@@ -261,10 +267,6 @@ func _start(seed_value: int) -> void:
 		if int(tiles[cy * MAP_WIDTH + cx]) != 0:  # 0 = GRASS
 			continue
 		var candidate := Vector2i(cx, cy)
-		var dx0: int = abs(candidate.x - spawn.x)
-		var dy0: int = abs(candidate.y - spawn.y)
-		if dx0 + dy0 < CITY_MIN_DIST:
-			continue
 		var too_close := false
 		for existing in _cities:
 			var ep: Vector2i = existing["pos"]
@@ -278,7 +280,21 @@ func _start(seed_value: int) -> void:
 			"faction": _cities.size(),
 			"owner": OWNER_NEUTRAL,
 			"buildings": [],
+			"garrison": rng.next_int(GARRISON_MIN, GARRISON_MAX),
 		})
+
+	# Start-Stadt waehlen: eine der platzierten Staedte wird dem Helden
+	# zugewiesen, Garrison auf 0, Spawn-Position = Stadt-Position. So
+	# sieht man vom ersten Zug an seine eigene Stadt auf der Karte.
+	# _hero wurde oben schon mit Mitten-Spawn erzeugt - Position hier
+	# ueberschreiben.
+	if _cities.size() > 0:
+		var start_idx: int = rng.next_int(0, _cities.size() - 1)
+		_cities[start_idx]["owner"] = OWNER_HERO
+		_cities[start_idx]["garrison"] = 0
+		spawn = _cities[start_idx]["pos"]
+		_map["hero_spawn"] = spawn
+		_hero.position = spawn
 
 	# Monster platzieren: nur Gras/Wald, Mindestabstand zu Held, Staedten
 	# und anderen Monstern, Staerke 1-3.
@@ -434,6 +450,11 @@ func _set_combat(msg: String) -> void:
 func _draw_map() -> void:
 	var tiles: Array = _map["tiles"]
 	var origin := _map_origin()
+	# Kampf-Prognose-Werte einmal vor den Schleifen, damit Staedte UND
+	# Monster die gleiche Bonus-Logik fuer ihre Zahlen verwenden.
+	var cbonus: int = _combat_bonus()
+	var eff: int = _hero.army + cbonus
+	var mfont: Font = ThemeDB.fallback_font
 	for y in range(MAP_HEIGHT):
 		for x in range(MAP_WIDTH):
 			var ti: int = int(tiles[y * MAP_WIDTH + x])
@@ -449,7 +470,8 @@ func _draw_map() -> void:
 				_map_area.draw_rect(rect, Color(1.0, 1.0, 1.0, 0.25), false, 2.0)
 
 	# Staedte: farbiges Viereck pro Fraktion. Neutraler Rand dunkel,
-	# eigene Stadt bekommt dicken goldenen Rand.
+	# eigene Stadt bekommt dicken goldenen Rand. Wache-Staerke in der
+	# Mitte, farbig nach Kampf-Prognose wie bei Monstern.
 	for city in _cities:
 		var cp: Vector2i = city["pos"]
 		var fid: int = int(city["faction"])
@@ -466,6 +488,29 @@ func _draw_map() -> void:
 			_map_area.draw_rect(crect, Color(1.0, 0.85, 0.2), false, 4.0)
 		else:
 			_map_area.draw_rect(crect, Color(0.1, 0.1, 0.12), false, 2.0)
+		var garrison: int = int(city.get("garrison", 0))
+		if owner != OWNER_HERO and garrison > 0:
+			var cdist: int = abs(cp.x - _hero.position.x) + abs(cp.y - _hero.position.y)
+			var gtxt: String
+			var gcol: Color
+			if cdist <= MONSTER_VIEW_RANGE:
+				gtxt = str(garrison)
+				if eff < garrison:
+					gcol = Color(1.0, 0.35, 0.35)
+				elif garrison - cbonus <= 0:
+					gcol = Color(0.45, 1.0, 0.45)
+				else:
+					gcol = Color(1.0, 0.92, 0.35)
+			else:
+				gtxt = "?"
+				gcol = Color(0.75, 0.75, 0.75)
+			var gsize: int = int(_tile_size * 0.45)
+			var gs := mfont.get_string_size(gtxt, HORIZONTAL_ALIGNMENT_CENTER, -1, gsize)
+			var gcenter := cpos + Vector2(_tile_size * 0.5, _tile_size * 0.5)
+			var gp := gcenter + Vector2(-gs.x * 0.5, gs.y * 0.3)
+			# Dunkler Schatten fuer Lesbarkeit auf bunten Fraktions-Farben.
+			_map_area.draw_string(mfont, gp + Vector2(2, 2), gtxt, HORIZONTAL_ALIGNMENT_CENTER, -1, gsize, Color(0, 0, 0, 0.8))
+			_map_area.draw_string(mfont, gp, gtxt, HORIZONTAL_ALIGNMENT_CENTER, -1, gsize, gcol)
 
 	# Monster: grauer Kreis mit Staerke-Zahl. Zahl UND Ring sind farbig
 	# nach Kampf-Prognose:
@@ -473,9 +518,6 @@ func _draw_map() -> void:
 	#   gelb  = Sieg mit Verlusten
 	#   rot   = Niederlage (Kampfkraft < Monster-Staerke)
 	# Ausserhalb MONSTER_VIEW_RANGE erscheint "?" mit grauem Ring.
-	var cbonus: int = _combat_bonus()
-	var eff: int = _hero.army + cbonus
-	var mfont: Font = ThemeDB.fallback_font
 	var mfsize: int = int(_tile_size * 0.55)
 	for m in _monsters:
 		var mp: Vector2i = m["pos"]
@@ -619,6 +661,33 @@ func _on_map_input(event: InputEvent) -> void:
 		_set_status(msg_win)
 		_set_combat(msg_win)
 		return
+
+	# Stadt-Wache-Kampf: wenn Zielfeld eine neutrale Stadt mit Garrison > 0
+	# ist, vor Einnahme der Wache-Kampf. Niederlage blockiert Bewegung,
+	# damit man nicht versehentlich in die eigene Vernichtung laeuft.
+	if target_city_idx >= 0 and int(_cities[target_city_idx]["owner"]) != OWNER_HERO:
+		var tc: Dictionary = _cities[target_city_idx]
+		var garrison: int = int(tc.get("garrison", 0))
+		if garrison > 0:
+			var cbonus_c: int = _combat_bonus()
+			var eff_c: int = _hero.army + cbonus_c
+			if eff_c < garrison:
+				var msg_fail_c: String = "NIEDERLAGE: Stadt-Wache %d > Kampfkraft %d" % [garrison, eff_c]
+				_set_status(msg_fail_c)
+				_set_combat(msg_fail_c)
+				return
+			var army_loss_c: int = max(0, garrison - cbonus_c)
+			_hero.army -= army_loss_c
+			var xp_c: int = garrison * XP_PER_STRENGTH
+			_hero.xp += xp_c
+			var leveled_c: bool = _check_level_up()
+			tc["garrison"] = 0
+			var msg_c: String
+			if leveled_c:
+				msg_c = "Wache besiegt: -%d A +%d XP  -->  LEVEL %d!" % [army_loss_c, xp_c, _hero.level]
+			else:
+				msg_c = "Wache besiegt: -%d A +%d XP" % [army_loss_c, xp_c]
+			_set_combat(msg_c)
 
 	_hero.mp -= cost
 	_hero.position = target
