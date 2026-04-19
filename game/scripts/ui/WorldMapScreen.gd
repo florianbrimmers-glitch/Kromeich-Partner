@@ -26,6 +26,11 @@ const MP_BONUS_SPAEHER := 2     # pro Spaeher in eigener Stadt
 const INCOME_MARKT := 200       # zusaetzlich pro Markt in eigener Stadt
 const UNIT_COST := 150          # pro Einheit, benoetigt Kaserne
 
+# Startgold: Spieler und Gegner beginnen mit diesem Betrag, damit der
+# erste Zug nicht zwangslaeufig "Enter druecken und warten" ist - reicht
+# genau fuer eine Kaserne (500 G).
+const STARTING_GOLD := 500
+
 # Monster
 const MONSTER_COUNT := 8
 const MONSTER_MIN_DIST := 5
@@ -293,6 +298,7 @@ func _start(seed_value: int) -> void:
 	}
 	_set_status("STEP 4: MapGen fertig, spawn %s" % str(spawn))
 	_hero = Hero.new(spawn, BASE_MAX_MP)
+	_hero.gold = STARTING_GOLD
 	_set_status("STEP 5: Hero erstellt")
 
 	# Staedte platzieren: deterministisch, nur Gras-Felder, Mindestabstand
@@ -357,6 +363,7 @@ func _start(seed_value: int) -> void:
 			_cities[enemy_idx]["owner"] = OWNER_ENEMY
 			_cities[enemy_idx]["garrison"] = 0
 			_enemy = Hero.new(_cities[enemy_idx]["pos"], ENEMY_BASE_MP)
+			_enemy.gold = STARTING_GOLD
 
 	# Monster platzieren: nur Gras/Wald, Mindestabstand zu Held, Staedten
 	# und anderen Monstern, Staerke 1-3.
