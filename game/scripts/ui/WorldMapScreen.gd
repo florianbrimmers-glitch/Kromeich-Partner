@@ -232,32 +232,49 @@ func _map_origin() -> Vector2:
 
 
 func _on_map_input(event: InputEvent) -> void:
-	if not (event is InputEventMouseButton):
+	var pos := Vector2.ZERO
+	var pressed := false
+	if event is InputEventMouseButton:
+		var mb := event as InputEventMouseButton
+		if mb.button_index != MOUSE_BUTTON_LEFT:
+			return
+		pressed = mb.pressed
+		pos = mb.position
+	elif event is InputEventScreenTouch:
+		var st := event as InputEventScreenTouch
+		pressed = st.pressed
+		pos = st.position
+	else:
 		return
-	var mb := event as InputEventMouseButton
-	if not mb.pressed or mb.button_index != MOUSE_BUTTON_LEFT:
+	if not pressed:
 		return
 	var origin := _map_origin()
-	var local := mb.position - origin
-	if local.x < 0.0 or local.y < 0.0 or _tile_size <= 0.0:
+	var local := pos - origin
+	if _tile_size <= 0.0:
+		_set_status("Tap ignoriert: tile_size=0")
 		return
 	var tx := int(local.x / _tile_size)
 	var ty := int(local.y / _tile_size)
 	if tx < 0 or tx >= MAP_WIDTH or ty < 0 or ty >= MAP_HEIGHT:
+		_set_status("Tap ausserhalb (%d,%d)" % [tx, ty])
 		return
 	var target := Vector2i(tx, ty)
 	if target == _hero.position:
+		_set_status("Tap auf Held (%d,%d)" % [tx, ty])
 		return
 	if not _costs.has(target):
+		_set_status("Tap unerreichbar (%d,%d)" % [tx, ty])
 		return
 	var cost: int = int(_costs[target])
 	if cost > _hero.mp:
+		_set_status("Tap zu teuer: %d > %d MP" % [cost, _hero.mp])
 		return
 	_hero.mp -= cost
 	_hero.position = target
 	_recompute_costs()
 	_map_area.queue_redraw()
 	_update_labels()
+	_set_status("Zug -> (%d,%d) fuer %d MP" % [tx, ty, cost])
 
 
 func _on_end_turn() -> void:
