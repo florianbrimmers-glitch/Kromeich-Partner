@@ -4,24 +4,24 @@ extends Control
 # _draw() und erlaubt den Helden per Tap zu bewegen. Dijkstra berechnet
 # die Kosten aller erreichbaren Felder; unerreichbare werden abgedunkelt.
 
-const MAP_WIDTH := 15
-const MAP_HEIGHT := 22
+const MAP_WIDTH := 18
+const MAP_HEIGHT := 26
 
 const CITY_COUNT := 4
-const CITY_MIN_DIST := 6
+const CITY_MIN_DIST := 8
 const CITY_INCOME := 500
 const OWNER_NEUTRAL := -1
 const OWNER_HERO := 0
 
 # Gebaeude-Effekte
-const BASE_MAX_MP := 12
+const BASE_MAX_MP := 10
 const MP_BONUS_SPAEHER := 2     # pro Spaeher in eigener Stadt
 const INCOME_MARKT := 200       # zusaetzlich pro Markt in eigener Stadt
 const UNIT_COST := 150          # pro Einheit, benoetigt Kaserne
 
 # Monster
-const MONSTER_COUNT := 6
-const MONSTER_MIN_DIST := 4
+const MONSTER_COUNT := 8
+const MONSTER_MIN_DIST := 5
 const MONSTER_VICTORY_GOLD := 120
 
 # Held-Progression. XP_PER_STRENGTH * Monster-Staerke = XP pro Kill.
