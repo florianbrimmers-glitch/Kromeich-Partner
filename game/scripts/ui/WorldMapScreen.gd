@@ -78,6 +78,9 @@ var _buildings_box: VBoxContainer
 var _selected_city: int = -1
 # Monster: Array aus { "pos": Vector2i, "strength": int }.
 var _monsters: Array = []
+# Dauerhafte Kampf-Anzeige zwischen TopBar und MapArea. Wird NIE von
+# Tap-Status ueberschrieben - bleibt stehen, bis ein neuer Kampf passiert.
+var _combat_label: Label
 
 
 func _set_status(s: String) -> void:
@@ -93,6 +96,7 @@ func _ready() -> void:
 	_map_area.gui_input.connect(_on_map_input)
 	_map_area.draw.connect(_draw_map)
 	_map_area.resized.connect(_on_map_resized)
+	_build_combat_label()
 	_build_city_panel()
 
 	(get_node(end_turn_button_path) as Button).pressed.connect(_on_end_turn)
@@ -288,6 +292,7 @@ func _start(seed_value: int) -> void:
 	_recompute_costs()
 	_on_map_resized()
 	_update_labels()
+	_set_combat("Kampf: noch keiner")
 	_set_status("Seed %d  Reach %d  Tile %.1f" % [_seed, _costs.size(), _tile_size])
 
 
@@ -369,7 +374,35 @@ func _update_labels() -> void:
 		var army: int = int(_hero.army)
 		var lvl: int = int(_hero.level)
 		var xp: int = int(_hero.xp)
-		ml.text = "L " + str(lvl) + "  MP " + str(mp) + "/" + str(mmax) + "  G " + str(gold) + "  A " + str(army) + "  XP " + str(xp)
+		# "Schritte" statt "MP", damit klar ist, was das ist.
+		ml.text = "L " + str(lvl) + "  Schritte " + str(mp) + "/" + str(mmax) + "  G " + str(gold) + "  A " + str(army) + "  XP " + str(xp)
+
+
+func _build_combat_label() -> void:
+	var lbl := Label.new()
+	# Zwischen TopBar (y=32..96) und MapArea (y=120..). Volle Breite,
+	# zentriert, damit die Sieg-Meldung nicht uebersehen wird.
+	lbl.anchor_left = 0.0
+	lbl.anchor_right = 1.0
+	lbl.anchor_top = 0.0
+	lbl.anchor_bottom = 0.0
+	lbl.offset_left = 24
+	lbl.offset_top = 100
+	lbl.offset_right = -24
+	lbl.offset_bottom = 170
+	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	lbl.add_theme_font_size_override("font_size", 34)
+	lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.35))
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	lbl.text = "Kampf: noch keiner"
+	add_child(lbl)
+	_combat_label = lbl
+
+
+func _set_combat(msg: String) -> void:
+	if _combat_label != null:
+		_combat_label.text = msg
 
 
 func _draw_map() -> void:
@@ -510,7 +543,9 @@ func _on_map_input(event: InputEvent) -> void:
 	if mon_idx >= 0:
 		var mstr: int = int(_monsters[mon_idx]["strength"])
 		if _hero.army < mstr:
-			_set_status("Armee zu schwach: %d < %d" % [_hero.army, mstr])
+			var msg_fail: String = "NIEDERLAGE: Armee %d < Monster %d" % [_hero.army, mstr]
+			_set_status(msg_fail)
+			_set_combat(msg_fail)
 			return
 		_hero.army -= mstr
 		_hero.gold += MONSTER_VICTORY_GOLD
@@ -523,10 +558,13 @@ func _on_map_input(event: InputEvent) -> void:
 		_recompute_costs()
 		_map_area.queue_redraw()
 		_update_labels()
+		var msg_win: String
 		if leveled:
-			_set_status("SIEG! -%d A  +%d G  +%d XP  -->  LEVEL %d!" % [mstr, MONSTER_VICTORY_GOLD, xp_gain, _hero.level])
+			msg_win = "SIEG! -%d A  +%d G  +%d XP  -->  LEVEL %d!" % [mstr, MONSTER_VICTORY_GOLD, xp_gain, _hero.level]
 		else:
-			_set_status("SIEG! -%d A  +%d G  +%d XP" % [mstr, MONSTER_VICTORY_GOLD, xp_gain])
+			msg_win = "SIEG! -%d A  +%d G  +%d XP" % [mstr, MONSTER_VICTORY_GOLD, xp_gain]
+		_set_status(msg_win)
+		_set_combat(msg_win)
 		return
 
 	_hero.mp -= cost
