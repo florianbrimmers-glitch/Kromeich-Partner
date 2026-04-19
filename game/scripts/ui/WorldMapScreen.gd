@@ -847,40 +847,13 @@ func _on_map_input(event: InputEvent) -> void:
 		_set_status("Tap zu teuer: %d > %d MP" % [cost, _hero.mp])
 		return
 
-	# Monster auf Zielfeld: vor Bewegung auto-resolve. Armee >= Staerke
-	# gewinnt (verliert aber Einheiten), sonst Angriff verweigert und
-	# weder MP noch Armee sinken - Spieler kann ausweichen.
+	# Monster auf Zielfeld: Taktik-Kampf-Overlay oeffnen. In Phase A
+	# entscheidet der Spieler nur zwischen "Kaempfen" (Auto-Resolve mit
+	# bekannter Formel) und "Fliehen" (kein Effekt). Ergebnis kommt per
+	# Signal zurueck; Held bewegt sich erst bei Sieg.
 	var mon_idx: int = _monster_at(target)
 	if mon_idx >= 0:
-		var mstr: int = int(_monsters[mon_idx]["strength"])
-		# Kampfkraft = Armee + Level-Bonus + Wachturm-Bonus.
-		# Bonus reduziert auch Verluste.
-		var combat_bonus: int = _combat_bonus()
-		var eff_strength: int = _hero.army + combat_bonus
-		if eff_strength < mstr:
-			var msg_fail: String = "NIEDERLAGE: Kampfkraft %d < Monster %d" % [eff_strength, mstr]
-			_set_status(msg_fail)
-			_set_combat(msg_fail)
-			return
-		var army_loss: int = max(0, mstr - combat_bonus)
-		_hero.army -= army_loss
-		_hero.gold += MONSTER_VICTORY_GOLD
-		var xp_gain: int = mstr * XP_PER_STRENGTH
-		_hero.xp += xp_gain
-		var leveled: bool = _check_level_up()
-		_monsters.remove_at(mon_idx)
-		_hero.mp -= cost
-		_hero.position = target
-		_recompute_costs()
-		_map_area.queue_redraw()
-		_update_labels()
-		var msg_win: String
-		if leveled:
-			msg_win = "SIEG! -%d A  +%d G  +%d XP  -->  LEVEL %d!" % [army_loss, MONSTER_VICTORY_GOLD, xp_gain, _hero.level]
-		else:
-			msg_win = "SIEG! -%d A  +%d G  +%d XP" % [army_loss, MONSTER_VICTORY_GOLD, xp_gain]
-		_set_status(msg_win)
-		_set_combat(msg_win)
+		_open_monster_battle(mon_idx, target, cost)
 		return
 
 	# Gegner-Held auf Zielfeld: direkter Kampf, bevor wir eine evtl. dort
@@ -1008,6 +981,68 @@ func _monster_at(p: Vector2i) -> int:
 		if (_monsters[i]["pos"] as Vector2i) == p:
 			return i
 	return -1
+
+
+# Taktik-Kampf-Overlay fuer Monster. Phase A: nur zwei Knoepfe
+# (Kaempfen/Fliehen). Das Ergebnis wird in _on_monster_battle_finished
+# angewandt. target/cost/mon_idx werden in den Lambdas gecaptured, damit
+# wir keinen extra State brauchen, falls der Spieler spaeter mehrere
+# parallele Kaempfe haben kann.
+func _open_monster_battle(mon_idx: int, target: Vector2i, cost: int) -> void:
+	var mstr: int = int(_monsters[mon_idx]["strength"])
+	var bonus: int = _combat_bonus()
+	var scene: PackedScene = load("res://scenes/TacticalBattle.tscn") as PackedScene
+	if scene == null:
+		push_error("TacticalBattle.tscn fehlt")
+		return
+	var overlay = scene.instantiate()
+	add_child(overlay)
+	if overlay.has_method("set_battle"):
+		overlay.call("set_battle", "Held", _hero.army, bonus, "Monster", mstr)
+	var monster_pos: Vector2i = _monsters[mon_idx]["pos"]
+	overlay.connect("battle_finished", func(result: Dictionary) -> void:
+		_on_monster_battle_finished(result, monster_pos, target, cost)
+		overlay.queue_free()
+	)
+
+
+func _on_monster_battle_finished(result: Dictionary, monster_pos: Vector2i, target: Vector2i, cost: int) -> void:
+	var outcome: String = String(result.get("outcome", "flee"))
+	if outcome == "flee":
+		_set_combat("Kampf abgebrochen (geflohen)")
+		return
+	# Monster-Index neu bestimmen, falls sich das Array veraendert hat.
+	var mon_idx: int = _monster_at(monster_pos)
+	if mon_idx < 0:
+		_set_combat("Monster war schon weg")
+		return
+	var mstr: int = int(_monsters[mon_idx]["strength"])
+	var combat_bonus: int = _combat_bonus()
+	var eff_strength: int = _hero.army + combat_bonus
+	if eff_strength < mstr:
+		var msg_fail: String = "NIEDERLAGE: Kampfkraft %d < Monster %d" % [eff_strength, mstr]
+		_set_status(msg_fail)
+		_set_combat(msg_fail)
+		return
+	var army_loss: int = max(0, mstr - combat_bonus)
+	_hero.army -= army_loss
+	_hero.gold += MONSTER_VICTORY_GOLD
+	var xp_gain: int = mstr * XP_PER_STRENGTH
+	_hero.xp += xp_gain
+	var leveled: bool = _check_level_up()
+	_monsters.remove_at(mon_idx)
+	_hero.mp -= cost
+	_hero.position = target
+	_recompute_costs()
+	_map_area.queue_redraw()
+	_update_labels()
+	var msg_win: String
+	if leveled:
+		msg_win = "SIEG! -%d A  +%d G  +%d XP  -->  LEVEL %d!" % [army_loss, MONSTER_VICTORY_GOLD, xp_gain, _hero.level]
+	else:
+		msg_win = "SIEG! -%d A  +%d G  +%d XP" % [army_loss, MONSTER_VICTORY_GOLD, xp_gain]
+	_set_status(msg_win)
+	_set_combat(msg_win)
 
 
 func _object_at(p: Vector2i) -> int:
