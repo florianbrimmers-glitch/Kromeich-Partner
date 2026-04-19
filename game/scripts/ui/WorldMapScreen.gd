@@ -31,6 +31,20 @@ const MONSTER_COUNT := 8
 const MONSTER_MIN_DIST := 5
 const MONSTER_VICTORY_GOLD := 120
 
+# Karten-Objekte: Goldminen (dauerhaftes Einkommen) und Schatzkisten
+# (Einmal-Belohnung). Beide haben eine Wache, die vor Einnahme besiegt
+# werden muss (selbe Formel wie Stadt-Wache/Monster).
+const OBJECT_MINE := 0
+const OBJECT_TREASURE := 1
+const MINE_COUNT := 4
+const TREASURE_COUNT := 4
+const MINE_GOLD_PER_TURN := 150
+const TREASURE_GOLD_MIN := 300
+const TREASURE_GOLD_MAX := 700
+const OBJECT_GUARD_MIN := 2
+const OBJECT_GUARD_MAX := 5
+const OBJECT_MIN_DIST := 3
+
 # Belohnung fuer Sieg ueber den Gegner-Helden (Auto-Resolve auf der Karte).
 # Bewusst hoeher als ein Monster, weil er sich bewegt und zurueckschlaegt.
 const ENEMY_DEFEAT_GOLD := 300
@@ -112,6 +126,10 @@ var _buildings_box: VBoxContainer
 var _selected_city: int = -1
 # Monster: Array aus { "pos": Vector2i, "strength": int }.
 var _monsters: Array = []
+# Karten-Objekte: Array aus { "pos": Vector2i, "kind": int, "owner": int,
+# "guard": int, "gold": int }. kind=OBJECT_MINE gibt Gold/Zug solange im
+# Besitz; kind=OBJECT_TREASURE gibt einmalig Gold und wird entfernt.
+var _objects: Array = []
 # Dauerhafte Kampf-Anzeige zwischen TopBar und MapArea. Wird NIE von
 # Tap-Status ueberschrieben - bleibt stehen, bis ein neuer Kampf passiert.
 var _combat_label: Label
@@ -370,6 +388,55 @@ func _start(seed_value: int) -> void:
 			continue
 		_monsters.append({ "pos": mpos, "strength": rng.next_int(1, 3) })
 
+	# Karten-Objekte platzieren: erst Minen, dann Schatzkisten. Gras/Wald
+	# wie Monster, Mindestabstand zu Spawn/Staedten/Monstern/anderen
+	# Objekten. Jedes Objekt hat eine zufaellige Wache (OBJECT_GUARD_*).
+	_set_status("STEP 5c: Objekte platzieren")
+	_objects.clear()
+	var o_attempts: int = 0
+	var o_target: int = MINE_COUNT + TREASURE_COUNT
+	while _objects.size() < o_target and o_attempts < 800:
+		o_attempts += 1
+		var ox: int = rng.next_int(0, MAP_WIDTH - 1)
+		var oy: int = rng.next_int(0, MAP_HEIGHT - 1)
+		var ot: int = int(tiles[oy * MAP_WIDTH + ox])
+		if ot != 0 and ot != 1:
+			continue
+		var opos := Vector2i(ox, oy)
+		if abs(opos.x - spawn.x) + abs(opos.y - spawn.y) < OBJECT_MIN_DIST:
+			continue
+		var oblocked: bool = false
+		for c in _cities:
+			var cpp: Vector2i = c["pos"]
+			if abs(cpp.x - opos.x) + abs(cpp.y - opos.y) < OBJECT_MIN_DIST:
+				oblocked = true
+				break
+		if oblocked:
+			continue
+		for m in _monsters:
+			if (m["pos"] as Vector2i) == opos:
+				oblocked = true
+				break
+		if oblocked:
+			continue
+		for eo in _objects:
+			if abs((eo["pos"] as Vector2i).x - opos.x) + abs((eo["pos"] as Vector2i).y - opos.y) < 2:
+				oblocked = true
+				break
+		if oblocked:
+			continue
+		var kind: int = OBJECT_MINE if _objects.size() < MINE_COUNT else OBJECT_TREASURE
+		var gold_amt: int = MINE_GOLD_PER_TURN
+		if kind == OBJECT_TREASURE:
+			gold_amt = rng.next_int(TREASURE_GOLD_MIN, TREASURE_GOLD_MAX)
+		_objects.append({
+			"pos": opos,
+			"kind": kind,
+			"owner": OWNER_NEUTRAL,
+			"guard": rng.next_int(OBJECT_GUARD_MIN, OBJECT_GUARD_MAX),
+			"gold": gold_amt,
+		})
+
 	_recompute_costs()
 	_on_map_resized()
 	_update_labels()
@@ -597,6 +664,51 @@ func _draw_map() -> void:
 		var tp := mpx + Vector2(-ts.x * 0.5, ts.y * 0.35)
 		_map_area.draw_string(mfont, tp, txt, HORIZONTAL_ALIGNMENT_CENTER, -1, mfsize, tcol)
 
+	# Karten-Objekte: Goldmine (gold gefuelltes Quadrat) und Schatzkiste
+	# (oranges Quadrat). Besitz wird ueber Rand-Farbe markiert: neutral
+	# dunkel, HERO goldener Rand, ENEMY roter Rand. Wache-Zahl in der
+	# Mitte mit Kampf-Prognose-Farbe (nur sichtbar in MONSTER_VIEW_RANGE).
+	for obj in _objects:
+		var op: Vector2i = obj["pos"]
+		var okind: int = int(obj["kind"])
+		var oowner: int = int(obj.get("owner", OWNER_NEUTRAL))
+		var opos := origin + Vector2(op.x * _tile_size, op.y * _tile_size)
+		var oinset: float = _tile_size * 0.28
+		var orect := Rect2(
+			opos + Vector2(oinset, oinset),
+			Vector2(_tile_size - 1.0 - 2.0 * oinset, _tile_size - 1.0 - 2.0 * oinset)
+		)
+		var ofill: Color = Color(0.95, 0.80, 0.20) if okind == OBJECT_MINE else Color(0.85, 0.50, 0.20)
+		_map_area.draw_rect(orect, ofill, true)
+		if oowner == OWNER_HERO:
+			_map_area.draw_rect(orect, Color(1.0, 0.85, 0.2), false, 4.0)
+		elif oowner == OWNER_ENEMY:
+			_map_area.draw_rect(orect, Color(0.85, 0.15, 0.15), false, 4.0)
+		else:
+			_map_area.draw_rect(orect, Color(0.1, 0.1, 0.12), false, 2.0)
+		var ogd: int = int(obj.get("guard", 0))
+		if ogd > 0:
+			var odist: int = abs(op.x - _hero.position.x) + abs(op.y - _hero.position.y)
+			var otxt: String
+			var ocol: Color
+			if odist <= MONSTER_VIEW_RANGE:
+				otxt = str(ogd)
+				if eff < ogd:
+					ocol = Color(1.0, 0.35, 0.35)
+				elif ogd - cbonus <= 0:
+					ocol = Color(0.45, 1.0, 0.45)
+				else:
+					ocol = Color(1.0, 0.92, 0.35)
+			else:
+				otxt = "?"
+				ocol = Color(0.75, 0.75, 0.75)
+			var osize: int = int(_tile_size * 0.4)
+			var oss := mfont.get_string_size(otxt, HORIZONTAL_ALIGNMENT_CENTER, -1, osize)
+			var ocenter := opos + Vector2(_tile_size * 0.5, _tile_size * 0.5)
+			var op2 := ocenter + Vector2(-oss.x * 0.5, oss.y * 0.3)
+			_map_area.draw_string(mfont, op2 + Vector2(2, 2), otxt, HORIZONTAL_ALIGNMENT_CENTER, -1, osize, Color(0, 0, 0, 0.8))
+			_map_area.draw_string(mfont, op2, otxt, HORIZONTAL_ALIGNMENT_CENTER, -1, osize, ocol)
+
 	var hero_px := origin + Vector2(_hero.position.x * _tile_size, _hero.position.y * _tile_size)
 	var center := hero_px + Vector2(_tile_size * 0.5, _tile_size * 0.5)
 	var radius := _tile_size * 0.35
@@ -767,6 +879,44 @@ func _on_map_input(event: InputEvent) -> void:
 			msg_h_win = "Gegner besiegt: -%d A +%d G +%d XP" % [army_loss_h, ENEMY_DEFEAT_GOLD, ENEMY_DEFEAT_XP]
 		_set_combat(msg_h_win)
 
+	# Karten-Objekt auf Zielfeld: Wache-Kampf falls Wache > 0, danach
+	# Einnahme (Mine) bzw. Einsammeln (Schatz). Eigene Mine wird einfach
+	# betreten, ohne Kampf. Niederlage blockiert Bewegung.
+	var obj_idx: int = _object_at(target)
+	if obj_idx >= 0:
+		var obj: Dictionary = _objects[obj_idx]
+		var okind: int = int(obj["kind"])
+		var is_own_mine: bool = (okind == OBJECT_MINE and int(obj.get("owner", OWNER_NEUTRAL)) == OWNER_HERO)
+		if not is_own_mine:
+			var ogd: int = int(obj.get("guard", 0))
+			if ogd > 0:
+				var cb_o: int = _combat_bonus()
+				var eff_o: int = _hero.army + cb_o
+				if eff_o < ogd:
+					var msg_o_fail: String = "NIEDERLAGE: Wache %d > Kampfkraft %d" % [ogd, eff_o]
+					_set_status(msg_o_fail)
+					_set_combat(msg_o_fail)
+					return
+				var loss_o: int = max(0, ogd - cb_o)
+				_hero.army -= loss_o
+				var xp_o: int = ogd * XP_PER_STRENGTH
+				_hero.xp += xp_o
+				var lvl_o: bool = _check_level_up()
+				obj["guard"] = 0
+				var msg_og: String
+				if lvl_o:
+					msg_og = "Wache besiegt: -%d A +%d XP -> LEVEL %d!" % [loss_o, xp_o, _hero.level]
+				else:
+					msg_og = "Wache besiegt: -%d A +%d XP" % [loss_o, xp_o]
+				_set_combat(msg_og)
+			if okind == OBJECT_MINE:
+				obj["owner"] = OWNER_HERO
+			elif okind == OBJECT_TREASURE:
+				var reward: int = int(obj["gold"])
+				_hero.gold += reward
+				_objects.remove_at(obj_idx)
+				_set_combat("Schatz gefunden: +%d G" % reward)
+
 	# Stadt-Wache-Kampf: wenn Zielfeld eine neutrale Stadt mit Garrison > 0
 	# ist, vor Einnahme der Wache-Kampf. Niederlage blockiert Bewegung,
 	# damit man nicht versehentlich in die eigene Vernichtung laeuft.
@@ -825,6 +975,13 @@ func _city_at(p: Vector2i) -> int:
 func _monster_at(p: Vector2i) -> int:
 	for i in range(_monsters.size()):
 		if (_monsters[i]["pos"] as Vector2i) == p:
+			return i
+	return -1
+
+
+func _object_at(p: Vector2i) -> int:
+	for i in range(_objects.size()):
+		if (_objects[i]["pos"] as Vector2i) == p:
 			return i
 	return -1
 
@@ -1123,7 +1280,11 @@ func _enemy_economy() -> void:
 		if bl.has("spaeher"):
 			spaeher += 1
 	_enemy.max_mp = ENEMY_BASE_MP + MP_BONUS_SPAEHER * spaeher
-	_enemy.gold += owned * CITY_INCOME + markt * INCOME_MARKT
+	var e_mine_income: int = 0
+	for obj in _objects:
+		if int(obj["kind"]) == OBJECT_MINE and int(obj.get("owner", OWNER_NEUTRAL)) == OWNER_ENEMY:
+			e_mine_income += int(obj["gold"])
+	_enemy.gold += owned * CITY_INCOME + markt * INCOME_MARKT + e_mine_income
 	_enemy.army += schmiede * SCHMIEDE_ARMY_PER_TURN
 	var priority: Array = ["kaserne", "schmiede", "markt", "spaeher"]
 	var guard: int = 0
@@ -1181,8 +1342,14 @@ func _run_enemy_turn() -> void:
 		return
 	_enemy.end_turn()
 	var ecosts: Dictionary = _dijkstra(_enemy.position, false)
+	# Ziel-Auswahl: naechste Nicht-Gegner-Stadt, fremde/neutrale Goldmine
+	# oder Schatzkiste. Schatzkisten sind One-Shot, aber interessantes
+	# Goldziel. Minen gibt es dauerhaft, aber nur solange unbewacht einer
+	# anderen Fraktion.
+	var target_kind: String = ""
 	var target_idx: int = -1
 	var target_cost: int = -1
+	var target_pos: Vector2i = _enemy.position
 	for i in range(_cities.size()):
 		if int(_cities[i]["owner"]) == OWNER_ENEMY:
 			continue
@@ -1190,12 +1357,27 @@ func _run_enemy_turn() -> void:
 		if not ecosts.has(cp):
 			continue
 		var c: int = int(ecosts[cp])
-		if target_idx < 0 or c < target_cost:
+		if target_cost < 0 or c < target_cost:
+			target_kind = "city"
 			target_idx = i
 			target_cost = c
-	if target_idx < 0:
+			target_pos = cp
+	for i in range(_objects.size()):
+		var obj: Dictionary = _objects[i]
+		var okind: int = int(obj["kind"])
+		if okind == OBJECT_MINE and int(obj.get("owner", OWNER_NEUTRAL)) == OWNER_ENEMY:
+			continue
+		var op: Vector2i = obj["pos"]
+		if not ecosts.has(op):
+			continue
+		var c2: int = int(ecosts[op])
+		if target_cost < 0 or c2 < target_cost:
+			target_kind = "mine" if okind == OBJECT_MINE else "treasure"
+			target_idx = i
+			target_cost = c2
+			target_pos = op
+	if target_cost < 0:
 		return
-	var target_pos: Vector2i = _cities[target_idx]["pos"]
 	# Zweite Dijkstra vom Ziel aus, um Schritt-fuer-Schritt den Gradienten
 	# absteigen zu koennen. Einfacher als Pfad-Rekonstruktion.
 	var tcosts: Dictionary = _dijkstra(target_pos, false)
@@ -1256,21 +1438,38 @@ func _run_enemy_turn() -> void:
 			return
 		_enemy.position = best_next
 		_enemy.mp -= best_step
-	# Ziel erreicht? Stadt einnehmen. Wenn Wache vorhanden und Gegner zu
-	# schwach, bleibt die Stadt stehen. Gegner hat keinen Kampfkraft-Bonus,
-	# nur seine Armee zaehlt.
+	# Ziel erreicht? Einnehmen/Einsammeln je nach Ziel-Art. Gegner hat
+	# keinen Kampfkraft-Bonus, nur seine Armee zaehlt. Wenn die Wache zu
+	# stark ist, bleibt der Gegner einfach stehen und versucht es spaeter
+	# nochmal (oder Spieler nimmt inzwischen).
 	if _enemy.position == target_pos:
-		var tc: Dictionary = _cities[target_idx]
-		var garrison: int = int(tc.get("garrison", 0))
-		if garrison > 0:
-			if _enemy.army < garrison:
-				return
-			_enemy.army -= garrison
-		tc["owner"] = OWNER_ENEMY
-		# Keine automatische Wache - Verteidigung ergibt sich daraus, dass
-		# der Gegner-Held selbst in/bei der Stadt steht bzw. ob er spaeter
-		# Kampfbonus-Gebaeude dort baut.
-		tc["garrison"] = 0
+		if target_kind == "city":
+			var tc: Dictionary = _cities[target_idx]
+			var garrison: int = int(tc.get("garrison", 0))
+			if garrison > 0:
+				if _enemy.army < garrison:
+					return
+				_enemy.army -= garrison
+			tc["owner"] = OWNER_ENEMY
+			tc["garrison"] = 0
+		elif target_kind == "mine":
+			var obj: Dictionary = _objects[target_idx]
+			var g: int = int(obj.get("guard", 0))
+			if g > 0:
+				if _enemy.army < g:
+					return
+				_enemy.army -= g
+				obj["guard"] = 0
+			obj["owner"] = OWNER_ENEMY
+		elif target_kind == "treasure":
+			var obj2: Dictionary = _objects[target_idx]
+			var g2: int = int(obj2.get("guard", 0))
+			if g2 > 0:
+				if _enemy.army < g2:
+					return
+				_enemy.army -= g2
+			_enemy.gold += int(obj2["gold"])
+			_objects.remove_at(target_idx)
 
 
 func _check_defeat() -> void:
@@ -1326,7 +1525,14 @@ func _on_end_turn() -> void:
 	var level_bonus_mp: int = LEVEL_BONUS_MP * max(0, _hero.level - 1)
 	_hero.max_mp = BASE_MAX_MP + MP_BONUS_SPAEHER * spaeher_count + level_bonus_mp
 	_hero.end_turn()
-	var income: int = owned * CITY_INCOME + markt_count * INCOME_MARKT
+	# Goldminen im Besitz: +MINE_GOLD_PER_TURN pro Mine (bereits als
+	# obj["gold"] hinterlegt, damit spaeter Minen unterschiedlichen
+	# Ertrag haben koennen, ohne dass sich die Rechnung aendert).
+	var mine_income: int = 0
+	for obj in _objects:
+		if int(obj["kind"]) == OBJECT_MINE and int(obj.get("owner", OWNER_NEUTRAL)) == OWNER_HERO:
+			mine_income += int(obj["gold"])
+	var income: int = owned * CITY_INCOME + markt_count * INCOME_MARKT + mine_income
 	_hero.gold += income
 	var army_gain: int = schmiede_count * SCHMIEDE_ARMY_PER_TURN
 	_hero.army += army_gain
