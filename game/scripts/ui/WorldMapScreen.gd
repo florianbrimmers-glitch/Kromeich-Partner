@@ -164,9 +164,9 @@ func _start(seed_value: int) -> void:
 	_hero = Hero.new(spawn, 12)
 	_set_status("STEP 5: Hero erstellt")
 	_recompute_costs()
-	_set_status("STEP 6: Costs berechnet (%d Felder)" % _costs.size())
 	_on_map_resized()
 	_update_labels()
+	_set_status("Seed %d  Reach %d  Tile %.1f" % [_seed, _costs.size(), _tile_size])
 
 
 func _recompute_costs() -> void:
@@ -177,8 +177,17 @@ func _recompute_costs() -> void:
 	var start: Vector2i = _hero.position
 	var costs: Dictionary = {}
 	costs[start] = 0
+	# 4 Richtungen als feste Vector2i-Variablen (statt Array-Literal
+	# im for-Loop), damit GDScript keine Variant-Konvertierung braucht.
+	var dir_e := Vector2i(1, 0)
+	var dir_w := Vector2i(-1, 0)
+	var dir_s := Vector2i(0, 1)
+	var dir_n := Vector2i(0, -1)
 	var open: Array = [start]
-	while open.size() > 0:
+	var guard := 0
+	var cap: int = MAP_WIDTH * MAP_HEIGHT * 4 + 10
+	while open.size() > 0 and guard < cap:
+		guard += 1
 		var best_idx := 0
 		var best_cost: int = int(costs[open[0]])
 		for i in range(1, open.size()):
@@ -189,9 +198,13 @@ func _recompute_costs() -> void:
 		var cur: Vector2i = open[best_idx]
 		open.remove_at(best_idx)
 		var cur_cost: int = int(costs[cur])
-		for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
-			var nx := cur.x + d.x
-			var ny := cur.y + d.y
+		for di in range(4):
+			var d: Vector2i = dir_e
+			if di == 1: d = dir_w
+			elif di == 2: d = dir_s
+			elif di == 3: d = dir_n
+			var nx: int = cur.x + d.x
+			var ny: int = cur.y + d.y
 			if nx < 0 or nx >= MAP_WIDTH or ny < 0 or ny >= MAP_HEIGHT:
 				continue
 			var t: int = int(tiles[ny * MAP_WIDTH + nx])
@@ -202,7 +215,7 @@ func _recompute_costs() -> void:
 				step = 2
 			if step < 0:
 				continue
-			var next_cost := cur_cost + step
+			var next_cost: int = cur_cost + step
 			var key := Vector2i(nx, ny)
 			if not costs.has(key) or next_cost < int(costs[key]):
 				costs[key] = next_cost
@@ -221,12 +234,12 @@ func _on_map_resized() -> void:
 
 
 func _update_labels() -> void:
-	var sl := get_node_or_null(status_label_path) as Label
-	if sl != null:
-		sl.text = "Seed %d" % _seed
 	var ml := get_node_or_null(mp_label_path) as Label
 	if ml != null:
-		ml.text = "MP %d/%d  Reach %d" % [_hero.mp, _hero.max_mp, _costs.size()]
+		var mp: int = int(_hero.mp)
+		var mmax: int = int(_hero.max_mp)
+		var reach: int = int(_costs.size())
+		ml.text = "MP " + str(mp) + "/" + str(mmax) + "  R" + str(reach)
 
 
 func _draw_map() -> void:
