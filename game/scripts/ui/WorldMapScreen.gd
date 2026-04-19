@@ -64,14 +64,15 @@ const FACTION_COLORS := [
 	Color(0.95, 0.35, 0.30),   # Orks - rot
 ]
 
-# Gebaeude: id/Name/Kosten/effect-Text. Effect-Text wird im Stadt-Menue
-# direkt unter dem Namen angezeigt, damit der Spieler weiss, was er kauft.
+# Gebaeude: id/Name/Kosten/effect-Text. Optional "requires" = id eines
+# anderen Gebaeudes, das vorher gebaut sein muss (selbe Stadt). Schmiede
+# z.B. braucht Kaserne, sonst war es zu leicht, ohne Kaserne zu spielen.
 # Pro Stadt als Liste von ids in city["buildings"].
 const BUILDINGS := [
 	{"id": "kaserne",  "name": "Kaserne",  "cost": 500, "effect": "Erlaubt Rekrutierung"},
 	{"id": "spaeher",  "name": "Spaeher",  "cost": 300, "effect": "+2 max Schritte/Zug"},
 	{"id": "markt",    "name": "Markt",    "cost": 800, "effect": "+200 Gold/Zug"},
-	{"id": "schmiede", "name": "Schmiede", "cost": 700, "effect": "+1 Armee/Zug"},
+	{"id": "schmiede", "name": "Schmiede", "cost": 700, "effect": "+1 Armee/Zug", "requires": "kaserne"},
 	{"id": "wachturm", "name": "Wachturm", "cost": 400, "effect": "+1 Kampfkraft (dauerhaft)"},
 	{"id": "kapelle",  "name": "Kapelle",  "cost": 500, "effect": "+10 XP/Zug"},
 ]
@@ -911,11 +912,16 @@ func _show_city(city_idx: int) -> void:
 		var bname: String = b["name"]
 		var cost: int = int(b["cost"])
 		var effect: String = String(b["effect"]) if b.has("effect") else ""
+		var requires: String = String(b["requires"]) if b.has("requires") else ""
 		var btn := Button.new()
 		btn.custom_minimum_size = Vector2(0, 140)
 		btn.add_theme_font_size_override("font_size", 30)
 		if built.has(bid):
 			btn.text = bname + "  (Gebaut)\n" + effect
+			btn.disabled = true
+		elif requires != "" and not built.has(requires):
+			# Voraussetzung fehlt: Hinweis statt Effekt-Text, Button aus.
+			btn.text = bname + "  -  " + str(cost) + " G\nBenoetigt: " + requires.capitalize()
 			btn.disabled = true
 		else:
 			btn.text = bname + "  -  " + str(cost) + " G\n" + effect
@@ -952,6 +958,9 @@ func _buy_building(city_idx: int, bld_idx: int) -> void:
 	var city: Dictionary = _cities[city_idx]
 	var built: Array = city["buildings"]
 	if built.has(bid):
+		return
+	# Voraussetzung pruefen (z.B. Schmiede benoetigt Kaserne).
+	if b.has("requires") and not built.has(String(b["requires"])):
 		return
 	built.append(bid)
 	_hero.gold -= cost
