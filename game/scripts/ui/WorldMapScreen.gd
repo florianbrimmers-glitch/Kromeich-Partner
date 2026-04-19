@@ -680,6 +680,30 @@ func _draw_map() -> void:
 		)
 		var ofill: Color = Color(0.95, 0.80, 0.20) if okind == OBJECT_MINE else Color(0.85, 0.50, 0.20)
 		_map_area.draw_rect(orect, ofill, true)
+		# Symbol auf das Feld malen, damit Mine und Truhe auf einen Blick
+		# unterscheidbar sind - nicht nur ueber die Farbe.
+		var sym_col := Color(0.25, 0.15, 0.05)
+		if okind == OBJECT_MINE:
+			# Gekreuzte Spitzhacken-Striche (X) ueber das ganze Feld.
+			var sw: float = max(2.0, _tile_size * 0.06)
+			var sr1 := orect.position
+			var sr2 := orect.position + orect.size
+			_map_area.draw_line(sr1, sr2, sym_col, sw)
+			_map_area.draw_line(Vector2(sr1.x, sr2.y), Vector2(sr2.x, sr1.y), sym_col, sw)
+		else:
+			# Truhe: waagerechter Deckel-Strich + Schloss-Punkt darunter.
+			var lid_y: float = orect.position.y + orect.size.y * 0.38
+			_map_area.draw_line(
+				Vector2(orect.position.x, lid_y),
+				Vector2(orect.position.x + orect.size.x, lid_y),
+				sym_col,
+				max(2.0, _tile_size * 0.05)
+			)
+			var lock_c := Vector2(
+				orect.position.x + orect.size.x * 0.5,
+				lid_y + orect.size.y * 0.18
+			)
+			_map_area.draw_circle(lock_c, max(2.0, _tile_size * 0.07), sym_col)
 		if oowner == OWNER_HERO:
 			_map_area.draw_rect(orect, Color(1.0, 0.85, 0.2), false, 4.0)
 		elif oowner == OWNER_ENEMY:
