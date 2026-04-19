@@ -49,13 +49,13 @@ static func make_empty_tiles(width: int, height: int) -> Array:
 static func place_water(tiles: Array, width: int, height: int, rng: DeterministicRng) -> void:
 	var clusters: int = max(2, int(float(width * height) / 80.0))
 	for i in range(clusters):
-		_grow_cluster(tiles, width, height, TILE_WATER, rng.next_int(8, 18), rng)
+		grow_cluster(tiles, width, height, TILE_WATER, rng.next_int(8, 18), rng)
 
 
 static func place_mountains(tiles: Array, width: int, height: int, rng: DeterministicRng) -> void:
 	var clusters: int = max(3, int(float(width * height) / 50.0))
 	for i in range(clusters):
-		_grow_cluster(tiles, width, height, TILE_MOUNTAIN, rng.next_int(4, 10), rng)
+		grow_cluster(tiles, width, height, TILE_MOUNTAIN, rng.next_int(4, 10), rng)
 
 
 static func coat_with_sand(tiles: Array, width: int, height: int) -> void:
@@ -93,7 +93,7 @@ static func find_spawn(tiles: Array, width: int, height: int) -> Vector2i:
 	return Vector2i(cx, cy)
 
 
-static func _grow_cluster(tiles: Array, width: int, height: int, terrain: int, target_size: int, rng: DeterministicRng) -> void:
+static func grow_cluster(tiles: Array, width: int, height: int, terrain: int, target_size: int, rng: DeterministicRng) -> void:
 	var cx := rng.next_int(0, width - 1)
 	var cy := rng.next_int(0, height - 1)
 	var frontier: Array = [Vector2i(cx, cy)]

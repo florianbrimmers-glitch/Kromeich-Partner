@@ -55,10 +55,16 @@ func _start(seed_value: int) -> void:
 	_set_status("STEP 3a3: fill grass")
 	for i in range(tiles.size()):
 		tiles[i] = MapGen.TILE_GRASS
-	_set_status("STEP 3b: place_water")
-	MapGen.place_water(tiles, MAP_WIDTH, MAP_HEIGHT, rng)
-	_set_status("STEP 3c: place_mountains")
-	MapGen.place_mountains(tiles, MAP_WIDTH, MAP_HEIGHT, rng)
+	var water_clusters: int = max(2, int(float(MAP_WIDTH * MAP_HEIGHT) / 80.0))
+	_set_status("STEP 3b: place_water (%d Cluster)" % water_clusters)
+	for ci in range(water_clusters):
+		_set_status("STEP 3b.%d: water cluster" % (ci + 1))
+		MapGen.grow_cluster(tiles, MAP_WIDTH, MAP_HEIGHT, MapGen.TILE_WATER, rng.next_int(8, 18), rng)
+	var mountain_clusters: int = max(3, int(float(MAP_WIDTH * MAP_HEIGHT) / 50.0))
+	_set_status("STEP 3c: place_mountains (%d Cluster)" % mountain_clusters)
+	for ci in range(mountain_clusters):
+		_set_status("STEP 3c.%d: mountain cluster" % (ci + 1))
+		MapGen.grow_cluster(tiles, MAP_WIDTH, MAP_HEIGHT, MapGen.TILE_MOUNTAIN, rng.next_int(4, 10), rng)
 	_set_status("STEP 3d: coat_with_sand")
 	MapGen.coat_with_sand(tiles, MAP_WIDTH, MAP_HEIGHT)
 	_set_status("STEP 3e: place_forests")
