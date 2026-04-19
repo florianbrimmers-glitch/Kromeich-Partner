@@ -15,14 +15,10 @@ const OWNER_HERO := 0
 const OWNER_ENEMY := 1
 
 # Gegner-Held: Start-Werte, bewegt sich automatisch am Ende des Spielerzugs.
+# Er startet mit Armee 0 und Gold 0, exakt wie der Spieler - keine
+# Gratis-Resourcen. Sein Fortschritt haengt allein davon ab, was er in
+# seinen Staedten baut (siehe _enemy_economy).
 const ENEMY_BASE_MP := 10
-const ENEMY_START_ARMY := 2
-# Gegner nimmt nur neutrale Staedte ein. Wenn er drauf ankommt, wird die
-# Stadt OWNER_ENEMY mit einer zufaelligen Verteidigung, damit der Spieler
-# sie zurueckerobern kann (nicht trivial). Der Spieler kann via Stadt-
-# Wache-Kampf Gegner-Staedte einnehmen wie neutrale.
-const ENEMY_GARRISON_MIN := 3
-const ENEMY_GARRISON_MAX := 6
 
 # Gebaeude-Effekte
 const BASE_MAX_MP := 10
@@ -338,7 +334,6 @@ func _start(seed_value: int) -> void:
 			_cities[enemy_idx]["owner"] = OWNER_ENEMY
 			_cities[enemy_idx]["garrison"] = 0
 			_enemy = Hero.new(_cities[enemy_idx]["pos"], ENEMY_BASE_MP)
-			_enemy.army = ENEMY_START_ARMY
 
 	# Monster platzieren: nur Gras/Wald, Mindestabstand zu Held, Staedten
 	# und anderen Monstern, Staerke 1-3.
@@ -1048,6 +1043,85 @@ func _recruit_unit(city_idx: int) -> void:
 	_show_city(city_idx)
 
 
+func _building_by_id(bid: String) -> Dictionary:
+	for b in BUILDINGS:
+		if String(b["id"]) == bid:
+			return b
+	return {}
+
+
+func _enemy_economy() -> void:
+	# Gegner spielt nach den gleichen Regeln wie der Spieler: Einkommen pro
+	# eigener Stadt (+Markt), Armee-Wachstum nur mit Schmiede, max_mp nur
+	# mit Spaeher. Danach Ausgaben nach Prioritaet: Kaserne -> Schmiede ->
+	# Markt -> Spaeher. Sobald keine Prioritaets-Gebaeude mehr affordable
+	# sind und Kaserne steht, wird Ueberschuss in Rekruten gesteckt.
+	# Wachturm/Kapelle bringen dem Gegner (noch) nichts, daher ignoriert.
+	if _enemy == null:
+		return
+	var owned: int = 0
+	var markt: int = 0
+	var schmiede: int = 0
+	var spaeher: int = 0
+	for c in _cities:
+		if int(c["owner"]) != OWNER_ENEMY:
+			continue
+		owned += 1
+		var bl: Array = c["buildings"]
+		if bl.has("markt"):
+			markt += 1
+		if bl.has("schmiede"):
+			schmiede += 1
+		if bl.has("spaeher"):
+			spaeher += 1
+	_enemy.max_mp = ENEMY_BASE_MP + MP_BONUS_SPAEHER * spaeher
+	_enemy.gold += owned * CITY_INCOME + markt * INCOME_MARKT
+	_enemy.army += schmiede * SCHMIEDE_ARMY_PER_TURN
+	var priority: Array = ["kaserne", "schmiede", "markt", "spaeher"]
+	var guard: int = 0
+	var spent: bool = true
+	while spent and guard < 24:
+		guard += 1
+		spent = false
+		for bid in priority:
+			var bdef: Dictionary = _building_by_id(bid)
+			if bdef.is_empty():
+				continue
+			var bcost: int = int(bdef["cost"])
+			if _enemy.gold < bcost:
+				continue
+			var req: String = String(bdef["requires"]) if bdef.has("requires") else ""
+			for c in _cities:
+				if int(c["owner"]) != OWNER_ENEMY:
+					continue
+				var bl: Array = c["buildings"]
+				if bl.has(bid):
+					continue
+				if req != "" and not bl.has(req):
+					continue
+				bl.append(bid)
+				_enemy.gold -= bcost
+				spent = true
+				break
+			if spent:
+				break
+		if spent:
+			continue
+		# Keine Prioritaets-Gebaeude mehr affordable: Ueberschuss in Rekruten
+		# stecken, solange Kaserne vorhanden und Gold reicht.
+		if _enemy.gold < UNIT_COST:
+			continue
+		var has_kaserne: bool = false
+		for c in _cities:
+			if int(c["owner"]) == OWNER_ENEMY and (c["buildings"] as Array).has("kaserne"):
+				has_kaserne = true
+				break
+		if has_kaserne:
+			_enemy.gold -= UNIT_COST
+			_enemy.army += 1
+			spent = true
+
+
 func _run_enemy_turn() -> void:
 	# Einfache Gegner-KI: waehlt die naechstgelegene Nicht-Gegner-Stadt
 	# (neutral oder Spieler) per Dijkstra, laeuft mit Gradienten-Abstieg so
@@ -1130,7 +1204,10 @@ func _run_enemy_turn() -> void:
 				return
 			_enemy.army -= garrison
 		tc["owner"] = OWNER_ENEMY
-		tc["garrison"] = _rng.next_int(ENEMY_GARRISON_MIN, ENEMY_GARRISON_MAX)
+		# Keine automatische Wache - Verteidigung ergibt sich daraus, dass
+		# der Gegner-Held selbst in/bei der Stadt steht bzw. ob er spaeter
+		# Kampfbonus-Gebaeude dort baut.
+		tc["garrison"] = 0
 
 
 func _check_defeat() -> void:
@@ -1195,8 +1272,11 @@ func _on_end_turn() -> void:
 		_hero.xp += xp_gain
 		if _check_level_up():
 			_set_combat("Level-Up durch Kapelle! -> LEVEL %d" % _hero.level)
-	# Gegner-Zug: nach dem Spieler-Einkommen, bevor die Sicht neu gerechnet
-	# wird, damit evtl. uebernommene Staedte sofort gerendert werden.
+	# Gegner-Zug: erst Oekonomie (Einkommen, Gebaeude, Rekruten), dann
+	# Bewegung. Reihenfolge entspricht dem Spieler-Flow - zuerst kommt das
+	# Einkommen aus den eigenen Staedten, dann wird ausgegeben, dann
+	# bewegt sich der Held mit moeglicherweise groesserer Armee.
+	_enemy_economy()
 	_run_enemy_turn()
 	_recompute_costs()
 	_map_area.queue_redraw()
