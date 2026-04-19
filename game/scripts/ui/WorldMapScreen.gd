@@ -31,6 +31,10 @@ const XP_PER_STRENGTH := 15
 const LEVEL_THRESHOLDS := [0, 50, 150, 350, 700, 1200, 2000]
 const LEVEL_BONUS_ARMY := 1   # sofort +1 Armee bei Level-Up
 const LEVEL_BONUS_MP := 1     # +1 max_mp pro Level-Up (additiv zur Basis)
+# Kampfkraft-Bonus pro Level (level-1): zaehlt zur Armee im Kampf UND
+# reduziert Verluste. Macht XP endlich nuetzlich: Level 3 mit 1 Armee
+# schlaegt Staerke-3-Monster ohne einen einzigen Verlust.
+const LEVEL_COMBAT_BONUS := 1
 
 # Schmiede: pro eigener Stadt mit Schmiede +1 Armee/Zug (Ende-Zug).
 const SCHMIEDE_ARMY_PER_TURN := 1
@@ -81,6 +85,8 @@ var _monsters: Array = []
 # Dauerhafte Kampf-Anzeige zwischen TopBar und MapArea. Wird NIE von
 # Tap-Status ueberschrieben - bleibt stehen, bis ein neuer Kampf passiert.
 var _combat_label: Label
+var _victory_panel: Panel
+var _game_won: bool = false
 
 
 func _set_status(s: String) -> void:
@@ -98,6 +104,7 @@ func _ready() -> void:
 	_map_area.resized.connect(_on_map_resized)
 	_build_combat_label()
 	_build_city_panel()
+	_build_victory_panel()
 
 	(get_node(end_turn_button_path) as Button).pressed.connect(_on_end_turn)
 	(get_node(reroll_button_path) as Button).pressed.connect(_on_reroll)
@@ -110,6 +117,9 @@ func _ready() -> void:
 func _start(seed_value: int) -> void:
 	_set_status("STEP 3: generiere seed=%d" % seed_value)
 	_seed = seed_value
+	_game_won = false
+	if _victory_panel != null:
+		_victory_panel.visible = false
 	var rng := DeterministicRng.new(seed_value)
 	_set_status("STEP 3a1: Array init")
 	var tiles: Array = []
@@ -374,8 +384,13 @@ func _update_labels() -> void:
 		var army: int = int(_hero.army)
 		var lvl: int = int(_hero.level)
 		var xp: int = int(_hero.xp)
+		var bonus: int = LEVEL_COMBAT_BONUS * max(0, lvl - 1)
+		var bonus_str: String = ""
+		if bonus > 0:
+			bonus_str = "(+" + str(bonus) + ")"
 		# "Schritte" statt "MP", damit klar ist, was das ist.
-		ml.text = "L " + str(lvl) + "  Schritte " + str(mp) + "/" + str(mmax) + "  G " + str(gold) + "  A " + str(army) + "  XP " + str(xp)
+		# A 1 (+2) bedeutet: 1 Armee + 2 Kampfkraft-Bonus aus Leveln.
+		ml.text = "L " + str(lvl) + "  Schritte " + str(mp) + "/" + str(mmax) + "  G " + str(gold) + "  A " + str(army) + bonus_str + "  XP " + str(xp)
 
 
 func _build_combat_label() -> void:
@@ -542,12 +557,16 @@ func _on_map_input(event: InputEvent) -> void:
 	var mon_idx: int = _monster_at(target)
 	if mon_idx >= 0:
 		var mstr: int = int(_monsters[mon_idx]["strength"])
-		if _hero.army < mstr:
-			var msg_fail: String = "NIEDERLAGE: Armee %d < Monster %d" % [_hero.army, mstr]
+		# Kampfkraft = Armee + Level-Bonus. Bonus reduziert auch Verluste.
+		var combat_bonus: int = LEVEL_COMBAT_BONUS * max(0, _hero.level - 1)
+		var eff_strength: int = _hero.army + combat_bonus
+		if eff_strength < mstr:
+			var msg_fail: String = "NIEDERLAGE: Kampfkraft %d < Monster %d" % [eff_strength, mstr]
 			_set_status(msg_fail)
 			_set_combat(msg_fail)
 			return
-		_hero.army -= mstr
+		var army_loss: int = max(0, mstr - combat_bonus)
+		_hero.army -= army_loss
 		_hero.gold += MONSTER_VICTORY_GOLD
 		var xp_gain: int = mstr * XP_PER_STRENGTH
 		_hero.xp += xp_gain
@@ -560,9 +579,9 @@ func _on_map_input(event: InputEvent) -> void:
 		_update_labels()
 		var msg_win: String
 		if leveled:
-			msg_win = "SIEG! -%d A  +%d G  +%d XP  -->  LEVEL %d!" % [mstr, MONSTER_VICTORY_GOLD, xp_gain, _hero.level]
+			msg_win = "SIEG! -%d A  +%d G  +%d XP  -->  LEVEL %d!" % [army_loss, MONSTER_VICTORY_GOLD, xp_gain, _hero.level]
 		else:
-			msg_win = "SIEG! -%d A  +%d G  +%d XP" % [mstr, MONSTER_VICTORY_GOLD, xp_gain]
+			msg_win = "SIEG! -%d A  +%d G  +%d XP" % [army_loss, MONSTER_VICTORY_GOLD, xp_gain]
 		_set_status(msg_win)
 		_set_combat(msg_win)
 		return
@@ -579,6 +598,7 @@ func _on_map_input(event: InputEvent) -> void:
 	if claimed:
 		var fid1: int = int(_cities[target_city_idx]["faction"])
 		_set_status("Stadt %s eingenommen (%d MP)" % [FACTION_NAMES[fid1], cost])
+		_check_victory()
 	elif target_city_idx >= 0:
 		var fid2: int = int(_cities[target_city_idx]["faction"])
 		_set_status("Stadt %s (%d MP)" % [FACTION_NAMES[fid2], cost])
@@ -599,6 +619,28 @@ func _monster_at(p: Vector2i) -> int:
 		if (_monsters[i]["pos"] as Vector2i) == p:
 			return i
 	return -1
+
+
+func _check_victory() -> void:
+	# Sieg-Bedingung: alle Staedte dem Helden gehoeren.
+	if _cities.size() == 0:
+		return
+	for c in _cities:
+		if int(c["owner"]) != OWNER_HERO:
+			return
+	_game_won = true
+	_show_victory_panel()
+
+
+func _show_victory_panel() -> void:
+	if _victory_panel == null:
+		return
+	var vb := _victory_panel.get_node_or_null("VB") as VBoxContainer
+	if vb != null:
+		var stats := vb.get_node_or_null("Stats") as Label
+		if stats != null:
+			stats.text = "Level " + str(_hero.level) + "   XP " + str(_hero.xp) + "\nGold " + str(_hero.gold) + "   Armee " + str(_hero.army)
+	_victory_panel.visible = true
 
 
 func _check_level_up() -> bool:
@@ -670,6 +712,76 @@ func _build_city_panel() -> void:
 	close_btn.add_theme_font_size_override("font_size", 32)
 	close_btn.pressed.connect(_hide_city)
 	vb.add_child(close_btn)
+
+
+func _build_victory_panel() -> void:
+	# Vollbild-Overlay. Wird sichtbar, sobald alle Staedte dem Helden
+	# gehoeren. "Neue Karte" startet per _on_reroll einen neuen Seed.
+	var panel := Panel.new()
+	panel.visible = false
+	panel.anchor_right = 1.0
+	panel.anchor_bottom = 1.0
+	add_child(panel)
+	_victory_panel = panel
+
+	var bg := ColorRect.new()
+	bg.color = Color(0.06, 0.08, 0.05, 0.96)
+	bg.anchor_right = 1.0
+	bg.anchor_bottom = 1.0
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(bg)
+
+	var vb := VBoxContainer.new()
+	vb.name = "VB"
+	vb.anchor_right = 1.0
+	vb.anchor_bottom = 1.0
+	vb.offset_left = 60
+	vb.offset_top = 400
+	vb.offset_right = -60
+	vb.offset_bottom = -400
+	vb.add_theme_constant_override("separation", 40)
+	vb.alignment = BoxContainer.ALIGNMENT_CENTER
+	panel.add_child(vb)
+
+	var title := Label.new()
+	title.text = "GEWONNEN!"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.add_theme_font_size_override("font_size", 96)
+	title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.25))
+	vb.add_child(title)
+
+	var sub := Label.new()
+	sub.text = "Alle Staedte erobert"
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	sub.add_theme_font_size_override("font_size", 40)
+	vb.add_child(sub)
+
+	var stats := Label.new()
+	stats.name = "Stats"
+	stats.text = ""
+	stats.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	stats.add_theme_font_size_override("font_size", 36)
+	vb.add_child(stats)
+
+	var new_btn := Button.new()
+	new_btn.text = "Neue Karte"
+	new_btn.custom_minimum_size = Vector2(0, 140)
+	new_btn.add_theme_font_size_override("font_size", 40)
+	new_btn.pressed.connect(_on_victory_new_map)
+	vb.add_child(new_btn)
+
+	var back_btn := Button.new()
+	back_btn.text = "Zurueck zum Menue"
+	back_btn.custom_minimum_size = Vector2(0, 140)
+	back_btn.add_theme_font_size_override("font_size", 40)
+	back_btn.pressed.connect(_on_back)
+	vb.add_child(back_btn)
+
+
+func _on_victory_new_map() -> void:
+	_victory_panel.visible = false
+	_game_won = false
+	_start(_seed + 1)
 
 
 func _show_city(city_idx: int) -> void:
