@@ -847,45 +847,28 @@ func _on_map_input(event: InputEvent) -> void:
 		_set_status("Tap zu teuer: %d > %d MP" % [cost, _hero.mp])
 		return
 
-	# Monster auf Zielfeld: Taktik-Kampf-Overlay oeffnen. In Phase A
-	# entscheidet der Spieler nur zwischen "Kaempfen" (Auto-Resolve mit
-	# bekannter Formel) und "Fliehen" (kein Effekt). Ergebnis kommt per
-	# Signal zurueck; Held bewegt sich erst bei Sieg.
+	# Monster auf Zielfeld: Taktik-Kampf-Overlay (Flucht erlaubt).
 	var mon_idx: int = _monster_at(target)
 	if mon_idx >= 0:
-		_open_monster_battle(mon_idx, target, cost)
+		var mstr_m: int = int(_monsters[mon_idx]["strength"])
+		var mon_pos: Vector2i = _monsters[mon_idx]["pos"]
+		_open_battle("Monster", mstr_m, true, func(r: Dictionary) -> void:
+			_on_monster_result(r, mon_pos, target, cost)
+		)
 		return
 
-	# Gegner-Held auf Zielfeld: direkter Kampf, bevor wir eine evtl. dort
-	# stehende Stadt beruehren. Kampfkraft = Armee + Level/Wachturm-Bonus,
-	# Gegner hat nur seine Armee. Verlust = max(0, Gegner-Armee - Bonus).
-	# Sieg toetet den Gegner-Helden (raus von der Karte), Oekonomie laeuft
-	# weiter - seine Staedte werden nur nicht mehr verteidigt.
+	# Gegner-Held auf Zielfeld: Pflichtkampf (keine Flucht), bevor wir
+	# eine evtl. dort stehende Stadt einnehmen. Bei Sieg: Held tot, Stadt
+	# wird im Callback direkt geclaimt (ohne zusaetzliche Garnison).
 	if _enemy != null and target == _enemy.position:
-		var cbonus_h: int = _combat_bonus()
-		var eff_h: int = _hero.army + cbonus_h
-		var eff_e: int = _enemy.army
-		if eff_h < eff_e:
-			var msg_eh_fail: String = "NIEDERLAGE: Gegner-Armee %d > Kampfkraft %d" % [eff_e, eff_h]
-			_set_status(msg_eh_fail)
-			_set_combat(msg_eh_fail)
-			return
-		var army_loss_h: int = max(0, eff_e - cbonus_h)
-		_hero.army -= army_loss_h
-		_hero.gold += ENEMY_DEFEAT_GOLD
-		_hero.xp += ENEMY_DEFEAT_XP
-		var leveled_h: bool = _check_level_up()
-		_enemy = null
-		var msg_h_win: String
-		if leveled_h:
-			msg_h_win = "Gegner besiegt: -%d A +%d G +%d XP -> LEVEL %d!" % [army_loss_h, ENEMY_DEFEAT_GOLD, ENEMY_DEFEAT_XP, _hero.level]
-		else:
-			msg_h_win = "Gegner besiegt: -%d A +%d G +%d XP" % [army_loss_h, ENEMY_DEFEAT_GOLD, ENEMY_DEFEAT_XP]
-		_set_combat(msg_h_win)
+		var e_army: int = _enemy.army
+		_open_battle("Gegner-Held", e_army, false, func(r: Dictionary) -> void:
+			_on_enemy_hero_result(r, target, cost, target_city_idx)
+		)
+		return
 
-	# Karten-Objekt auf Zielfeld: Wache-Kampf falls Wache > 0, danach
-	# Einnahme (Mine) bzw. Einsammeln (Schatz). Eigene Mine wird einfach
-	# betreten, ohne Kampf. Niederlage blockiert Bewegung.
+	# Karten-Objekt auf Zielfeld: Wache (falls > 0) via Overlay, Einnahme
+	# bzw. Einsammeln danach im Callback. Eigene Mine wird einfach betreten.
 	var obj_idx: int = _object_at(target)
 	if obj_idx >= 0:
 		var obj: Dictionary = _objects[obj_idx]
@@ -894,59 +877,36 @@ func _on_map_input(event: InputEvent) -> void:
 		if not is_own_mine:
 			var ogd: int = int(obj.get("guard", 0))
 			if ogd > 0:
-				var cb_o: int = _combat_bonus()
-				var eff_o: int = _hero.army + cb_o
-				if eff_o < ogd:
-					var msg_o_fail: String = "NIEDERLAGE: Wache %d > Kampfkraft %d" % [ogd, eff_o]
-					_set_status(msg_o_fail)
-					_set_combat(msg_o_fail)
-					return
-				var loss_o: int = max(0, ogd - cb_o)
-				_hero.army -= loss_o
-				var xp_o: int = ogd * XP_PER_STRENGTH
-				_hero.xp += xp_o
-				var lvl_o: bool = _check_level_up()
-				obj["guard"] = 0
-				var msg_og: String
-				if lvl_o:
-					msg_og = "Wache besiegt: -%d A +%d XP -> LEVEL %d!" % [loss_o, xp_o, _hero.level]
-				else:
-					msg_og = "Wache besiegt: -%d A +%d XP" % [loss_o, xp_o]
-				_set_combat(msg_og)
-			if okind == OBJECT_MINE:
-				obj["owner"] = OWNER_HERO
-			elif okind == OBJECT_TREASURE:
-				var reward: int = int(obj["gold"])
-				_hero.gold += reward
-				_objects.remove_at(obj_idx)
-				_set_combat("Schatz gefunden: +%d G" % reward)
+				var opos: Vector2i = target
+				_open_battle("Wache", ogd, true, func(r: Dictionary) -> void:
+					_on_object_result(r, opos, target, cost)
+				)
+				return
+			# guard == 0: direktes Betreten / Einsammeln (siehe unten)
 
-	# Stadt-Wache-Kampf: wenn Zielfeld eine neutrale Stadt mit Garrison > 0
-	# ist, vor Einnahme der Wache-Kampf. Niederlage blockiert Bewegung,
-	# damit man nicht versehentlich in die eigene Vernichtung laeuft.
+	# Stadt-Wache: Overlay-Kampf. Bei Sieg claimt Callback die Stadt.
 	if target_city_idx >= 0 and int(_cities[target_city_idx]["owner"]) != OWNER_HERO:
 		var tc: Dictionary = _cities[target_city_idx]
 		var garrison: int = int(tc.get("garrison", 0))
 		if garrison > 0:
-			var cbonus_c: int = _combat_bonus()
-			var eff_c: int = _hero.army + cbonus_c
-			if eff_c < garrison:
-				var msg_fail_c: String = "NIEDERLAGE: Stadt-Wache %d > Kampfkraft %d" % [garrison, eff_c]
-				_set_status(msg_fail_c)
-				_set_combat(msg_fail_c)
-				return
-			var army_loss_c: int = max(0, garrison - cbonus_c)
-			_hero.army -= army_loss_c
-			var xp_c: int = garrison * XP_PER_STRENGTH
-			_hero.xp += xp_c
-			var leveled_c: bool = _check_level_up()
-			tc["garrison"] = 0
-			var msg_c: String
-			if leveled_c:
-				msg_c = "Wache besiegt: -%d A +%d XP  -->  LEVEL %d!" % [army_loss_c, xp_c, _hero.level]
-			else:
-				msg_c = "Wache besiegt: -%d A +%d XP" % [army_loss_c, xp_c]
-			_set_combat(msg_c)
+			var cidx: int = target_city_idx
+			_open_battle("Stadtwache", garrison, true, func(r: Dictionary) -> void:
+				_on_city_result(r, cidx, target, cost)
+			)
+			return
+
+	# Kein Kampf noetig: Mine/Schatz/Stadt ohne Wache oder leeres Feld.
+	# Objekt-Einnahme bzw. Schatz einsammeln, falls vorhanden.
+	if obj_idx >= 0:
+		var obj2: Dictionary = _objects[obj_idx]
+		var okind2: int = int(obj2["kind"])
+		if okind2 == OBJECT_MINE and int(obj2.get("owner", OWNER_NEUTRAL)) != OWNER_HERO:
+			obj2["owner"] = OWNER_HERO
+		elif okind2 == OBJECT_TREASURE:
+			var reward: int = int(obj2["gold"])
+			_hero.gold += reward
+			_objects.remove_at(obj_idx)
+			_set_combat("Schatz gefunden: +%d G" % reward)
 
 	_hero.mp -= cost
 	_hero.position = target
@@ -983,13 +943,12 @@ func _monster_at(p: Vector2i) -> int:
 	return -1
 
 
-# Taktik-Kampf-Overlay fuer Monster. Phase A: nur zwei Knoepfe
-# (Kaempfen/Fliehen). Das Ergebnis wird in _on_monster_battle_finished
-# angewandt. target/cost/mon_idx werden in den Lambdas gecaptured, damit
-# wir keinen extra State brauchen, falls der Spieler spaeter mehrere
-# parallele Kaempfe haben kann.
-func _open_monster_battle(mon_idx: int, target: Vector2i, cost: int) -> void:
-	var mstr: int = int(_monsters[mon_idx]["strength"])
+# Generisches Taktik-Kampf-Overlay. Host ruft _open_battle mit Gegner-
+# Infos und einem Callback auf; der Callback bekommt das Ergebnis-
+# Dictionary (outcome: "victory"/"defeat"/"flee", casualties: int) und
+# ist fuer Belohnung und Bewegung verantwortlich. Der Level/Wachturm-
+# Bonus fliesst in Att UND Def des Spieler-Stacks ein.
+func _open_battle(opp_name: String, opp_army: int, allow_flee: bool, on_result: Callable) -> void:
 	var bonus: int = _combat_bonus()
 	var scene: PackedScene = load("res://scenes/TacticalBattle.tscn") as PackedScene
 	if scene == null:
@@ -998,51 +957,173 @@ func _open_monster_battle(mon_idx: int, target: Vector2i, cost: int) -> void:
 	var overlay = scene.instantiate()
 	add_child(overlay)
 	if overlay.has_method("set_battle"):
-		overlay.call("set_battle", "Held", _hero.army, bonus, "Monster", mstr)
-	var monster_pos: Vector2i = _monsters[mon_idx]["pos"]
+		overlay.call("set_battle", {
+			"player_name": "Held",
+			"player_army": _hero.army,
+			"player_bonus": bonus,
+			"enemy_name": opp_name,
+			"enemy_army": opp_army,
+			"allow_flee": allow_flee,
+			"seed": _seed,
+		})
 	overlay.connect("battle_finished", func(result: Dictionary) -> void:
-		_on_monster_battle_finished(result, monster_pos, target, cost)
+		on_result.call(result)
 		overlay.queue_free()
 	)
 
 
-func _on_monster_battle_finished(result: Dictionary, monster_pos: Vector2i, target: Vector2i, cost: int) -> void:
-	var outcome: String = String(result.get("outcome", "flee"))
-	if outcome == "flee":
-		_set_combat("Kampf abgebrochen (geflohen)")
-		return
-	# Monster-Index neu bestimmen, falls sich das Array veraendert hat.
-	var mon_idx: int = _monster_at(monster_pos)
-	if mon_idx < 0:
-		_set_combat("Monster war schon weg")
-		return
-	var mstr: int = int(_monsters[mon_idx]["strength"])
-	var combat_bonus: int = _combat_bonus()
-	var eff_strength: int = _hero.army + combat_bonus
-	if eff_strength < mstr:
-		var msg_fail: String = "NIEDERLAGE: Kampfkraft %d < Monster %d" % [eff_strength, mstr]
-		_set_status(msg_fail)
-		_set_combat(msg_fail)
-		return
-	var army_loss: int = max(0, mstr - combat_bonus)
-	_hero.army -= army_loss
-	_hero.gold += MONSTER_VICTORY_GOLD
-	var xp_gain: int = mstr * XP_PER_STRENGTH
-	_hero.xp += xp_gain
-	var leveled: bool = _check_level_up()
-	_monsters.remove_at(mon_idx)
+func _apply_casualties(result: Dictionary) -> int:
+	var cas: int = int(result.get("casualties", 0))
+	_hero.army = max(0, _hero.army - cas)
+	return cas
+
+
+func _finish_move_to(target: Vector2i, cost: int) -> void:
 	_hero.mp -= cost
 	_hero.position = target
 	_recompute_costs()
 	_map_area.queue_redraw()
 	_update_labels()
+
+
+func _on_battle_defeat() -> void:
+	_game_lost = true
+	_set_status("NIEDERLAGE")
+	_set_combat("NIEDERLAGE: Held gefallen")
+	_show_defeat_panel()
+
+
+func _on_monster_result(result: Dictionary, mon_pos: Vector2i, target: Vector2i, cost: int) -> void:
+	var outcome: String = String(result.get("outcome", "flee"))
+	if outcome == "flee":
+		_set_combat("Kampf abgebrochen (geflohen)")
+		return
+	if outcome == "defeat":
+		_apply_casualties(result)
+		_update_labels()
+		_on_battle_defeat()
+		return
+	var mon_idx: int = _monster_at(mon_pos)
+	if mon_idx < 0:
+		return
+	var mstr: int = int(_monsters[mon_idx]["strength"])
+	var cas: int = _apply_casualties(result)
+	_hero.gold += MONSTER_VICTORY_GOLD
+	var xp_gain: int = mstr * XP_PER_STRENGTH
+	_hero.xp += xp_gain
+	var leveled: bool = _check_level_up()
+	_monsters.remove_at(mon_idx)
+	_finish_move_to(target, cost)
 	var msg_win: String
 	if leveled:
-		msg_win = "SIEG! -%d A  +%d G  +%d XP  -->  LEVEL %d!" % [army_loss, MONSTER_VICTORY_GOLD, xp_gain, _hero.level]
+		msg_win = "SIEG! -%d A  +%d G  +%d XP  -->  LEVEL %d!" % [cas, MONSTER_VICTORY_GOLD, xp_gain, _hero.level]
 	else:
-		msg_win = "SIEG! -%d A  +%d G  +%d XP" % [army_loss, MONSTER_VICTORY_GOLD, xp_gain]
+		msg_win = "SIEG! -%d A  +%d G  +%d XP" % [cas, MONSTER_VICTORY_GOLD, xp_gain]
 	_set_status(msg_win)
 	_set_combat(msg_win)
+
+
+func _on_enemy_hero_result(result: Dictionary, target: Vector2i, cost: int, target_city_idx: int) -> void:
+	var outcome: String = String(result.get("outcome", "flee"))
+	if outcome == "flee":
+		# Gegner-Held-Kampf ist Pflicht; allow_flee=false. Fallback: keine Aktion.
+		_set_combat("Kampf abgebrochen")
+		return
+	if outcome == "defeat":
+		_apply_casualties(result)
+		_update_labels()
+		_on_battle_defeat()
+		return
+	var cas: int = _apply_casualties(result)
+	_hero.gold += ENEMY_DEFEAT_GOLD
+	_hero.xp += ENEMY_DEFEAT_XP
+	var leveled: bool = _check_level_up()
+	_enemy = null
+	_finish_move_to(target, cost)
+	# Stadt auf dem Zielfeld direkt einnehmen (Gegner-Held war der Verteidiger).
+	var claimed: bool = false
+	if target_city_idx >= 0 and int(_cities[target_city_idx]["owner"]) != OWNER_HERO:
+		_cities[target_city_idx]["owner"] = OWNER_HERO
+		_cities[target_city_idx]["garrison"] = 0
+		claimed = true
+	var msg_h_win: String
+	if leveled:
+		msg_h_win = "Gegner besiegt: -%d A +%d G +%d XP -> LEVEL %d!" % [cas, ENEMY_DEFEAT_GOLD, ENEMY_DEFEAT_XP, _hero.level]
+	else:
+		msg_h_win = "Gegner besiegt: -%d A +%d G +%d XP" % [cas, ENEMY_DEFEAT_GOLD, ENEMY_DEFEAT_XP]
+	_set_status(msg_h_win)
+	_set_combat(msg_h_win)
+	if claimed:
+		_check_victory()
+
+
+func _on_object_result(result: Dictionary, obj_pos: Vector2i, target: Vector2i, cost: int) -> void:
+	var outcome: String = String(result.get("outcome", "flee"))
+	if outcome == "flee":
+		_set_combat("Kampf abgebrochen (geflohen)")
+		return
+	if outcome == "defeat":
+		_apply_casualties(result)
+		_update_labels()
+		_on_battle_defeat()
+		return
+	var obj_idx: int = _object_at(obj_pos)
+	if obj_idx < 0:
+		return
+	var obj: Dictionary = _objects[obj_idx]
+	var okind: int = int(obj["kind"])
+	var ogd: int = int(obj.get("guard", 0))
+	var cas: int = _apply_casualties(result)
+	var xp_o: int = ogd * XP_PER_STRENGTH
+	_hero.xp += xp_o
+	var lvl_o: bool = _check_level_up()
+	obj["guard"] = 0
+	var msg_og: String
+	if lvl_o:
+		msg_og = "Wache besiegt: -%d A +%d XP -> LEVEL %d!" % [cas, xp_o, _hero.level]
+	else:
+		msg_og = "Wache besiegt: -%d A +%d XP" % [cas, xp_o]
+	_set_combat(msg_og)
+	if okind == OBJECT_MINE:
+		obj["owner"] = OWNER_HERO
+	elif okind == OBJECT_TREASURE:
+		var reward: int = int(obj["gold"])
+		_hero.gold += reward
+		_objects.remove_at(obj_idx)
+		_set_combat("Schatz gefunden: +%d G (Wache -%d A)" % [reward, cas])
+	_finish_move_to(target, cost)
+
+
+func _on_city_result(result: Dictionary, city_idx: int, target: Vector2i, cost: int) -> void:
+	var outcome: String = String(result.get("outcome", "flee"))
+	if outcome == "flee":
+		_set_combat("Kampf abgebrochen (geflohen)")
+		return
+	if outcome == "defeat":
+		_apply_casualties(result)
+		_update_labels()
+		_on_battle_defeat()
+		return
+	if city_idx < 0 or city_idx >= _cities.size():
+		return
+	var tc: Dictionary = _cities[city_idx]
+	var garrison: int = int(tc.get("garrison", 0))
+	var cas: int = _apply_casualties(result)
+	var xp_c: int = garrison * XP_PER_STRENGTH
+	_hero.xp += xp_c
+	var leveled_c: bool = _check_level_up()
+	tc["garrison"] = 0
+	tc["owner"] = OWNER_HERO
+	_finish_move_to(target, cost)
+	var fid: int = int(tc["faction"])
+	var msg_c: String
+	if leveled_c:
+		msg_c = "Stadt %s: Wache besiegt (-%d A, +%d XP) -> LEVEL %d" % [FACTION_NAMES[fid], cas, xp_c, _hero.level]
+	else:
+		msg_c = "Stadt %s: Wache besiegt (-%d A, +%d XP)" % [FACTION_NAMES[fid], cas, xp_c]
+	_set_status(msg_c)
+	_set_combat(msg_c)
+	_check_victory()
 
 
 func _object_at(p: Vector2i) -> int:
