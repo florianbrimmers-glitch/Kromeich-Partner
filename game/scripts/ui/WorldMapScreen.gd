@@ -12,6 +12,17 @@ const CITY_MIN_DIST := 8
 const CITY_INCOME := 500
 const OWNER_NEUTRAL := -1
 const OWNER_HERO := 0
+const OWNER_ENEMY := 1
+
+# Gegner-Held: Start-Werte, bewegt sich automatisch am Ende des Spielerzugs.
+const ENEMY_BASE_MP := 10
+const ENEMY_START_ARMY := 2
+# Gegner nimmt nur neutrale Staedte ein. Wenn er drauf ankommt, wird die
+# Stadt OWNER_ENEMY mit einer zufaelligen Verteidigung, damit der Spieler
+# sie zurueckerobern kann (nicht trivial). Der Spieler kann via Stadt-
+# Wache-Kampf Gegner-Staedte einnehmen wie neutrale.
+const ENEMY_GARRISON_MIN := 3
+const ENEMY_GARRISON_MAX := 6
 
 # Gebaeude-Effekte
 const BASE_MAX_MP := 10
@@ -104,7 +115,14 @@ var _monsters: Array = []
 # Tap-Status ueberschrieben - bleibt stehen, bis ein neuer Kampf passiert.
 var _combat_label: Label
 var _victory_panel: Panel
+var _victory_title: Label
 var _game_won: bool = false
+var _game_lost: bool = false
+# Gegner-Held: Position, mp, army. Wird am Ende des Spielerzugs bewegt.
+var _enemy: Hero
+# RNG bleibt nach _start() aktiv, damit Enemy-Turn deterministische
+# Wuerfe fuer Garrison machen kann.
+var _rng: DeterministicRng
 
 
 func _set_status(s: String) -> void:
@@ -136,9 +154,12 @@ func _start(seed_value: int) -> void:
 	_set_status("STEP 3: generiere seed=%d" % seed_value)
 	_seed = seed_value
 	_game_won = false
+	_game_lost = false
+	_enemy = null
 	if _victory_panel != null:
 		_victory_panel.visible = false
-	var rng := DeterministicRng.new(seed_value)
+	_rng = DeterministicRng.new(seed_value)
+	var rng := _rng
 	_set_status("STEP 3a1: Array init")
 	var tiles: Array = []
 	_set_status("STEP 3a2: resize %d" % (MAP_WIDTH * MAP_HEIGHT))
@@ -289,13 +310,35 @@ func _start(seed_value: int) -> void:
 	# sieht man vom ersten Zug an seine eigene Stadt auf der Karte.
 	# _hero wurde oben schon mit Mitten-Spawn erzeugt - Position hier
 	# ueberschreiben.
+	var player_start_idx: int = -1
 	if _cities.size() > 0:
-		var start_idx: int = rng.next_int(0, _cities.size() - 1)
-		_cities[start_idx]["owner"] = OWNER_HERO
-		_cities[start_idx]["garrison"] = 0
-		spawn = _cities[start_idx]["pos"]
+		player_start_idx = rng.next_int(0, _cities.size() - 1)
+		_cities[player_start_idx]["owner"] = OWNER_HERO
+		_cities[player_start_idx]["garrison"] = 0
+		spawn = _cities[player_start_idx]["pos"]
 		_map["hero_spawn"] = spawn
 		_hero.position = spawn
+
+	# Gegner-Held: Start in der Stadt, die am weitesten von der Spieler-
+	# Stadt ist. So startet die Partie mit garantierter Distanz zwischen
+	# den beiden Helden.
+	if _cities.size() > 1 and player_start_idx >= 0:
+		var enemy_idx: int = -1
+		var best_d: int = -1
+		var ps: Vector2i = _cities[player_start_idx]["pos"]
+		for i in range(_cities.size()):
+			if i == player_start_idx:
+				continue
+			var cp: Vector2i = _cities[i]["pos"]
+			var d: int = abs(cp.x - ps.x) + abs(cp.y - ps.y)
+			if d > best_d:
+				best_d = d
+				enemy_idx = i
+		if enemy_idx >= 0:
+			_cities[enemy_idx]["owner"] = OWNER_ENEMY
+			_cities[enemy_idx]["garrison"] = 0
+			_enemy = Hero.new(_cities[enemy_idx]["pos"], ENEMY_BASE_MP)
+			_enemy.army = ENEMY_START_ARMY
 
 	# Monster platzieren: nur Gras/Wald, Mindestabstand zu Held, Staedten
 	# und anderen Monstern, Staerke 1-3.
@@ -335,11 +378,17 @@ func _start(seed_value: int) -> void:
 
 
 func _recompute_costs() -> void:
+	_costs = _dijkstra(_hero.position, true)
+
+
+func _dijkstra(start: Vector2i, monsters_block: bool) -> Dictionary:
 	# Dijkstra inline: static-Calls auf class_name Pathfinder liefern
 	# im Android-Export leere Dicts zurueck (gleiches Problem wie bei
 	# MapGen). Also hier direkt gerechnet.
+	# monsters_block: wenn true (Spielerheld), blockieren Monster das
+	# Durchlaufen. Fuer die Gegner-KI lassen wir das weg, damit der
+	# Gegner nicht von Monstern eingekesselt wird (vereinfachtes AI).
 	var tiles: Array = _map["tiles"]
-	var start: Vector2i = _hero.position
 	var costs: Dictionary = {}
 	costs[start] = 0
 	# 4 Richtungen als feste Vector2i-Variablen (statt Array-Literal
@@ -365,8 +414,9 @@ func _recompute_costs() -> void:
 		var cur_cost: int = int(costs[cur])
 		# Monster blockieren Durchlaufen: Feld ist erreichbar (bereits in
 		# costs eingetragen), aber wir expandieren die Nachbarn nicht.
-		# Start hat nie ein Monster drauf.
-		if cur != start and _monster_at(cur) >= 0:
+		# Start hat nie ein Monster drauf. Gegner-KI ignoriert Monster,
+		# damit sie nicht eingekesselt wird.
+		if monsters_block and cur != start and _monster_at(cur) >= 0:
 			continue
 		for di in range(4):
 			var d: Vector2i = dir_e
@@ -390,7 +440,7 @@ func _recompute_costs() -> void:
 			if not costs.has(key) or next_cost < int(costs[key]):
 				costs[key] = next_cost
 				open.append(key)
-	_costs = costs
+	return costs
 
 
 func _on_map_resized() -> void:
@@ -487,6 +537,8 @@ func _draw_map() -> void:
 		_map_area.draw_rect(crect, fc, true)
 		if owner == OWNER_HERO:
 			_map_area.draw_rect(crect, Color(1.0, 0.85, 0.2), false, 4.0)
+		elif owner == OWNER_ENEMY:
+			_map_area.draw_rect(crect, Color(0.85, 0.15, 0.15), false, 4.0)
 		else:
 			_map_area.draw_rect(crect, Color(0.1, 0.1, 0.12), false, 2.0)
 		var garrison: int = int(city.get("garrison", 0))
@@ -550,6 +602,15 @@ func _draw_map() -> void:
 	var radius := _tile_size * 0.35
 	_map_area.draw_circle(center, radius, Color(1.0, 0.85, 0.2))
 	_map_area.draw_arc(center, radius, 0.0, TAU, 24, Color(0.2, 0.15, 0.05), 2.0)
+
+	# Gegner-Held: roter Kreis mit dunklem Ring. Gleiche Groesse wie
+	# Spieler-Held, damit klar ist, dass es ein gleichwertiger Akteur ist.
+	if _enemy != null:
+		var ex := _enemy.position
+		var epx := origin + Vector2(ex.x * _tile_size, ex.y * _tile_size)
+		var ecenter := epx + Vector2(_tile_size * 0.5, _tile_size * 0.5)
+		_map_area.draw_circle(ecenter, radius, Color(0.85, 0.15, 0.15))
+		_map_area.draw_arc(ecenter, radius, 0.0, TAU, 24, Color(0.15, 0.02, 0.02), 2.0)
 
 
 func _terrain_color(t: int) -> Color:
@@ -739,6 +800,9 @@ func _check_victory() -> void:
 func _show_victory_panel() -> void:
 	if _victory_panel == null:
 		return
+	if _victory_title != null:
+		_victory_title.text = "GEWONNEN!"
+		_victory_title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.25))
 	var vb := _victory_panel.get_node_or_null("VB") as VBoxContainer
 	if vb != null:
 		var stats := vb.get_node_or_null("Stats") as Label
@@ -862,6 +926,7 @@ func _build_victory_panel() -> void:
 	title.add_theme_font_size_override("font_size", 96)
 	title.add_theme_color_override("font_color", Color(1.0, 0.85, 0.25))
 	vb.add_child(title)
+	_victory_title = title
 
 	var sub := Label.new()
 	sub.text = "Alle Staedte erobert"
@@ -983,6 +1048,116 @@ func _recruit_unit(city_idx: int) -> void:
 	_show_city(city_idx)
 
 
+func _run_enemy_turn() -> void:
+	# Einfache Gegner-KI: waehlt die naechstgelegene Nicht-Gegner-Stadt
+	# (neutral oder Spieler) per Dijkstra, laeuft mit Gradienten-Abstieg so
+	# weit wie MP reichen. Am Ziel wird besetzt (ggf. mit Wache-Kampf, wenn
+	# Spieler-Stadt sollte es keine haben, neutrale Staedte haben eine).
+	# Monster werden ignoriert (monsters_block=false), damit der Gegner
+	# nicht eingekesselt wird.
+	if _enemy == null:
+		return
+	_enemy.end_turn()
+	var ecosts: Dictionary = _dijkstra(_enemy.position, false)
+	var target_idx: int = -1
+	var target_cost: int = -1
+	for i in range(_cities.size()):
+		if int(_cities[i]["owner"]) == OWNER_ENEMY:
+			continue
+		var cp: Vector2i = _cities[i]["pos"]
+		if not ecosts.has(cp):
+			continue
+		var c: int = int(ecosts[cp])
+		if target_idx < 0 or c < target_cost:
+			target_idx = i
+			target_cost = c
+	if target_idx < 0:
+		return
+	var target_pos: Vector2i = _cities[target_idx]["pos"]
+	# Zweite Dijkstra vom Ziel aus, um Schritt-fuer-Schritt den Gradienten
+	# absteigen zu koennen. Einfacher als Pfad-Rekonstruktion.
+	var tcosts: Dictionary = _dijkstra(target_pos, false)
+	if not tcosts.has(_enemy.position):
+		return
+	var tiles: Array = _map["tiles"]
+	var guard: int = 0
+	var cap: int = MAP_WIDTH + MAP_HEIGHT + 10
+	while _enemy.mp > 0 and _enemy.position != target_pos and guard < cap:
+		guard += 1
+		var cur_val: int = int(tcosts[_enemy.position])
+		var best_next: Vector2i = _enemy.position
+		var best_val: int = cur_val
+		var best_step: int = -1
+		var d_e := Vector2i(1, 0)
+		var d_w := Vector2i(-1, 0)
+		var d_s := Vector2i(0, 1)
+		var d_n := Vector2i(0, -1)
+		for di in range(4):
+			var d: Vector2i = d_e
+			if di == 1: d = d_w
+			elif di == 2: d = d_s
+			elif di == 3: d = d_n
+			var np: Vector2i = _enemy.position + d
+			if not tcosts.has(np):
+				continue
+			var v: int = int(tcosts[np])
+			if v >= cur_val:
+				continue
+			if np.x < 0 or np.x >= MAP_WIDTH or np.y < 0 or np.y >= MAP_HEIGHT:
+				continue
+			var t: int = int(tiles[np.y * MAP_WIDTH + np.x])
+			var step_cost: int = 1
+			if t == 1:
+				step_cost = 2
+			if step_cost > _enemy.mp:
+				continue
+			if v < best_val:
+				best_val = v
+				best_next = np
+				best_step = step_cost
+		if best_step < 0:
+			break
+		_enemy.position = best_next
+		_enemy.mp -= best_step
+	# Ziel erreicht? Stadt einnehmen. Wenn Wache vorhanden und Gegner zu
+	# schwach, bleibt die Stadt stehen. Gegner hat keinen Kampfkraft-Bonus,
+	# nur seine Armee zaehlt.
+	if _enemy.position == target_pos:
+		var tc: Dictionary = _cities[target_idx]
+		var garrison: int = int(tc.get("garrison", 0))
+		if garrison > 0:
+			if _enemy.army < garrison:
+				return
+			_enemy.army -= garrison
+		tc["owner"] = OWNER_ENEMY
+		tc["garrison"] = _rng.next_int(ENEMY_GARRISON_MIN, ENEMY_GARRISON_MAX)
+
+
+func _check_defeat() -> void:
+	# Niederlage: alle Staedte dem Gegner. Spiegelbild zu _check_victory.
+	if _cities.size() == 0 or _enemy == null:
+		return
+	for c in _cities:
+		if int(c["owner"]) != OWNER_ENEMY:
+			return
+	_game_lost = true
+	_show_defeat_panel()
+
+
+func _show_defeat_panel() -> void:
+	if _victory_panel == null:
+		return
+	if _victory_title != null:
+		_victory_title.text = "NIEDERLAGE"
+		_victory_title.add_theme_color_override("font_color", Color(1.0, 0.4, 0.35))
+	var vb := _victory_panel.get_node_or_null("VB") as VBoxContainer
+	if vb != null:
+		var stats := vb.get_node_or_null("Stats") as Label
+		if stats != null:
+			stats.text = "Level " + str(_hero.level) + "   XP " + str(_hero.xp) + "\nGold " + str(_hero.gold) + "   Armee " + str(_hero.army)
+	_victory_panel.visible = true
+
+
 func _on_end_turn() -> void:
 	# Gebaeude-Effekte pro eigener Stadt:
 	#   Spaeher  -> max_mp hoch
@@ -1020,10 +1195,14 @@ func _on_end_turn() -> void:
 		_hero.xp += xp_gain
 		if _check_level_up():
 			_set_combat("Level-Up durch Kapelle! -> LEVEL %d" % _hero.level)
+	# Gegner-Zug: nach dem Spieler-Einkommen, bevor die Sicht neu gerechnet
+	# wird, damit evtl. uebernommene Staedte sofort gerendert werden.
+	_run_enemy_turn()
 	_recompute_costs()
 	_map_area.queue_redraw()
 	_update_labels()
 	_set_status("Zug beendet: +%d G, +%d A, +%d XP (%d Staedte)" % [income, army_gain, xp_gain, owned])
+	_check_defeat()
 
 
 func _on_reroll() -> void:
