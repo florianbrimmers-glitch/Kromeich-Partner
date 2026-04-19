@@ -458,33 +458,44 @@ func _build_city_panel() -> void:
 	panel.anchor_top = 0.5
 	panel.anchor_right = 0.5
 	panel.anchor_bottom = 0.5
-	panel.offset_left = -440
-	panel.offset_top = -600
-	panel.offset_right = 440
-	panel.offset_bottom = 600
+	panel.offset_left = -480
+	panel.offset_top = -700
+	panel.offset_right = 480
+	panel.offset_bottom = 700
 	add_child(panel)
 	_city_panel = panel
+
+	# Opaker Hintergrund - default Panel-Theme ist halbtransparent und
+	# auf der Weltkarte unleserlich.
+	var bg := ColorRect.new()
+	bg.color = Color(0.10, 0.11, 0.14, 1.0)
+	bg.anchor_right = 1.0
+	bg.anchor_bottom = 1.0
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(bg)
 
 	var vb := VBoxContainer.new()
 	vb.anchor_right = 1.0
 	vb.anchor_bottom = 1.0
-	vb.offset_left = 32
-	vb.offset_top = 32
-	vb.offset_right = -32
-	vb.offset_bottom = -32
-	vb.add_theme_constant_override("separation", 24)
+	vb.offset_left = 40
+	vb.offset_top = 40
+	vb.offset_right = -40
+	vb.offset_bottom = -40
+	vb.add_theme_constant_override("separation", 28)
 	panel.add_child(vb)
 
 	_city_title = Label.new()
 	_city_title.text = "Stadt"
+	_city_title.add_theme_font_size_override("font_size", 48)
 	vb.add_child(_city_title)
 
 	_city_gold = Label.new()
 	_city_gold.text = "Gold: 0"
+	_city_gold.add_theme_font_size_override("font_size", 32)
 	vb.add_child(_city_gold)
 
 	_buildings_box = VBoxContainer.new()
-	_buildings_box.add_theme_constant_override("separation", 12)
+	_buildings_box.add_theme_constant_override("separation", 16)
 	vb.add_child(_buildings_box)
 
 	var spacer := Control.new()
@@ -493,7 +504,8 @@ func _build_city_panel() -> void:
 
 	var close_btn := Button.new()
 	close_btn.text = "Schliessen"
-	close_btn.custom_minimum_size = Vector2(0, 96)
+	close_btn.custom_minimum_size = Vector2(0, 120)
+	close_btn.add_theme_font_size_override("font_size", 32)
 	close_btn.pressed.connect(_hide_city)
 	vb.add_child(close_btn)
 
@@ -513,7 +525,8 @@ func _show_city(city_idx: int) -> void:
 		var bname: String = b["name"]
 		var cost: int = int(b["cost"])
 		var btn := Button.new()
-		btn.custom_minimum_size = Vector2(0, 96)
+		btn.custom_minimum_size = Vector2(0, 120)
+		btn.add_theme_font_size_override("font_size", 32)
 		if built.has(bid):
 			btn.text = bname + "  (Gebaut)"
 			btn.disabled = true
