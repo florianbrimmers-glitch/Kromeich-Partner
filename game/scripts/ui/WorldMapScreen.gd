@@ -204,10 +204,11 @@ func _draw_map() -> void:
 			var key := Vector2i(x, y)
 			var reachable: bool = _costs.has(key) and int(_costs[key]) <= _hero.mp
 			if not reachable:
-				col = col.darkened(0.45)
+				col = col.darkened(0.7)
 			_map_area.draw_rect(rect, col, true)
+			if reachable and key != _hero.position:
+				_map_area.draw_rect(rect, Color(1.0, 1.0, 1.0, 0.25), false, 2.0)
 
-	# Held zeichnen
 	var hero_px := origin + Vector2(_hero.position.x * _tile_size, _hero.position.y * _tile_size)
 	var center := hero_px + Vector2(_tile_size * 0.5, _tile_size * 0.5)
 	var radius := _tile_size * 0.35
@@ -223,6 +224,16 @@ func _terrain_color(t: int) -> Color:
 		MapGen.TILE_MOUNTAIN: return Color(0.45, 0.42, 0.40)
 		MapGen.TILE_SAND:     return Color(0.85, 0.78, 0.48)
 	return Color(0.5, 0.5, 0.5)
+
+
+func _terrain_name(t: int) -> String:
+	match t:
+		MapGen.TILE_GRASS:    return "Gras"
+		MapGen.TILE_FOREST:   return "Wald"
+		MapGen.TILE_WATER:    return "Wasser"
+		MapGen.TILE_MOUNTAIN: return "Gebirge"
+		MapGen.TILE_SAND:     return "Sand"
+	return "Unbekannt"
 
 
 func _map_origin() -> Vector2:
@@ -263,7 +274,9 @@ func _on_map_input(event: InputEvent) -> void:
 		_set_status("Tap auf Held (%d,%d)" % [tx, ty])
 		return
 	if not _costs.has(target):
-		_set_status("Tap unerreichbar (%d,%d)" % [tx, ty])
+		var tiles: Array = _map["tiles"]
+		var tt: int = int(tiles[ty * MAP_WIDTH + tx])
+		_set_status("Tap %s (%d,%d)" % [_terrain_name(tt), tx, ty])
 		return
 	var cost: int = int(_costs[target])
 	if cost > _hero.mp:
