@@ -31,6 +31,11 @@ const MONSTER_COUNT := 8
 const MONSTER_MIN_DIST := 5
 const MONSTER_VICTORY_GOLD := 120
 
+# Belohnung fuer Sieg ueber den Gegner-Helden (Auto-Resolve auf der Karte).
+# Bewusst hoeher als ein Monster, weil er sich bewegt und zurueckschlaegt.
+const ENEMY_DEFEAT_GOLD := 300
+const ENEMY_DEFEAT_XP := 50
+
 # Stadt-Wachen: jede neutrale Stadt hat eine zufaellige Wache. Sie muss
 # vor der Einnahme besiegt werden (selbe Combat-Formel wie Monster).
 # Die Start-Stadt des Helden hat Garrison 0.
@@ -600,12 +605,28 @@ func _draw_map() -> void:
 
 	# Gegner-Held: roter Kreis mit dunklem Ring. Gleiche Groesse wie
 	# Spieler-Held, damit klar ist, dass es ein gleichwertiger Akteur ist.
+	# Darueber die Armee-Zahl mit Kampf-Prognose-Farbe (rot/gelb/gruen)
+	# - so kann man entscheiden, ob man angreifen will.
 	if _enemy != null:
 		var ex := _enemy.position
 		var epx := origin + Vector2(ex.x * _tile_size, ex.y * _tile_size)
 		var ecenter := epx + Vector2(_tile_size * 0.5, _tile_size * 0.5)
 		_map_area.draw_circle(ecenter, radius, Color(0.85, 0.15, 0.15))
 		_map_area.draw_arc(ecenter, radius, 0.0, TAU, 24, Color(0.15, 0.02, 0.02), 2.0)
+		var earmy: int = int(_enemy.army)
+		var etxt: String = str(earmy)
+		var ecol: Color
+		if eff < earmy:
+			ecol = Color(1.0, 0.35, 0.35)
+		elif earmy - cbonus <= 0:
+			ecol = Color(0.45, 1.0, 0.45)
+		else:
+			ecol = Color(1.0, 0.92, 0.35)
+		var esize: int = int(_tile_size * 0.5)
+		var es := mfont.get_string_size(etxt, HORIZONTAL_ALIGNMENT_CENTER, -1, esize)
+		var epos := ecenter + Vector2(-es.x * 0.5, es.y * 0.35)
+		_map_area.draw_string(mfont, epos + Vector2(2, 2), etxt, HORIZONTAL_ALIGNMENT_CENTER, -1, esize, Color(0, 0, 0, 0.8))
+		_map_area.draw_string(mfont, epos, etxt, HORIZONTAL_ALIGNMENT_CENTER, -1, esize, ecol)
 
 
 func _terrain_color(t: int) -> Color:
@@ -718,6 +739,33 @@ func _on_map_input(event: InputEvent) -> void:
 		_set_status(msg_win)
 		_set_combat(msg_win)
 		return
+
+	# Gegner-Held auf Zielfeld: direkter Kampf, bevor wir eine evtl. dort
+	# stehende Stadt beruehren. Kampfkraft = Armee + Level/Wachturm-Bonus,
+	# Gegner hat nur seine Armee. Verlust = max(0, Gegner-Armee - Bonus).
+	# Sieg toetet den Gegner-Helden (raus von der Karte), Oekonomie laeuft
+	# weiter - seine Staedte werden nur nicht mehr verteidigt.
+	if _enemy != null and target == _enemy.position:
+		var cbonus_h: int = _combat_bonus()
+		var eff_h: int = _hero.army + cbonus_h
+		var eff_e: int = _enemy.army
+		if eff_h < eff_e:
+			var msg_eh_fail: String = "NIEDERLAGE: Gegner-Armee %d > Kampfkraft %d" % [eff_e, eff_h]
+			_set_status(msg_eh_fail)
+			_set_combat(msg_eh_fail)
+			return
+		var army_loss_h: int = max(0, eff_e - cbonus_h)
+		_hero.army -= army_loss_h
+		_hero.gold += ENEMY_DEFEAT_GOLD
+		_hero.xp += ENEMY_DEFEAT_XP
+		var leveled_h: bool = _check_level_up()
+		_enemy = null
+		var msg_h_win: String
+		if leveled_h:
+			msg_h_win = "Gegner besiegt: -%d A +%d G +%d XP -> LEVEL %d!" % [army_loss_h, ENEMY_DEFEAT_GOLD, ENEMY_DEFEAT_XP, _hero.level]
+		else:
+			msg_h_win = "Gegner besiegt: -%d A +%d G +%d XP" % [army_loss_h, ENEMY_DEFEAT_GOLD, ENEMY_DEFEAT_XP]
+		_set_combat(msg_h_win)
 
 	# Stadt-Wache-Kampf: wenn Zielfeld eine neutrale Stadt mit Garrison > 0
 	# ist, vor Einnahme der Wache-Kampf. Niederlage blockiert Bewegung,
@@ -1191,6 +1239,21 @@ func _run_enemy_turn() -> void:
 				best_step = step_cost
 		if best_step < 0:
 			break
+		# Spieler-Held auf dem naechsten Schritt: Hero-vs-Hero-Kampf
+		# aufloesen. Gewinnt der Gegner (reine Armee vs. Kampfkraft mit
+		# Bonus), ist das Spiel verloren. Gewinnt der Spieler, ist der
+		# Gegner weg und die KI bricht den Zug ab.
+		if best_next == _hero.position:
+			var eff_hp: int = _hero.army + _combat_bonus()
+			var eff_ep: int = _enemy.army
+			if eff_ep > eff_hp:
+				_set_combat("NIEDERLAGE: Gegner-Held hat dich besiegt")
+				_game_lost = true
+				_show_defeat_panel()
+				return
+			_set_combat("Gegner-Held hat dich angegriffen und verloren")
+			_enemy = null
+			return
 		_enemy.position = best_next
 		_enemy.mp -= best_step
 	# Ziel erreicht? Stadt einnehmen. Wenn Wache vorhanden und Gegner zu
