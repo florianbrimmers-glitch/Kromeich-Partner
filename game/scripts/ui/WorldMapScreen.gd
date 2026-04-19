@@ -39,6 +39,11 @@ const LEVEL_COMBAT_BONUS := 1
 # Schmiede: pro eigener Stadt mit Schmiede +1 Armee/Zug (Ende-Zug).
 const SCHMIEDE_ARMY_PER_TURN := 1
 
+# Monster-Aufklaerung: exakte Staerke nur sichtbar, wenn der Held in
+# Manhattan-Reichweite ist. Weiter weg erscheint "?" (Info-Vorteil fuer
+# Erkundung).
+const MONSTER_VIEW_RANGE := 5
+
 # Fraktionen. Bewusst generische Namen (nicht HoMM3-IP), passt zur
 # Plan-Phase 1 ("Waldvolk"/"Menschen"/"Totenreich"/"Orks").
 const FACTION_NAMES := ["Waldvolk", "Menschen", "Totenreich", "Orks"]
@@ -456,18 +461,40 @@ func _draw_map() -> void:
 		else:
 			_map_area.draw_rect(crect, Color(0.1, 0.1, 0.12), false, 2.0)
 
-	# Monster: grauer Kreis, roter Rand. Staerke als dicke(re) Rand-Ringe
-	# rund um den Kreis, damit man ohne Text die Bedrohung einschaetzt.
+	# Monster: grauer Kreis mit Staerke-Zahl in der Mitte. Farbe der Zahl
+	# sagt sofort, wie der Kampf ausgehen wuerde:
+	#   gruen = kein Verlust (Kampfkraft-Bonus deckt Schaden)
+	#   gelb  = Sieg mit Verlusten
+	#   rot   = Niederlage (Kampfkraft < Monster-Staerke)
+	# Ausserhalb MONSTER_VIEW_RANGE erscheint "?" in Grau.
+	var cbonus: int = LEVEL_COMBAT_BONUS * max(0, _hero.level - 1)
+	var eff: int = _hero.army + cbonus
+	var mfont: Font = ThemeDB.fallback_font
+	var mfsize: int = int(_tile_size * 0.55)
 	for m in _monsters:
 		var mp: Vector2i = m["pos"]
 		var mstr: int = int(m["strength"])
 		var mpx := origin + Vector2(mp.x * _tile_size + _tile_size * 0.5, mp.y * _tile_size + _tile_size * 0.5)
-		var mrad := _tile_size * 0.32
-		_map_area.draw_circle(mpx, mrad, Color(0.35, 0.35, 0.38))
+		var mrad := _tile_size * 0.36
+		_map_area.draw_circle(mpx, mrad, Color(0.20, 0.20, 0.22))
 		_map_area.draw_arc(mpx, mrad, 0.0, TAU, 20, Color(0.85, 0.25, 0.25), 3.0)
-		for si in range(mstr):
-			var ring := mrad + 6.0 + 6.0 * float(si)
-			_map_area.draw_arc(mpx, ring, 0.0, TAU, 20, Color(0.85, 0.25, 0.25, 0.7), 2.0)
+		var dist: int = abs(mp.x - _hero.position.x) + abs(mp.y - _hero.position.y)
+		var txt: String
+		var tcol: Color
+		if dist <= MONSTER_VIEW_RANGE:
+			txt = str(mstr)
+			if eff < mstr:
+				tcol = Color(1.0, 0.35, 0.35)       # rot: kannst nicht schlagen
+			elif mstr - cbonus <= 0:
+				tcol = Color(0.45, 1.0, 0.45)       # gruen: ohne Verluste
+			else:
+				tcol = Color(1.0, 0.92, 0.35)       # gelb: Sieg mit Verlusten
+		else:
+			txt = "?"
+			tcol = Color(0.75, 0.75, 0.75)
+		var ts := mfont.get_string_size(txt, HORIZONTAL_ALIGNMENT_CENTER, -1, mfsize)
+		var tp := mpx + Vector2(-ts.x * 0.5, ts.y * 0.35)
+		_map_area.draw_string(mfont, tp, txt, HORIZONTAL_ALIGNMENT_CENTER, -1, mfsize, tcol)
 
 	var hero_px := origin + Vector2(_hero.position.x * _tile_size, _hero.position.y * _tile_size)
 	var center := hero_px + Vector2(_tile_size * 0.5, _tile_size * 0.5)
