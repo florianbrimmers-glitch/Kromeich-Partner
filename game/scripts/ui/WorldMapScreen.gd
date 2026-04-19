@@ -189,7 +189,7 @@ func _update_labels() -> void:
 		sl.text = "Seed %d" % _seed
 	var ml := get_node_or_null(mp_label_path) as Label
 	if ml != null:
-		ml.text = "MP %d/%d" % [_hero.mp, _hero.max_mp]
+		ml.text = "MP %d/%d  Reach %d" % [_hero.mp, _hero.max_mp, _costs.size()]
 
 
 func _draw_map() -> void:

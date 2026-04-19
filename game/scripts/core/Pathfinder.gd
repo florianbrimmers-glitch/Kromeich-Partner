@@ -34,10 +34,14 @@ static func compute_costs(map: Dictionary, start: Vector2i) -> Dictionary:
 			if nx < 0 or nx >= width or ny < 0 or ny >= height:
 				continue
 			var t: int = int(tiles[ny * width + nx])
+			# Integer-Literale statt MapGen.TILE_*: Cross-File-
+			# class_name-Konstanten verhalten sich im Android-Export
+			# wie die static MapGen.xxx()-Calls (Wert kommt nicht an).
+			# 0=GRASS, 1=FOREST, 2=WATER, 3=MOUNTAIN, 4=SAND.
 			var step := -1
-			if t == MapGen.TILE_GRASS or t == MapGen.TILE_SAND:
+			if t == 0 or t == 4:
 				step = 1
-			elif t == MapGen.TILE_FOREST:
+			elif t == 1:
 				step = 2
 			if step < 0:
 				continue
