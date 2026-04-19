@@ -9,6 +9,9 @@ const MAP_HEIGHT := 22
 
 const CITY_COUNT := 4
 const CITY_MIN_DIST := 6
+const CITY_INCOME := 500
+const OWNER_NEUTRAL := -1
+const OWNER_HERO := 0
 
 # Fraktionen. Bewusst generische Namen (nicht HoMM3-IP), passt zur
 # Plan-Phase 1 ("Waldvolk"/"Menschen"/"Totenreich"/"Orks").
@@ -205,7 +208,11 @@ func _start(seed_value: int) -> void:
 				break
 		if too_close:
 			continue
-		_cities.append({ "pos": candidate, "faction": _cities.size() })
+		_cities.append({
+			"pos": candidate,
+			"faction": _cities.size(),
+			"owner": OWNER_NEUTRAL,
+		})
 
 	_recompute_costs()
 	_on_map_resized()
@@ -282,8 +289,8 @@ func _update_labels() -> void:
 	if ml != null:
 		var mp: int = int(_hero.mp)
 		var mmax: int = int(_hero.max_mp)
-		var reach: int = int(_costs.size())
-		ml.text = "MP " + str(mp) + "/" + str(mmax) + "  R" + str(reach)
+		var gold: int = int(_hero.gold)
+		ml.text = "MP " + str(mp) + "/" + str(mmax) + "  G " + str(gold)
 
 
 func _draw_map() -> void:
@@ -303,10 +310,12 @@ func _draw_map() -> void:
 			if reachable and key != _hero.position:
 				_map_area.draw_rect(rect, Color(1.0, 1.0, 1.0, 0.25), false, 2.0)
 
-	# Staedte: farbiges Viereck pro Fraktion mit dunklem Rand.
+	# Staedte: farbiges Viereck pro Fraktion. Neutraler Rand dunkel,
+	# eigene Stadt bekommt dicken goldenen Rand.
 	for city in _cities:
 		var cp: Vector2i = city["pos"]
 		var fid: int = int(city["faction"])
+		var owner: int = int(city["owner"])
 		var cpos := origin + Vector2(cp.x * _tile_size, cp.y * _tile_size)
 		var inset: float = _tile_size * 0.18
 		var crect := Rect2(
@@ -315,7 +324,10 @@ func _draw_map() -> void:
 		)
 		var fc: Color = FACTION_COLORS[fid] if fid >= 0 and fid < FACTION_COLORS.size() else Color.WHITE
 		_map_area.draw_rect(crect, fc, true)
-		_map_area.draw_rect(crect, Color(0.1, 0.1, 0.12), false, 2.0)
+		if owner == OWNER_HERO:
+			_map_area.draw_rect(crect, Color(1.0, 0.85, 0.2), false, 4.0)
+		else:
+			_map_area.draw_rect(crect, Color(0.1, 0.1, 0.12), false, 2.0)
 
 	var hero_px := origin + Vector2(_hero.position.x * _tile_size, _hero.position.y * _tile_size)
 	var center := hero_px + Vector2(_tile_size * 0.5, _tile_size * 0.5)
@@ -396,11 +408,20 @@ func _on_map_input(event: InputEvent) -> void:
 		return
 	_hero.mp -= cost
 	_hero.position = target
+	var claimed := false
+	if city_id >= 0:
+		for city in _cities:
+			if city["pos"] == target and int(city["owner"]) != OWNER_HERO:
+				city["owner"] = OWNER_HERO
+				claimed = true
+				break
 	_recompute_costs()
 	_map_area.queue_redraw()
 	_update_labels()
-	if city_id >= 0:
-		_set_status("Stadt %s erreicht (%d MP)" % [FACTION_NAMES[city_id], cost])
+	if claimed:
+		_set_status("Stadt %s eingenommen (%d MP)" % [FACTION_NAMES[city_id], cost])
+	elif city_id >= 0:
+		_set_status("Stadt %s (%d MP)" % [FACTION_NAMES[city_id], cost])
 	else:
 		_set_status("Zug -> (%d,%d) fuer %d MP" % [tx, ty, cost])
 
@@ -415,9 +436,16 @@ func _city_at(p: Vector2i) -> int:
 
 func _on_end_turn() -> void:
 	_hero.end_turn()
+	var owned := 0
+	for city in _cities:
+		if int(city["owner"]) == OWNER_HERO:
+			owned += 1
+	var income: int = owned * CITY_INCOME
+	_hero.gold += income
 	_recompute_costs()
 	_map_area.queue_redraw()
 	_update_labels()
+	_set_status("Zug beendet: +%d Gold (%d Staedte)" % [income, owned])
 
 
 func _on_reroll() -> void:
