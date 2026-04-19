@@ -48,8 +48,13 @@ func _start(seed_value: int) -> void:
 	_set_status("STEP 3: generiere seed=%d" % seed_value)
 	_seed = seed_value
 	var rng := DeterministicRng.new(seed_value)
-	_set_status("STEP 3a: make_empty_tiles")
-	var tiles := MapGen.make_empty_tiles(MAP_WIDTH, MAP_HEIGHT)
+	_set_status("STEP 3a1: Array init")
+	var tiles: Array = []
+	_set_status("STEP 3a2: resize %d" % (MAP_WIDTH * MAP_HEIGHT))
+	tiles.resize(MAP_WIDTH * MAP_HEIGHT)
+	_set_status("STEP 3a3: fill grass")
+	for i in range(tiles.size()):
+		tiles[i] = MapGen.TILE_GRASS
 	_set_status("STEP 3b: place_water")
 	MapGen.place_water(tiles, MAP_WIDTH, MAP_HEIGHT, rng)
 	_set_status("STEP 3c: place_mountains")
@@ -99,11 +104,11 @@ func _update_labels() -> void:
 
 
 func _draw_map() -> void:
-	var tiles: PackedInt32Array = _map["tiles"]
+	var tiles: Array = _map["tiles"]
 	var origin := _map_origin()
 	for y in range(MAP_HEIGHT):
 		for x in range(MAP_WIDTH):
-			var ti: int = tiles[y * MAP_WIDTH + x]
+			var ti: int = int(tiles[y * MAP_WIDTH + x])
 			var pos := origin + Vector2(x * _tile_size, y * _tile_size)
 			var rect := Rect2(pos, Vector2(_tile_size - 1.0, _tile_size - 1.0))
 			var col := _terrain_color(ti)

@@ -8,7 +8,7 @@ extends RefCounted
 static func compute_costs(map: Dictionary, start: Vector2i) -> Dictionary:
 	var width: int = int(map["width"])
 	var height: int = int(map["height"])
-	var tiles: PackedInt32Array = map["tiles"]
+	var tiles: Array = map["tiles"]
 	var costs: Dictionary = {}
 	costs[start] = 0
 
@@ -33,7 +33,7 @@ static func compute_costs(map: Dictionary, start: Vector2i) -> Dictionary:
 			var ny := cur.y + d.y
 			if nx < 0 or nx >= width or ny < 0 or ny >= height:
 				continue
-			var t: int = tiles[ny * width + nx]
+			var t: int = int(tiles[ny * width + nx])
 			var step := MapGen.terrain_cost(t)
 			if step < 0:
 				continue
