@@ -13,6 +13,17 @@ const CITY_INCOME := 500
 const OWNER_NEUTRAL := -1
 const OWNER_HERO := 0
 
+# Gebaeude-Effekte
+const BASE_MAX_MP := 12
+const MP_BONUS_SPAEHER := 2     # pro Spaeher in eigener Stadt
+const INCOME_MARKT := 200       # zusaetzlich pro Markt in eigener Stadt
+const UNIT_COST := 150          # pro Einheit, benoetigt Kaserne
+
+# Monster
+const MONSTER_COUNT := 6
+const MONSTER_MIN_DIST := 4
+const MONSTER_VICTORY_GOLD := 120
+
 # Fraktionen. Bewusst generische Namen (nicht HoMM3-IP), passt zur
 # Plan-Phase 1 ("Waldvolk"/"Menschen"/"Totenreich"/"Orks").
 const FACTION_NAMES := ["Waldvolk", "Menschen", "Totenreich", "Orks"]
@@ -51,6 +62,8 @@ var _city_title: Label
 var _city_gold: Label
 var _buildings_box: VBoxContainer
 var _selected_city: int = -1
+# Monster: Array aus { "pos": Vector2i, "strength": int }.
+var _monsters: Array = []
 
 
 func _set_status(s: String) -> void:
@@ -228,6 +241,36 @@ func _start(seed_value: int) -> void:
 			"buildings": [],
 		})
 
+	# Monster platzieren: nur Gras/Wald, Mindestabstand zu Held, Staedten
+	# und anderen Monstern, Staerke 1-3.
+	_set_status("STEP 5b: Monster platzieren")
+	_monsters.clear()
+	var m_attempts := 0
+	while _monsters.size() < MONSTER_COUNT and m_attempts < 600:
+		m_attempts += 1
+		var mx: int = rng.next_int(0, MAP_WIDTH - 1)
+		var my: int = rng.next_int(0, MAP_HEIGHT - 1)
+		var tt: int = int(tiles[my * MAP_WIDTH + mx])
+		if tt != 0 and tt != 1:  # 0 GRASS, 1 FOREST
+			continue
+		var mpos := Vector2i(mx, my)
+		if abs(mpos.x - spawn.x) + abs(mpos.y - spawn.y) < MONSTER_MIN_DIST:
+			continue
+		var blocked := false
+		for c in _cities:
+			if c["pos"] == mpos:
+				blocked = true
+				break
+		if blocked:
+			continue
+		for m in _monsters:
+			if abs((m["pos"] as Vector2i).x - mpos.x) + abs((m["pos"] as Vector2i).y - mpos.y) < 2:
+				blocked = true
+				break
+		if blocked:
+			continue
+		_monsters.append({ "pos": mpos, "strength": rng.next_int(1, 3) })
+
 	_recompute_costs()
 	_on_map_resized()
 	_update_labels()
@@ -263,6 +306,11 @@ func _recompute_costs() -> void:
 		var cur: Vector2i = open[best_idx]
 		open.remove_at(best_idx)
 		var cur_cost: int = int(costs[cur])
+		# Monster blockieren Durchlaufen: Feld ist erreichbar (bereits in
+		# costs eingetragen), aber wir expandieren die Nachbarn nicht.
+		# Start hat nie ein Monster drauf.
+		if cur != start and _monster_at(cur) >= 0:
+			continue
 		for di in range(4):
 			var d: Vector2i = dir_e
 			if di == 1: d = dir_w
@@ -304,7 +352,8 @@ func _update_labels() -> void:
 		var mp: int = int(_hero.mp)
 		var mmax: int = int(_hero.max_mp)
 		var gold: int = int(_hero.gold)
-		ml.text = "MP " + str(mp) + "/" + str(mmax) + "  G " + str(gold)
+		var army: int = int(_hero.army)
+		ml.text = "MP " + str(mp) + "/" + str(mmax) + "  G " + str(gold) + "  A " + str(army)
 
 
 func _draw_map() -> void:
@@ -342,6 +391,19 @@ func _draw_map() -> void:
 			_map_area.draw_rect(crect, Color(1.0, 0.85, 0.2), false, 4.0)
 		else:
 			_map_area.draw_rect(crect, Color(0.1, 0.1, 0.12), false, 2.0)
+
+	# Monster: grauer Kreis, roter Rand. Staerke als dicke(re) Rand-Ringe
+	# rund um den Kreis, damit man ohne Text die Bedrohung einschaetzt.
+	for m in _monsters:
+		var mp: Vector2i = m["pos"]
+		var mstr: int = int(m["strength"])
+		var mpx := origin + Vector2(mp.x * _tile_size + _tile_size * 0.5, mp.y * _tile_size + _tile_size * 0.5)
+		var mrad := _tile_size * 0.32
+		_map_area.draw_circle(mpx, mrad, Color(0.35, 0.35, 0.38))
+		_map_area.draw_arc(mpx, mrad, 0.0, TAU, 20, Color(0.85, 0.25, 0.25), 3.0)
+		for si in range(mstr):
+			var ring := mrad + 6.0 + 6.0 * float(si)
+			_map_area.draw_arc(mpx, ring, 0.0, TAU, 20, Color(0.85, 0.25, 0.25, 0.7), 2.0)
 
 	var hero_px := origin + Vector2(_hero.position.x * _tile_size, _hero.position.y * _tile_size)
 	var center := hero_px + Vector2(_tile_size * 0.5, _tile_size * 0.5)
@@ -424,6 +486,27 @@ func _on_map_input(event: InputEvent) -> void:
 	if cost > _hero.mp:
 		_set_status("Tap zu teuer: %d > %d MP" % [cost, _hero.mp])
 		return
+
+	# Monster auf Zielfeld: vor Bewegung auto-resolve. Armee >= Staerke
+	# gewinnt (verliert aber Einheiten), sonst Angriff verweigert und
+	# weder MP noch Armee sinken - Spieler kann ausweichen.
+	var mon_idx: int = _monster_at(target)
+	if mon_idx >= 0:
+		var mstr: int = int(_monsters[mon_idx]["strength"])
+		if _hero.army < mstr:
+			_set_status("Armee zu schwach: %d < %d" % [_hero.army, mstr])
+			return
+		_hero.army -= mstr
+		_hero.gold += MONSTER_VICTORY_GOLD
+		_monsters.remove_at(mon_idx)
+		_hero.mp -= cost
+		_hero.position = target
+		_recompute_costs()
+		_map_area.queue_redraw()
+		_update_labels()
+		_set_status("Monster besiegt: -%d Armee, +%d Gold" % [mstr, MONSTER_VICTORY_GOLD])
+		return
+
 	_hero.mp -= cost
 	_hero.position = target
 	var claimed := false
@@ -447,6 +530,13 @@ func _city_at(p: Vector2i) -> int:
 	# Liefert Index in _cities oder -1.
 	for i in range(_cities.size()):
 		if _cities[i]["pos"] == p:
+			return i
+	return -1
+
+
+func _monster_at(p: Vector2i) -> int:
+	for i in range(_monsters.size()):
+		if (_monsters[i]["pos"] as Vector2i) == p:
 			return i
 	return -1
 
@@ -536,6 +626,18 @@ func _show_city(city_idx: int) -> void:
 				btn.disabled = true
 			btn.pressed.connect(_buy_building.bind(city_idx, i))
 		_buildings_box.add_child(btn)
+
+	# Rekrutieren: nur wenn Kaserne gebaut. Gibt +1 zum Hero-Armee-Zaehler.
+	if built.has("kaserne"):
+		var rbtn := Button.new()
+		rbtn.custom_minimum_size = Vector2(0, 120)
+		rbtn.add_theme_font_size_override("font_size", 32)
+		rbtn.text = "Rekrutieren  -  " + str(UNIT_COST) + " G  (+1 Armee)"
+		if _hero.gold < UNIT_COST:
+			rbtn.disabled = true
+		rbtn.pressed.connect(_recruit_unit.bind(city_idx))
+		_buildings_box.add_child(rbtn)
+
 	_city_panel.visible = true
 
 
@@ -561,18 +663,42 @@ func _buy_building(city_idx: int, bld_idx: int) -> void:
 	_show_city(city_idx)
 
 
+func _recruit_unit(city_idx: int) -> void:
+	if _hero.gold < UNIT_COST:
+		return
+	var city: Dictionary = _cities[city_idx]
+	var built: Array = city["buildings"]
+	if not built.has("kaserne"):
+		return
+	_hero.gold -= UNIT_COST
+	_hero.army += 1
+	_update_labels()
+	_set_status("Einheit rekrutiert (+1 Armee)")
+	_show_city(city_idx)
+
+
 func _on_end_turn() -> void:
-	_hero.end_turn()
+	# Gebaeude-Effekte: Spaeher in eigenen Staedten erhoeht max_mp;
+	# Markt erhoeht das Gold-Einkommen.
 	var owned := 0
+	var spaeher_count := 0
+	var markt_count := 0
 	for city in _cities:
 		if int(city["owner"]) == OWNER_HERO:
 			owned += 1
-	var income: int = owned * CITY_INCOME
+			var bl: Array = city["buildings"]
+			if bl.has("spaeher"):
+				spaeher_count += 1
+			if bl.has("markt"):
+				markt_count += 1
+	_hero.max_mp = BASE_MAX_MP + MP_BONUS_SPAEHER * spaeher_count
+	_hero.end_turn()
+	var income: int = owned * CITY_INCOME + markt_count * INCOME_MARKT
 	_hero.gold += income
 	_recompute_costs()
 	_map_area.queue_redraw()
 	_update_labels()
-	_set_status("Zug beendet: +%d Gold (%d Staedte)" % [income, owned])
+	_set_status("Zug beendet: +%d Gold (%d Staedte, +%d MP/Spaeher)" % [income, owned, MP_BONUS_SPAEHER * spaeher_count])
 
 
 func _on_reroll() -> void:

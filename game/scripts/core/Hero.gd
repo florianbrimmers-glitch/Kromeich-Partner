@@ -8,6 +8,7 @@ var position: Vector2i
 var max_mp: int
 var mp: int
 var gold: int = 0
+var army: int = 0
 
 func _init(start: Vector2i, max_movement: int = 12) -> void:
 	position = start
