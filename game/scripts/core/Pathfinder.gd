@@ -34,7 +34,11 @@ static func compute_costs(map: Dictionary, start: Vector2i) -> Dictionary:
 			if nx < 0 or nx >= width or ny < 0 or ny >= height:
 				continue
 			var t: int = int(tiles[ny * width + nx])
-			var step := MapGen.terrain_cost(t)
+			var step := -1
+			if t == MapGen.TILE_GRASS or t == MapGen.TILE_SAND:
+				step = 1
+			elif t == MapGen.TILE_FOREST:
+				step = 2
 			if step < 0:
 				continue
 			var next_cost := cur_cost + step

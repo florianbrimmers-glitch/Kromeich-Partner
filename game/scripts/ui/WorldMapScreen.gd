@@ -110,11 +110,50 @@ func _start(seed_value: int) -> void:
 			frontier.append(Vector2i(cell.x, cell.y + 1))
 			frontier.append(Vector2i(cell.x, cell.y - 1))
 	_set_status("STEP 3d: coat_with_sand")
-	MapGen.coat_with_sand(tiles, MAP_WIDTH, MAP_HEIGHT)
+	var sand_changes: Array = []
+	for y in range(MAP_HEIGHT):
+		for x in range(MAP_WIDTH):
+			var ti := y * MAP_WIDTH + x
+			if int(tiles[ti]) != MapGen.TILE_GRASS:
+				continue
+			var has_water := false
+			if x + 1 < MAP_WIDTH and int(tiles[y * MAP_WIDTH + x + 1]) == MapGen.TILE_WATER:
+				has_water = true
+			elif x - 1 >= 0 and int(tiles[y * MAP_WIDTH + x - 1]) == MapGen.TILE_WATER:
+				has_water = true
+			elif y + 1 < MAP_HEIGHT and int(tiles[(y + 1) * MAP_WIDTH + x]) == MapGen.TILE_WATER:
+				has_water = true
+			elif y - 1 >= 0 and int(tiles[(y - 1) * MAP_WIDTH + x]) == MapGen.TILE_WATER:
+				has_water = true
+			if has_water:
+				sand_changes.append(ti)
+	for ti in sand_changes:
+		tiles[ti] = MapGen.TILE_SAND
+
 	_set_status("STEP 3e: place_forests")
-	MapGen.place_forests(tiles, MAP_WIDTH, MAP_HEIGHT, rng)
+	for i in range(tiles.size()):
+		if int(tiles[i]) == MapGen.TILE_GRASS and rng.next_int(0, 99) < 20:
+			tiles[i] = MapGen.TILE_FOREST
+
 	_set_status("STEP 3f: find_spawn")
-	var spawn := MapGen.find_spawn(tiles, MAP_WIDTH, MAP_HEIGHT)
+	var spawn := Vector2i(int(MAP_WIDTH / 2), int(MAP_HEIGHT / 2))
+	var found := false
+	var max_r: int = max(MAP_WIDTH, MAP_HEIGHT)
+	for r in range(max_r):
+		if found:
+			break
+		for dy in range(-r, r + 1):
+			if found:
+				break
+			for dx in range(-r, r + 1):
+				var sx: int = int(MAP_WIDTH / 2) + dx
+				var sy: int = int(MAP_HEIGHT / 2) + dy
+				if sx < 0 or sx >= MAP_WIDTH or sy < 0 or sy >= MAP_HEIGHT:
+					continue
+				if int(tiles[sy * MAP_WIDTH + sx]) == MapGen.TILE_GRASS:
+					spawn = Vector2i(sx, sy)
+					found = true
+					break
 	_map = {
 		"width": MAP_WIDTH,
 		"height": MAP_HEIGHT,
