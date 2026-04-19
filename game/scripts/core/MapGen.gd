@@ -4,7 +4,13 @@ extends RefCounted
 # Deterministischer Zufallskarten-Generator.
 # Gleicher Seed + gleiche Parameter -> gleiche Karte. Die Karte ist
 # ein flaches PackedInt32Array der Groesse width*height, indexiert
-# als y*width+x. Nur Terrain, noch keine Objekte/Schaetze/Monster.
+# als y*width+x.
+#
+# Die Generierung ist in Phasen-Funktionen geteilt (make_empty_tiles,
+# place_water, place_mountains, coat_with_sand, place_forests,
+# find_spawn), damit der Aufrufer pro Phase Diagnostik setzen kann.
+# generate() ist der Convenience-Wrapper der alle Phasen nacheinander
+# aufruft.
 
 const TILE_GRASS := 0
 const TILE_FOREST := 1
@@ -12,41 +18,16 @@ const TILE_WATER := 2
 const TILE_MOUNTAIN := 3
 const TILE_SAND := 4
 
-const TILE_NAMES := {
-	TILE_GRASS: "Wiese",
-	TILE_FOREST: "Wald",
-	TILE_WATER: "Wasser",
-	TILE_MOUNTAIN: "Gebirge",
-	TILE_SAND: "Sand",
-}
+const MAX_CLUSTER_ITERATIONS := 500
 
 
 static func generate(width: int, height: int, rng: DeterministicRng) -> Dictionary:
-	var tiles := PackedInt32Array()
-	tiles.resize(width * height)
-	for i in range(tiles.size()):
-		tiles[i] = TILE_GRASS
-
-	# Wasser-Seen (grosse Cluster)
-	var water_clusters: int = max(2, int(width * height / 80))
-	for _n in range(water_clusters):
-		_grow_cluster(tiles, width, height, TILE_WATER, rng.next_int(8, 18), rng)
-
-	# Gebirgsketten (kleinere Cluster)
-	var mountain_clusters: int = max(3, int(width * height / 50))
-	for _n in range(mountain_clusters):
-		_grow_cluster(tiles, width, height, TILE_MOUNTAIN, rng.next_int(4, 10), rng)
-
-	# Sand um Wasser (Kuestenstreifen)
-	_coat_water_with_sand(tiles, width, height)
-
-	# Waelder auf ~20% der verbleibenden Wiesen
-	for i in range(tiles.size()):
-		if tiles[i] == TILE_GRASS and rng.next_int(0, 99) < 20:
-			tiles[i] = TILE_FOREST
-
-	var spawn := _find_grass_near(tiles, width, height, int(width / 2), int(height / 2))
-
+	var tiles := make_empty_tiles(width, height)
+	place_water(tiles, width, height, rng)
+	place_mountains(tiles, width, height, rng)
+	coat_with_sand(tiles, width, height)
+	place_forests(tiles, width, height, rng)
+	var spawn := find_spawn(tiles, width, height)
 	return {
 		"width": width,
 		"height": height,
@@ -55,12 +36,69 @@ static func generate(width: int, height: int, rng: DeterministicRng) -> Dictiona
 	}
 
 
+static func make_empty_tiles(width: int, height: int) -> PackedInt32Array:
+	var tiles := PackedInt32Array()
+	tiles.resize(width * height)
+	for i in range(tiles.size()):
+		tiles[i] = TILE_GRASS
+	return tiles
+
+
+static func place_water(tiles: PackedInt32Array, width: int, height: int, rng: DeterministicRng) -> void:
+	var clusters: int = max(2, int(float(width * height) / 80.0))
+	for i in range(clusters):
+		_grow_cluster(tiles, width, height, TILE_WATER, rng.next_int(8, 18), rng)
+
+
+static func place_mountains(tiles: PackedInt32Array, width: int, height: int, rng: DeterministicRng) -> void:
+	var clusters: int = max(3, int(float(width * height) / 50.0))
+	for i in range(clusters):
+		_grow_cluster(tiles, width, height, TILE_MOUNTAIN, rng.next_int(4, 10), rng)
+
+
+static func coat_with_sand(tiles: PackedInt32Array, width: int, height: int) -> void:
+	var changes: Array = []
+	for y in range(height):
+		for x in range(width):
+			var ti := y * width + x
+			if tiles[ti] != TILE_GRASS:
+				continue
+			if _has_neighbor(tiles, width, height, x, y, TILE_WATER):
+				changes.append(ti)
+	for ti in changes:
+		tiles[ti] = TILE_SAND
+
+
+static func place_forests(tiles: PackedInt32Array, width: int, height: int, rng: DeterministicRng) -> void:
+	for i in range(tiles.size()):
+		if tiles[i] == TILE_GRASS and rng.next_int(0, 99) < 20:
+			tiles[i] = TILE_FOREST
+
+
+static func find_spawn(tiles: PackedInt32Array, width: int, height: int) -> Vector2i:
+	var cx: int = int(width / 2)
+	var cy: int = int(height / 2)
+	var max_r: int = max(width, height)
+	for r in range(max_r):
+		for dy in range(-r, r + 1):
+			for dx in range(-r, r + 1):
+				var x := cx + dx
+				var y := cy + dy
+				if x < 0 or x >= width or y < 0 or y >= height:
+					continue
+				if tiles[y * width + x] == TILE_GRASS:
+					return Vector2i(x, y)
+	return Vector2i(cx, cy)
+
+
 static func _grow_cluster(tiles: PackedInt32Array, width: int, height: int, terrain: int, target_size: int, rng: DeterministicRng) -> void:
 	var cx := rng.next_int(0, width - 1)
 	var cy := rng.next_int(0, height - 1)
 	var frontier: Array = [Vector2i(cx, cy)]
 	var placed := 0
-	while placed < target_size and not frontier.is_empty():
+	var iterations := 0
+	while placed < target_size and not frontier.is_empty() and iterations < MAX_CLUSTER_ITERATIONS:
+		iterations += 1
 		var idx := rng.next_int(0, frontier.size() - 1)
 		var cell: Vector2i = frontier[idx]
 		frontier.remove_at(idx)
@@ -77,19 +115,6 @@ static func _grow_cluster(tiles: PackedInt32Array, width: int, height: int, terr
 		frontier.append(Vector2i(cell.x, cell.y - 1))
 
 
-static func _coat_water_with_sand(tiles: PackedInt32Array, width: int, height: int) -> void:
-	var changes: Array = []
-	for y in range(height):
-		for x in range(width):
-			var ti := y * width + x
-			if tiles[ti] != TILE_GRASS:
-				continue
-			if _has_neighbor(tiles, width, height, x, y, TILE_WATER):
-				changes.append(ti)
-	for ti in changes:
-		tiles[ti] = TILE_SAND
-
-
 static func _has_neighbor(tiles: PackedInt32Array, width: int, height: int, x: int, y: int, terrain: int) -> bool:
 	for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
 		var nx := x + d.x
@@ -99,20 +124,6 @@ static func _has_neighbor(tiles: PackedInt32Array, width: int, height: int, x: i
 		if tiles[ny * width + nx] == terrain:
 			return true
 	return false
-
-
-static func _find_grass_near(tiles: PackedInt32Array, width: int, height: int, cx: int, cy: int) -> Vector2i:
-	var max_r: int = max(width, height)
-	for r in range(max_r):
-		for dy in range(-r, r + 1):
-			for dx in range(-r, r + 1):
-				var x := cx + dx
-				var y := cy + dy
-				if x < 0 or x >= width or y < 0 or y >= height:
-					continue
-				if tiles[y * width + x] == TILE_GRASS:
-					return Vector2i(x, y)
-	return Vector2i(cx, cy)
 
 
 static func terrain_cost(t: int) -> int:

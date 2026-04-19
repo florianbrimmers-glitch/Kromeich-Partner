@@ -48,9 +48,26 @@ func _start(seed_value: int) -> void:
 	_set_status("STEP 3: generiere seed=%d" % seed_value)
 	_seed = seed_value
 	var rng := DeterministicRng.new(seed_value)
-	_map = MapGen.generate(MAP_WIDTH, MAP_HEIGHT, rng)
-	_set_status("STEP 4: MapGen fertig, spawn %s" % str(_map["hero_spawn"]))
-	_hero = Hero.new(_map["hero_spawn"], 12)
+	_set_status("STEP 3a: make_empty_tiles")
+	var tiles := MapGen.make_empty_tiles(MAP_WIDTH, MAP_HEIGHT)
+	_set_status("STEP 3b: place_water")
+	MapGen.place_water(tiles, MAP_WIDTH, MAP_HEIGHT, rng)
+	_set_status("STEP 3c: place_mountains")
+	MapGen.place_mountains(tiles, MAP_WIDTH, MAP_HEIGHT, rng)
+	_set_status("STEP 3d: coat_with_sand")
+	MapGen.coat_with_sand(tiles, MAP_WIDTH, MAP_HEIGHT)
+	_set_status("STEP 3e: place_forests")
+	MapGen.place_forests(tiles, MAP_WIDTH, MAP_HEIGHT, rng)
+	_set_status("STEP 3f: find_spawn")
+	var spawn := MapGen.find_spawn(tiles, MAP_WIDTH, MAP_HEIGHT)
+	_map = {
+		"width": MAP_WIDTH,
+		"height": MAP_HEIGHT,
+		"tiles": tiles,
+		"hero_spawn": spawn,
+	}
+	_set_status("STEP 4: MapGen fertig, spawn %s" % str(spawn))
+	_hero = Hero.new(spawn, 12)
 	_set_status("STEP 5: Hero erstellt")
 	_recompute_costs()
 	_set_status("STEP 6: Costs berechnet (%d Felder)" % _costs.size())
