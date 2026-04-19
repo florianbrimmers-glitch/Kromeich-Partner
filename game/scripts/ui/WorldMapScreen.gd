@@ -7,6 +7,19 @@ extends Control
 const MAP_WIDTH := 15
 const MAP_HEIGHT := 22
 
+const CITY_COUNT := 4
+const CITY_MIN_DIST := 6
+
+# Fraktionen. Bewusst generische Namen (nicht HoMM3-IP), passt zur
+# Plan-Phase 1 ("Waldvolk"/"Menschen"/"Totenreich"/"Orks").
+const FACTION_NAMES := ["Waldvolk", "Menschen", "Totenreich", "Orks"]
+const FACTION_COLORS := [
+	Color(0.45, 0.85, 0.45),   # Waldvolk - gruen
+	Color(0.95, 0.85, 0.35),   # Menschen - gold
+	Color(0.70, 0.45, 0.90),   # Totenreich - violett
+	Color(0.95, 0.35, 0.30),   # Orks - rot
+]
+
 @export var status_label_path: NodePath    = ^"TopBar/StatusLabel"
 @export var mp_label_path: NodePath        = ^"TopBar/MPLabel"
 @export var end_turn_button_path: NodePath = ^"BottomBar/EndTurnBtn"
@@ -20,6 +33,9 @@ var _seed: int = 42
 var _costs: Dictionary = {}
 var _tile_size: float = 64.0
 var _map_area: Control
+# Staedte: Array aus { "pos": Vector2i, "faction": int }. Die Faction-ID
+# indiziert FACTION_NAMES/FACTION_COLORS.
+var _cities: Array = []
 
 
 func _set_status(s: String) -> void:
@@ -163,6 +179,34 @@ func _start(seed_value: int) -> void:
 	_set_status("STEP 4: MapGen fertig, spawn %s" % str(spawn))
 	_hero = Hero.new(spawn, 12)
 	_set_status("STEP 5: Hero erstellt")
+
+	# Staedte platzieren: deterministisch, nur Gras-Felder, Mindestabstand
+	# zu Held und untereinander. Bis zu 400 Versuche, danach wird
+	# aufgegeben und einfach weniger Staedte platziert.
+	_set_status("STEP 5a: Staedte platzieren")
+	_cities.clear()
+	var city_attempts := 0
+	while _cities.size() < CITY_COUNT and city_attempts < 400:
+		city_attempts += 1
+		var cx: int = rng.next_int(0, MAP_WIDTH - 1)
+		var cy: int = rng.next_int(0, MAP_HEIGHT - 1)
+		if int(tiles[cy * MAP_WIDTH + cx]) != 0:  # 0 = GRASS
+			continue
+		var candidate := Vector2i(cx, cy)
+		var dx0: int = abs(candidate.x - spawn.x)
+		var dy0: int = abs(candidate.y - spawn.y)
+		if dx0 + dy0 < CITY_MIN_DIST:
+			continue
+		var too_close := false
+		for existing in _cities:
+			var ep: Vector2i = existing["pos"]
+			if abs(candidate.x - ep.x) + abs(candidate.y - ep.y) < CITY_MIN_DIST:
+				too_close = true
+				break
+		if too_close:
+			continue
+		_cities.append({ "pos": candidate, "faction": _cities.size() })
+
 	_recompute_costs()
 	_on_map_resized()
 	_update_labels()
@@ -259,6 +303,20 @@ func _draw_map() -> void:
 			if reachable and key != _hero.position:
 				_map_area.draw_rect(rect, Color(1.0, 1.0, 1.0, 0.25), false, 2.0)
 
+	# Staedte: farbiges Viereck pro Fraktion mit dunklem Rand.
+	for city in _cities:
+		var cp: Vector2i = city["pos"]
+		var fid: int = int(city["faction"])
+		var cpos := origin + Vector2(cp.x * _tile_size, cp.y * _tile_size)
+		var inset: float = _tile_size * 0.18
+		var crect := Rect2(
+			cpos + Vector2(inset, inset),
+			Vector2(_tile_size - 1.0 - 2.0 * inset, _tile_size - 1.0 - 2.0 * inset)
+		)
+		var fc: Color = FACTION_COLORS[fid] if fid >= 0 and fid < FACTION_COLORS.size() else Color.WHITE
+		_map_area.draw_rect(crect, fc, true)
+		_map_area.draw_rect(crect, Color(0.1, 0.1, 0.12), false, 2.0)
+
 	var hero_px := origin + Vector2(_hero.position.x * _tile_size, _hero.position.y * _tile_size)
 	var center := hero_px + Vector2(_tile_size * 0.5, _tile_size * 0.5)
 	var radius := _tile_size * 0.35
@@ -323,10 +381,14 @@ func _on_map_input(event: InputEvent) -> void:
 	if target == _hero.position:
 		_set_status("Tap auf Held (%d,%d)" % [tx, ty])
 		return
+	var city_id: int = _city_at(target)
 	if not _costs.has(target):
-		var tiles: Array = _map["tiles"]
-		var tt: int = int(tiles[ty * MAP_WIDTH + tx])
-		_set_status("Tap %s (%d,%d)" % [_terrain_name(tt), tx, ty])
+		if city_id >= 0:
+			_set_status("Stadt %s (%d,%d)" % [FACTION_NAMES[city_id], tx, ty])
+		else:
+			var tiles: Array = _map["tiles"]
+			var tt: int = int(tiles[ty * MAP_WIDTH + tx])
+			_set_status("Tap %s (%d,%d)" % [_terrain_name(tt), tx, ty])
 		return
 	var cost: int = int(_costs[target])
 	if cost > _hero.mp:
@@ -337,7 +399,18 @@ func _on_map_input(event: InputEvent) -> void:
 	_recompute_costs()
 	_map_area.queue_redraw()
 	_update_labels()
-	_set_status("Zug -> (%d,%d) fuer %d MP" % [tx, ty, cost])
+	if city_id >= 0:
+		_set_status("Stadt %s erreicht (%d MP)" % [FACTION_NAMES[city_id], cost])
+	else:
+		_set_status("Zug -> (%d,%d) fuer %d MP" % [tx, ty, cost])
+
+
+func _city_at(p: Vector2i) -> int:
+	# Liefert Fraktions-ID der Stadt auf Feld p oder -1.
+	for city in _cities:
+		if city["pos"] == p:
+			return int(city["faction"])
+	return -1
 
 
 func _on_end_turn() -> void:
