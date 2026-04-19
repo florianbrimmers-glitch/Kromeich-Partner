@@ -170,7 +170,44 @@ func _start(seed_value: int) -> void:
 
 
 func _recompute_costs() -> void:
-	_costs = Pathfinder.compute_costs(_map, _hero.position)
+	# Dijkstra inline: static-Calls auf class_name Pathfinder liefern
+	# im Android-Export leere Dicts zurueck (gleiches Problem wie bei
+	# MapGen). Also hier direkt gerechnet.
+	var tiles: Array = _map["tiles"]
+	var start: Vector2i = _hero.position
+	var costs: Dictionary = {}
+	costs[start] = 0
+	var open: Array = [start]
+	while open.size() > 0:
+		var best_idx := 0
+		var best_cost: int = int(costs[open[0]])
+		for i in range(1, open.size()):
+			var c: int = int(costs[open[i]])
+			if c < best_cost:
+				best_cost = c
+				best_idx = i
+		var cur: Vector2i = open[best_idx]
+		open.remove_at(best_idx)
+		var cur_cost: int = int(costs[cur])
+		for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+			var nx := cur.x + d.x
+			var ny := cur.y + d.y
+			if nx < 0 or nx >= MAP_WIDTH or ny < 0 or ny >= MAP_HEIGHT:
+				continue
+			var t: int = int(tiles[ny * MAP_WIDTH + nx])
+			var step := -1
+			if t == 0 or t == 4:
+				step = 1
+			elif t == 1:
+				step = 2
+			if step < 0:
+				continue
+			var next_cost := cur_cost + step
+			var key := Vector2i(nx, ny)
+			if not costs.has(key) or next_cost < int(costs[key]):
+				costs[key] = next_cost
+				open.append(key)
+	_costs = costs
 
 
 func _on_map_resized() -> void:
