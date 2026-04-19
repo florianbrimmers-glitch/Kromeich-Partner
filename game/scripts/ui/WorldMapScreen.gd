@@ -24,6 +24,17 @@ const MONSTER_COUNT := 6
 const MONSTER_MIN_DIST := 4
 const MONSTER_VICTORY_GOLD := 120
 
+# Held-Progression. XP_PER_STRENGTH * Monster-Staerke = XP pro Kill.
+# LEVEL_THRESHOLDS[i] ist die XP-Schwelle, um von Level i auf i+1 zu
+# springen (Level 1 = Startlevel, Index 0 ungenutzt zur Klarheit).
+const XP_PER_STRENGTH := 15
+const LEVEL_THRESHOLDS := [0, 50, 150, 350, 700, 1200, 2000]
+const LEVEL_BONUS_ARMY := 1   # sofort +1 Armee bei Level-Up
+const LEVEL_BONUS_MP := 1     # +1 max_mp pro Level-Up (additiv zur Basis)
+
+# Schmiede: pro eigener Stadt mit Schmiede +1 Armee/Zug (Ende-Zug).
+const SCHMIEDE_ARMY_PER_TURN := 1
+
 # Fraktionen. Bewusst generische Namen (nicht HoMM3-IP), passt zur
 # Plan-Phase 1 ("Waldvolk"/"Menschen"/"Totenreich"/"Orks").
 const FACTION_NAMES := ["Waldvolk", "Menschen", "Totenreich", "Orks"]
@@ -34,11 +45,14 @@ const FACTION_COLORS := [
 	Color(0.95, 0.35, 0.30),   # Orks - rot
 ]
 
-# Gebaeude: id/Name/Kosten. Pro Stadt als Liste von ids in city["buildings"].
+# Gebaeude: id/Name/Kosten/effect-Text. Effect-Text wird im Stadt-Menue
+# direkt unter dem Namen angezeigt, damit der Spieler weiss, was er kauft.
+# Pro Stadt als Liste von ids in city["buildings"].
 const BUILDINGS := [
-	{"id": "kaserne", "name": "Kaserne", "cost": 500},
-	{"id": "spaeher", "name": "Spaeher", "cost": 300},
-	{"id": "markt", "name": "Markt", "cost": 800},
+	{"id": "kaserne",  "name": "Kaserne",  "cost": 500, "effect": "Erlaubt Rekrutierung"},
+	{"id": "spaeher",  "name": "Spaeher",  "cost": 300, "effect": "+2 max MP/Zug"},
+	{"id": "markt",    "name": "Markt",    "cost": 800, "effect": "+200 Gold/Zug"},
+	{"id": "schmiede", "name": "Schmiede", "cost": 700, "effect": "+1 Armee/Zug"},
 ]
 
 @export var status_label_path: NodePath    = ^"TopBar/StatusLabel"
@@ -353,7 +367,9 @@ func _update_labels() -> void:
 		var mmax: int = int(_hero.max_mp)
 		var gold: int = int(_hero.gold)
 		var army: int = int(_hero.army)
-		ml.text = "MP " + str(mp) + "/" + str(mmax) + "  G " + str(gold) + "  A " + str(army)
+		var lvl: int = int(_hero.level)
+		var xp: int = int(_hero.xp)
+		ml.text = "L " + str(lvl) + "  MP " + str(mp) + "/" + str(mmax) + "  G " + str(gold) + "  A " + str(army) + "  XP " + str(xp)
 
 
 func _draw_map() -> void:
@@ -498,13 +514,19 @@ func _on_map_input(event: InputEvent) -> void:
 			return
 		_hero.army -= mstr
 		_hero.gold += MONSTER_VICTORY_GOLD
+		var xp_gain: int = mstr * XP_PER_STRENGTH
+		_hero.xp += xp_gain
+		var leveled: bool = _check_level_up()
 		_monsters.remove_at(mon_idx)
 		_hero.mp -= cost
 		_hero.position = target
 		_recompute_costs()
 		_map_area.queue_redraw()
 		_update_labels()
-		_set_status("Monster besiegt: -%d Armee, +%d Gold" % [mstr, MONSTER_VICTORY_GOLD])
+		if leveled:
+			_set_status("SIEG! -%d A  +%d G  +%d XP  -->  LEVEL %d!" % [mstr, MONSTER_VICTORY_GOLD, xp_gain, _hero.level])
+		else:
+			_set_status("SIEG! -%d A  +%d G  +%d XP" % [mstr, MONSTER_VICTORY_GOLD, xp_gain])
 		return
 
 	_hero.mp -= cost
@@ -539,6 +561,18 @@ func _monster_at(p: Vector2i) -> int:
 		if (_monsters[i]["pos"] as Vector2i) == p:
 			return i
 	return -1
+
+
+func _check_level_up() -> bool:
+	# Schleife, falls sehr viele XP auf einmal (z.B. spaeter aus Quests).
+	# Jeder Level-Up gibt sofort Armee und hebt max_mp um LEVEL_BONUS_MP
+	# (wirksam beim naechsten Ende-Zug, wenn max_mp neu berechnet wird).
+	var leveled := false
+	while _hero.level < LEVEL_THRESHOLDS.size() and _hero.xp >= int(LEVEL_THRESHOLDS[_hero.level]):
+		_hero.level += 1
+		_hero.army += LEVEL_BONUS_ARMY
+		leveled = true
+	return leveled
 
 
 func _build_city_panel() -> void:
@@ -614,14 +648,15 @@ func _show_city(city_idx: int) -> void:
 		var bid: String = b["id"]
 		var bname: String = b["name"]
 		var cost: int = int(b["cost"])
+		var effect: String = String(b["effect"]) if b.has("effect") else ""
 		var btn := Button.new()
-		btn.custom_minimum_size = Vector2(0, 120)
-		btn.add_theme_font_size_override("font_size", 32)
+		btn.custom_minimum_size = Vector2(0, 140)
+		btn.add_theme_font_size_override("font_size", 30)
 		if built.has(bid):
-			btn.text = bname + "  (Gebaut)"
+			btn.text = bname + "  (Gebaut)\n" + effect
 			btn.disabled = true
 		else:
-			btn.text = bname + "  -  " + str(cost) + " G"
+			btn.text = bname + "  -  " + str(cost) + " G\n" + effect
 			if _hero.gold < cost:
 				btn.disabled = true
 			btn.pressed.connect(_buy_building.bind(city_idx, i))
@@ -678,11 +713,15 @@ func _recruit_unit(city_idx: int) -> void:
 
 
 func _on_end_turn() -> void:
-	# Gebaeude-Effekte: Spaeher in eigenen Staedten erhoeht max_mp;
-	# Markt erhoeht das Gold-Einkommen.
+	# Gebaeude-Effekte pro eigener Stadt:
+	#   Spaeher  -> max_mp hoch
+	#   Markt    -> Gold-Einkommen hoch
+	#   Schmiede -> pro Zug +1 Armee
+	# Level-Up-Bonus: pro Level (ueber 1) zusaetzlich +1 max_mp.
 	var owned := 0
 	var spaeher_count := 0
 	var markt_count := 0
+	var schmiede_count := 0
 	for city in _cities:
 		if int(city["owner"]) == OWNER_HERO:
 			owned += 1
@@ -691,14 +730,19 @@ func _on_end_turn() -> void:
 				spaeher_count += 1
 			if bl.has("markt"):
 				markt_count += 1
-	_hero.max_mp = BASE_MAX_MP + MP_BONUS_SPAEHER * spaeher_count
+			if bl.has("schmiede"):
+				schmiede_count += 1
+	var level_bonus_mp: int = LEVEL_BONUS_MP * max(0, _hero.level - 1)
+	_hero.max_mp = BASE_MAX_MP + MP_BONUS_SPAEHER * spaeher_count + level_bonus_mp
 	_hero.end_turn()
 	var income: int = owned * CITY_INCOME + markt_count * INCOME_MARKT
 	_hero.gold += income
+	var army_gain: int = schmiede_count * SCHMIEDE_ARMY_PER_TURN
+	_hero.army += army_gain
 	_recompute_costs()
 	_map_area.queue_redraw()
 	_update_labels()
-	_set_status("Zug beendet: +%d Gold (%d Staedte, +%d MP/Spaeher)" % [income, owned, MP_BONUS_SPAEHER * spaeher_count])
+	_set_status("Zug beendet: +%d G, +%d A (%d Staedte)" % [income, army_gain, owned])
 
 
 func _on_reroll() -> void:
