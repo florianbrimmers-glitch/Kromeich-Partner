@@ -64,7 +64,7 @@ func _make_stacks(list: Array, side: int) -> Array:
 			"type": uid, "count": cnt, "count_start": cnt,
 			"top_hp": UnitType.hp_of(uid),
 			"side": side, "pos": Vector2i(0, 0),
-			"retaliated": false,
+			"retaliated": false, "waited": false,
 		})
 	return out
 
@@ -83,17 +83,27 @@ func _row(i: int, n: int) -> int:
 
 
 func _rebuild_order() -> void:
-	var all: Array = []
+	# HoMM-aehnliches Warten: Stacks, die gewartet haben, rutschen ans
+	# Ende der Reihenfolge und ziehen erst, nachdem alle Nicht-Warter
+	# dran waren. Innerhalb jeder Gruppe weiter nach Initiative sortiert.
+	var normal: Array = []
+	var waiters: Array = []
 	for i in range(_p_stacks.size()):
 		if int(_p_stacks[i]["count"]) > 0:
-			all.append({"side": 0, "idx": i,
-				"speed": UnitType.speed_of(String(_p_stacks[i]["type"]))})
+			var e := {"side": 0, "idx": i,
+				"speed": UnitType.speed_of(String(_p_stacks[i]["type"])),
+				"waited": bool(_p_stacks[i].get("waited", false))}
+			if bool(e["waited"]): waiters.append(e) else: normal.append(e)
 	for i in range(_e_stacks.size()):
 		if int(_e_stacks[i]["count"]) > 0:
-			all.append({"side": 1, "idx": i,
-				"speed": UnitType.speed_of(String(_e_stacks[i]["type"]))})
-	all.sort_custom(func(a, b): return int(a["speed"]) > int(b["speed"]))
-	_turn_order = all
+			var e := {"side": 1, "idx": i,
+				"speed": UnitType.speed_of(String(_e_stacks[i]["type"])),
+				"waited": bool(_e_stacks[i].get("waited", false))}
+			if bool(e["waited"]): waiters.append(e) else: normal.append(e)
+	var by_speed := func(a, b): return int(a["speed"]) > int(b["speed"])
+	normal.sort_custom(by_speed)
+	waiters.sort_custom(by_speed)
+	_turn_order = normal + waiters
 
 
 func _active_stack() -> Dictionary:
@@ -128,8 +138,10 @@ func _next_round() -> void:
 	_round += 1
 	for s in _p_stacks:
 		s["retaliated"] = false
+		s["waited"] = false
 	for s in _e_stacks:
 		s["retaliated"] = false
+		s["waited"] = false
 	_rebuild_order()
 	_active_slot = 0
 	_step()
@@ -330,6 +342,8 @@ func _draw_grid() -> void:
 			_grid_area.draw_arc(ctr, r_active + 4, 0, TAU, 32, Color(1,1,0.5,0.7), 2.5)
 		_draw_lbl(ctr, UnitType.short_of(String(s["type"])) + str(int(s["count"])), c)
 		_draw_hp_bar(ctr, c, int(s["top_hp"]), UnitType.hp_of(String(s["type"])))
+		if bool(s.get("waited", false)):
+			_draw_wait_marker(ctr, r_active)
 
 	for i in range(_e_stacks.size()):
 		var s: Dictionary = _e_stacks[i]
@@ -340,6 +354,16 @@ func _draw_grid() -> void:
 		_grid_area.draw_arc(ctr, r_active, 0, TAU, 32, Color(0.85, 0.25, 0.25), 3.0)
 		_draw_lbl(ctr, UnitType.short_of(String(s["type"])) + str(int(s["count"])), c)
 		_draw_hp_bar(ctr, c, int(s["top_hp"]), UnitType.hp_of(String(s["type"])))
+		if bool(s.get("waited", false)):
+			_draw_wait_marker(ctr, r_active)
+
+
+# Kleiner Cyan-Ring auf der Oberseite eines Stacks, der gewartet hat:
+# signalisiert, dass er in dieser Runde spaeter noch einmal dran kommt.
+func _draw_wait_marker(ctr: Vector2, r: float) -> void:
+	var p := Vector2(ctr.x, ctr.y - r)
+	_grid_area.draw_circle(p, max(4.0, r * 0.22), Color(0.25, 0.75, 0.95))
+	_grid_area.draw_arc(p, max(4.0, r * 0.22), 0, TAU, 16, Color(0.05, 0.10, 0.15), 2.0)
 
 
 # HP-Balken unter dem Stack: nur sichtbar, wenn die vorderste Einheit
@@ -626,9 +650,21 @@ func _on_wait() -> void:
 	if _turn_order.is_empty() or _active_slot >= _turn_order.size(): return
 	if int(_turn_order[_active_slot]["side"]) != 0: return
 	var active: Dictionary = _active_stack()
-	var s: String = UnitType.short_of(String(active.get("type", "sword"))) if not active.is_empty() else "?"
-	_set_action("Held %s wartet." % s)
-	_end_player_turn()
+	if active.is_empty(): return
+	if bool(active.get("waited", false)):
+		# Doppelwarten nicht erlaubt (HoMM-Konvention): stattdessen Zug
+		# einfach aussetzen, damit der Spieler weiterkommt.
+		_set_action("Held %s pausiert." % UnitType.short_of(String(active["type"])))
+		if _check_end(): return
+		_advance()
+		return
+	active["waited"] = true
+	_set_action("Held %s wartet -> zieht spaeter." % UnitType.short_of(String(active["type"])))
+	_rebuild_order()
+	if _check_end(): return
+	# Kein _advance: rebuild hat den Warter ans Ende geschoben, der neue
+	# Stack auf _active_slot ist der naechste Handler.
+	_step()
 
 
 func _on_flee() -> void:

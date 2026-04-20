@@ -102,13 +102,22 @@ const FACTION_COLORS := [
 # z.B. braucht Kaserne, sonst war es zu leicht, ohne Kaserne zu spielen.
 # Pro Stadt als Liste von ids in city["buildings"].
 const BUILDINGS := [
-	{"id": "kaserne",  "name": "Kaserne",  "cost": 500, "effect": "Erlaubt Rekrutierung"},
+	{"id": "kaserne",  "name": "Kaserne",  "cost": 500, "effect": "Erlaubt Schwert"},
 	{"id": "spaeher",  "name": "Spaeher",  "cost": 300, "effect": "+2 max Schritte/Zug"},
 	{"id": "markt",    "name": "Markt",    "cost": 800, "effect": "+200 Gold/Zug"},
-	{"id": "schmiede", "name": "Schmiede", "cost": 700, "effect": "+1 Armee/Zug", "requires": "kaserne"},
+	{"id": "schmiede", "name": "Schmiede", "cost": 700, "effect": "+1 Armee/Zug, erlaubt Bogen", "requires": "kaserne"},
+	{"id": "reiterei", "name": "Reiterei", "cost": 1000, "effect": "Erlaubt Reiter", "requires": "schmiede"},
 	{"id": "wachturm", "name": "Wachturm", "cost": 400, "effect": "+1 Kampfkraft (dauerhaft)"},
 	{"id": "kapelle",  "name": "Kapelle",  "cost": 500, "effect": "+10 XP/Zug"},
 ]
+
+# Welche Einheit welches Gebaeude braucht. Kaserne ist Grundbedingung
+# fuer alle, Bogen zusaetzlich Schmiede, Reiter zusaetzlich Reiterei.
+const UNIT_BUILDING := {
+	"sword": "kaserne",
+	"bow":   "schmiede",
+	"rider": "reiterei",
+}
 
 @export var status_label_path: NodePath    = ^"TopBar/StatusLabel"
 @export var mp_label_path: NodePath        = ^"TopBar/MPLabel"
@@ -1405,21 +1414,24 @@ func _show_city(city_idx: int) -> void:
 			btn.pressed.connect(_buy_building.bind(city_idx, i))
 		_buildings_box.add_child(btn)
 
-	# Rekrutieren: nur wenn Kaserne gebaut. Drei Buttons (je Einheit-Typ),
-	# Kosten und Namen kommen aus UnitType. Alle Typen haengen aktuell nur
-	# an der Kaserne; feinere Gates (Bogen braucht Schmiede etc.) koennen
-	# spaeter nachgezogen werden.
-	if built.has("kaserne"):
-		for uid in UnitType.all_ids():
-			var cost: int = UnitType.cost_of(uid)
-			var rbtn := Button.new()
-			rbtn.custom_minimum_size = Vector2(0, 110)
-			rbtn.add_theme_font_size_override("font_size", 30)
+	# Rekrutieren: drei Buttons (je Einheit-Typ). Jeder braucht ein anderes
+	# Gebaeude: Schwert -> Kaserne, Bogen -> Schmiede, Reiter -> Reiterei.
+	# Fehlt das Gebaeude, ist der Button deaktiviert mit Hinweis, welches.
+	for uid in UnitType.all_ids():
+		var cost: int = UnitType.cost_of(uid)
+		var req: String = String(UNIT_BUILDING.get(uid, "kaserne"))
+		var rbtn := Button.new()
+		rbtn.custom_minimum_size = Vector2(0, 110)
+		rbtn.add_theme_font_size_override("font_size", 30)
+		if not built.has(req):
+			rbtn.text = "%s rekrutieren  -  benoetigt %s" % [UnitType.name_of(uid), req.capitalize()]
+			rbtn.disabled = true
+		else:
 			rbtn.text = "%s rekrutieren  -  %d G  (+1)" % [UnitType.name_of(uid), cost]
 			if _hero.gold < cost:
 				rbtn.disabled = true
-			rbtn.pressed.connect(_recruit_unit.bind(city_idx, uid))
-			_buildings_box.add_child(rbtn)
+		rbtn.pressed.connect(_recruit_unit.bind(city_idx, uid))
+		_buildings_box.add_child(rbtn)
 
 	_city_panel.visible = true
 
@@ -1455,7 +1467,8 @@ func _recruit_unit(city_idx: int, unit_id: String) -> void:
 		return
 	var city: Dictionary = _cities[city_idx]
 	var built: Array = city["buildings"]
-	if not built.has("kaserne"):
+	var req: String = String(UNIT_BUILDING.get(unit_id, "kaserne"))
+	if not built.has(req):
 		return
 	_hero.gold -= cost
 	_hero.add_units(unit_id, 1)
@@ -1464,10 +1477,32 @@ func _recruit_unit(city_idx: int, unit_id: String) -> void:
 	_show_city(city_idx)
 
 
-func _enemy_next_unit_id() -> String:
-	var uid: String = UnitType.ORDER[_enemy_recruit_idx % UnitType.ORDER.size()]
-	_enemy_recruit_idx = (_enemy_recruit_idx + 1) % UnitType.ORDER.size()
-	return uid
+func _enemy_unlocked_units() -> Array:
+	var out: Array = []
+	for uid in UnitType.ORDER:
+		var req: String = String(UNIT_BUILDING.get(uid, "kaserne"))
+		for c in _cities:
+			if int(c["owner"]) == OWNER_ENEMY and (c["buildings"] as Array).has(req):
+				out.append(uid)
+				break
+	return out
+
+
+func _enemy_next_unit_id(allowed: Array = []) -> String:
+	# Waehlt den naechsten Einheiten-Typ in strikter Rotation. Wird eine
+	# Positivliste "allowed" uebergeben (z.B. "nur Typen mit Gebaeude"),
+	# werden gesperrte Slots uebersprungen - der Rotations-Index rueckt
+	# trotzdem weiter, damit die Mischung nicht monoton wird.
+	if allowed.is_empty():
+		var uid: String = UnitType.ORDER[_enemy_recruit_idx % UnitType.ORDER.size()]
+		_enemy_recruit_idx = (_enemy_recruit_idx + 1) % UnitType.ORDER.size()
+		return uid
+	for _step in range(UnitType.ORDER.size()):
+		var uid: String = UnitType.ORDER[_enemy_recruit_idx % UnitType.ORDER.size()]
+		_enemy_recruit_idx = (_enemy_recruit_idx + 1) % UnitType.ORDER.size()
+		if uid in allowed:
+			return uid
+	return ""
 
 
 func _building_by_id(bid: String) -> Dictionary:
@@ -1509,11 +1544,17 @@ func _enemy_economy() -> void:
 	_enemy.gold += owned * CITY_INCOME + markt * INCOME_MARKT + e_mine_income
 	# Schmiede-Bonus wird auch rotierend verteilt, damit sich das Muster
 	# "Gegner hat nur Schwerter" nicht ueber die frei geschenkten Einheiten
-	# einschleicht.
+	# einschleicht. Einheiten-Typen, deren Gebaeude noch fehlen, werden
+	# uebersprungen - sonst haette der Gegner Reiter ohne Reiterei.
 	var smithy_gifts: int = schmiede * SCHMIEDE_ARMY_PER_TURN
+	var unlocked: Array = _enemy_unlocked_units()
 	for _i in range(smithy_gifts):
-		_enemy.add_units(_enemy_next_unit_id(), 1)
-	var priority: Array = ["kaserne", "schmiede", "markt", "spaeher"]
+		if unlocked.is_empty():
+			break
+		var gift_uid: String = _enemy_next_unit_id(unlocked)
+		if gift_uid != "":
+			_enemy.add_units(gift_uid, 1)
+	var priority: Array = ["kaserne", "schmiede", "reiterei", "markt", "spaeher"]
 	var guard: int = 0
 	var spent: bool = true
 	while spent and guard < 24:
@@ -1544,20 +1585,22 @@ func _enemy_economy() -> void:
 		if spent:
 			continue
 		# Keine Prioritaets-Gebaeude mehr affordable: Ueberschuss in Rekruten
-		# stecken, solange Kaserne vorhanden und Gold reicht. Die Einheit
-		# folgt strikt der Rotation S -> B -> R; reicht das Gold fuer den
-		# naechsten Rotations-Slot nicht, wird gewartet (kein Skip), damit
-		# die Zusammensetzung auf Dauer ausgeglichen bleibt.
+		# stecken. Rotations-Slot S -> B -> R muss _gleichzeitig_ Gold und
+		# das noetige Gebaeude (Kaserne/Schmiede/Reiterei) haben. Ist der
+		# aktuelle Slot blockiert, bleibt der Rotations-Index stehen und die
+		# KI kauft diese Runde nichts - so holt sie den Slot automatisch
+		# nach, sobald das fehlende Gebaeude steht.
 		var next_uid: String = UnitType.ORDER[_enemy_recruit_idx % UnitType.ORDER.size()]
 		var next_cost: int = UnitType.cost_of(next_uid)
+		var next_req: String = String(UNIT_BUILDING.get(next_uid, "kaserne"))
 		if _enemy.gold < next_cost:
 			continue
-		var has_kaserne: bool = false
+		var has_req: bool = false
 		for c in _cities:
-			if int(c["owner"]) == OWNER_ENEMY and (c["buildings"] as Array).has("kaserne"):
-				has_kaserne = true
+			if int(c["owner"]) == OWNER_ENEMY and (c["buildings"] as Array).has(next_req):
+				has_req = true
 				break
-		if has_kaserne:
+		if has_req:
 			_enemy.gold -= next_cost
 			_enemy.add_units(next_uid, 1)
 			_enemy_recruit_idx = (_enemy_recruit_idx + 1) % UnitType.ORDER.size()
