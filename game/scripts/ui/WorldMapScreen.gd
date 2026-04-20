@@ -719,12 +719,18 @@ func _draw_map() -> void:
 				continue
 			var col := _terrain_color(ti)
 			var reachable: bool = _costs.has(key) and int(_costs[key]) <= _hero.mp
-			if not reachable:
-				col = col.darkened(0.7)
 			if fog == FOG_EXPLORED:
-				# Einmal gesehen, aktuell nicht in Sicht: Gelaende bleibt,
-				# aber deutlich abgedunkelt und ohne Bewegungs-Highlight.
+				# Einmal gesehen, aktuell ausser Sicht: fest gedimmt und
+				# kein reachability-Highlight (man koennte zwar hinlaufen,
+				# aber die Info ist veraltet). Wichtig: NICHT zusaetzlich
+				# mit reachability-Darken kombinieren, sonst wirken eigene
+				# Staedte und Minen heller als weit entfernte Sichtzonen.
 				col = col.darkened(0.55)
+			elif not reachable:
+				# VISIBLE ausserhalb Bewegungsreichweite: nur leicht gedimmt,
+				# damit Sichtbereich um eigene Burgen/Minen klar heller
+				# bleibt als EXPLORED.
+				col = col.darkened(0.3)
 			_map_area.draw_rect(rect, col, true)
 			if fog == FOG_VISIBLE and reachable and key != _hero.position:
 				_map_area.draw_rect(rect, Color(1.0, 1.0, 1.0, 0.25), false, 2.0)
