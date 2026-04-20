@@ -145,6 +145,7 @@ const UNIT_BUILDING := {
 @export var reroll_button_path: NodePath   = ^"BottomBar/RerollBtn"
 @export var back_button_path: NodePath     = ^"BottomBar/BackBtn"
 @export var map_area_path: NodePath        = ^"MapArea"
+@export var minimap_path: NodePath         = ^"Minimap"
 
 var _map: Dictionary
 var _hero: Hero
@@ -152,6 +153,22 @@ var _seed: int = 42
 var _costs: Dictionary = {}
 var _tile_size: float = 64.0
 var _map_area: Control
+# Minimap: vollstaendig sichtbare Uebersichtskarte oben rechts. Zeichnet
+# pro Kachel ein Farb-Pixel, das aktuelle Viewport-Rechteck und
+# Helden-Positionen. Tap springt zum entsprechenden Feld.
+var _minimap: Panel
+
+# Scroll/Pan-State: die Karte ist potentiell groesser als _map_area.
+# _view_offset ist die Pixel-Verschiebung des Karten-Origins relativ
+# zu _map_area. Drag verschiebt den Offset, Tap (ohne Bewegung ueber
+# DRAG_THRESHOLD) bewegt den Helden wie vorher.
+const TILE_PX: float = 64.0
+const DRAG_THRESHOLD: float = 12.0
+var _view_offset: Vector2 = Vector2.ZERO
+var _pan_active: bool = false
+var _pan_start_pos: Vector2 = Vector2.ZERO
+var _pan_start_offset: Vector2 = Vector2.ZERO
+var _pan_moved: bool = false
 # Staedte: Array aus { "pos": Vector2i, "faction": int, "owner": int,
 # "buildings": Array[String] }. Faction-ID indiziert FACTION_NAMES/_COLORS.
 var _cities: Array = []
@@ -212,6 +229,10 @@ func _ready() -> void:
 	_map_area.gui_input.connect(_on_map_input)
 	_map_area.draw.connect(_draw_map)
 	_map_area.resized.connect(_on_map_resized)
+	_minimap = get_node_or_null(minimap_path) as Panel
+	if _minimap != null:
+		_minimap.gui_input.connect(_on_minimap_input)
+		_minimap.draw.connect(_draw_minimap)
 	_build_combat_label()
 	_build_city_panel()
 	_build_victory_panel()
@@ -545,6 +566,7 @@ func _start(seed_value: int) -> void:
 
 	_recompute_costs()
 	_on_map_resized()
+	_center_view_on(_hero.position)
 	_update_labels()
 	_set_combat("Kampf: noch keiner")
 	_set_status("Seed %d  Reach %d  Tile %.1f" % [_seed, _costs.size(), _tile_size])
@@ -751,11 +773,39 @@ func _dijkstra(start: Vector2i, monsters_block: bool) -> Dictionary:
 func _on_map_resized() -> void:
 	if _map.is_empty():
 		return
-	var size := _map_area.size
-	var tw: float = size.x / float(MAP_WIDTH)
-	var th: float = size.y / float(MAP_HEIGHT)
-	_tile_size = min(tw, th)
-	_map_area.queue_redraw()
+	# Feste Kachelgroesse - Karte darf groesser als der Viewport sein und
+	# muss dann gescrollt werden. Falls die Karte trotzdem reinpasst,
+	# zentriert _clamp_view_offset sie im Viewport.
+	_tile_size = TILE_PX
+	_clamp_view_offset()
+	_request_redraw()
+
+
+func _clamp_view_offset() -> void:
+	# _view_offset ist die Pixel-Verschiebung des Karten-Origins (oben
+	# links, Feld (0,0)). Bei Karte groesser als Viewport muss er
+	# zwischen (viewport - map) und 0 liegen. Bei kleinerer Karte
+	# zentrieren wir fest.
+	var area: Vector2 = _map_area.size
+	var map_px: Vector2 = Vector2(MAP_WIDTH, MAP_HEIGHT) * _tile_size
+	if map_px.x <= area.x:
+		_view_offset.x = (area.x - map_px.x) * 0.5
+	else:
+		_view_offset.x = clamp(_view_offset.x, area.x - map_px.x, 0.0)
+	if map_px.y <= area.y:
+		_view_offset.y = (area.y - map_px.y) * 0.5
+	else:
+		_view_offset.y = clamp(_view_offset.y, area.y - map_px.y, 0.0)
+
+
+func _center_view_on(tile: Vector2i) -> void:
+	# Viewport so verschieben, dass die Mitte der Kachel im Zentrum des
+	# MapArea liegt. Danach clamp, damit wir nicht ins Leere scrollen.
+	var area: Vector2 = _map_area.size
+	var tile_center: Vector2 = Vector2(tile.x, tile.y) * _tile_size + Vector2(_tile_size, _tile_size) * 0.5
+	_view_offset = area * 0.5 - tile_center
+	_clamp_view_offset()
+	_request_redraw()
 
 
 func _update_labels() -> void:
@@ -1077,14 +1127,28 @@ func _terrain_name(t: int) -> String:
 
 
 func _map_origin() -> Vector2:
-	var used := Vector2(MAP_WIDTH * _tile_size, MAP_HEIGHT * _tile_size)
-	var slack := _map_area.size - used
-	return Vector2(slack.x * 0.5, slack.y * 0.5)
+	# _clamp_view_offset haelt _view_offset bereits in gueltigen Grenzen
+	# (zentriert oder geklemmt an Kartenrand). Draw und Tap-Transform
+	# nutzen ausschliesslich diesen Wert, damit beides konsistent bleibt.
+	return _view_offset
 
 
-func _on_map_input(event: InputEvent) -> void:
+func _request_redraw() -> void:
+	# Haupt-Karte und Minimap zusammen neu zeichnen. Einmal an allen
+	# Aenderungspunkten (Bewegung, Fog, Stadt einnehmen, Viewport-Pan)
+	# aufrufen, statt beide manuell zu koordinieren.
+	if _map_area != null:
+		_map_area.queue_redraw()
+	if _minimap != null:
+		_minimap.queue_redraw()
+
+
+func _on_minimap_input(event: InputEvent) -> void:
+	# Tap auf Minimap springt mit dem Viewport zum entsprechenden Feld.
+	# Drag auf der Minimap wird (noch) nicht unterstuetzt - einfacher
+	# Tap-to-Jump reicht fuer Navigation.
 	var pos := Vector2.ZERO
-	var pressed := false
+	var pressed: bool = false
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
 		if mb.button_index != MOUSE_BUTTON_LEFT:
@@ -1099,6 +1163,146 @@ func _on_map_input(event: InputEvent) -> void:
 		return
 	if not pressed:
 		return
+	if _minimap == null:
+		return
+	var size: Vector2 = _minimap.size
+	if size.x <= 0.0 or size.y <= 0.0:
+		return
+	var cell_w: float = size.x / float(MAP_WIDTH)
+	var cell_h: float = size.y / float(MAP_HEIGHT)
+	var tx: int = clamp(int(pos.x / cell_w), 0, MAP_WIDTH - 1)
+	var ty: int = clamp(int(pos.y / cell_h), 0, MAP_HEIGHT - 1)
+	_center_view_on(Vector2i(tx, ty))
+
+
+func _draw_minimap() -> void:
+	# Mini-Uebersicht: pro Kachel ein Farb-Rechteck (Fog dimmt EXPLORED,
+	# versteckt HIDDEN), Helden-Positionen als farbige Punkte, Viewport-
+	# Rechteck als heller Rahmen. Staedte bekommen einen duennen
+	# Owner-farbigen Ring, damit man Machtverhaeltnisse sofort sieht.
+	if _minimap == null or _map.is_empty():
+		return
+	var size: Vector2 = _minimap.size
+	if size.x <= 0.0 or size.y <= 0.0:
+		return
+	var cw: float = size.x / float(MAP_WIDTH)
+	var ch: float = size.y / float(MAP_HEIGHT)
+	_minimap.draw_rect(Rect2(Vector2.ZERO, size), Color(0.05, 0.06, 0.08), true)
+	var tiles: Array = _map["tiles"]
+	for y in range(MAP_HEIGHT):
+		for x in range(MAP_WIDTH):
+			var fog: int = _fog_get(_fog_player, Vector2i(x, y))
+			if fog == FOG_HIDDEN:
+				continue
+			var t: int = int(tiles[y * MAP_WIDTH + x])
+			var col: Color = _terrain_color(t)
+			if fog == FOG_EXPLORED:
+				col = col.darkened(0.45)
+			_minimap.draw_rect(Rect2(Vector2(x * cw, y * ch), Vector2(cw + 0.5, ch + 0.5)), col, true)
+	# Staedte als kleine farbige Quadrate nach Besitzer (bzw. Faktion
+	# bei neutral), damit man Konsolidierung auf einen Blick sieht.
+	for city in _cities:
+		var cp: Vector2i = city["pos"]
+		if _fog_get(_fog_player, cp) == FOG_HIDDEN:
+			continue
+		var owner: int = int(city["owner"])
+		var ccol: Color
+		if owner == OWNER_HERO:
+			ccol = Color(1.0, 0.85, 0.2)
+		elif owner >= OWNER_AI_MIN:
+			ccol = _ai_ring_color(owner)
+		else:
+			var fid: int = int(city["faction"])
+			ccol = FACTION_COLORS[fid] if fid >= 0 and fid < FACTION_COLORS.size() else Color(0.6, 0.6, 0.6)
+		var crect := Rect2(Vector2(cp.x * cw, cp.y * ch), Vector2(cw, ch))
+		_minimap.draw_rect(crect, ccol, false, max(1.0, cw * 0.3))
+	# Held als heller Punkt.
+	if _hero != null:
+		var hp: Vector2i = _hero.position
+		var hpx := Vector2(hp.x * cw + cw * 0.5, hp.y * ch + ch * 0.5)
+		_minimap.draw_circle(hpx, max(1.5, min(cw, ch) * 0.45), Color(1.0, 0.95, 0.4))
+	# KI-Helden nur, wenn aktuell sichtbar (sonst waere Minimap ein
+	# Aimbot). Ghost-Marker waeren overkill auf der kleinen Flaeche.
+	for i in range(_enemies.size()):
+		var eh: Hero = _enemies[i]["hero"] as Hero
+		if eh == null:
+			continue
+		if _fog_get(_fog_player, eh.position) != FOG_VISIBLE:
+			continue
+		var ep := Vector2(eh.position.x * cw + cw * 0.5, eh.position.y * ch + ch * 0.5)
+		_minimap.draw_circle(ep, max(1.5, min(cw, ch) * 0.45), _ai_ring_color(int(_enemies[i]["owner_id"])))
+	# Viewport-Rahmen: Ausschnitt, der aktuell in MapArea sichtbar ist.
+	var area: Vector2 = _map_area.size
+	var vx: float = -_view_offset.x / _tile_size
+	var vy: float = -_view_offset.y / _tile_size
+	var vw: float = area.x / _tile_size
+	var vh: float = area.y / _tile_size
+	var vr := Rect2(Vector2(vx * cw, vy * ch), Vector2(vw * cw, vh * ch))
+	_minimap.draw_rect(vr, Color(1.0, 1.0, 1.0, 0.85), false, 2.0)
+
+
+func _on_map_input(event: InputEvent) -> void:
+	# Gesten unterscheiden: Tap (kurzer Druck ohne Bewegung > DRAG_THRESHOLD)
+	# loest Heldenbewegung / Stadt-Oeffnen aus. Drag verschiebt den
+	# Viewport ueber _view_offset. Mouse-Wheel und Pinch-Zoom bewusst
+	# nicht (haben wir auf dem Handy eh nicht).
+	if event is InputEventMouseButton:
+		var mb := event as InputEventMouseButton
+		if mb.button_index != MOUSE_BUTTON_LEFT:
+			return
+		if mb.pressed:
+			_begin_pan(mb.position)
+		else:
+			_end_pan(mb.position)
+		return
+	if event is InputEventMouseMotion:
+		var mm := event as InputEventMouseMotion
+		if _pan_active:
+			_update_pan(mm.position)
+		return
+	if event is InputEventScreenTouch:
+		var st := event as InputEventScreenTouch
+		if st.pressed:
+			_begin_pan(st.position)
+		else:
+			_end_pan(st.position)
+		return
+	if event is InputEventScreenDrag:
+		var sd := event as InputEventScreenDrag
+		if _pan_active:
+			_update_pan(sd.position)
+		return
+
+
+func _begin_pan(pos: Vector2) -> void:
+	_pan_active = true
+	_pan_moved = false
+	_pan_start_pos = pos
+	_pan_start_offset = _view_offset
+
+
+func _update_pan(pos: Vector2) -> void:
+	if not _pan_active:
+		return
+	var delta: Vector2 = pos - _pan_start_pos
+	if not _pan_moved and delta.length() > DRAG_THRESHOLD:
+		_pan_moved = true
+	if _pan_moved:
+		_view_offset = _pan_start_offset + delta
+		_clamp_view_offset()
+		_request_redraw()
+
+
+func _end_pan(pos: Vector2) -> void:
+	var was_drag: bool = _pan_moved
+	_pan_active = false
+	_pan_moved = false
+	if was_drag:
+		return
+	_handle_tap(pos)
+
+
+func _handle_tap(pos: Vector2) -> void:
 	var origin := _map_origin()
 	var local := pos - origin
 	if _tile_size <= 0.0:
@@ -1206,7 +1410,7 @@ func _on_map_input(event: InputEvent) -> void:
 		claimed = true
 	_recompute_fog_player()
 	_recompute_costs()
-	_map_area.queue_redraw()
+	_request_redraw()
 	_update_labels()
 	if claimed:
 		var fid1: int = int(_cities[target_city_idx]["faction"])
@@ -1339,8 +1543,25 @@ func _finish_move_to(target: Vector2i, cost: int) -> void:
 	_hero.position = target
 	_recompute_fog_player()
 	_recompute_costs()
-	_map_area.queue_redraw()
+	_ensure_hero_in_view()
+	_request_redraw()
 	_update_labels()
+
+
+func _ensure_hero_in_view() -> void:
+	# Wenn der Held nach der Bewegung nicht mehr im Viewport ist (z.B.
+	# weil der Spieler vorher frei gepannt hat), sanft nachfuehren. Ist
+	# er noch sichtbar, wird der Pan-Zustand des Spielers respektiert.
+	if _hero == null or _map_area == null:
+		return
+	var area: Vector2 = _map_area.size
+	var hero_world: Vector2 = Vector2(_hero.position.x, _hero.position.y) * _tile_size + Vector2(_tile_size, _tile_size) * 0.5
+	var on_screen: Vector2 = hero_world + _view_offset
+	var margin: float = _tile_size
+	var off: bool = (on_screen.x < margin or on_screen.x > area.x - margin
+		or on_screen.y < margin or on_screen.y > area.y - margin)
+	if off:
+		_center_view_on(_hero.position)
 
 
 func _on_battle_defeat() -> void:
@@ -2201,7 +2422,7 @@ func _on_end_turn() -> void:
 	for i in range(_enemies.size()):
 		_recompute_fog_ai(i)
 	_recompute_costs()
-	_map_area.queue_redraw()
+	_request_redraw()
 	_update_labels()
 	_set_status("Zug beendet: +%d G, +%d A, +%d XP (%d Staedte)" % [income, army_gain, xp_gain, owned])
 	_check_defeat()
