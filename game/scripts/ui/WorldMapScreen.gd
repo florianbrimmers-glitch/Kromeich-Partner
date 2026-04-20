@@ -1857,6 +1857,18 @@ func _enemy_economy_for(idx: int) -> void:
 		var gift_uid: String = _enemy_next_unit_id_for(idx, unlocked)
 		if gift_uid != "":
 			eh.add_units(gift_uid, 1)
+	# Symmetrie zum Spieler: Gebaeude bauen und Rekruten kaufen nur,
+	# wenn der KI-Held aktuell auf einer eigenen Stadt steht. Sonst
+	# waechst die Armee auf der Jagd um +10 pro Zug und der Spieler
+	# hat keine Chance. Gold stapelt sich und wird bei der Rueckkehr
+	# in die Stadt ausgegeben - genau wie beim Spieler.
+	var in_own_city: bool = false
+	for c in _cities:
+		if int(c["owner"]) == oid and Vector2i(c["pos"]) == eh.position:
+			in_own_city = true
+			break
+	if not in_own_city:
+		return
 	var priority: Array = ["kaserne", "schmiede", "reiterei", "markt", "spaeher"]
 	var guard: int = 0
 	var spent: bool = true
