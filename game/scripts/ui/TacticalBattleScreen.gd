@@ -329,6 +329,7 @@ func _draw_grid() -> void:
 		if sp == active_pos:
 			_grid_area.draw_arc(ctr, r_active + 4, 0, TAU, 32, Color(1,1,0.5,0.7), 2.5)
 		_draw_lbl(ctr, UnitType.short_of(String(s["type"])) + str(int(s["count"])), c)
+		_draw_hp_bar(ctr, c, int(s["top_hp"]), UnitType.hp_of(String(s["type"])))
 
 	for i in range(_e_stacks.size()):
 		var s: Dictionary = _e_stacks[i]
@@ -338,6 +339,26 @@ func _draw_grid() -> void:
 		_grid_area.draw_circle(ctr, r_active, Color(0.5, 0.5, 0.55))
 		_grid_area.draw_arc(ctr, r_active, 0, TAU, 32, Color(0.85, 0.25, 0.25), 3.0)
 		_draw_lbl(ctr, UnitType.short_of(String(s["type"])) + str(int(s["count"])), c)
+		_draw_hp_bar(ctr, c, int(s["top_hp"]), UnitType.hp_of(String(s["type"])))
+
+
+# HP-Balken unter dem Stack: nur sichtbar, wenn die vorderste Einheit
+# angekratzt ist. Gruen -> Gelb -> Rot je nach Rest-HP, damit der Spieler
+# auf einen Blick sieht, ob der naechste Treffer den Top-Krieger faellt.
+func _draw_hp_bar(ctr: Vector2, cell: float, top_hp: int, max_hp: int) -> void:
+	if max_hp <= 0 or top_hp >= max_hp: return
+	var frac: float = clampf(float(top_hp) / float(max_hp), 0.0, 1.0)
+	var w: float = cell * 0.70
+	var h: float = max(4.0, cell * 0.08)
+	var top_left := Vector2(ctr.x - w * 0.5, ctr.y + cell * 0.32)
+	_grid_area.draw_rect(Rect2(top_left, Vector2(w, h)), Color(0.15, 0.05, 0.05), true)
+	var fill_col := Color(0.85, 0.25, 0.20)
+	if frac > 0.66:
+		fill_col = Color(0.35, 0.80, 0.35)
+	elif frac > 0.33:
+		fill_col = Color(0.95, 0.80, 0.25)
+	_grid_area.draw_rect(Rect2(top_left, Vector2(w * frac, h)), fill_col, true)
+	_grid_area.draw_rect(Rect2(top_left, Vector2(w, h)), Color(0.05, 0.05, 0.05), false, 1.0)
 
 
 func _draw_lbl(ctr: Vector2, txt: String, cell: float) -> void:
