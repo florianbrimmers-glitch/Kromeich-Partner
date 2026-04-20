@@ -996,25 +996,26 @@ func _open_battle(opp_name: String, opp_army: int, allow_flee: bool, on_result: 
 func _build_enemy_stacks(opp_name: String, total: int) -> Array:
 	if total <= 0:
 		return [{"type": "sword", "count": 1}]
+	# Der Feind-Held erbt seine tatsaechliche Rekrutierung direkt aus der
+	# KI-Stadt. Alle anderen Gegner (Monster, Stadt-/Objektwachen) werden
+	# nach Groesse gemischt - klein reine Schwert-Truppe, ab mittlerer
+	# Groesse Bogen dazu, ab grosser Groesse auch Reiter.
 	if opp_name == "Gegner-Held" and _enemy != null:
 		return _army_to_stacks(_enemy.army)
-	if opp_name == "Monster":
-		if total <= 2:
-			return [{"type": "sword", "count": total}]
-		if total <= 5:
-			var bows: int = max(1, int(round(float(total) * 0.4)))
-			var swords: int = total - bows
-			return [{"type": "sword", "count": swords}, {"type": "bow", "count": bows}]
-		var riders: int = max(1, int(round(float(total) * 0.2)))
-		var bows2: int = max(1, int(round(float(total) * 0.3)))
-		var swords2: int = max(1, total - bows2 - riders)
-		return [
-			{"type": "sword", "count": swords2},
-			{"type": "bow", "count": bows2},
-			{"type": "rider", "count": riders},
-		]
-	# Wachen (Stadt- und Objektwachen): pure Schwert-Defender.
-	return [{"type": "sword", "count": total}]
+	if total <= 2:
+		return [{"type": "sword", "count": total}]
+	if total <= 5:
+		var bows: int = max(1, int(round(float(total) * 0.4)))
+		var swords: int = total - bows
+		return [{"type": "sword", "count": swords}, {"type": "bow", "count": bows}]
+	var riders: int = max(1, int(round(float(total) * 0.2)))
+	var bows2: int = max(1, int(round(float(total) * 0.3)))
+	var swords2: int = max(1, total - bows2 - riders)
+	return [
+		{"type": "sword", "count": swords2},
+		{"type": "bow", "count": bows2},
+		{"type": "rider", "count": riders},
+	]
 
 
 func _army_to_stacks(army: Dictionary) -> Array:
