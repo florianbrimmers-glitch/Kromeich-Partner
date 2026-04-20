@@ -561,27 +561,57 @@ func _ai_turn() -> void:
 		return
 
 	var spd: int = UnitType.speed_of(uid)
-	var moved: bool = false
-	if not _adj(epos, tpos):
-		# Hindernisliste: alle anderen lebenden Stacks blockieren Felder.
-		# Das Ziel-Feld selbst ist ebenfalls blockiert (wir koennen nicht
-		# drauf stehen, wollen nur adjacent hin).
-		var blocked: Array = [tpos]
-		for s in _p_stacks:
-			if int(s["count"]) > 0:
-				var pp: Vector2i = Vector2i(s["pos"])
-				if pp != tpos and pp != epos:
-					blocked.append(pp)
-		for s in _e_stacks:
-			if int(s["count"]) > 0:
-				var pp2: Vector2i = Vector2i(s["pos"])
-				if pp2 != epos:
-					blocked.append(pp2)
-		var dist_map := _bfs_for(epos, blocked)
-		# Bestes Feld = innerhalb Speed erreichbar, Manhattan-Distanz zum
-		# Ziel minimal. So marschiert die KI auch dann Richtung Ziel, wenn
-		# sie in dieser Runde noch nicht ankommt.
-		var best_step := epos
+	# Hindernisliste: alle anderen lebenden Stacks blockieren Felder.
+	var blocked: Array = []
+	for s in _p_stacks:
+		if int(s["count"]) > 0:
+			blocked.append(Vector2i(s["pos"]))
+	for s in _e_stacks:
+		if int(s["count"]) > 0:
+			var pp2: Vector2i = Vector2i(s["pos"])
+			if pp2 != epos:
+				blocked.append(pp2)
+	var dist_map := _bfs_for(epos, blocked)
+
+	# Primaerziel zuerst pruefen, dann alle anderen lebenden Gegner als
+	# Opportunity-Targets: wenn das Primaerziel diese Runde nicht
+	# erreichbar ist, aber ein anderer Stack schon, wird der unterwegs
+	# angegriffen statt blind weiter zu marschieren.
+	var atk_target: Dictionary = {}
+	var atk_cell: Vector2i = Vector2i(-1, -1)
+	var primary_cell: Vector2i = _attack_cell_for(epos, tpos, dist_map, spd)
+	if primary_cell.x >= 0:
+		atk_target = best_target
+		atk_cell = primary_cell
+	else:
+		var best_count: int = -1
+		for ps in _p_stacks:
+			if int(ps["count"]) <= 0: continue
+			if ps == best_target: continue
+			var c: Vector2i = _attack_cell_for(epos, Vector2i(ps["pos"]), dist_map, spd)
+			if c.x < 0: continue
+			if int(ps["count"]) > best_count:
+				best_count = int(ps["count"])
+				atk_target = ps
+				atk_cell = c
+
+	if not atk_target.is_empty():
+		if atk_cell != epos:
+			estack["pos"] = atk_cell
+			epos = atk_cell
+		var def_s2: String = UnitType.short_of(String(atk_target["type"]))
+		var dmg: int = _dmg(estack, atk_target, false)
+		var killed: int = _apply_dmg(atk_target, dmg)
+		var msg: String = "Feind %s -> %s: %d Sch., -%d" % [atk_s, def_s2, dmg, killed]
+		if int(atk_target["count"]) > 0 and not bool(atk_target["retaliated"]):
+			atk_target["retaliated"] = true
+			var rdmg: int = max(1, _dmg(atk_target, estack, false) / 2)
+			var rkill: int = _apply_dmg(estack, rdmg)
+			msg += "  Konter: %d Sch., -%d" % [rdmg, rkill]
+		_set_action(msg)
+	else:
+		# Niemand diese Runde erreichbar -> marschiere Richtung Primaerziel.
+		var best_step: Vector2i = epos
 		var best_to_target: int = abs(epos.x - tpos.x) + abs(epos.y - tpos.y)
 		for cell in dist_map.keys():
 			var cv: Vector2i = cell
@@ -594,24 +624,9 @@ func _ai_turn() -> void:
 				best_step = cv
 		if best_step != epos:
 			estack["pos"] = best_step
-			epos = best_step
-			moved = true
-
-	if _adj(epos, tpos):
-		var dmg: int = _dmg(estack, best_target, false)
-		var killed: int = _apply_dmg(best_target, dmg)
-		var msg: String = "Feind %s -> %s: %d Sch., -%d" % [atk_s, def_s, dmg, killed]
-		if int(best_target["count"]) > 0 and not bool(best_target["retaliated"]):
-			best_target["retaliated"] = true
-			var rdmg: int = max(1, _dmg(best_target, estack, false) / 2)
-			var rkill: int = _apply_dmg(estack, rdmg)
-			msg += "  Konter: %d Sch., -%d" % [rdmg, rkill]
-		_set_action(msg)
-	elif moved:
-		_set_action("Feind %s bewegt sich." % atk_s)
-	else:
-		# Blockiert - kein Feld naeher am Ziel erreichbar.
-		_set_action("Feind %s wartet." % atk_s)
+			_set_action("Feind %s bewegt sich." % atk_s)
+		else:
+			_set_action("Feind %s wartet." % atk_s)
 
 	_rebuild_order()
 	if _check_end(): return
@@ -631,6 +646,24 @@ func _bfs_for(start: Vector2i, blocked: Array) -> Dictionary:
 			dist[n] = int(dist[cur]) + 1
 			frontier.append(n)
 	return dist
+
+
+func _attack_cell_for(from: Vector2i, target_pos: Vector2i, dist_map: Dictionary, spd: int) -> Vector2i:
+	# Liefert das naechstgelegene Nachbarfeld von target_pos, das innerhalb
+	# der Bewegungsreichweite erreichbar ist. Wenn der Angreifer schon
+	# adjacent steht, bleibt er stehen. Rueckgabe (-1,-1) = nicht erreichbar.
+	if _adj(from, target_pos):
+		return from
+	var best := Vector2i(-1, -1)
+	var best_d: int = 9999
+	for d in [Vector2i(1,0), Vector2i(-1,0), Vector2i(0,1), Vector2i(0,-1)]:
+		var n: Vector2i = target_pos + d
+		if not dist_map.has(n): continue
+		var nd: int = int(dist_map[n])
+		if nd <= spd and nd < best_d:
+			best_d = nd
+			best = n
+	return best
 
 
 func _dmg(attacker: Dictionary, defender: Dictionary, melee_penalty: bool) -> int:
