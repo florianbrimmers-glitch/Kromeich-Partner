@@ -19,6 +19,7 @@ const TILE_FOREST := 1
 const TILE_WATER := 2
 const TILE_MOUNTAIN := 3
 const TILE_SAND := 4
+const TILE_SWAMP := 5
 
 const MAX_CLUSTER_ITERATIONS := 500
 
@@ -28,6 +29,7 @@ static func generate(width: int, height: int, rng: DeterministicRng) -> Dictiona
 	place_water(tiles, width, height, rng)
 	place_mountains(tiles, width, height, rng)
 	coat_with_sand(tiles, width, height)
+	place_swamps(tiles, width, height, rng)
 	place_forests(tiles, width, height, rng)
 	var spawn := find_spawn(tiles, width, height)
 	return {
@@ -69,6 +71,19 @@ static func coat_with_sand(tiles: Array, width: int, height: int) -> void:
 				changes.append(ti)
 	for ti in changes:
 		tiles[ti] = TILE_SAND
+
+
+static func place_swamps(tiles: Array, width: int, height: int, rng: DeterministicRng) -> void:
+	# Sumpf entsteht auf zwei Wegen: (1) 2-3 eigene Inland-Cluster und
+	# (2) an der Kueste, indem ein Teil der Sandfelder zu Sumpf wird.
+	# Kuesten-Sumpf fuehlt sich organisch an ("Marschland") und bringt
+	# taktische Vielfalt in Kuesten-Kaempfe.
+	var clusters: int = max(2, int(float(width * height) / 120.0))
+	for i in range(clusters):
+		grow_cluster(tiles, width, height, TILE_SWAMP, rng.next_int(3, 8), rng)
+	for ti in range(tiles.size()):
+		if int(tiles[ti]) == TILE_SAND and rng.next_int(0, 99) < 22:
+			tiles[ti] = TILE_SWAMP
 
 
 static func place_forests(tiles: Array, width: int, height: int, rng: DeterministicRng) -> void:
@@ -134,6 +149,7 @@ static func terrain_cost(t: int) -> int:
 		TILE_GRASS: return 1
 		TILE_SAND: return 1
 		TILE_FOREST: return 2
+		TILE_SWAMP: return 2
 		TILE_WATER: return -1
 		TILE_MOUNTAIN: return -1
 	return 1

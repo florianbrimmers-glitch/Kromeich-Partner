@@ -310,6 +310,37 @@ func _start(seed_value: int) -> void:
 	for ti in sand_changes:
 		tiles[ti] = MapGen.TILE_SAND
 
+	_set_status("STEP 3d2: place_swamps")
+	# Sumpf: 2-3 Inland-Cluster plus zufaellige Umwandlung von Sandfeldern
+	# zu Kuesten-Sumpf. Cluster laufen wie Wasser/Gebirge (BFS-Wachstum).
+	var swamp_clusters: int = max(2, int(float(MAP_WIDTH * MAP_HEIGHT) / 120.0))
+	for ci in range(swamp_clusters):
+		var scx := rng.next_int(0, MAP_WIDTH - 1)
+		var scy := rng.next_int(0, MAP_HEIGHT - 1)
+		var s_target := rng.next_int(3, 8)
+		var s_frontier: Array = [Vector2i(scx, scy)]
+		var s_placed := 0
+		var s_it := 0
+		while s_placed < s_target and s_frontier.size() > 0 and s_it < 500:
+			s_it += 1
+			var sidx := rng.next_int(0, s_frontier.size() - 1)
+			var scell: Vector2i = s_frontier[sidx]
+			s_frontier.remove_at(sidx)
+			if scell.x < 0 or scell.x >= MAP_WIDTH or scell.y < 0 or scell.y >= MAP_HEIGHT:
+				continue
+			var sti: int = scell.y * MAP_WIDTH + scell.x
+			if int(tiles[sti]) != MapGen.TILE_GRASS:
+				continue
+			tiles[sti] = MapGen.TILE_SWAMP
+			s_placed += 1
+			s_frontier.append(Vector2i(scell.x + 1, scell.y))
+			s_frontier.append(Vector2i(scell.x - 1, scell.y))
+			s_frontier.append(Vector2i(scell.x, scell.y + 1))
+			s_frontier.append(Vector2i(scell.x, scell.y - 1))
+	for ti in range(tiles.size()):
+		if int(tiles[ti]) == MapGen.TILE_SAND and rng.next_int(0, 99) < 22:
+			tiles[ti] = MapGen.TILE_SWAMP
+
 	_set_status("STEP 3e: place_forests")
 	for i in range(tiles.size()):
 		if int(tiles[i]) == MapGen.TILE_GRASS and rng.next_int(0, 99) < 20:
@@ -633,12 +664,8 @@ func _dijkstra(start: Vector2i, monsters_block: bool) -> Dictionary:
 			if nx < 0 or nx >= MAP_WIDTH or ny < 0 or ny >= MAP_HEIGHT:
 				continue
 			var t: int = int(tiles[ny * MAP_WIDTH + nx])
-			var step := -1
-			if t == 0 or t == 4:
-				step = 1
-			elif t == 1:
-				step = 2
-			if step < 0:
+			var step: int = MapGen.terrain_cost(t)
+			if step <= 0:
 				continue
 			var next_cost: int = cur_cost + step
 			var key := Vector2i(nx, ny)
@@ -950,6 +977,7 @@ func _terrain_color(t: int) -> Color:
 		MapGen.TILE_WATER:    return Color(0.18, 0.35, 0.65)
 		MapGen.TILE_MOUNTAIN: return Color(0.45, 0.42, 0.40)
 		MapGen.TILE_SAND:     return Color(0.85, 0.78, 0.48)
+		MapGen.TILE_SWAMP:    return Color(0.35, 0.40, 0.22)
 	return Color(0.5, 0.5, 0.5)
 
 
@@ -960,6 +988,7 @@ func _terrain_name(t: int) -> String:
 		MapGen.TILE_WATER:    return "Wasser"
 		MapGen.TILE_MOUNTAIN: return "Gebirge"
 		MapGen.TILE_SAND:     return "Sand"
+		MapGen.TILE_SWAMP:    return "Sumpf"
 	return "Unbekannt"
 
 
