@@ -89,17 +89,25 @@ func _rebuild_order() -> void:
 	var normal: Array = []
 	var waiters: Array = []
 	for i in range(_p_stacks.size()):
-		if int(_p_stacks[i]["count"]) > 0:
-			var e := {"side": 0, "idx": i,
-				"speed": UnitType.speed_of(String(_p_stacks[i]["type"])),
-				"waited": bool(_p_stacks[i].get("waited", false))}
-			if bool(e["waited"]): waiters.append(e) else: normal.append(e)
+		if int(_p_stacks[i]["count"]) <= 0:
+			continue
+		var e := {"side": 0, "idx": i,
+			"speed": UnitType.speed_of(String(_p_stacks[i]["type"])),
+			"waited": bool(_p_stacks[i].get("waited", false))}
+		if bool(e["waited"]):
+			waiters.append(e)
+		else:
+			normal.append(e)
 	for i in range(_e_stacks.size()):
-		if int(_e_stacks[i]["count"]) > 0:
-			var e := {"side": 1, "idx": i,
-				"speed": UnitType.speed_of(String(_e_stacks[i]["type"])),
-				"waited": bool(_e_stacks[i].get("waited", false))}
-			if bool(e["waited"]): waiters.append(e) else: normal.append(e)
+		if int(_e_stacks[i]["count"]) <= 0:
+			continue
+		var e2 := {"side": 1, "idx": i,
+			"speed": UnitType.speed_of(String(_e_stacks[i]["type"])),
+			"waited": bool(_e_stacks[i].get("waited", false))}
+		if bool(e2["waited"]):
+			waiters.append(e2)
+		else:
+			normal.append(e2)
 	var by_speed := func(a, b): return int(a["speed"]) > int(b["speed"])
 	normal.sort_custom(by_speed)
 	waiters.sort_custom(by_speed)
