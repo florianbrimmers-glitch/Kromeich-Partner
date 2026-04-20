@@ -2175,6 +2175,11 @@ func _run_enemy_turn_for(idx: int) -> void:
 	var target_idx: int = -1
 	var target_cost: int = -1
 	var target_pos: Vector2i = eh.position
+	# Nur Ziele anpeilen, die die KI auch nehmen kann. Sonst sitzt sie
+	# endlos auf einer zu starken Wache und das Heimweg-Fallback greift
+	# nie, weil target_cost immer 0 bleibt. Armee ist der einzige Wert,
+	# der Kaempfe entscheidet (KI hat keinen Kampfkraft-Bonus).
+	var army: int = eh.total_count()
 	for i in range(_cities.size()):
 		if int(_cities[i]["owner"]) == oid:
 			continue
@@ -2182,6 +2187,9 @@ func _run_enemy_turn_for(idx: int) -> void:
 		if _fog_get(fog_e, cp) == FOG_HIDDEN:
 			continue
 		if not ecosts.has(cp):
+			continue
+		var garrison_c: int = int(_cities[i].get("garrison", 0))
+		if garrison_c > 0 and army < garrison_c:
 			continue
 		var c: int = int(ecosts[cp])
 		if target_cost < 0 or c < target_cost:
@@ -2198,6 +2206,9 @@ func _run_enemy_turn_for(idx: int) -> void:
 		if _fog_get(fog_e, op) == FOG_HIDDEN:
 			continue
 		if not ecosts.has(op):
+			continue
+		var guard_o: int = int(obj.get("guard", 0))
+		if guard_o > 0 and army < guard_o:
 			continue
 		var c2: int = int(ecosts[op])
 		if target_cost < 0 or c2 < target_cost:
