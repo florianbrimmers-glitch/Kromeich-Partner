@@ -146,6 +146,10 @@ var _game_won: bool = false
 var _game_lost: bool = false
 # Gegner-Held: Position, mp, army. Wird am Ende des Spielerzugs bewegt.
 var _enemy: Hero
+# Rotations-Index fuer die Gegner-Rekrutierung: 0=sword, 1=bow, 2=rider.
+# Jede gekaufte (oder durch Schmiede geschenkte) Einheit ruckt den Index
+# um 1 weiter, damit die Armee bunt bleibt, solange Gold reicht.
+var _enemy_recruit_idx: int = 0
 # RNG bleibt nach _start() aktiv, damit Enemy-Turn deterministische
 # Wuerfe fuer Garrison machen kann.
 var _rng: DeterministicRng
@@ -1460,6 +1464,12 @@ func _recruit_unit(city_idx: int, unit_id: String) -> void:
 	_show_city(city_idx)
 
 
+func _enemy_next_unit_id() -> String:
+	var uid: String = UnitType.ORDER[_enemy_recruit_idx % UnitType.ORDER.size()]
+	_enemy_recruit_idx = (_enemy_recruit_idx + 1) % UnitType.ORDER.size()
+	return uid
+
+
 func _building_by_id(bid: String) -> Dictionary:
 	for b in BUILDINGS:
 		if String(b["id"]) == bid:
@@ -1497,7 +1507,12 @@ func _enemy_economy() -> void:
 		if int(obj["kind"]) == OBJECT_MINE and int(obj.get("owner", OWNER_NEUTRAL)) == OWNER_ENEMY:
 			e_mine_income += int(obj["gold"])
 	_enemy.gold += owned * CITY_INCOME + markt * INCOME_MARKT + e_mine_income
-	_enemy.add_units("sword", schmiede * SCHMIEDE_ARMY_PER_TURN)
+	# Schmiede-Bonus wird auch rotierend verteilt, damit sich das Muster
+	# "Gegner hat nur Schwerter" nicht ueber die frei geschenkten Einheiten
+	# einschleicht.
+	var smithy_gifts: int = schmiede * SCHMIEDE_ARMY_PER_TURN
+	for _i in range(smithy_gifts):
+		_enemy.add_units(_enemy_next_unit_id(), 1)
 	var priority: Array = ["kaserne", "schmiede", "markt", "spaeher"]
 	var guard: int = 0
 	var spent: bool = true
@@ -1529,8 +1544,13 @@ func _enemy_economy() -> void:
 		if spent:
 			continue
 		# Keine Prioritaets-Gebaeude mehr affordable: Ueberschuss in Rekruten
-		# stecken, solange Kaserne vorhanden und Gold reicht.
-		if _enemy.gold < UNIT_COST:
+		# stecken, solange Kaserne vorhanden und Gold reicht. Die Einheit
+		# folgt strikt der Rotation S -> B -> R; reicht das Gold fuer den
+		# naechsten Rotations-Slot nicht, wird gewartet (kein Skip), damit
+		# die Zusammensetzung auf Dauer ausgeglichen bleibt.
+		var next_uid: String = UnitType.ORDER[_enemy_recruit_idx % UnitType.ORDER.size()]
+		var next_cost: int = UnitType.cost_of(next_uid)
+		if _enemy.gold < next_cost:
 			continue
 		var has_kaserne: bool = false
 		for c in _cities:
@@ -1538,8 +1558,9 @@ func _enemy_economy() -> void:
 				has_kaserne = true
 				break
 		if has_kaserne:
-			_enemy.gold -= UNIT_COST
-			_enemy.add_units("sword", 1)
+			_enemy.gold -= next_cost
+			_enemy.add_units(next_uid, 1)
+			_enemy_recruit_idx = (_enemy_recruit_idx + 1) % UnitType.ORDER.size()
 			spent = true
 
 
