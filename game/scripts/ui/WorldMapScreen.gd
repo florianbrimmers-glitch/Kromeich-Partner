@@ -957,7 +957,7 @@ func _open_battle(opp_name: String, opp_army: int, allow_flee: bool, on_result: 
 	add_child(overlay)
 	if overlay.has_method("set_battle"):
 		var p_stacks: Array = _army_to_stacks(_hero.army)
-		var e_stacks: Array = [{"type": "sword", "count": opp_army}]
+		var e_stacks: Array = _build_enemy_stacks(opp_name, opp_army)
 		overlay.call("set_battle", {
 			"player_name": "Held",
 			"player_stacks": p_stacks,
@@ -971,6 +971,37 @@ func _open_battle(opp_name: String, opp_army: int, allow_flee: bool, on_result: 
 		on_result.call(result)
 		overlay.queue_free()
 	)
+
+
+# Zerlegt eine Gegner-Armee-Groesse in gemischte Stacks, abhaengig von
+# der Quelle des Kampfes. Wachen bleiben reine Schwerter (einfache
+# Verteidiger), Monster werden ab mittlerer Groesse gemischt (Bogen,
+# Reiter), der Feind-Held erbt seine tatsaechliche Rekrutierungs-
+# zusammensetzung. Keine RNG noetig - rein deterministisch aus der
+# Gesamtzahl, damit zwei Spieler mit gleichem Seed das gleiche Matchup
+# sehen.
+func _build_enemy_stacks(opp_name: String, total: int) -> Array:
+	if total <= 0:
+		return [{"type": "sword", "count": 1}]
+	if opp_name == "Gegner-Held" and _enemy != null:
+		return _army_to_stacks(_enemy.army)
+	if opp_name == "Monster":
+		if total <= 2:
+			return [{"type": "sword", "count": total}]
+		if total <= 5:
+			var bows: int = max(1, int(round(float(total) * 0.4)))
+			var swords: int = total - bows
+			return [{"type": "sword", "count": swords}, {"type": "bow", "count": bows}]
+		var riders: int = max(1, int(round(float(total) * 0.2)))
+		var bows2: int = max(1, int(round(float(total) * 0.3)))
+		var swords2: int = max(1, total - bows2 - riders)
+		return [
+			{"type": "sword", "count": swords2},
+			{"type": "bow", "count": bows2},
+			{"type": "rider", "count": riders},
+		]
+	# Wachen (Stadt- und Objektwachen): pure Schwert-Defender.
+	return [{"type": "sword", "count": total}]
 
 
 func _army_to_stacks(army: Dictionary) -> Array:
