@@ -597,38 +597,13 @@ func _bfs_for(start: Vector2i, blocked: Array) -> Dictionary:
 
 
 func _dmg(attacker: Dictionary, defender: Dictionary, melee_penalty: bool) -> int:
-	var uid: String = String(attacker["type"])
-	var ut: Dictionary = UnitType.get_type(uid)
-	var att: int = int(ut.get("att", 4))
-	var dut: Dictionary = UnitType.get_type(String(defender["type"]))
-	var def_val: int = int(dut.get("def", 4))
-	if int(attacker["side"]) == 0:
-		att += _player_bonus
-	else:
-		def_val += _player_bonus
-	var base: int = _rng.randi_range(int(ut.get("dmg_min", 1)), int(ut.get("dmg_max", 3)))
-	var total: float = float(base * int(attacker["count"]))
-	var diff: int = att - def_val
-	var mod: float = 1.0 + clampf(float(diff) * 0.05, -0.7, 1.5)
-	if melee_penalty:
-		mod *= 0.5
-	return int(max(1.0, total * mod))
+	var a_bonus: int = _player_bonus if int(attacker["side"]) == 0 else 0
+	var d_bonus: int = _player_bonus if int(defender["side"]) == 0 else 0
+	return CombatMath.damage(attacker, defender, melee_penalty, a_bonus, d_bonus, _rng)
 
 
 func _apply_dmg(stack: Dictionary, dmg: int) -> int:
-	# Gibt die Anzahl gefallener Einheiten zurueck, damit der Kampf-Log
-	# Verluste anzeigen kann.
-	if dmg <= 0 or int(stack["count"]) <= 0: return 0
-	var before: int = int(stack["count"])
-	var hp_per: int = UnitType.hp_of(String(stack["type"]))
-	var total: int = (before - 1) * hp_per + int(stack["top_hp"]) - dmg
-	if total <= 0:
-		stack["count"] = 0; stack["top_hp"] = 0
-		return before
-	stack["count"] = (total - 1) / hp_per + 1
-	var rem: int = total % hp_per
-	stack["top_hp"] = hp_per if rem == 0 else rem
-	return before - int(stack["count"])
+	return CombatMath.apply(stack, dmg)
 
 
 func _check_end() -> bool:
