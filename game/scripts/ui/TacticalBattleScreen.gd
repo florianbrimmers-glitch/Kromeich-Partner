@@ -561,18 +561,41 @@ func _ai_turn() -> void:
 		return
 
 	var spd: int = UnitType.speed_of(uid)
+	var moved: bool = false
 	if not _adj(epos, tpos):
-		var dist_map := _bfs_for(epos, [tpos])
+		# Hindernisliste: alle anderen lebenden Stacks blockieren Felder.
+		# Das Ziel-Feld selbst ist ebenfalls blockiert (wir koennen nicht
+		# drauf stehen, wollen nur adjacent hin).
+		var blocked: Array = [tpos]
+		for s in _p_stacks:
+			if int(s["count"]) > 0:
+				var pp: Vector2i = Vector2i(s["pos"])
+				if pp != tpos and pp != epos:
+					blocked.append(pp)
+		for s in _e_stacks:
+			if int(s["count"]) > 0:
+				var pp2: Vector2i = Vector2i(s["pos"])
+				if pp2 != epos:
+					blocked.append(pp2)
+		var dist_map := _bfs_for(epos, blocked)
+		# Bestes Feld = innerhalb Speed erreichbar, Manhattan-Distanz zum
+		# Ziel minimal. So marschiert die KI auch dann Richtung Ziel, wenn
+		# sie in dieser Runde noch nicht ankommt.
 		var best_step := epos
-		var best_d := 9999
-		for d in [Vector2i(1,0), Vector2i(-1,0), Vector2i(0,1), Vector2i(0,-1)]:
-			var n: Vector2i = tpos + d
-			if not dist_map.has(n): continue
-			if int(dist_map[n]) <= spd and int(dist_map[n]) < best_d:
-				best_d = int(dist_map[n])
-				best_step = n
-		estack["pos"] = best_step
-		epos = best_step
+		var best_to_target: int = abs(epos.x - tpos.x) + abs(epos.y - tpos.y)
+		for cell in dist_map.keys():
+			var cv: Vector2i = cell
+			var d: int = int(dist_map[cv])
+			if d <= 0 or d > spd:
+				continue
+			var mt: int = abs(cv.x - tpos.x) + abs(cv.y - tpos.y)
+			if mt < best_to_target:
+				best_to_target = mt
+				best_step = cv
+		if best_step != epos:
+			estack["pos"] = best_step
+			epos = best_step
+			moved = true
 
 	if _adj(epos, tpos):
 		var dmg: int = _dmg(estack, best_target, false)
@@ -584,8 +607,11 @@ func _ai_turn() -> void:
 			var rkill: int = _apply_dmg(estack, rdmg)
 			msg += "  Konter: %d Sch., -%d" % [rdmg, rkill]
 		_set_action(msg)
-	else:
+	elif moved:
 		_set_action("Feind %s bewegt sich." % atk_s)
+	else:
+		# Blockiert - kein Feld naeher am Ziel erreichbar.
+		_set_action("Feind %s wartet." % atk_s)
 
 	_rebuild_order()
 	if _check_end(): return
