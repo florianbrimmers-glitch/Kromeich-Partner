@@ -522,8 +522,19 @@ func _ai_turn() -> void:
 
 	var best_target: Dictionary = {}
 	var best_threat := -1.0
+	# Ranged-Priority: Fernkaempfer sind gefaehrlich, weil sie hinter
+	# Schwert-Schilden frei schiessen. Die KI sucht sie erst gezielt;
+	# nur wenn keine Ranged-Ziele (mehr) leben, faellt sie auf den
+	# staerksten Nahkaempfer-Stack zurueck.
+	var has_ranged: bool = false
+	for ps in _p_stacks:
+		if int(ps["count"]) > 0 and UnitType.is_ranged(String(ps["type"])):
+			has_ranged = true
+			break
 	for ps in _p_stacks:
 		if int(ps["count"]) <= 0: continue
+		if has_ranged and not UnitType.is_ranged(String(ps["type"])):
+			continue
 		var th: float = float(int(ps["count"])) / float(max(1, int(estack["count"])))
 		if th > best_threat:
 			best_threat = th
