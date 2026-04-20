@@ -1370,16 +1370,21 @@ func _show_city(city_idx: int) -> void:
 			btn.pressed.connect(_buy_building.bind(city_idx, i))
 		_buildings_box.add_child(btn)
 
-	# Rekrutieren: nur wenn Kaserne gebaut. Gibt +1 zum Hero-Armee-Zaehler.
+	# Rekrutieren: nur wenn Kaserne gebaut. Drei Buttons (je Einheit-Typ),
+	# Kosten und Namen kommen aus UnitType. Alle Typen haengen aktuell nur
+	# an der Kaserne; feinere Gates (Bogen braucht Schmiede etc.) koennen
+	# spaeter nachgezogen werden.
 	if built.has("kaserne"):
-		var rbtn := Button.new()
-		rbtn.custom_minimum_size = Vector2(0, 120)
-		rbtn.add_theme_font_size_override("font_size", 32)
-		rbtn.text = "Rekrutieren  -  " + str(UNIT_COST) + " G  (+1 Armee)"
-		if _hero.gold < UNIT_COST:
-			rbtn.disabled = true
-		rbtn.pressed.connect(_recruit_unit.bind(city_idx))
-		_buildings_box.add_child(rbtn)
+		for uid in UnitType.all_ids():
+			var cost: int = UnitType.cost_of(uid)
+			var rbtn := Button.new()
+			rbtn.custom_minimum_size = Vector2(0, 110)
+			rbtn.add_theme_font_size_override("font_size", 30)
+			rbtn.text = "%s rekrutieren  -  %d G  (+1)" % [UnitType.name_of(uid), cost]
+			if _hero.gold < cost:
+				rbtn.disabled = true
+			rbtn.pressed.connect(_recruit_unit.bind(city_idx, uid))
+			_buildings_box.add_child(rbtn)
 
 	_city_panel.visible = true
 
@@ -1409,17 +1414,18 @@ func _buy_building(city_idx: int, bld_idx: int) -> void:
 	_show_city(city_idx)
 
 
-func _recruit_unit(city_idx: int) -> void:
-	if _hero.gold < UNIT_COST:
+func _recruit_unit(city_idx: int, unit_id: String) -> void:
+	var cost: int = UnitType.cost_of(unit_id)
+	if _hero.gold < cost:
 		return
 	var city: Dictionary = _cities[city_idx]
 	var built: Array = city["buildings"]
 	if not built.has("kaserne"):
 		return
-	_hero.gold -= UNIT_COST
-	_hero.add_units("sword", 1)
+	_hero.gold -= cost
+	_hero.add_units(unit_id, 1)
 	_update_labels()
-	_set_status("Einheit rekrutiert (+1 Schwert)")
+	_set_status("Rekrutiert: +1 %s" % UnitType.name_of(unit_id))
 	_show_city(city_idx)
 
 
