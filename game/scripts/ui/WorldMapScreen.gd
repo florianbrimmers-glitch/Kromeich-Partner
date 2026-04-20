@@ -2216,6 +2216,43 @@ func _run_enemy_turn_for(idx: int) -> void:
 				target_idx = -1
 				target_cost = hc
 				target_pos = pls_pos
+	# Heimweg: wenn die KI genug Gold fuer eine billige Ausgabe hat, aber
+	# nicht auf einer eigenen Stadt steht, ist die naechste eigene Stadt ein
+	# valides Ziel. Grund: _enemy_economy_for gibt nur aus, wenn der Held
+	# auf einer eigenen Stadt steht (gleiche Regel wie beim Spieler). Ohne
+	# diesen Anker wuerde sich Gold endlos stapeln. Hero-Jagd hat Vorrang,
+	# sonst gewinnt das naeher gelegene Ziel (home vs. Loot).
+	var cheapest_spend: int = 300 # Spaeher ist das billigste Gebaeude
+	for uid in UnitType.ORDER:
+		var uc: int = UnitType.cost_of(uid)
+		if uc < cheapest_spend:
+			cheapest_spend = uc
+	if eh.gold >= cheapest_spend and target_kind != "hero":
+		var on_own_city: bool = false
+		for i in range(_cities.size()):
+			if int(_cities[i]["owner"]) == oid and Vector2i(_cities[i]["pos"]) == eh.position:
+				on_own_city = true
+				break
+		if not on_own_city:
+			var best_home_i: int = -1
+			var best_home_cost: int = -1
+			var best_home_pos: Vector2i = eh.position
+			for i in range(_cities.size()):
+				if int(_cities[i]["owner"]) != oid:
+					continue
+				var cp2: Vector2i = _cities[i]["pos"]
+				if not ecosts.has(cp2):
+					continue
+				var cc: int = int(ecosts[cp2])
+				if best_home_cost < 0 or cc < best_home_cost:
+					best_home_i = i
+					best_home_cost = cc
+					best_home_pos = cp2
+			if best_home_i >= 0 and (target_cost < 0 or best_home_cost < target_cost):
+				target_kind = "home"
+				target_idx = best_home_i
+				target_cost = best_home_cost
+				target_pos = best_home_pos
 	# Fallback-Exploration: nichts bekannt -> naechstgelegenes Hidden-Feld
 	# ansteuern, damit die KI aktiv erkundet und nicht passiv in der
 	# Startzone bleibt.
