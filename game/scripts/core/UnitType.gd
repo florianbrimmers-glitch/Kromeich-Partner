@@ -23,7 +23,7 @@ const TYPES := {
 		"dmg_max": 3,
 		"speed": 4,
 		"shots": 0,
-		"cost": 80,
+		"cost": 100,
 	},
 	"bow": {
 		"id": "bow",
@@ -32,9 +32,9 @@ const TYPES := {
 		"tier": 2,
 		"att": 6,
 		"def": 3,
-		"hp": 8,
+		"hp": 11,
 		"dmg_min": 2,
-		"dmg_max": 4,
+		"dmg_max": 5,
 		"speed": 4,
 		"shots": 99,
 		"cost": 140,
@@ -51,7 +51,7 @@ const TYPES := {
 		"dmg_max": 5,
 		"speed": 7,
 		"shots": 0,
-		"cost": 250,
+		"cost": 220,
 	},
 }
 
