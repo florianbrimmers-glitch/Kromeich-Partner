@@ -664,7 +664,16 @@ func _dijkstra(start: Vector2i, monsters_block: bool) -> Dictionary:
 			if nx < 0 or nx >= MAP_WIDTH or ny < 0 or ny >= MAP_HEIGHT:
 				continue
 			var t: int = int(tiles[ny * MAP_WIDTH + nx])
-			var step: int = MapGen.terrain_cost(t)
+			# terrain_cost inline als Integer-Literale, weil Cross-File-
+			# class_name-Aufrufe (MapGen.terrain_cost) im Android-Export
+			# 0 liefern koennen - dann waere das ganze Grid unpassierbar
+			# und Held wie KI stehen fest. Gleiches Muster wie Pathfinder.gd.
+			# 0=Gras, 1=Wald, 2=Wasser, 3=Berg, 4=Sand, 5=Sumpf.
+			var step: int = -1
+			if t == 0 or t == 4:
+				step = 1
+			elif t == 1 or t == 5:
+				step = 2
 			if step <= 0:
 				continue
 			var next_cost: int = cur_cost + step
