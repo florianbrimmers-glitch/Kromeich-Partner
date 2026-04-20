@@ -87,6 +87,21 @@ const KAPELLE_XP_PER_TURN := 10
 # Erkundung).
 const MONSTER_VIEW_RANGE := 5
 
+# Kriegsnebel: drei Stufen. HIDDEN = nie gesehen (schwarz), EXPLORED =
+# schon einmal gesehen aber aktuell nicht in Sicht (gedimmt, Gelaende
+# bleibt, bewegliche Einheiten nicht mehr), VISIBLE = aktuell in Sicht
+# (volle Information). Sichtquellen sind Held, eigene Staedte und eigene
+# Minen/Schatzfelder mit jeweils eigenem Radius (Manhattan). Der
+# Ghost-Marker fuer gegnerische Helden verblasst ueber FOG_ROT_TURNS
+# Zuege nach der letzten Sichtung ("Info rottet").
+const FOG_HIDDEN := 0
+const FOG_EXPLORED := 1
+const FOG_VISIBLE := 2
+const HERO_SIGHT := 6
+const CITY_SIGHT := 4
+const OBJECT_SIGHT := 2
+const FOG_ROT_TURNS := 4
+
 # Fraktionen. Bewusst generische Namen (nicht HoMM3-IP), passt zur
 # Plan-Phase 1 ("Waldvolk"/"Menschen"/"Totenreich"/"Orks").
 const FACTION_NAMES := ["Waldvolk", "Menschen", "Totenreich", "Orks"]
@@ -162,6 +177,20 @@ var _enemy_recruit_idx: int = 0
 # RNG bleibt nach _start() aktiv, damit Enemy-Turn deterministische
 # Wuerfe fuer Garrison machen kann.
 var _rng: DeterministicRng
+
+# Kriegsnebel-Zustand. _fog_player und _fog_enemy sind flache Int-Arrays
+# der Groesse MAP_WIDTH*MAP_HEIGHT mit Werten aus FOG_HIDDEN/EXPLORED/
+# VISIBLE (siehe Konstanten). _turn_number zaehlt abgeschlossene
+# Spielerzuege, damit der Ghost-Marker "Info rottet" linear verblassen
+# kann. Wenn _enemy_last_seen.x < 0, wurde der Gegner-Held noch nie
+# gesehen; analog _hero_last_seen fuer die KI-Seite.
+var _fog_player: Array = []
+var _fog_enemy: Array = []
+var _enemy_last_seen: Vector2i = Vector2i(-1, -1)
+var _enemy_last_seen_turn: int = -1
+var _hero_last_seen: Vector2i = Vector2i(-1, -1)
+var _hero_last_seen_turn: int = -1
+var _turn_number: int = 0
 
 
 func _set_status(s: String) -> void:
@@ -461,6 +490,15 @@ func _start(seed_value: int) -> void:
 			"gold": gold_amt,
 		})
 
+	_turn_number = 0
+	_enemy_last_seen = Vector2i(-1, -1)
+	_enemy_last_seen_turn = -1
+	_hero_last_seen = Vector2i(-1, -1)
+	_hero_last_seen_turn = -1
+	_init_fog_arrays()
+	_recompute_fog(OWNER_HERO)
+	_recompute_fog(OWNER_ENEMY)
+
 	_recompute_costs()
 	_on_map_resized()
 	_update_labels()
@@ -470,6 +508,82 @@ func _start(seed_value: int) -> void:
 
 func _recompute_costs() -> void:
 	_costs = _dijkstra(_hero.position, true)
+
+
+func _init_fog_arrays() -> void:
+	# Beide Fog-Arrays auf HIDDEN setzen. Wird am Start einer neuen Karte
+	# aufgerufen, danach nur noch per _recompute_fog gepflegt (das setzt
+	# VISIBLE zurueck auf EXPLORED und markiert neue Sichtfelder).
+	var total: int = MAP_WIDTH * MAP_HEIGHT
+	_fog_player.resize(total)
+	_fog_enemy.resize(total)
+	for i in range(total):
+		_fog_player[i] = FOG_HIDDEN
+		_fog_enemy[i] = FOG_HIDDEN
+
+
+func _fog_mark(arr: Array, center: Vector2i, radius: int) -> void:
+	# Manhattan-Scheibe um center auf VISIBLE. Randfelder (EXPLORED) bleiben
+	# erst durch _recompute_fog erhalten, wenn diese Funktion vorher alles
+	# VISIBLE -> EXPLORED demoted hat.
+	for dy in range(-radius, radius + 1):
+		var ay: int = center.y + dy
+		if ay < 0 or ay >= MAP_HEIGHT:
+			continue
+		var remain: int = radius - abs(dy)
+		for dx in range(-remain, remain + 1):
+			var ax: int = center.x + dx
+			if ax < 0 or ax >= MAP_WIDTH:
+				continue
+			arr[ay * MAP_WIDTH + ax] = FOG_VISIBLE
+
+
+func _recompute_fog(side: int) -> void:
+	# Wird nach Heldenbewegung, nach eigenem Zugende und nach Gegnerzug
+	# aufgerufen. Schritte:
+	#   1. Alle VISIBLE-Felder zurueck auf EXPLORED (wir berechnen jetzt
+	#      die aktuelle Sicht neu).
+	#   2. Held: Manhattan-Scheibe HERO_SIGHT.
+	#   3. Eigene Staedte: Manhattan-Scheibe CITY_SIGHT um jede Stadt.
+	#   4. Eigene Minen/Schatzfelder: Manhattan-Scheibe OBJECT_SIGHT.
+	#   5. Wenn die gegnerische Held-Position jetzt VISIBLE ist,
+	#      last_seen + last_seen_turn aktualisieren.
+	var arr: Array = _fog_player if side == OWNER_HERO else _fog_enemy
+	var total: int = MAP_WIDTH * MAP_HEIGHT
+	for i in range(total):
+		if int(arr[i]) == FOG_VISIBLE:
+			arr[i] = FOG_EXPLORED
+
+	if side == OWNER_HERO and _hero != null:
+		_fog_mark(arr, _hero.position, HERO_SIGHT)
+	elif side == OWNER_ENEMY and _enemy != null:
+		_fog_mark(arr, _enemy.position, HERO_SIGHT)
+
+	for city in _cities:
+		if int(city["owner"]) == side:
+			_fog_mark(arr, Vector2i(city["pos"]), CITY_SIGHT)
+
+	for obj in _objects:
+		if int(obj.get("owner", OWNER_NEUTRAL)) == side:
+			_fog_mark(arr, Vector2i(obj["pos"]), OBJECT_SIGHT)
+
+	# Sichtung gegnerischer Held aktualisieren.
+	if side == OWNER_HERO and _enemy != null:
+		var ep: Vector2i = _enemy.position
+		if _fog_get(arr, ep) == FOG_VISIBLE:
+			_enemy_last_seen = ep
+			_enemy_last_seen_turn = _turn_number
+	elif side == OWNER_ENEMY and _hero != null:
+		var hp: Vector2i = _hero.position
+		if _fog_get(arr, hp) == FOG_VISIBLE:
+			_hero_last_seen = hp
+			_hero_last_seen_turn = _turn_number
+
+
+func _fog_get(arr: Array, p: Vector2i) -> int:
+	if p.x < 0 or p.x >= MAP_WIDTH or p.y < 0 or p.y >= MAP_HEIGHT:
+		return FOG_HIDDEN
+	return int(arr[p.y * MAP_WIDTH + p.x])
 
 
 func _dijkstra(start: Vector2i, monsters_block: bool) -> Dictionary:
@@ -598,13 +712,21 @@ func _draw_map() -> void:
 			var ti: int = int(tiles[y * MAP_WIDTH + x])
 			var pos := origin + Vector2(x * _tile_size, y * _tile_size)
 			var rect := Rect2(pos, Vector2(_tile_size - 1.0, _tile_size - 1.0))
-			var col := _terrain_color(ti)
 			var key := Vector2i(x, y)
+			var fog: int = _fog_get(_fog_player, key)
+			if fog == FOG_HIDDEN:
+				_map_area.draw_rect(rect, Color(0.04, 0.04, 0.06), true)
+				continue
+			var col := _terrain_color(ti)
 			var reachable: bool = _costs.has(key) and int(_costs[key]) <= _hero.mp
 			if not reachable:
 				col = col.darkened(0.7)
+			if fog == FOG_EXPLORED:
+				# Einmal gesehen, aktuell nicht in Sicht: Gelaende bleibt,
+				# aber deutlich abgedunkelt und ohne Bewegungs-Highlight.
+				col = col.darkened(0.55)
 			_map_area.draw_rect(rect, col, true)
-			if reachable and key != _hero.position:
+			if fog == FOG_VISIBLE and reachable and key != _hero.position:
 				_map_area.draw_rect(rect, Color(1.0, 1.0, 1.0, 0.25), false, 2.0)
 
 	# Staedte: farbiges Viereck pro Fraktion. Neutraler Rand dunkel,
@@ -612,6 +734,9 @@ func _draw_map() -> void:
 	# Mitte, farbig nach Kampf-Prognose wie bei Monstern.
 	for city in _cities:
 		var cp: Vector2i = city["pos"]
+		var cfog: int = _fog_get(_fog_player, cp)
+		if cfog == FOG_HIDDEN:
+			continue
 		var fid: int = int(city["faction"])
 		var owner: int = int(city["owner"])
 		var cpos := origin + Vector2(cp.x * _tile_size, cp.y * _tile_size)
@@ -621,6 +746,8 @@ func _draw_map() -> void:
 			Vector2(_tile_size - 1.0 - 2.0 * inset, _tile_size - 1.0 - 2.0 * inset)
 		)
 		var fc: Color = FACTION_COLORS[fid] if fid >= 0 and fid < FACTION_COLORS.size() else Color.WHITE
+		if cfog == FOG_EXPLORED:
+			fc = fc.darkened(0.45)
 		_map_area.draw_rect(crect, fc, true)
 		if owner == OWNER_HERO:
 			_map_area.draw_rect(crect, Color(1.0, 0.85, 0.2), false, 4.0)
@@ -629,7 +756,7 @@ func _draw_map() -> void:
 		else:
 			_map_area.draw_rect(crect, Color(0.1, 0.1, 0.12), false, 2.0)
 		var garrison: int = int(city.get("garrison", 0))
-		if owner != OWNER_HERO and garrison > 0:
+		if owner != OWNER_HERO and garrison > 0 and cfog == FOG_VISIBLE:
 			var cdist: int = abs(cp.x - _hero.position.x) + abs(cp.y - _hero.position.y)
 			var gtxt: String
 			var gcol: Color
@@ -661,13 +788,18 @@ func _draw_map() -> void:
 	var mfsize: int = int(_tile_size * 0.55)
 	for m in _monsters:
 		var mp: Vector2i = m["pos"]
+		var mfog: int = _fog_get(_fog_player, mp)
+		if mfog == FOG_HIDDEN:
+			continue
 		var mstr: int = int(m["strength"])
 		var mpx := origin + Vector2(mp.x * _tile_size + _tile_size * 0.5, mp.y * _tile_size + _tile_size * 0.5)
 		var mrad := _tile_size * 0.36
 		var dist: int = abs(mp.x - _hero.position.x) + abs(mp.y - _hero.position.y)
 		var txt: String
 		var tcol: Color
-		if dist <= MONSTER_VIEW_RANGE:
+		# Staerke steht erst unter halber Held-Sichtweite fest (Nahaufklae-
+		# rung). Darueber hinaus bleibt das Monster sichtbar, aber mit "?".
+		if mfog == FOG_VISIBLE and dist <= (HERO_SIGHT / 2):
 			txt = str(mstr)
 			if eff < mstr:
 				tcol = Color(1.0, 0.35, 0.35)       # rot: kannst nicht schlagen
@@ -690,6 +822,9 @@ func _draw_map() -> void:
 	# Mitte mit Kampf-Prognose-Farbe (nur sichtbar in MONSTER_VIEW_RANGE).
 	for obj in _objects:
 		var op: Vector2i = obj["pos"]
+		var ofog: int = _fog_get(_fog_player, op)
+		if ofog == FOG_HIDDEN:
+			continue
 		var okind: int = int(obj["kind"])
 		var oowner: int = int(obj.get("owner", OWNER_NEUTRAL))
 		var opos := origin + Vector2(op.x * _tile_size, op.y * _tile_size)
@@ -699,6 +834,8 @@ func _draw_map() -> void:
 			Vector2(_tile_size - 1.0 - 2.0 * oinset, _tile_size - 1.0 - 2.0 * oinset)
 		)
 		var ofill: Color = Color(0.95, 0.80, 0.20) if okind == OBJECT_MINE else Color(0.85, 0.50, 0.20)
+		if ofog == FOG_EXPLORED:
+			ofill = ofill.darkened(0.45)
 		_map_area.draw_rect(orect, ofill, true)
 		# Symbol auf das Feld malen, damit Mine und Truhe auf einen Blick
 		# unterscheidbar sind - nicht nur ueber die Farbe.
@@ -731,7 +868,7 @@ func _draw_map() -> void:
 		else:
 			_map_area.draw_rect(orect, Color(0.1, 0.1, 0.12), false, 2.0)
 		var ogd: int = int(obj.get("guard", 0))
-		if ogd > 0:
+		if ogd > 0 and ofog == FOG_VISIBLE:
 			var odist: int = abs(op.x - _hero.position.x) + abs(op.y - _hero.position.y)
 			var otxt: String
 			var ocol: Color
@@ -759,30 +896,45 @@ func _draw_map() -> void:
 	_map_area.draw_circle(center, radius, Color(1.0, 0.85, 0.2))
 	_map_area.draw_arc(center, radius, 0.0, TAU, 24, Color(0.2, 0.15, 0.05), 2.0)
 
-	# Gegner-Held: roter Kreis mit dunklem Ring. Gleiche Groesse wie
-	# Spieler-Held, damit klar ist, dass es ein gleichwertiger Akteur ist.
-	# Darueber die Armee-Zahl mit Kampf-Prognose-Farbe (rot/gelb/gruen)
-	# - so kann man entscheiden, ob man angreifen will.
+	# Gegner-Held: in aktueller Sicht voll rot mit Armee-Zahl. Ausserhalb
+	# der Sicht erscheint ein Ghost-Marker an der letzten bekannten
+	# Position, dessen Alpha ueber FOG_ROT_TURNS linear verblasst
+	# ("Info rottet"). Ohne jemals gesichtet zu haben: gar nichts.
 	if _enemy != null:
 		var ex := _enemy.position
-		var epx := origin + Vector2(ex.x * _tile_size, ex.y * _tile_size)
-		var ecenter := epx + Vector2(_tile_size * 0.5, _tile_size * 0.5)
-		_map_area.draw_circle(ecenter, radius, Color(0.85, 0.15, 0.15))
-		_map_area.draw_arc(ecenter, radius, 0.0, TAU, 24, Color(0.15, 0.02, 0.02), 2.0)
-		var earmy: int = _enemy.total_count()
-		var etxt: String = str(earmy)
-		var ecol: Color
-		if eff < earmy:
-			ecol = Color(1.0, 0.35, 0.35)
-		elif earmy - cbonus <= 0:
-			ecol = Color(0.45, 1.0, 0.45)
-		else:
-			ecol = Color(1.0, 0.92, 0.35)
-		var esize: int = int(_tile_size * 0.5)
-		var es := mfont.get_string_size(etxt, HORIZONTAL_ALIGNMENT_CENTER, -1, esize)
-		var epos := ecenter + Vector2(-es.x * 0.5, es.y * 0.35)
-		_map_area.draw_string(mfont, epos + Vector2(2, 2), etxt, HORIZONTAL_ALIGNMENT_CENTER, -1, esize, Color(0, 0, 0, 0.8))
-		_map_area.draw_string(mfont, epos, etxt, HORIZONTAL_ALIGNMENT_CENTER, -1, esize, ecol)
+		var efog: int = _fog_get(_fog_player, ex)
+		if efog == FOG_VISIBLE:
+			var epx := origin + Vector2(ex.x * _tile_size, ex.y * _tile_size)
+			var ecenter := epx + Vector2(_tile_size * 0.5, _tile_size * 0.5)
+			_map_area.draw_circle(ecenter, radius, Color(0.85, 0.15, 0.15))
+			_map_area.draw_arc(ecenter, radius, 0.0, TAU, 24, Color(0.15, 0.02, 0.02), 2.0)
+			var earmy: int = _enemy.total_count()
+			var etxt: String = str(earmy)
+			var ecol: Color
+			if eff < earmy:
+				ecol = Color(1.0, 0.35, 0.35)
+			elif earmy - cbonus <= 0:
+				ecol = Color(0.45, 1.0, 0.45)
+			else:
+				ecol = Color(1.0, 0.92, 0.35)
+			var esize: int = int(_tile_size * 0.5)
+			var es := mfont.get_string_size(etxt, HORIZONTAL_ALIGNMENT_CENTER, -1, esize)
+			var epos := ecenter + Vector2(-es.x * 0.5, es.y * 0.35)
+			_map_area.draw_string(mfont, epos + Vector2(2, 2), etxt, HORIZONTAL_ALIGNMENT_CENTER, -1, esize, Color(0, 0, 0, 0.8))
+			_map_area.draw_string(mfont, epos, etxt, HORIZONTAL_ALIGNMENT_CENTER, -1, esize, ecol)
+		elif _enemy_last_seen.x >= 0:
+			var since: int = _turn_number - _enemy_last_seen_turn
+			if since < FOG_ROT_TURNS:
+				var alpha: float = 1.0 - float(since) / float(FOG_ROT_TURNS)
+				var lpos := _enemy_last_seen
+				var gpx := origin + Vector2(lpos.x * _tile_size, lpos.y * _tile_size)
+				var gcenter := gpx + Vector2(_tile_size * 0.5, _tile_size * 0.5)
+				_map_area.draw_circle(gcenter, radius, Color(0.85, 0.15, 0.15, 0.35 * alpha))
+				_map_area.draw_arc(gcenter, radius, 0.0, TAU, 24, Color(0.85, 0.15, 0.15, alpha), 2.0)
+				var qsize: int = int(_tile_size * 0.5)
+				var qs := mfont.get_string_size("?", HORIZONTAL_ALIGNMENT_CENTER, -1, qsize)
+				var qpos := gcenter + Vector2(-qs.x * 0.5, qs.y * 0.35)
+				_map_area.draw_string(mfont, qpos, "?", HORIZONTAL_ALIGNMENT_CENTER, -1, qsize, Color(1.0, 0.6, 0.6, alpha))
 
 
 func _terrain_color(t: int) -> Color:
@@ -926,6 +1078,7 @@ func _on_map_input(event: InputEvent) -> void:
 	if target_city_idx >= 0 and int(_cities[target_city_idx]["owner"]) != OWNER_HERO:
 		_cities[target_city_idx]["owner"] = OWNER_HERO
 		claimed = true
+	_recompute_fog(OWNER_HERO)
 	_recompute_costs()
 	_map_area.queue_redraw()
 	_update_labels()
@@ -1050,6 +1203,7 @@ func _count_casualties(result: Dictionary) -> int:
 func _finish_move_to(target: Vector2i, cost: int) -> void:
 	_hero.mp -= cost
 	_hero.position = target
+	_recompute_fog(OWNER_HERO)
 	_recompute_costs()
 	_map_area.queue_redraw()
 	_update_labels()
@@ -1618,11 +1772,14 @@ func _run_enemy_turn() -> void:
 	if _enemy == null:
 		return
 	_enemy.end_turn()
+	# Vor der Zielauswahl Fog aktualisieren, damit die KI ihre eigene Sicht
+	# kennt (sonst wuerde sie mit stale Fog aus der letzten Runde arbeiten).
+	_recompute_fog(OWNER_ENEMY)
 	var ecosts: Dictionary = _dijkstra(_enemy.position, false)
 	# Ziel-Auswahl: naechste Nicht-Gegner-Stadt, fremde/neutrale Goldmine
-	# oder Schatzkiste. Schatzkisten sind One-Shot, aber interessantes
-	# Goldziel. Minen gibt es dauerhaft, aber nur solange unbewacht einer
-	# anderen Fraktion.
+	# oder Schatzkiste - aber nur, wenn die KI das Feld schonmal gesehen
+	# hat (Fog-Symmetrie). Spieler-Held-Ziel ist moeglich, solange die
+	# letzte Sichtung noch nicht "verrottet" ist (FOG_ROT_TURNS).
 	var target_kind: String = ""
 	var target_idx: int = -1
 	var target_cost: int = -1
@@ -1631,6 +1788,8 @@ func _run_enemy_turn() -> void:
 		if int(_cities[i]["owner"]) == OWNER_ENEMY:
 			continue
 		var cp: Vector2i = _cities[i]["pos"]
+		if _fog_get(_fog_enemy, cp) == FOG_HIDDEN:
+			continue
 		if not ecosts.has(cp):
 			continue
 		var c: int = int(ecosts[cp])
@@ -1645,6 +1804,8 @@ func _run_enemy_turn() -> void:
 		if okind == OBJECT_MINE and int(obj.get("owner", OWNER_NEUTRAL)) == OWNER_ENEMY:
 			continue
 		var op: Vector2i = obj["pos"]
+		if _fog_get(_fog_enemy, op) == FOG_HIDDEN:
+			continue
 		if not ecosts.has(op):
 			continue
 		var c2: int = int(ecosts[op])
@@ -1653,6 +1814,37 @@ func _run_enemy_turn() -> void:
 			target_idx = i
 			target_cost = c2
 			target_pos = op
+	# Spieler-Held als Sonderziel: wenn die KI ihn juengst gesichtet hat,
+	# ist er hoechste Prioritaet (niedriger Pseudo-Cost, damit er andere
+	# Ziele schlaegt). Info verrottet nach FOG_ROT_TURNS Zuegen.
+	if _hero_last_seen.x >= 0 and (_turn_number - _hero_last_seen_turn) < FOG_ROT_TURNS:
+		if ecosts.has(_hero_last_seen):
+			var hc: int = int(ecosts[_hero_last_seen])
+			if target_cost < 0 or hc <= target_cost:
+				target_kind = "hero"
+				target_idx = -1
+				target_cost = hc
+				target_pos = _hero_last_seen
+	# Fallback-Exploration: nichts bekannt -> naechstgelegenes Hidden-Feld
+	# ansteuern, damit die KI aktiv erkundet und nicht passiv in der
+	# Startzone bleibt.
+	if target_cost < 0:
+		var best_ex: int = -1
+		var best_ep: Vector2i = _enemy.position
+		for p in ecosts.keys():
+			var pv: Vector2i = p
+			if _fog_get(_fog_enemy, pv) != FOG_HIDDEN:
+				continue
+			var pc: int = int(ecosts[pv])
+			if best_ex < 0 or pc < best_ex:
+				best_ex = pc
+				best_ep = pv
+		if best_ex < 0:
+			return
+		target_kind = "explore"
+		target_idx = -1
+		target_cost = best_ex
+		target_pos = best_ep
 	if target_cost < 0:
 		return
 	# Zweite Dijkstra vom Ziel aus, um Schritt-fuer-Schritt den Gradienten
@@ -1824,6 +2016,9 @@ func _on_end_turn() -> void:
 	# bewegt sich der Held mit moeglicherweise groesserer Armee.
 	_enemy_economy()
 	_run_enemy_turn()
+	_turn_number += 1
+	_recompute_fog(OWNER_HERO)
+	_recompute_fog(OWNER_ENEMY)
 	_recompute_costs()
 	_map_area.queue_redraw()
 	_update_labels()
