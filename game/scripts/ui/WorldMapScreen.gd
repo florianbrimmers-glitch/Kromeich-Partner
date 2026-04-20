@@ -1047,12 +1047,16 @@ func _on_map_input(event: InputEvent) -> void:
 		_set_status("Tap zu teuer: %d > %d MP" % [cost, _hero.mp])
 		return
 
+	# Terrain-Id des Zielfelds bestimmt Obstacle-Generierung im Taktikkampf
+	# (Wald -> Baumstamm/Busch, Berg -> Stein, Sumpf -> Sumpf, etc.).
+	var battle_terrain: int = int((_map["tiles"] as Array)[target.y * MAP_WIDTH + target.x])
+
 	# Monster auf Zielfeld: Taktik-Kampf-Overlay (Flucht erlaubt).
 	var mon_idx: int = _monster_at(target)
 	if mon_idx >= 0:
 		var mstr_m: int = int(_monsters[mon_idx]["strength"])
 		var mon_pos: Vector2i = _monsters[mon_idx]["pos"]
-		_open_battle("Monster", mstr_m, true, func(r: Dictionary) -> void:
+		_open_battle("Monster", mstr_m, true, battle_terrain, func(r: Dictionary) -> void:
 			_on_monster_result(r, mon_pos, target, cost)
 		)
 		return
@@ -1061,7 +1065,7 @@ func _on_map_input(event: InputEvent) -> void:
 	# eine evtl. dort stehende Stadt einnehmen. Bei Sieg: Held tot, Stadt
 	# wird im Callback direkt geclaimt (ohne zusaetzliche Garnison).
 	if _enemy != null and target == _enemy.position:
-		_open_battle("Gegner-Held", _enemy.total_count(), false, func(r: Dictionary) -> void:
+		_open_battle("Gegner-Held", _enemy.total_count(), false, battle_terrain, func(r: Dictionary) -> void:
 			_on_enemy_hero_result(r, target, cost, target_city_idx)
 		)
 		return
@@ -1077,7 +1081,7 @@ func _on_map_input(event: InputEvent) -> void:
 			var ogd: int = int(obj.get("guard", 0))
 			if ogd > 0:
 				var opos: Vector2i = target
-				_open_battle("Wache", ogd, true, func(r: Dictionary) -> void:
+				_open_battle("Wache", ogd, true, battle_terrain, func(r: Dictionary) -> void:
 					_on_object_result(r, opos, target, cost)
 				)
 				return
@@ -1089,7 +1093,7 @@ func _on_map_input(event: InputEvent) -> void:
 		var garrison: int = int(tc.get("garrison", 0))
 		if garrison > 0:
 			var cidx: int = target_city_idx
-			_open_battle("Stadtwache", garrison, true, func(r: Dictionary) -> void:
+			_open_battle("Stadtwache", garrison, true, battle_terrain, func(r: Dictionary) -> void:
 				_on_city_result(r, cidx, target, cost)
 			)
 			return
@@ -1148,7 +1152,7 @@ func _monster_at(p: Vector2i) -> int:
 # Dictionary (outcome: "victory"/"defeat"/"flee", casualties: int) und
 # ist fuer Belohnung und Bewegung verantwortlich. Der Level/Wachturm-
 # Bonus fliesst in Att UND Def des Spieler-Stacks ein.
-func _open_battle(opp_name: String, opp_army: int, allow_flee: bool, on_result: Callable) -> void:
+func _open_battle(opp_name: String, opp_army: int, allow_flee: bool, terrain_id: int, on_result: Callable) -> void:
 	var bonus: int = _combat_bonus()
 	var scene: PackedScene = load("res://scenes/TacticalBattle.tscn") as PackedScene
 	if scene == null:
@@ -1167,6 +1171,7 @@ func _open_battle(opp_name: String, opp_army: int, allow_flee: bool, on_result: 
 			"enemy_stacks": e_stacks,
 			"allow_flee": allow_flee,
 			"seed": _seed,
+			"terrain_id": terrain_id,
 		})
 	overlay.connect("battle_finished", func(result: Dictionary) -> void:
 		on_result.call(result)

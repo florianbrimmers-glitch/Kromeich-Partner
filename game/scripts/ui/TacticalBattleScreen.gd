@@ -18,6 +18,11 @@ var _e_stacks: Array = []
 var _turn_order: Array = []
 var _active_slot: int = 0
 var _reachable: Dictionary = {}
+var _obstacles: Array = []
+# Schneller Lookup Vector2i -> kind, vermeidet Lineardurchlauf in
+# der Pfadsuche. Wird in set_battle aus _obstacles gefuellt.
+var _ob_map: Dictionary = {}
+var _terrain_id: int = 0
 
 var _grid_area: Control
 var _info_lbl: Label
@@ -41,6 +46,11 @@ func set_battle(ctx: Dictionary) -> void:
 	_finished = false
 	_round = 1
 	_log.clear()
+	_terrain_id = int(ctx.get("terrain_id", 0))
+	_obstacles = BattleObstacles.generate(_terrain_id, int(ctx.get("seed", 42)), GRID_COLS, GRID_ROWS)
+	_ob_map.clear()
+	for o in _obstacles:
+		_ob_map[Vector2i(o["pos"])] = int(o["kind"])
 	_p_stacks = _make_stacks(ctx.get("player_stacks", []), 0)
 	_e_stacks = _make_stacks(ctx.get("enemy_stacks", []), 1)
 	_place_stacks()
@@ -174,8 +184,6 @@ func _build_reachable() -> void:
 		return
 	var start: Vector2i = st["pos"]
 	var spd: int = UnitType.speed_of(String(st["type"]))
-	_reachable[start] = 0
-	var frontier: Array = [start]
 	var blocked: Array = []
 	for s in _p_stacks:
 		if Vector2i(s["pos"]) != start and int(s["count"]) > 0:
@@ -183,20 +191,10 @@ func _build_reachable() -> void:
 	for s in _e_stacks:
 		if int(s["count"]) > 0:
 			blocked.append(Vector2i(s["pos"]))
-	while not frontier.is_empty():
-		var cur: Vector2i = frontier.pop_front()
-		if int(_reachable[cur]) >= spd:
-			continue
-		for d in [Vector2i(1,0), Vector2i(-1,0), Vector2i(0,1), Vector2i(0,-1)]:
-			var n: Vector2i = cur + d
-			if n.x < 0 or n.x >= GRID_COLS or n.y < 0 or n.y >= GRID_ROWS:
-				continue
-			if n in blocked:
-				continue
-			if _reachable.has(n):
-				continue
-			_reachable[n] = int(_reachable[cur]) + 1
-			frontier.append(n)
+	var dist: Dictionary = _dijkstra_for(start, blocked)
+	for k in dist.keys():
+		if int(dist[k]) <= spd:
+			_reachable[k] = int(dist[k])
 
 
 func _adj(a: Vector2i, b: Vector2i) -> bool:
@@ -309,6 +307,8 @@ func _draw_grid() -> void:
 
 	_grid_area.draw_rect(Rect2(o, Vector2(gw, gh)), Color(0.10, 0.12, 0.16), true)
 
+	_draw_obstacles(o, c)
+
 	var active: Dictionary = _active_stack()
 	var active_pos := Vector2i(-1, -1)
 	if not active.is_empty() and int(_turn_order[_active_slot]["side"]) == 0:
@@ -364,6 +364,46 @@ func _draw_grid() -> void:
 		_draw_hp_bar(ctr, c, int(s["top_hp"]), UnitType.hp_of(String(s["type"])))
 		if bool(s.get("waited", false)):
 			_draw_wait_marker(ctr, r_active)
+
+
+# Zeichnet die Obstacle-Formen auf dem Grid: Stein als graue Raute,
+# Baumstamm als braunes Horizontal-Oval, Busch als gruene Punktwolke,
+# Sumpf als braun-gruenes Feld. Formen unterscheiden sich deutlich,
+# damit der Spieler auf einen Blick Bewegungs-/Schuss-Regeln ablesen
+# kann, ohne auf Mouseover angewiesen zu sein.
+func _draw_obstacles(o: Vector2, c: float) -> void:
+	for ob in _obstacles:
+		var pos: Vector2i = Vector2i(ob["pos"])
+		var kind: int = int(ob["kind"])
+		var ctr := o + Vector2((float(pos.x) + 0.5) * c, (float(pos.y) + 0.5) * c)
+		match kind:
+			BattleObstacles.KIND_ROCK:
+				var pts := PackedVector2Array([
+					Vector2(ctr.x, ctr.y - c * 0.38),
+					Vector2(ctr.x + c * 0.38, ctr.y),
+					Vector2(ctr.x, ctr.y + c * 0.38),
+					Vector2(ctr.x - c * 0.38, ctr.y),
+				])
+				_grid_area.draw_colored_polygon(pts, Color(0.55, 0.55, 0.58))
+				_grid_area.draw_polyline(pts + PackedVector2Array([pts[0]]), Color(0.25, 0.25, 0.28), 2.0)
+			BattleObstacles.KIND_LOG:
+				var tl := ctr + Vector2(-c * 0.42, -c * 0.18)
+				_grid_area.draw_rect(Rect2(tl, Vector2(c * 0.84, c * 0.36)), Color(0.46, 0.30, 0.18), true)
+				_grid_area.draw_rect(Rect2(tl, Vector2(c * 0.84, c * 0.36)), Color(0.22, 0.14, 0.08), false, 2.0)
+				_grid_area.draw_line(
+					Vector2(ctr.x - c * 0.30, ctr.y),
+					Vector2(ctr.x + c * 0.30, ctr.y),
+					Color(0.28, 0.18, 0.10), 1.5)
+			BattleObstacles.KIND_BUSH:
+				_grid_area.draw_circle(ctr + Vector2(-c * 0.18, c * 0.05), c * 0.22, Color(0.22, 0.45, 0.22))
+				_grid_area.draw_circle(ctr + Vector2(c * 0.18, -c * 0.05), c * 0.22, Color(0.26, 0.50, 0.25))
+				_grid_area.draw_circle(ctr, c * 0.25, Color(0.30, 0.55, 0.28))
+			BattleObstacles.KIND_SWAMP:
+				_grid_area.draw_rect(
+					Rect2(o + Vector2(float(pos.x) * c, float(pos.y) * c), Vector2(c, c)),
+					Color(0.30, 0.36, 0.20), true)
+				_grid_area.draw_circle(ctr + Vector2(-c * 0.20, -c * 0.10), c * 0.08, Color(0.18, 0.24, 0.12))
+				_grid_area.draw_circle(ctr + Vector2(c * 0.22, c * 0.15), c * 0.08, Color(0.18, 0.24, 0.12))
 
 
 # Kleiner Cyan-Ring auf der Oberseite eines Stacks, der gewartet hat:
@@ -461,10 +501,17 @@ func _try_attack_enemy(e_idx: int) -> void:
 	var atk_s: String = UnitType.short_of(uid)
 	var def_s: String = UnitType.short_of(String(estack["type"]))
 	if is_ranged:
+		var mod: Dictionary = BattleObstacles.line_modifier(_obstacles, apos, epos)
+		if bool(mod["blocked"]):
+			_set_action("Held %s: keine Schusslinie (Stein im Weg)." % atk_s)
+			return
 		var adjacent: bool = _adj(apos, epos)
 		var dmg: int = _dmg(active, estack, adjacent)
+		if bool(mod["halve"]):
+			dmg = max(1, dmg / 2)
 		var killed: int = _apply_dmg(estack, dmg)
-		_set_action("Held %s -> %s: %d Sch., -%d" % [atk_s, def_s, dmg, killed])
+		var suffix: String = "  (halb: Baumstamm)" if bool(mod["halve"]) else ""
+		_set_action("Held %s -> %s: %d Sch., -%d%s" % [atk_s, def_s, dmg, killed, suffix])
 		_end_player_turn()
 		return
 
@@ -551,14 +598,20 @@ func _ai_turn() -> void:
 	var atk_s: String = UnitType.short_of(uid)
 	var def_s: String = UnitType.short_of(String(best_target["type"]))
 	if is_ranged:
-		var adjacent: bool = _adj(epos, tpos)
-		var dmg: int = _dmg(estack, best_target, adjacent)
-		var killed: int = _apply_dmg(best_target, dmg)
-		_set_action("Feind %s -> %s: %d Sch., -%d" % [atk_s, def_s, dmg, killed])
-		_rebuild_order()
-		if _check_end(): return
-		_advance()
-		return
+		var mod: Dictionary = BattleObstacles.line_modifier(_obstacles, epos, tpos)
+		if not bool(mod["blocked"]):
+			var adjacent: bool = _adj(epos, tpos)
+			var dmg: int = _dmg(estack, best_target, adjacent)
+			if bool(mod["halve"]):
+				dmg = max(1, dmg / 2)
+			var killed: int = _apply_dmg(best_target, dmg)
+			var suffix: String = "  (halb: Baumstamm)" if bool(mod["halve"]) else ""
+			_set_action("Feind %s -> %s: %d Sch., -%d%s" % [atk_s, def_s, dmg, killed, suffix])
+			_rebuild_order()
+			if _check_end(): return
+			_advance()
+			return
+		# LOS blockiert (Stein) -> faellt durch auf Melee-Pathing unten.
 
 	var spd: int = UnitType.speed_of(uid)
 	# Hindernisliste: alle anderen lebenden Stacks blockieren Felder.
@@ -600,7 +653,9 @@ func _ai_turn() -> void:
 			estack["pos"] = atk_cell
 			epos = atk_cell
 		var def_s2: String = UnitType.short_of(String(atk_target["type"]))
-		var dmg: int = _dmg(estack, atk_target, false)
+		# Fernkaempfer mit blockierter Schusslinie gleiten hier hinein und
+		# kassieren dann den korrekten Nahkampfabzug.
+		var dmg: int = _dmg(estack, atk_target, is_ranged)
 		var killed: int = _apply_dmg(atk_target, dmg)
 		var msg: String = "Feind %s -> %s: %d Sch., -%d" % [atk_s, def_s2, dmg, killed]
 		if int(atk_target["count"]) > 0 and not bool(atk_target["retaliated"]):
@@ -633,19 +688,45 @@ func _ai_turn() -> void:
 	_advance()
 
 
-func _bfs_for(start: Vector2i, blocked: Array) -> Dictionary:
+func _dijkstra_for(start: Vector2i, blocked: Array) -> Dictionary:
+	# Kuerzeste-Pfad-Distanzen vom Startfeld, respektiert Feldkosten der
+	# Obstacles (Busch/Sumpf = 2) und blockierende Obstacles (Stein/Baum).
+	# Fuer 10x8 Felder genuegt ein simpler O(N^2)-Loop statt echter
+	# Priority-Queue.
 	var dist: Dictionary = {start: 0}
-	var frontier: Array = [start]
-	while not frontier.is_empty():
-		var cur: Vector2i = frontier.pop_front()
+	var visited: Dictionary = {}
+	while true:
+		var cur := Vector2i(-9999, -9999)
+		var cur_d: int = 0x3fffffff
+		for k in dist.keys():
+			if visited.has(k):
+				continue
+			var kd: int = int(dist[k])
+			if kd < cur_d:
+				cur_d = kd
+				cur = k
+		if cur_d == 0x3fffffff:
+			break
+		visited[cur] = true
 		for d in [Vector2i(1,0), Vector2i(-1,0), Vector2i(0,1), Vector2i(0,-1)]:
 			var n: Vector2i = cur + d
-			if n.x < 0 or n.x >= GRID_COLS or n.y < 0 or n.y >= GRID_ROWS: continue
-			if n in blocked: continue
-			if dist.has(n): continue
-			dist[n] = int(dist[cur]) + 1
-			frontier.append(n)
+			if n.x < 0 or n.x >= GRID_COLS or n.y < 0 or n.y >= GRID_ROWS:
+				continue
+			if n in blocked:
+				continue
+			if _ob_map.has(n) and BattleObstacles.blocks_move(int(_ob_map[n])):
+				continue
+			var step_cost: int = BattleObstacles.move_cost(int(_ob_map.get(n, -1)))
+			var nd: int = cur_d + step_cost
+			if not dist.has(n) or nd < int(dist[n]):
+				dist[n] = nd
 	return dist
+
+
+func _bfs_for(start: Vector2i, blocked: Array) -> Dictionary:
+	# Alter BFS-Alias -> delegiert jetzt auf Dijkstra, damit KI-
+	# Pfadsuche dieselben Obstacle-Regeln wie der Spieler sieht.
+	return _dijkstra_for(start, blocked)
 
 
 func _attack_cell_for(from: Vector2i, target_pos: Vector2i, dist_map: Dictionary, spd: int) -> Vector2i:
