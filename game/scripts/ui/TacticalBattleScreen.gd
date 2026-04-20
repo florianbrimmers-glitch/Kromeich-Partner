@@ -25,6 +25,11 @@ var _action_lbl: Label
 var _wait_btn: Button
 var _flee_btn: Button
 
+# Kampf-Log: die letzten LOG_LINES Aktionen, damit Spieler sehen kann,
+# was in den Zuegen davor passiert ist (Schaden, Verluste, Bewegungen).
+const LOG_LINES := 5
+var _log: Array = []
+
 
 func set_battle(ctx: Dictionary) -> void:
 	_player_name = String(ctx.get("player_name", "Held"))
@@ -35,6 +40,7 @@ func set_battle(ctx: Dictionary) -> void:
 	_rng.seed = int(ctx.get("seed", 42))
 	_finished = false
 	_round = 1
+	_log.clear()
 	_p_stacks = _make_stacks(ctx.get("player_stacks", []), 0)
 	_e_stacks = _make_stacks(ctx.get("enemy_stacks", []), 1)
 	_place_stacks()
@@ -210,11 +216,14 @@ func _build_ui() -> void:
 	add_child(_info_lbl)
 
 	_action_lbl = Label.new()
-	_action_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_action_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	_action_lbl.vertical_alignment = VERTICAL_ALIGNMENT_TOP
 	_action_lbl.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	_action_lbl.offset_left = 40.0
+	_action_lbl.offset_right = -40.0
 	_action_lbl.offset_top = 178.0
-	_action_lbl.offset_bottom = 245.0
-	_action_lbl.add_theme_font_size_override("font_size", 26)
+	_action_lbl.offset_bottom = 318.0
+	_action_lbl.add_theme_font_size_override("font_size", 22)
 	_action_lbl.add_theme_color_override("font_color", Color(0.80, 0.88, 1.0))
 	add_child(_action_lbl)
 
@@ -222,7 +231,7 @@ func _build_ui() -> void:
 	_grid_area.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_grid_area.offset_left = 30.0
 	_grid_area.offset_right = -30.0
-	_grid_area.offset_top = 260.0
+	_grid_area.offset_top = 330.0
 	_grid_area.offset_bottom = -220.0
 	_grid_area.mouse_filter = Control.MOUSE_FILTER_STOP
 	_grid_area.draw.connect(_draw_grid)
@@ -353,8 +362,11 @@ func _refresh() -> void:
 
 
 func _set_action(txt: String) -> void:
+	_log.append(txt)
+	if _log.size() > LOG_LINES:
+		_log = _log.slice(_log.size() - LOG_LINES)
 	if _action_lbl != null:
-		_action_lbl.text = txt
+		_action_lbl.text = "\n".join(_log)
 
 
 func _on_grid_input(event: InputEvent) -> void:
@@ -380,7 +392,7 @@ func _on_grid_input(event: InputEvent) -> void:
 
 	if _reachable.has(cell) and cell != Vector2i(active["pos"]):
 		active["pos"] = cell
-		_set_action("Bewegt.")
+		_set_action("Held %s bewegt sich." % UnitType.short_of(String(active["type"])))
 		_build_reachable()
 		_end_player_turn()
 
@@ -393,23 +405,25 @@ func _try_attack_enemy(e_idx: int) -> void:
 	var uid: String = String(active["type"])
 	var is_ranged: bool = UnitType.is_ranged(uid)
 
+	var atk_s: String = UnitType.short_of(uid)
+	var def_s: String = UnitType.short_of(String(estack["type"]))
 	if is_ranged:
 		var adjacent: bool = _adj(apos, epos)
 		var dmg: int = _dmg(active, estack, adjacent)
-		_apply_dmg(estack, dmg)
-		_set_action("%s schiesst: %d Schaden." % [UnitType.name_of(uid), dmg])
+		var killed: int = _apply_dmg(estack, dmg)
+		_set_action("Held %s -> %s: %d Sch., -%d" % [atk_s, def_s, dmg, killed])
 		_end_player_turn()
 		return
 
 	if _adj(apos, epos):
 		var dmg: int = _dmg(active, estack, false)
-		_apply_dmg(estack, dmg)
-		var msg: String = "%s greift an: %d." % [UnitType.name_of(uid), dmg]
+		var killed: int = _apply_dmg(estack, dmg)
+		var msg: String = "Held %s -> %s: %d Sch., -%d" % [atk_s, def_s, dmg, killed]
 		if int(estack["count"]) > 0 and not bool(estack["retaliated"]):
 			estack["retaliated"] = true
 			var rdmg: int = max(1, _dmg(estack, active, false) / 2)
-			_apply_dmg(active, rdmg)
-			msg += " Konter: %d." % rdmg
+			var rkill: int = _apply_dmg(active, rdmg)
+			msg += "  Konter: %d Sch., -%d" % [rdmg, rkill]
 		_set_action(msg)
 		_end_player_turn()
 		return
@@ -428,13 +442,13 @@ func _try_attack_enemy(e_idx: int) -> void:
 		return
 	active["pos"] = best
 	var dmg2: int = _dmg(active, estack, false)
-	_apply_dmg(estack, dmg2)
-	var msg2: String = "%s laeuft und greift an: %d." % [UnitType.name_of(uid), dmg2]
+	var killed2: int = _apply_dmg(estack, dmg2)
+	var msg2: String = "Held %s vor -> %s: %d Sch., -%d" % [atk_s, def_s, dmg2, killed2]
 	if int(estack["count"]) > 0 and not bool(estack["retaliated"]):
 		estack["retaliated"] = true
 		var rdmg2: int = max(1, _dmg(estack, active, false) / 2)
-		_apply_dmg(active, rdmg2)
-		msg2 += " Konter: %d." % rdmg2
+		var rkill2: int = _apply_dmg(active, rdmg2)
+		msg2 += "  Konter: %d Sch., -%d" % [rdmg2, rkill2]
 	_set_action(msg2)
 	_end_player_turn()
 
@@ -470,11 +484,13 @@ func _ai_turn() -> void:
 	var uid: String = String(estack["type"])
 	var is_ranged: bool = UnitType.is_ranged(uid)
 
+	var atk_s: String = UnitType.short_of(uid)
+	var def_s: String = UnitType.short_of(String(best_target["type"]))
 	if is_ranged:
 		var adjacent: bool = _adj(epos, tpos)
 		var dmg: int = _dmg(estack, best_target, adjacent)
-		_apply_dmg(best_target, dmg)
-		_set_action("%s schiesst: %d." % [_enemy_name, dmg])
+		var killed: int = _apply_dmg(best_target, dmg)
+		_set_action("Feind %s -> %s: %d Sch., -%d" % [atk_s, def_s, dmg, killed])
 		_rebuild_order()
 		if _check_end(): return
 		_advance()
@@ -496,16 +512,16 @@ func _ai_turn() -> void:
 
 	if _adj(epos, tpos):
 		var dmg: int = _dmg(estack, best_target, false)
-		_apply_dmg(best_target, dmg)
-		var msg: String = "%s greift an: %d." % [_enemy_name, dmg]
+		var killed: int = _apply_dmg(best_target, dmg)
+		var msg: String = "Feind %s -> %s: %d Sch., -%d" % [atk_s, def_s, dmg, killed]
 		if int(best_target["count"]) > 0 and not bool(best_target["retaliated"]):
 			best_target["retaliated"] = true
 			var rdmg: int = max(1, _dmg(best_target, estack, false) / 2)
-			_apply_dmg(estack, rdmg)
-			msg += " Konter: %d." % rdmg
+			var rkill: int = _apply_dmg(estack, rdmg)
+			msg += "  Konter: %d Sch., -%d" % [rdmg, rkill]
 		_set_action(msg)
 	else:
-		_set_action("%s bewegt sich." % _enemy_name)
+		_set_action("Feind %s bewegt sich." % atk_s)
 
 	_rebuild_order()
 	if _check_end(): return
@@ -546,15 +562,20 @@ func _dmg(attacker: Dictionary, defender: Dictionary, melee_penalty: bool) -> in
 	return int(max(1.0, total * mod))
 
 
-func _apply_dmg(stack: Dictionary, dmg: int) -> void:
-	if dmg <= 0 or int(stack["count"]) <= 0: return
+func _apply_dmg(stack: Dictionary, dmg: int) -> int:
+	# Gibt die Anzahl gefallener Einheiten zurueck, damit der Kampf-Log
+	# Verluste anzeigen kann.
+	if dmg <= 0 or int(stack["count"]) <= 0: return 0
+	var before: int = int(stack["count"])
 	var hp_per: int = UnitType.hp_of(String(stack["type"]))
-	var total: int = (int(stack["count"]) - 1) * hp_per + int(stack["top_hp"]) - dmg
+	var total: int = (before - 1) * hp_per + int(stack["top_hp"]) - dmg
 	if total <= 0:
-		stack["count"] = 0; stack["top_hp"] = 0; return
+		stack["count"] = 0; stack["top_hp"] = 0
+		return before
 	stack["count"] = (total - 1) / hp_per + 1
 	var rem: int = total % hp_per
 	stack["top_hp"] = hp_per if rem == 0 else rem
+	return before - int(stack["count"])
 
 
 func _check_end() -> bool:
@@ -583,7 +604,9 @@ func _on_wait() -> void:
 	if _finished: return
 	if _turn_order.is_empty() or _active_slot >= _turn_order.size(): return
 	if int(_turn_order[_active_slot]["side"]) != 0: return
-	_set_action("Warten.")
+	var active: Dictionary = _active_stack()
+	var s: String = UnitType.short_of(String(active.get("type", "sword"))) if not active.is_empty() else "?"
+	_set_action("Held %s wartet." % s)
 	_end_player_turn()
 
 
