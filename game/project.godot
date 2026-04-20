@@ -24,16 +24,6 @@ window/handheld/orientation=1
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
 
-[input_devices]
-
-; Auf Android feuert Godot per Default fuer jeden Touch zusaetzlich ein
-; emuliertes MouseButton-Event. Unser Map-Input-Handler behandelt beide
-; Typen und wuerde daher jeden Tap doppelt verarbeiten - jeder Kampf
-; triggert dadurch zweimal. Emulation in beide Richtungen abschalten:
-; Desktop bekommt reine Mouse-Events, Mobile reine Touch-Events.
-pointing/emulate_mouse_from_touch=false
-pointing/emulate_touch_from_mouse=false
-
 [rendering]
 
 ; gl_compatibility (GLES3) statt Vulkan-Mobile: robuster auf Android,

@@ -1250,10 +1250,12 @@ func _draw_minimap() -> void:
 
 
 func _on_map_input(event: InputEvent) -> void:
-	# Gesten unterscheiden: Tap (kurzer Druck ohne Bewegung > DRAG_THRESHOLD)
-	# loest Heldenbewegung / Stadt-Oeffnen aus. Drag verschiebt den
-	# Viewport ueber _view_offset. Mouse-Wheel und Pinch-Zoom bewusst
-	# nicht (haben wir auf dem Handy eh nicht).
+	# Nur Mouse-Events verarbeiten. Auf Android erzeugt Godot per Default
+	# aus jedem Touch zusaetzlich ein emuliertes MouseButton-Event
+	# (emulate_mouse_from_touch=true) - wenn wir beide Pfade behandeln,
+	# feuert jeder Tap doppelt und Kaempfe triggerten zweimal. Das
+	# Projekt-Default bleibt bewusst an, damit Standard-Buttons im
+	# Hauptmenue auf Touch reagieren; hier verwerfen wir den Touch-Pfad.
 	if event is InputEventMouseButton:
 		var mb := event as InputEventMouseButton
 		if mb.button_index != MOUSE_BUTTON_LEFT:
@@ -1267,18 +1269,6 @@ func _on_map_input(event: InputEvent) -> void:
 		var mm := event as InputEventMouseMotion
 		if _pan_active:
 			_update_pan(mm.position)
-		return
-	if event is InputEventScreenTouch:
-		var st := event as InputEventScreenTouch
-		if st.pressed:
-			_begin_pan(st.position)
-		else:
-			_end_pan(st.position)
-		return
-	if event is InputEventScreenDrag:
-		var sd := event as InputEventScreenDrag
-		if _pan_active:
-			_update_pan(sd.position)
 		return
 
 
