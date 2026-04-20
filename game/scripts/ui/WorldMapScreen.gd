@@ -30,6 +30,8 @@ const UNIT_COST := 150          # pro Einheit, benoetigt Kaserne
 # erste Zug nicht zwangslaeufig "Enter druecken und warten" ist - reicht
 # genau fuer eine Kaserne (500 G).
 const STARTING_GOLD := 500
+const STARTING_UNIT := "sword"
+const STARTING_UNIT_COUNT := 3
 
 # Monster
 const MONSTER_COUNT := 8
@@ -299,6 +301,7 @@ func _start(seed_value: int) -> void:
 	_set_status("STEP 4: MapGen fertig, spawn %s" % str(spawn))
 	_hero = Hero.new(spawn, BASE_MAX_MP)
 	_hero.gold = STARTING_GOLD
+	_hero.add_units(STARTING_UNIT, STARTING_UNIT_COUNT)
 	_set_status("STEP 5: Hero erstellt")
 
 	# Staedte platzieren: deterministisch, nur Gras-Felder, Mindestabstand
@@ -364,6 +367,7 @@ func _start(seed_value: int) -> void:
 			_cities[enemy_idx]["garrison"] = 0
 			_enemy = Hero.new(_cities[enemy_idx]["pos"], ENEMY_BASE_MP)
 			_enemy.gold = STARTING_GOLD
+			_enemy.add_units(STARTING_UNIT, STARTING_UNIT_COUNT)
 
 	# Monster platzieren: nur Gras/Wald, Mindestabstand zu Held, Staedten
 	# und anderen Monstern, Staerke 1-3.
@@ -533,16 +537,12 @@ func _update_labels() -> void:
 		var mp: int = int(_hero.mp)
 		var mmax: int = int(_hero.max_mp)
 		var gold: int = int(_hero.gold)
-		var army: int = int(_hero.army)
 		var lvl: int = int(_hero.level)
 		var xp: int = int(_hero.xp)
 		var bonus: int = _combat_bonus()
-		var bonus_str: String = ""
-		if bonus > 0:
-			bonus_str = "(+" + str(bonus) + ")"
-		# "Schritte" statt "MP", damit klar ist, was das ist.
-		# A 1 (+2) bedeutet: 1 Armee + 2 Kampfkraft-Bonus (Level + Wachturm).
-		ml.text = "L " + str(lvl) + "  Schritte " + str(mp) + "/" + str(mmax) + "  G " + str(gold) + "  A " + str(army) + bonus_str + "  XP " + str(xp)
+		var bonus_str: String = " (+" + str(bonus) + ")" if bonus > 0 else ""
+		ml.text = "L%d  %d/%d  G%d  %s%s  XP%d" % [
+			lvl, mp, mmax, gold, _hero.army_summary(), bonus_str, xp]
 
 
 func _build_combat_label() -> void:
@@ -578,7 +578,7 @@ func _draw_map() -> void:
 	# Kampf-Prognose-Werte einmal vor den Schleifen, damit Staedte UND
 	# Monster die gleiche Bonus-Logik fuer ihre Zahlen verwenden.
 	var cbonus: int = _combat_bonus()
-	var eff: int = _hero.army + cbonus
+	var eff: int = _hero.total_count() + cbonus
 	var mfont: Font = ThemeDB.fallback_font
 	for y in range(MAP_HEIGHT):
 		for x in range(MAP_WIDTH):
@@ -756,7 +756,7 @@ func _draw_map() -> void:
 		var ecenter := epx + Vector2(_tile_size * 0.5, _tile_size * 0.5)
 		_map_area.draw_circle(ecenter, radius, Color(0.85, 0.15, 0.15))
 		_map_area.draw_arc(ecenter, radius, 0.0, TAU, 24, Color(0.15, 0.02, 0.02), 2.0)
-		var earmy: int = int(_enemy.army)
+		var earmy: int = _enemy.total_count()
 		var etxt: String = str(earmy)
 		var ecol: Color
 		if eff < earmy:
@@ -861,8 +861,7 @@ func _on_map_input(event: InputEvent) -> void:
 	# eine evtl. dort stehende Stadt einnehmen. Bei Sieg: Held tot, Stadt
 	# wird im Callback direkt geclaimt (ohne zusaetzliche Garnison).
 	if _enemy != null and target == _enemy.position:
-		var e_army: int = _enemy.army
-		_open_battle("Gegner-Held", e_army, false, func(r: Dictionary) -> void:
+		_open_battle("Gegner-Held", _enemy.total_count(), false, func(r: Dictionary) -> void:
 			_on_enemy_hero_result(r, target, cost, target_city_idx)
 		)
 		return
@@ -957,12 +956,14 @@ func _open_battle(opp_name: String, opp_army: int, allow_flee: bool, on_result: 
 	var overlay = scene.instantiate()
 	add_child(overlay)
 	if overlay.has_method("set_battle"):
+		var p_stacks: Array = _army_to_stacks(_hero.army)
+		var e_stacks: Array = [{"type": "sword", "count": opp_army}]
 		overlay.call("set_battle", {
 			"player_name": "Held",
-			"player_army": _hero.army,
+			"player_stacks": p_stacks,
 			"player_bonus": bonus,
 			"enemy_name": opp_name,
-			"enemy_army": opp_army,
+			"enemy_stacks": e_stacks,
 			"allow_flee": allow_flee,
 			"seed": _seed,
 		})
@@ -972,10 +973,33 @@ func _open_battle(opp_name: String, opp_army: int, allow_flee: bool, on_result: 
 	)
 
 
-func _apply_casualties(result: Dictionary) -> int:
-	var cas: int = int(result.get("casualties", 0))
-	_hero.army = max(0, _hero.army - cas)
-	return cas
+func _army_to_stacks(army: Dictionary) -> Array:
+	var out: Array = []
+	for uid in ["sword", "bow", "rider"]:
+		var cnt: int = int(army.get(uid, 0))
+		if cnt > 0:
+			out.append({"type": uid, "count": cnt})
+	if out.is_empty():
+		out.append({"type": "sword", "count": 1})
+	return out
+
+
+func _apply_casualties(result: Dictionary) -> void:
+	var cas = result.get("casualties", {})
+	if cas is Dictionary:
+		_hero.apply_casualties(cas)
+	elif cas is int:
+		_hero.apply_proportional_losses(int(cas))
+
+
+func _count_casualties(result: Dictionary) -> int:
+	var cas = result.get("casualties", {})
+	if cas is Dictionary:
+		var t := 0
+		for v in (cas as Dictionary).values():
+			t += int(v)
+		return t
+	return int(cas)
 
 
 func _finish_move_to(target: Vector2i, cost: int) -> void:
@@ -1007,7 +1031,8 @@ func _on_monster_result(result: Dictionary, mon_pos: Vector2i, target: Vector2i,
 	if mon_idx < 0:
 		return
 	var mstr: int = int(_monsters[mon_idx]["strength"])
-	var cas: int = _apply_casualties(result)
+	var cas: int = _count_casualties(result)
+	_apply_casualties(result)
 	_hero.gold += MONSTER_VICTORY_GOLD
 	var xp_gain: int = mstr * XP_PER_STRENGTH
 	_hero.xp += xp_gain
@@ -1034,7 +1059,8 @@ func _on_enemy_hero_result(result: Dictionary, target: Vector2i, cost: int, targ
 		_update_labels()
 		_on_battle_defeat()
 		return
-	var cas: int = _apply_casualties(result)
+	var cas: int = _count_casualties(result)
+	_apply_casualties(result)
 	_hero.gold += ENEMY_DEFEAT_GOLD
 	_hero.xp += ENEMY_DEFEAT_XP
 	var leveled: bool = _check_level_up()
@@ -1073,7 +1099,8 @@ func _on_object_result(result: Dictionary, obj_pos: Vector2i, target: Vector2i, 
 	var obj: Dictionary = _objects[obj_idx]
 	var okind: int = int(obj["kind"])
 	var ogd: int = int(obj.get("guard", 0))
-	var cas: int = _apply_casualties(result)
+	var cas: int = _count_casualties(result)
+	_apply_casualties(result)
 	var xp_o: int = ogd * XP_PER_STRENGTH
 	_hero.xp += xp_o
 	var lvl_o: bool = _check_level_up()
@@ -1108,7 +1135,8 @@ func _on_city_result(result: Dictionary, city_idx: int, target: Vector2i, cost: 
 		return
 	var tc: Dictionary = _cities[city_idx]
 	var garrison: int = int(tc.get("garrison", 0))
-	var cas: int = _apply_casualties(result)
+	var cas: int = _count_casualties(result)
+	_apply_casualties(result)
 	var xp_c: int = garrison * XP_PER_STRENGTH
 	_hero.xp += xp_c
 	var leveled_c: bool = _check_level_up()
@@ -1154,7 +1182,7 @@ func _show_victory_panel() -> void:
 	if vb != null:
 		var stats := vb.get_node_or_null("Stats") as Label
 		if stats != null:
-			stats.text = "Level " + str(_hero.level) + "   XP " + str(_hero.xp) + "\nGold " + str(_hero.gold) + "   Armee " + str(_hero.army)
+			stats.text = "Level " + str(_hero.level) + "   XP " + str(_hero.xp) + "\nGold " + str(_hero.gold) + "   Armee " + str(_hero.total_count())
 	_victory_panel.visible = true
 
 
@@ -1174,7 +1202,7 @@ func _check_level_up() -> bool:
 	var leveled := false
 	while _hero.level < LEVEL_THRESHOLDS.size() and _hero.xp >= int(LEVEL_THRESHOLDS[_hero.level]):
 		_hero.level += 1
-		_hero.army += LEVEL_BONUS_ARMY
+		_hero.add_units("sword", LEVEL_BONUS_ARMY)
 		leveled = true
 	return leveled
 
@@ -1389,9 +1417,9 @@ func _recruit_unit(city_idx: int) -> void:
 	if not built.has("kaserne"):
 		return
 	_hero.gold -= UNIT_COST
-	_hero.army += 1
+	_hero.add_units("sword", 1)
 	_update_labels()
-	_set_status("Einheit rekrutiert (+1 Armee)")
+	_set_status("Einheit rekrutiert (+1 Schwert)")
 	_show_city(city_idx)
 
 
@@ -1432,7 +1460,7 @@ func _enemy_economy() -> void:
 		if int(obj["kind"]) == OBJECT_MINE and int(obj.get("owner", OWNER_NEUTRAL)) == OWNER_ENEMY:
 			e_mine_income += int(obj["gold"])
 	_enemy.gold += owned * CITY_INCOME + markt * INCOME_MARKT + e_mine_income
-	_enemy.army += schmiede * SCHMIEDE_ARMY_PER_TURN
+	_enemy.add_units("sword", schmiede * SCHMIEDE_ARMY_PER_TURN)
 	var priority: Array = ["kaserne", "schmiede", "markt", "spaeher"]
 	var guard: int = 0
 	var spent: bool = true
@@ -1474,7 +1502,7 @@ func _enemy_economy() -> void:
 				break
 		if has_kaserne:
 			_enemy.gold -= UNIT_COST
-			_enemy.army += 1
+			_enemy.add_units("sword", 1)
 			spent = true
 
 
@@ -1573,8 +1601,8 @@ func _run_enemy_turn() -> void:
 		# Bonus), ist das Spiel verloren. Gewinnt der Spieler, ist der
 		# Gegner weg und die KI bricht den Zug ab.
 		if best_next == _hero.position:
-			var eff_hp: int = _hero.army + _combat_bonus()
-			var eff_ep: int = _enemy.army
+			var eff_hp: int = _hero.total_count() + _combat_bonus()
+			var eff_ep: int = _enemy.total_count()
 			if eff_ep > eff_hp:
 				_set_combat("NIEDERLAGE: Gegner-Held hat dich besiegt")
 				_game_lost = true
@@ -1594,27 +1622,27 @@ func _run_enemy_turn() -> void:
 			var tc: Dictionary = _cities[target_idx]
 			var garrison: int = int(tc.get("garrison", 0))
 			if garrison > 0:
-				if _enemy.army < garrison:
+				if _enemy.total_count() < garrison:
 					return
-				_enemy.army -= garrison
+				_enemy.apply_proportional_losses(garrison)
 			tc["owner"] = OWNER_ENEMY
 			tc["garrison"] = 0
 		elif target_kind == "mine":
 			var obj: Dictionary = _objects[target_idx]
 			var g: int = int(obj.get("guard", 0))
 			if g > 0:
-				if _enemy.army < g:
+				if _enemy.total_count() < g:
 					return
-				_enemy.army -= g
+				_enemy.apply_proportional_losses(g)
 				obj["guard"] = 0
 			obj["owner"] = OWNER_ENEMY
 		elif target_kind == "treasure":
 			var obj2: Dictionary = _objects[target_idx]
 			var g2: int = int(obj2.get("guard", 0))
 			if g2 > 0:
-				if _enemy.army < g2:
+				if _enemy.total_count() < g2:
 					return
-				_enemy.army -= g2
+				_enemy.apply_proportional_losses(g2)
 			_enemy.gold += int(obj2["gold"])
 			_objects.remove_at(target_idx)
 
@@ -1640,7 +1668,7 @@ func _show_defeat_panel() -> void:
 	if vb != null:
 		var stats := vb.get_node_or_null("Stats") as Label
 		if stats != null:
-			stats.text = "Level " + str(_hero.level) + "   XP " + str(_hero.xp) + "\nGold " + str(_hero.gold) + "   Armee " + str(_hero.army)
+			stats.text = "Level " + str(_hero.level) + "   XP " + str(_hero.xp) + "\nGold " + str(_hero.gold) + "   Armee " + str(_hero.total_count())
 	_victory_panel.visible = true
 
 
@@ -1682,7 +1710,7 @@ func _on_end_turn() -> void:
 	var income: int = owned * CITY_INCOME + markt_count * INCOME_MARKT + mine_income
 	_hero.gold += income
 	var army_gain: int = schmiede_count * SCHMIEDE_ARMY_PER_TURN
-	_hero.army += army_gain
+	_hero.add_units("sword", army_gain)
 	var xp_gain: int = kapelle_count * KAPELLE_XP_PER_TURN
 	if xp_gain > 0:
 		_hero.xp += xp_gain
