@@ -2,6 +2,13 @@ extends Control
 
 signal battle_finished(result: Dictionary)
 
+# Obstacle-Modul per preload statt ueber class_name. Im Android-Export
+# koennen Cross-File-class_name-Aufrufe stillschweigend fehlschlagen
+# (siehe Pathfinder.gd): static Methoden liefern dann 0/false statt der
+# realen Werte. Preload umgeht das, weil es direkt die Script-Datei
+# referenziert, nicht den globalen Klassen-Cache.
+const Obstacles := preload("res://scripts/core/BattleObstacles.gd")
+
 const GRID_COLS := 10
 const GRID_ROWS := 8
 
@@ -47,7 +54,7 @@ func set_battle(ctx: Dictionary) -> void:
 	_round = 1
 	_log.clear()
 	_terrain_id = int(ctx.get("terrain_id", 0))
-	_obstacles = BattleObstacles.generate(_terrain_id, int(ctx.get("seed", 42)), GRID_COLS, GRID_ROWS)
+	_obstacles = Obstacles.generate(_terrain_id, int(ctx.get("seed", 42)), GRID_COLS, GRID_ROWS)
 	_ob_map.clear()
 	for o in _obstacles:
 		_ob_map[Vector2i(o["pos"])] = int(o["kind"])
@@ -372,38 +379,42 @@ func _draw_grid() -> void:
 # damit der Spieler auf einen Blick Bewegungs-/Schuss-Regeln ablesen
 # kann, ohne auf Mouseover angewiesen zu sein.
 func _draw_obstacles(o: Vector2, c: float) -> void:
+	# KIND als Integer-Literal, siehe _dijkstra_for: cross-class
+	# class_name-Referenzen sind im Android-Export unzuverlaessig.
+	# 0=Stein, 1=Baumstamm, 2=Busch, 3=Sumpf.
 	for ob in _obstacles:
 		var pos: Vector2i = Vector2i(ob["pos"])
 		var kind: int = int(ob["kind"])
 		var ctr := o + Vector2((float(pos.x) + 0.5) * c, (float(pos.y) + 0.5) * c)
-		match kind:
-			BattleObstacles.KIND_ROCK:
-				var pts := PackedVector2Array([
-					Vector2(ctr.x, ctr.y - c * 0.38),
-					Vector2(ctr.x + c * 0.38, ctr.y),
-					Vector2(ctr.x, ctr.y + c * 0.38),
-					Vector2(ctr.x - c * 0.38, ctr.y),
-				])
-				_grid_area.draw_colored_polygon(pts, Color(0.55, 0.55, 0.58))
-				_grid_area.draw_polyline(pts + PackedVector2Array([pts[0]]), Color(0.25, 0.25, 0.28), 2.0)
-			BattleObstacles.KIND_LOG:
-				var tl := ctr + Vector2(-c * 0.42, -c * 0.18)
-				_grid_area.draw_rect(Rect2(tl, Vector2(c * 0.84, c * 0.36)), Color(0.46, 0.30, 0.18), true)
-				_grid_area.draw_rect(Rect2(tl, Vector2(c * 0.84, c * 0.36)), Color(0.22, 0.14, 0.08), false, 2.0)
-				_grid_area.draw_line(
-					Vector2(ctr.x - c * 0.30, ctr.y),
-					Vector2(ctr.x + c * 0.30, ctr.y),
-					Color(0.28, 0.18, 0.10), 1.5)
-			BattleObstacles.KIND_BUSH:
-				_grid_area.draw_circle(ctr + Vector2(-c * 0.18, c * 0.05), c * 0.22, Color(0.22, 0.45, 0.22))
-				_grid_area.draw_circle(ctr + Vector2(c * 0.18, -c * 0.05), c * 0.22, Color(0.26, 0.50, 0.25))
-				_grid_area.draw_circle(ctr, c * 0.25, Color(0.30, 0.55, 0.28))
-			BattleObstacles.KIND_SWAMP:
-				_grid_area.draw_rect(
-					Rect2(o + Vector2(float(pos.x) * c, float(pos.y) * c), Vector2(c, c)),
-					Color(0.30, 0.36, 0.20), true)
-				_grid_area.draw_circle(ctr + Vector2(-c * 0.20, -c * 0.10), c * 0.08, Color(0.18, 0.24, 0.12))
-				_grid_area.draw_circle(ctr + Vector2(c * 0.22, c * 0.15), c * 0.08, Color(0.18, 0.24, 0.12))
+		if kind == 0:
+			var pts := PackedVector2Array([
+				Vector2(ctr.x, ctr.y - c * 0.38),
+				Vector2(ctr.x + c * 0.38, ctr.y),
+				Vector2(ctr.x, ctr.y + c * 0.38),
+				Vector2(ctr.x - c * 0.38, ctr.y),
+			])
+			_grid_area.draw_colored_polygon(pts, Color(0.55, 0.55, 0.58))
+			var outline := PackedVector2Array(pts)
+			outline.append(pts[0])
+			_grid_area.draw_polyline(outline, Color(0.25, 0.25, 0.28), 2.0)
+		elif kind == 1:
+			var tl := ctr + Vector2(-c * 0.42, -c * 0.18)
+			_grid_area.draw_rect(Rect2(tl, Vector2(c * 0.84, c * 0.36)), Color(0.46, 0.30, 0.18), true)
+			_grid_area.draw_rect(Rect2(tl, Vector2(c * 0.84, c * 0.36)), Color(0.22, 0.14, 0.08), false, 2.0)
+			_grid_area.draw_line(
+				Vector2(ctr.x - c * 0.30, ctr.y),
+				Vector2(ctr.x + c * 0.30, ctr.y),
+				Color(0.28, 0.18, 0.10), 1.5)
+		elif kind == 2:
+			_grid_area.draw_circle(ctr + Vector2(-c * 0.18, c * 0.05), c * 0.22, Color(0.22, 0.45, 0.22))
+			_grid_area.draw_circle(ctr + Vector2(c * 0.18, -c * 0.05), c * 0.22, Color(0.26, 0.50, 0.25))
+			_grid_area.draw_circle(ctr, c * 0.25, Color(0.30, 0.55, 0.28))
+		elif kind == 3:
+			_grid_area.draw_rect(
+				Rect2(o + Vector2(float(pos.x) * c, float(pos.y) * c), Vector2(c, c)),
+				Color(0.30, 0.36, 0.20), true)
+			_grid_area.draw_circle(ctr + Vector2(-c * 0.20, -c * 0.10), c * 0.08, Color(0.18, 0.24, 0.12))
+			_grid_area.draw_circle(ctr + Vector2(c * 0.22, c * 0.15), c * 0.08, Color(0.18, 0.24, 0.12))
 
 
 # Kleiner Cyan-Ring auf der Oberseite eines Stacks, der gewartet hat:
@@ -501,7 +512,7 @@ func _try_attack_enemy(e_idx: int) -> void:
 	var atk_s: String = UnitType.short_of(uid)
 	var def_s: String = UnitType.short_of(String(estack["type"]))
 	if is_ranged:
-		var mod: Dictionary = BattleObstacles.line_modifier(_obstacles, apos, epos)
+		var mod: Dictionary = Obstacles.line_modifier(_obstacles, apos, epos)
 		if bool(mod["blocked"]):
 			_set_action("Held %s: keine Schusslinie (Stein im Weg)." % atk_s)
 			return
@@ -598,7 +609,7 @@ func _ai_turn() -> void:
 	var atk_s: String = UnitType.short_of(uid)
 	var def_s: String = UnitType.short_of(String(best_target["type"]))
 	if is_ranged:
-		var mod: Dictionary = BattleObstacles.line_modifier(_obstacles, epos, tpos)
+		var mod: Dictionary = Obstacles.line_modifier(_obstacles, epos, tpos)
 		if not bool(mod["blocked"]):
 			var adjacent: bool = _adj(epos, tpos)
 			var dmg: int = _dmg(estack, best_target, adjacent)
@@ -692,7 +703,10 @@ func _dijkstra_for(start: Vector2i, blocked: Array) -> Dictionary:
 	# Kuerzeste-Pfad-Distanzen vom Startfeld, respektiert Feldkosten der
 	# Obstacles (Busch/Sumpf = 2) und blockierende Obstacles (Stein/Baum).
 	# Fuer 10x8 Felder genuegt ein simpler O(N^2)-Loop statt echter
-	# Priority-Queue.
+	# Priority-Queue. Obstacle-Kind/Block-Checks sind inline als Integer-
+	# Vergleiche, weil Cross-File-class_name-Aufrufe im Android-Export
+	# historisch unzuverlaessig waren (siehe Pathfinder.gd).
+	# KIND: 0=Stein, 1=Baumstamm, 2=Busch, 3=Sumpf.
 	var dist: Dictionary = {start: 0}
 	var visited: Dictionary = {}
 	while true:
@@ -714,9 +728,13 @@ func _dijkstra_for(start: Vector2i, blocked: Array) -> Dictionary:
 				continue
 			if n in blocked:
 				continue
-			if _ob_map.has(n) and BattleObstacles.blocks_move(int(_ob_map[n])):
-				continue
-			var step_cost: int = BattleObstacles.move_cost(int(_ob_map.get(n, -1)))
+			var step_cost: int = 1
+			if _ob_map.has(n):
+				var kind: int = int(_ob_map[n])
+				if kind == 0 or kind == 1:
+					continue
+				if kind == 2 or kind == 3:
+					step_cost = 2
 			var nd: int = cur_d + step_cost
 			if not dist.has(n) or nd < int(dist[n]):
 				dist[n] = nd
