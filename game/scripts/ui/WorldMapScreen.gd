@@ -12,7 +12,12 @@ const CITY_MIN_DIST := 8
 const CITY_INCOME := 500
 const OWNER_NEUTRAL := -1
 const OWNER_HERO := 0
+# Historischer Alias: OWNER_ENEMY == erste KI. Generisch wird eine KI
+# ueber OWNER_AI_MIN..OWNER_AI_MAX adressiert. _is_ai_owner()/_ai_index
+# kapseln die Abfrage, damit wir spaeter nicht Alle Vergleiche suchen.
 const OWNER_ENEMY := 1
+const OWNER_AI_MIN := 1
+const OWNER_AI_MAX := 3
 
 # Gegner-Held: Start-Werte, bewegt sich automatisch am Ende des Spielerzugs.
 # Er startet mit Armee 0 und Gold 0, exakt wie der Spieler - keine
@@ -168,28 +173,29 @@ var _victory_panel: Panel
 var _victory_title: Label
 var _game_won: bool = false
 var _game_lost: bool = false
-# Gegner-Held: Position, mp, army. Wird am Ende des Spielerzugs bewegt.
-var _enemy: Hero
-# Rotations-Index fuer die Gegner-Rekrutierung: 0=sword, 1=bow, 2=rider.
-# Jede gekaufte (oder durch Schmiede geschenkte) Einheit ruckt den Index
-# um 1 weiter, damit die Armee bunt bleibt, solange Gold reicht.
-var _enemy_recruit_idx: int = 0
+# Gegner-KIs. Jede KI ist ein Dictionary mit:
+#   "hero": Hero (null wenn im Kampf gefallen)
+#   "owner_id": int (1..3) - wird in city/object["owner"] gespiegelt
+#   "recruit_idx": int - Rotations-Index 0=sword,1=bow,2=rider
+#   "fog": Array (MAP_WIDTH*MAP_HEIGHT) - eigene Sichtbarkeit
+#   "player_last_seen_pos": Vector2i - wo diese KI den Spieler-Held
+#       zuletzt gesehen hat (-1,-1 wenn nie)
+#   "player_last_seen_turn": int
+# Fuer Step 1 wird genau eine KI angelegt (owner_id = OWNER_ENEMY = 1),
+# die Logik ist aber schon arrayfoermig - Schritt 3 aktiviert drei KIs.
+var _enemies: Array = []
+# Parallel zu _enemies: wo der SPIELER jede KI zuletzt gesichtet hat.
+# {pos: Vector2i, turn: int}. pos.x < 0 = nie gesehen.
+var _ai_seen_by_player: Array = []
 # RNG bleibt nach _start() aktiv, damit Enemy-Turn deterministische
 # Wuerfe fuer Garrison machen kann.
 var _rng: DeterministicRng
 
-# Kriegsnebel-Zustand. _fog_player und _fog_enemy sind flache Int-Arrays
-# der Groesse MAP_WIDTH*MAP_HEIGHT mit Werten aus FOG_HIDDEN/EXPLORED/
-# VISIBLE (siehe Konstanten). _turn_number zaehlt abgeschlossene
-# Spielerzuege, damit der Ghost-Marker "Info rottet" linear verblassen
-# kann. Wenn _enemy_last_seen.x < 0, wurde der Gegner-Held noch nie
-# gesehen; analog _hero_last_seen fuer die KI-Seite.
+# Kriegsnebel-Spielerseite. Je KI liegt ihr eigenes Fog-Array in
+# _enemies[i]["fog"]. Werte aus FOG_HIDDEN/EXPLORED/VISIBLE.
+# _turn_number zaehlt abgeschlossene Spielerzuege, damit der
+# Ghost-Marker "Info rottet" linear verblassen kann.
 var _fog_player: Array = []
-var _fog_enemy: Array = []
-var _enemy_last_seen: Vector2i = Vector2i(-1, -1)
-var _enemy_last_seen_turn: int = -1
-var _hero_last_seen: Vector2i = Vector2i(-1, -1)
-var _hero_last_seen_turn: int = -1
 var _turn_number: int = 0
 
 
@@ -223,7 +229,8 @@ func _start(seed_value: int) -> void:
 	_seed = seed_value
 	_game_won = false
 	_game_lost = false
-	_enemy = null
+	_enemies.clear()
+	_ai_seen_by_player.clear()
 	if _victory_panel != null:
 		_victory_panel.visible = false
 	_rng = DeterministicRng.new(seed_value)
@@ -438,9 +445,18 @@ func _start(seed_value: int) -> void:
 		if enemy_idx >= 0:
 			_cities[enemy_idx]["owner"] = OWNER_ENEMY
 			_cities[enemy_idx]["garrison"] = 0
-			_enemy = Hero.new(_cities[enemy_idx]["pos"], ENEMY_BASE_MP)
-			_enemy.gold = STARTING_GOLD
-			_enemy.add_units(STARTING_UNIT, STARTING_UNIT_COUNT)
+			var ai0_hero := Hero.new(_cities[enemy_idx]["pos"], ENEMY_BASE_MP)
+			ai0_hero.gold = STARTING_GOLD
+			ai0_hero.add_units(STARTING_UNIT, STARTING_UNIT_COUNT)
+			_enemies.append({
+				"hero": ai0_hero,
+				"owner_id": OWNER_ENEMY,
+				"recruit_idx": 0,
+				"fog": [] as Array,
+				"player_last_seen_pos": Vector2i(-1, -1),
+				"player_last_seen_turn": -1,
+			})
+			_ai_seen_by_player.append({"pos": Vector2i(-1, -1), "turn": -1})
 
 	# Monster platzieren: nur Gras/Wald, Mindestabstand zu Held, Staedten
 	# und anderen Monstern, Staerke 1-3.
@@ -522,13 +538,10 @@ func _start(seed_value: int) -> void:
 		})
 
 	_turn_number = 0
-	_enemy_last_seen = Vector2i(-1, -1)
-	_enemy_last_seen_turn = -1
-	_hero_last_seen = Vector2i(-1, -1)
-	_hero_last_seen_turn = -1
 	_init_fog_arrays()
-	_recompute_fog(OWNER_HERO)
-	_recompute_fog(OWNER_ENEMY)
+	_recompute_fog_player()
+	for i in range(_enemies.size()):
+		_recompute_fog_ai(i)
 
 	_recompute_costs()
 	_on_map_resized()
@@ -542,15 +555,20 @@ func _recompute_costs() -> void:
 
 
 func _init_fog_arrays() -> void:
-	# Beide Fog-Arrays auf HIDDEN setzen. Wird am Start einer neuen Karte
-	# aufgerufen, danach nur noch per _recompute_fog gepflegt (das setzt
-	# VISIBLE zurueck auf EXPLORED und markiert neue Sichtfelder).
+	# Spieler-Fog + je ein Fog-Array pro KI auf HIDDEN setzen. Wird am
+	# Start einer neuen Karte aufgerufen, danach nur noch per
+	# _recompute_fog_player / _recompute_fog_ai gepflegt (setzt VISIBLE
+	# zurueck auf EXPLORED und markiert neue Sichtfelder).
 	var total: int = MAP_WIDTH * MAP_HEIGHT
 	_fog_player.resize(total)
-	_fog_enemy.resize(total)
 	for i in range(total):
 		_fog_player[i] = FOG_HIDDEN
-		_fog_enemy[i] = FOG_HIDDEN
+	for e in _enemies:
+		var efog: Array = []
+		efog.resize(total)
+		for i in range(total):
+			efog[i] = FOG_HIDDEN
+		e["fog"] = efog
 
 
 func _fog_mark(arr: Array, center: Vector2i, radius: int) -> void:
@@ -569,52 +587,98 @@ func _fog_mark(arr: Array, center: Vector2i, radius: int) -> void:
 			arr[ay * MAP_WIDTH + ax] = FOG_VISIBLE
 
 
-func _recompute_fog(side: int) -> void:
-	# Wird nach Heldenbewegung, nach eigenem Zugende und nach Gegnerzug
-	# aufgerufen. Schritte:
-	#   1. Alle VISIBLE-Felder zurueck auf EXPLORED (wir berechnen jetzt
-	#      die aktuelle Sicht neu).
-	#   2. Held: Manhattan-Scheibe HERO_SIGHT.
-	#   3. Eigene Staedte: Manhattan-Scheibe CITY_SIGHT um jede Stadt.
-	#   4. Eigene Minen/Schatzfelder: Manhattan-Scheibe OBJECT_SIGHT.
-	#   5. Wenn die gegnerische Held-Position jetzt VISIBLE ist,
-	#      last_seen + last_seen_turn aktualisieren.
-	var arr: Array = _fog_player if side == OWNER_HERO else _fog_enemy
+func _recompute_fog_player() -> void:
+	# Wird nach Heldenbewegung und nach jedem KI-Zug aufgerufen. Setzt
+	# erst VISIBLE zurueck auf EXPLORED, markiert dann alle aktuellen
+	# Sichtquellen des Spielers (Held + eigene Staedte + eigene Minen/
+	# Schatzfelder) und aktualisiert zum Schluss die Sichtungen der
+	# KI-Helden (Ghost-Marker "Info rottet" im Draw).
+	var arr: Array = _fog_player
 	var total: int = MAP_WIDTH * MAP_HEIGHT
 	for i in range(total):
 		if int(arr[i]) == FOG_VISIBLE:
 			arr[i] = FOG_EXPLORED
-
-	if side == OWNER_HERO and _hero != null:
+	if _hero != null:
 		_fog_mark(arr, _hero.position, HERO_SIGHT)
-	elif side == OWNER_ENEMY and _enemy != null:
-		_fog_mark(arr, _enemy.position, HERO_SIGHT)
-
 	for city in _cities:
-		if int(city["owner"]) == side:
+		if int(city["owner"]) == OWNER_HERO:
 			_fog_mark(arr, Vector2i(city["pos"]), CITY_SIGHT)
-
 	for obj in _objects:
-		if int(obj.get("owner", OWNER_NEUTRAL)) == side:
+		if int(obj.get("owner", OWNER_NEUTRAL)) == OWNER_HERO:
 			_fog_mark(arr, Vector2i(obj["pos"]), OBJECT_SIGHT)
+	for i in range(_enemies.size()):
+		var eh: Hero = _enemies[i]["hero"] as Hero
+		if eh == null:
+			continue
+		if _fog_get(arr, eh.position) == FOG_VISIBLE:
+			_ai_seen_by_player[i]["pos"] = eh.position
+			_ai_seen_by_player[i]["turn"] = _turn_number
 
-	# Sichtung gegnerischer Held aktualisieren.
-	if side == OWNER_HERO and _enemy != null:
-		var ep: Vector2i = _enemy.position
-		if _fog_get(arr, ep) == FOG_VISIBLE:
-			_enemy_last_seen = ep
-			_enemy_last_seen_turn = _turn_number
-	elif side == OWNER_ENEMY and _hero != null:
-		var hp: Vector2i = _hero.position
-		if _fog_get(arr, hp) == FOG_VISIBLE:
-			_hero_last_seen = hp
-			_hero_last_seen_turn = _turn_number
+
+func _recompute_fog_ai(idx: int) -> void:
+	# Spiegel-Funktion zu _recompute_fog_player aus Sicht einer KI. Jede
+	# KI pflegt ihr eigenes Fog-Array und ihre eigene Sichtung des
+	# Spieler-Helden (relevant fuer Ziel-Auswahl "Hero jagen").
+	if idx < 0 or idx >= _enemies.size():
+		return
+	var e: Dictionary = _enemies[idx]
+	var arr: Array = e["fog"]
+	var oid: int = int(e["owner_id"])
+	var total: int = MAP_WIDTH * MAP_HEIGHT
+	for j in range(total):
+		if int(arr[j]) == FOG_VISIBLE:
+			arr[j] = FOG_EXPLORED
+	var eh: Hero = e["hero"] as Hero
+	if eh != null:
+		_fog_mark(arr, eh.position, HERO_SIGHT)
+	for city in _cities:
+		if int(city["owner"]) == oid:
+			_fog_mark(arr, Vector2i(city["pos"]), CITY_SIGHT)
+	for obj in _objects:
+		if int(obj.get("owner", OWNER_NEUTRAL)) == oid:
+			_fog_mark(arr, Vector2i(obj["pos"]), OBJECT_SIGHT)
+	if _hero != null:
+		if _fog_get(arr, _hero.position) == FOG_VISIBLE:
+			e["player_last_seen_pos"] = _hero.position
+			e["player_last_seen_turn"] = _turn_number
 
 
 func _fog_get(arr: Array, p: Vector2i) -> int:
 	if p.x < 0 or p.x >= MAP_WIDTH or p.y < 0 or p.y >= MAP_HEIGHT:
 		return FOG_HIDDEN
 	return int(arr[p.y * MAP_WIDTH + p.x])
+
+
+func _is_ai_owner(owner: int) -> bool:
+	return owner >= OWNER_AI_MIN and owner <= OWNER_AI_MAX
+
+
+func _ai_index_for_owner(owner: int) -> int:
+	for i in range(_enemies.size()):
+		if int(_enemies[i]["owner_id"]) == owner:
+			return i
+	return -1
+
+
+func _ai_index_at(pos: Vector2i) -> int:
+	# Erste KI mit Held auf pos. Kollisionen koennen im Free-for-All
+	# entstehen, wenn zwei KIs dasselbe Ziel nehmen - dann gewinnt die
+	# mit niedrigerem Index (deterministisch).
+	for i in range(_enemies.size()):
+		var eh: Hero = _enemies[i]["hero"] as Hero
+		if eh != null and eh.position == pos:
+			return i
+	return -1
+
+
+func _ai_ring_color(owner_id: int) -> Color:
+	# Ring-/Hero-Farbe pro KI-owner_id. Rot fuer die klassische "Gegner"-
+	# Rolle (owner_id 1), violett und orange als Reserve fuer 2 und 3.
+	match owner_id:
+		1: return Color(0.85, 0.15, 0.15)
+		2: return Color(0.70, 0.30, 0.85)
+		3: return Color(0.95, 0.55, 0.15)
+	return Color(0.85, 0.15, 0.15)
 
 
 func _dijkstra(start: Vector2i, monsters_block: bool) -> Dictionary:
@@ -793,8 +857,8 @@ func _draw_map() -> void:
 		_map_area.draw_rect(crect, fc, true)
 		if owner == OWNER_HERO:
 			_map_area.draw_rect(crect, Color(1.0, 0.85, 0.2), false, 4.0)
-		elif owner == OWNER_ENEMY:
-			_map_area.draw_rect(crect, Color(0.85, 0.15, 0.15), false, 4.0)
+		elif owner >= OWNER_AI_MIN:
+			_map_area.draw_rect(crect, _ai_ring_color(owner), false, 4.0)
 		else:
 			_map_area.draw_rect(crect, Color(0.1, 0.1, 0.12), false, 2.0)
 		var garrison: int = int(city.get("garrison", 0))
@@ -905,8 +969,8 @@ func _draw_map() -> void:
 			_map_area.draw_circle(lock_c, max(2.0, _tile_size * 0.07), sym_col)
 		if oowner == OWNER_HERO:
 			_map_area.draw_rect(orect, Color(1.0, 0.85, 0.2), false, 4.0)
-		elif oowner == OWNER_ENEMY:
-			_map_area.draw_rect(orect, Color(0.85, 0.15, 0.15), false, 4.0)
+		elif oowner >= OWNER_AI_MIN:
+			_map_area.draw_rect(orect, _ai_ring_color(oowner), false, 4.0)
 		else:
 			_map_area.draw_rect(orect, Color(0.1, 0.1, 0.12), false, 2.0)
 		var ogd: int = int(obj.get("guard", 0))
@@ -938,45 +1002,56 @@ func _draw_map() -> void:
 	_map_area.draw_circle(center, radius, Color(1.0, 0.85, 0.2))
 	_map_area.draw_arc(center, radius, 0.0, TAU, 24, Color(0.2, 0.15, 0.05), 2.0)
 
-	# Gegner-Held: in aktueller Sicht voll rot mit Armee-Zahl. Ausserhalb
-	# der Sicht erscheint ein Ghost-Marker an der letzten bekannten
-	# Position, dessen Alpha ueber FOG_ROT_TURNS linear verblasst
-	# ("Info rottet"). Ohne jemals gesichtet zu haben: gar nichts.
-	if _enemy != null:
-		var ex := _enemy.position
-		var efog: int = _fog_get(_fog_player, ex)
-		if efog == FOG_VISIBLE:
-			var epx := origin + Vector2(ex.x * _tile_size, ex.y * _tile_size)
-			var ecenter := epx + Vector2(_tile_size * 0.5, _tile_size * 0.5)
-			_map_area.draw_circle(ecenter, radius, Color(0.85, 0.15, 0.15))
-			_map_area.draw_arc(ecenter, radius, 0.0, TAU, 24, Color(0.15, 0.02, 0.02), 2.0)
-			var earmy: int = _enemy.total_count()
-			var etxt: String = str(earmy)
-			var ecol: Color
-			if eff < earmy:
-				ecol = Color(1.0, 0.35, 0.35)
-			elif earmy - cbonus <= 0:
-				ecol = Color(0.45, 1.0, 0.45)
-			else:
-				ecol = Color(1.0, 0.92, 0.35)
-			var esize: int = int(_tile_size * 0.5)
-			var es := mfont.get_string_size(etxt, HORIZONTAL_ALIGNMENT_CENTER, -1, esize)
-			var epos := ecenter + Vector2(-es.x * 0.5, es.y * 0.35)
-			_map_area.draw_string(mfont, epos + Vector2(2, 2), etxt, HORIZONTAL_ALIGNMENT_CENTER, -1, esize, Color(0, 0, 0, 0.8))
-			_map_area.draw_string(mfont, epos, etxt, HORIZONTAL_ALIGNMENT_CENTER, -1, esize, ecol)
-		elif _enemy_last_seen.x >= 0:
-			var since: int = _turn_number - _enemy_last_seen_turn
-			if since < FOG_ROT_TURNS:
-				var alpha: float = 1.0 - float(since) / float(FOG_ROT_TURNS)
-				var lpos := _enemy_last_seen
-				var gpx := origin + Vector2(lpos.x * _tile_size, lpos.y * _tile_size)
-				var gcenter := gpx + Vector2(_tile_size * 0.5, _tile_size * 0.5)
-				_map_area.draw_circle(gcenter, radius, Color(0.85, 0.15, 0.15, 0.35 * alpha))
-				_map_area.draw_arc(gcenter, radius, 0.0, TAU, 24, Color(0.85, 0.15, 0.15, alpha), 2.0)
-				var qsize: int = int(_tile_size * 0.5)
-				var qs := mfont.get_string_size("?", HORIZONTAL_ALIGNMENT_CENTER, -1, qsize)
-				var qpos := gcenter + Vector2(-qs.x * 0.5, qs.y * 0.35)
-				_map_area.draw_string(mfont, qpos, "?", HORIZONTAL_ALIGNMENT_CENTER, -1, qsize, Color(1.0, 0.6, 0.6, alpha))
+	# KI-Helden: pro KI entweder voller Marker (in Sicht) oder Ghost an
+	# zuletzt bekannter Position (Alpha ueber FOG_ROT_TURNS verblassend).
+	# KIs tragen Ring-Farbe nach owner_id (1/2/3 -> rot/violett/orange),
+	# damit man sie im Free-for-All unterscheiden kann.
+	for i in range(_enemies.size()):
+		var eh: Hero = _enemies[i]["hero"] as Hero
+		var eoid: int = int(_enemies[i]["owner_id"])
+		var efill: Color = _ai_ring_color(eoid)
+		var ering: Color = efill.darkened(0.55)
+		if eh != null:
+			var ex := eh.position
+			var efog: int = _fog_get(_fog_player, ex)
+			if efog == FOG_VISIBLE:
+				var epx := origin + Vector2(ex.x * _tile_size, ex.y * _tile_size)
+				var ecenter := epx + Vector2(_tile_size * 0.5, _tile_size * 0.5)
+				_map_area.draw_circle(ecenter, radius, efill)
+				_map_area.draw_arc(ecenter, radius, 0.0, TAU, 24, ering, 2.0)
+				var earmy: int = eh.total_count()
+				var etxt: String = str(earmy)
+				var ecol: Color
+				if eff < earmy:
+					ecol = Color(1.0, 0.35, 0.35)
+				elif earmy - cbonus <= 0:
+					ecol = Color(0.45, 1.0, 0.45)
+				else:
+					ecol = Color(1.0, 0.92, 0.35)
+				var esize: int = int(_tile_size * 0.5)
+				var es := mfont.get_string_size(etxt, HORIZONTAL_ALIGNMENT_CENTER, -1, esize)
+				var epos := ecenter + Vector2(-es.x * 0.5, es.y * 0.35)
+				_map_area.draw_string(mfont, epos + Vector2(2, 2), etxt, HORIZONTAL_ALIGNMENT_CENTER, -1, esize, Color(0, 0, 0, 0.8))
+				_map_area.draw_string(mfont, epos, etxt, HORIZONTAL_ALIGNMENT_CENTER, -1, esize, ecol)
+				continue
+		# Held ist tot ODER aktuell nicht in Sicht: Ghost an letzter
+		# Sichtungs-Position zeichnen, solange Info nicht verrottet ist.
+		var seen: Dictionary = _ai_seen_by_player[i]
+		var lpos: Vector2i = seen["pos"]
+		if lpos.x < 0:
+			continue
+		var since: int = _turn_number - int(seen["turn"])
+		if since >= FOG_ROT_TURNS:
+			continue
+		var alpha: float = 1.0 - float(since) / float(FOG_ROT_TURNS)
+		var gpx := origin + Vector2(lpos.x * _tile_size, lpos.y * _tile_size)
+		var gcenter := gpx + Vector2(_tile_size * 0.5, _tile_size * 0.5)
+		_map_area.draw_circle(gcenter, radius, Color(efill.r, efill.g, efill.b, 0.35 * alpha))
+		_map_area.draw_arc(gcenter, radius, 0.0, TAU, 24, Color(efill.r, efill.g, efill.b, alpha), 2.0)
+		var qsize: int = int(_tile_size * 0.5)
+		var qs := mfont.get_string_size("?", HORIZONTAL_ALIGNMENT_CENTER, -1, qsize)
+		var qpos := gcenter + Vector2(-qs.x * 0.5, qs.y * 0.35)
+		_map_area.draw_string(mfont, qpos, "?", HORIZONTAL_ALIGNMENT_CENTER, -1, qsize, Color(1.0, 0.6, 0.6, alpha))
 
 
 func _terrain_color(t: int) -> Color:
@@ -1073,9 +1148,12 @@ func _on_map_input(event: InputEvent) -> void:
 	# Gegner-Held auf Zielfeld: Pflichtkampf (keine Flucht), bevor wir
 	# eine evtl. dort stehende Stadt einnehmen. Bei Sieg: Held tot, Stadt
 	# wird im Callback direkt geclaimt (ohne zusaetzliche Garnison).
-	if _enemy != null and target == _enemy.position:
-		_open_battle("Gegner-Held", _enemy.total_count(), false, battle_terrain, func(r: Dictionary) -> void:
-			_on_enemy_hero_result(r, target, cost, target_city_idx)
+	var ai_at_target: int = _ai_index_at(target)
+	if ai_at_target >= 0:
+		var eh_t: Hero = _enemies[ai_at_target]["hero"] as Hero
+		var ai_idx_cap: int = ai_at_target
+		_open_battle("Gegner-Held", eh_t.total_count(), false, battle_terrain, func(r: Dictionary) -> void:
+			_on_enemy_hero_result(r, target, cost, target_city_idx, ai_idx_cap)
 		)
 		return
 
@@ -1126,7 +1204,7 @@ func _on_map_input(event: InputEvent) -> void:
 	if target_city_idx >= 0 and int(_cities[target_city_idx]["owner"]) != OWNER_HERO:
 		_cities[target_city_idx]["owner"] = OWNER_HERO
 		claimed = true
-	_recompute_fog(OWNER_HERO)
+	_recompute_fog_player()
 	_recompute_costs()
 	_map_area.queue_redraw()
 	_update_labels()
@@ -1202,8 +1280,15 @@ func _build_enemy_stacks(opp_name: String, total: int) -> Array:
 	# KI-Stadt. Alle anderen Gegner (Monster, Stadt-/Objektwachen) werden
 	# nach Groesse gemischt - klein reine Schwert-Truppe, ab mittlerer
 	# Groesse Bogen dazu, ab grosser Groesse auch Reiter.
-	if opp_name == "Gegner-Held" and _enemy != null:
-		return _army_to_stacks(_enemy.army)
+	if opp_name == "Gegner-Held":
+		# Spieler greift eine KI direkt an: Stacks aus deren Hero-Armee
+		# ableiten. Finde die KI am Zielfeld - _enemies[i]["hero"].position
+		# ist deterministisch; falls mehrere KIs kollidieren sollten,
+		# nimmt _ai_index_at die erste.
+		for e_i in _enemies:
+			var he: Hero = e_i["hero"] as Hero
+			if he != null and he.total_count() == total:
+				return _army_to_stacks(he.army)
 	if total <= 2:
 		return [{"type": "sword", "count": total}]
 	if total <= 5:
@@ -1252,7 +1337,7 @@ func _count_casualties(result: Dictionary) -> int:
 func _finish_move_to(target: Vector2i, cost: int) -> void:
 	_hero.mp -= cost
 	_hero.position = target
-	_recompute_fog(OWNER_HERO)
+	_recompute_fog_player()
 	_recompute_costs()
 	_map_area.queue_redraw()
 	_update_labels()
@@ -1296,7 +1381,7 @@ func _on_monster_result(result: Dictionary, mon_pos: Vector2i, target: Vector2i,
 	_set_combat(msg_win)
 
 
-func _on_enemy_hero_result(result: Dictionary, target: Vector2i, cost: int, target_city_idx: int) -> void:
+func _on_enemy_hero_result(result: Dictionary, target: Vector2i, cost: int, target_city_idx: int, ai_idx: int = 0) -> void:
 	var outcome: String = String(result.get("outcome", "flee"))
 	if outcome == "flee":
 		# Gegner-Held-Kampf ist Pflicht; allow_flee=false. Fallback: keine Aktion.
@@ -1312,7 +1397,8 @@ func _on_enemy_hero_result(result: Dictionary, target: Vector2i, cost: int, targ
 	_hero.gold += ENEMY_DEFEAT_GOLD
 	_hero.xp += ENEMY_DEFEAT_XP
 	var leveled: bool = _check_level_up()
-	_enemy = null
+	if ai_idx >= 0 and ai_idx < _enemies.size():
+		_enemies[ai_idx]["hero"] = null
 	_finish_move_to(target, cost)
 	# Stadt auf dem Zielfeld direkt einnehmen (Gegner-Held war der Verteidiger).
 	var claimed: bool = false
@@ -1681,29 +1767,37 @@ func _recruit_unit(city_idx: int, unit_id: String) -> void:
 	_show_city(city_idx)
 
 
-func _enemy_unlocked_units() -> Array:
+func _enemy_unlocked_units_for(idx: int) -> Array:
 	var out: Array = []
+	if idx < 0 or idx >= _enemies.size():
+		return out
+	var oid: int = int(_enemies[idx]["owner_id"])
 	for uid in UnitType.ORDER:
 		var req: String = String(UNIT_BUILDING.get(uid, "kaserne"))
 		for c in _cities:
-			if int(c["owner"]) == OWNER_ENEMY and (c["buildings"] as Array).has(req):
+			if int(c["owner"]) == oid and (c["buildings"] as Array).has(req):
 				out.append(uid)
 				break
 	return out
 
 
-func _enemy_next_unit_id(allowed: Array = []) -> String:
-	# Waehlt den naechsten Einheiten-Typ in strikter Rotation. Wird eine
-	# Positivliste "allowed" uebergeben (z.B. "nur Typen mit Gebaeude"),
-	# werden gesperrte Slots uebersprungen - der Rotations-Index rueckt
-	# trotzdem weiter, damit die Mischung nicht monoton wird.
+func _enemy_next_unit_id_for(idx: int, allowed: Array = []) -> String:
+	# Waehlt den naechsten Einheiten-Typ in strikter Rotation pro KI.
+	# Wird eine Positivliste "allowed" uebergeben, werden gesperrte Slots
+	# uebersprungen - der Rotations-Index rueckt trotzdem weiter, damit
+	# die Mischung nicht monoton wird.
+	if idx < 0 or idx >= _enemies.size():
+		return ""
+	var e: Dictionary = _enemies[idx]
+	var ri: int = int(e["recruit_idx"])
 	if allowed.is_empty():
-		var uid: String = UnitType.ORDER[_enemy_recruit_idx % UnitType.ORDER.size()]
-		_enemy_recruit_idx = (_enemy_recruit_idx + 1) % UnitType.ORDER.size()
+		var uid: String = UnitType.ORDER[ri % UnitType.ORDER.size()]
+		e["recruit_idx"] = (ri + 1) % UnitType.ORDER.size()
 		return uid
 	for _step in range(UnitType.ORDER.size()):
-		var uid: String = UnitType.ORDER[_enemy_recruit_idx % UnitType.ORDER.size()]
-		_enemy_recruit_idx = (_enemy_recruit_idx + 1) % UnitType.ORDER.size()
+		var uid: String = UnitType.ORDER[ri % UnitType.ORDER.size()]
+		ri = (ri + 1) % UnitType.ORDER.size()
+		e["recruit_idx"] = ri
 		if uid in allowed:
 			return uid
 	return ""
@@ -1716,21 +1810,26 @@ func _building_by_id(bid: String) -> Dictionary:
 	return {}
 
 
-func _enemy_economy() -> void:
+func _enemy_economy_for(idx: int) -> void:
 	# Gegner spielt nach den gleichen Regeln wie der Spieler: Einkommen pro
 	# eigener Stadt (+Markt), Armee-Wachstum nur mit Schmiede, max_mp nur
 	# mit Spaeher. Danach Ausgaben nach Prioritaet: Kaserne -> Schmiede ->
 	# Markt -> Spaeher. Sobald keine Prioritaets-Gebaeude mehr affordable
 	# sind und Kaserne steht, wird Ueberschuss in Rekruten gesteckt.
 	# Wachturm/Kapelle bringen dem Gegner (noch) nichts, daher ignoriert.
-	if _enemy == null:
+	if idx < 0 or idx >= _enemies.size():
 		return
+	var e: Dictionary = _enemies[idx]
+	var eh: Hero = e["hero"] as Hero
+	if eh == null:
+		return
+	var oid: int = int(e["owner_id"])
 	var owned: int = 0
 	var markt: int = 0
 	var schmiede: int = 0
 	var spaeher: int = 0
 	for c in _cities:
-		if int(c["owner"]) != OWNER_ENEMY:
+		if int(c["owner"]) != oid:
 			continue
 		owned += 1
 		var bl: Array = c["buildings"]
@@ -1740,24 +1839,24 @@ func _enemy_economy() -> void:
 			schmiede += 1
 		if bl.has("spaeher"):
 			spaeher += 1
-	_enemy.max_mp = ENEMY_BASE_MP + MP_BONUS_SPAEHER * spaeher
+	eh.max_mp = ENEMY_BASE_MP + MP_BONUS_SPAEHER * spaeher
 	var e_mine_income: int = 0
 	for obj in _objects:
-		if int(obj["kind"]) == OBJECT_MINE and int(obj.get("owner", OWNER_NEUTRAL)) == OWNER_ENEMY:
+		if int(obj["kind"]) == OBJECT_MINE and int(obj.get("owner", OWNER_NEUTRAL)) == oid:
 			e_mine_income += int(obj["gold"])
-	_enemy.gold += owned * CITY_INCOME + markt * INCOME_MARKT + e_mine_income
+	eh.gold += owned * CITY_INCOME + markt * INCOME_MARKT + e_mine_income
 	# Schmiede-Bonus wird auch rotierend verteilt, damit sich das Muster
 	# "Gegner hat nur Schwerter" nicht ueber die frei geschenkten Einheiten
 	# einschleicht. Einheiten-Typen, deren Gebaeude noch fehlen, werden
 	# uebersprungen - sonst haette der Gegner Reiter ohne Reiterei.
 	var smithy_gifts: int = schmiede * SCHMIEDE_ARMY_PER_TURN
-	var unlocked: Array = _enemy_unlocked_units()
+	var unlocked: Array = _enemy_unlocked_units_for(idx)
 	for _i in range(smithy_gifts):
 		if unlocked.is_empty():
 			break
-		var gift_uid: String = _enemy_next_unit_id(unlocked)
+		var gift_uid: String = _enemy_next_unit_id_for(idx, unlocked)
 		if gift_uid != "":
-			_enemy.add_units(gift_uid, 1)
+			eh.add_units(gift_uid, 1)
 	var priority: Array = ["kaserne", "schmiede", "reiterei", "markt", "spaeher"]
 	var guard: int = 0
 	var spent: bool = true
@@ -1769,11 +1868,11 @@ func _enemy_economy() -> void:
 			if bdef.is_empty():
 				continue
 			var bcost: int = int(bdef["cost"])
-			if _enemy.gold < bcost:
+			if eh.gold < bcost:
 				continue
 			var req: String = String(bdef["requires"]) if bdef.has("requires") else ""
 			for c in _cities:
-				if int(c["owner"]) != OWNER_ENEMY:
+				if int(c["owner"]) != oid:
 					continue
 				var bl: Array = c["buildings"]
 				if bl.has(bid):
@@ -1781,7 +1880,7 @@ func _enemy_economy() -> void:
 				if req != "" and not bl.has(req):
 					continue
 				bl.append(bid)
-				_enemy.gold -= bcost
+				eh.gold -= bcost
 				spent = true
 				break
 			if spent:
@@ -1794,50 +1893,60 @@ func _enemy_economy() -> void:
 		# aktuelle Slot blockiert, bleibt der Rotations-Index stehen und die
 		# KI kauft diese Runde nichts - so holt sie den Slot automatisch
 		# nach, sobald das fehlende Gebaeude steht.
-		var next_uid: String = UnitType.ORDER[_enemy_recruit_idx % UnitType.ORDER.size()]
+		var ri: int = int(e["recruit_idx"])
+		var next_uid: String = UnitType.ORDER[ri % UnitType.ORDER.size()]
 		var next_cost: int = UnitType.cost_of(next_uid)
 		var next_req: String = String(UNIT_BUILDING.get(next_uid, "kaserne"))
-		if _enemy.gold < next_cost:
+		if eh.gold < next_cost:
 			continue
 		var has_req: bool = false
 		for c in _cities:
-			if int(c["owner"]) == OWNER_ENEMY and (c["buildings"] as Array).has(next_req):
+			if int(c["owner"]) == oid and (c["buildings"] as Array).has(next_req):
 				has_req = true
 				break
 		if has_req:
-			_enemy.gold -= next_cost
-			_enemy.add_units(next_uid, 1)
-			_enemy_recruit_idx = (_enemy_recruit_idx + 1) % UnitType.ORDER.size()
+			eh.gold -= next_cost
+			eh.add_units(next_uid, 1)
+			e["recruit_idx"] = (ri + 1) % UnitType.ORDER.size()
 			spent = true
 
 
-func _run_enemy_turn() -> void:
-	# Einfache Gegner-KI: waehlt die naechstgelegene Nicht-Gegner-Stadt
-	# (neutral oder Spieler) per Dijkstra, laeuft mit Gradienten-Abstieg so
-	# weit wie MP reichen. Am Ziel wird besetzt (ggf. mit Wache-Kampf, wenn
-	# Spieler-Stadt sollte es keine haben, neutrale Staedte haben eine).
-	# Monster werden ignoriert (monsters_block=false), damit der Gegner
-	# nicht eingekesselt wird.
-	if _enemy == null:
+func _run_enemy_turn_for(idx: int) -> void:
+	# Einfache Gegner-KI: waehlt die naechstgelegene Nicht-eigene-Stadt
+	# (neutral, Spieler oder andere KI) per Dijkstra, laeuft mit
+	# Gradienten-Abstieg so weit wie MP reichen. Monster werden ignoriert
+	# (monsters_block=false), damit die KI nicht eingekesselt wird.
+	if idx < 0 or idx >= _enemies.size():
 		return
-	_enemy.end_turn()
+	var e: Dictionary = _enemies[idx]
+	var eh: Hero = e["hero"] as Hero
+	if eh == null:
+		return
+	var oid: int = int(e["owner_id"])
+	var fog_e: Array = e["fog"]
+	var pls_pos: Vector2i = e["player_last_seen_pos"]
+	var pls_turn: int = int(e["player_last_seen_turn"])
+	eh.end_turn()
 	# Vor der Zielauswahl Fog aktualisieren, damit die KI ihre eigene Sicht
 	# kennt (sonst wuerde sie mit stale Fog aus der letzten Runde arbeiten).
-	_recompute_fog(OWNER_ENEMY)
-	var ecosts: Dictionary = _dijkstra(_enemy.position, false)
-	# Ziel-Auswahl: naechste Nicht-Gegner-Stadt, fremde/neutrale Goldmine
+	_recompute_fog_ai(idx)
+	fog_e = e["fog"]
+	pls_pos = e["player_last_seen_pos"]
+	pls_turn = int(e["player_last_seen_turn"])
+	var ecosts: Dictionary = _dijkstra(eh.position, false)
+	# Ziel-Auswahl: naechste nicht-eigene Stadt, fremde/neutrale Goldmine
 	# oder Schatzkiste - aber nur, wenn die KI das Feld schonmal gesehen
 	# hat (Fog-Symmetrie). Spieler-Held-Ziel ist moeglich, solange die
 	# letzte Sichtung noch nicht "verrottet" ist (FOG_ROT_TURNS).
 	var target_kind: String = ""
 	var target_idx: int = -1
 	var target_cost: int = -1
-	var target_pos: Vector2i = _enemy.position
+	var target_pos: Vector2i = eh.position
 	for i in range(_cities.size()):
-		if int(_cities[i]["owner"]) == OWNER_ENEMY:
+		if int(_cities[i]["owner"]) == oid:
 			continue
 		var cp: Vector2i = _cities[i]["pos"]
-		if _fog_get(_fog_enemy, cp) == FOG_HIDDEN:
+		if _fog_get(fog_e, cp) == FOG_HIDDEN:
 			continue
 		if not ecosts.has(cp):
 			continue
@@ -1850,10 +1959,10 @@ func _run_enemy_turn() -> void:
 	for i in range(_objects.size()):
 		var obj: Dictionary = _objects[i]
 		var okind: int = int(obj["kind"])
-		if okind == OBJECT_MINE and int(obj.get("owner", OWNER_NEUTRAL)) == OWNER_ENEMY:
+		if okind == OBJECT_MINE and int(obj.get("owner", OWNER_NEUTRAL)) == oid:
 			continue
 		var op: Vector2i = obj["pos"]
-		if _fog_get(_fog_enemy, op) == FOG_HIDDEN:
+		if _fog_get(fog_e, op) == FOG_HIDDEN:
 			continue
 		if not ecosts.has(op):
 			continue
@@ -1866,23 +1975,23 @@ func _run_enemy_turn() -> void:
 	# Spieler-Held als Sonderziel: wenn die KI ihn juengst gesichtet hat,
 	# ist er hoechste Prioritaet (niedriger Pseudo-Cost, damit er andere
 	# Ziele schlaegt). Info verrottet nach FOG_ROT_TURNS Zuegen.
-	if _hero_last_seen.x >= 0 and (_turn_number - _hero_last_seen_turn) < FOG_ROT_TURNS:
-		if ecosts.has(_hero_last_seen):
-			var hc: int = int(ecosts[_hero_last_seen])
+	if pls_pos.x >= 0 and (_turn_number - pls_turn) < FOG_ROT_TURNS:
+		if ecosts.has(pls_pos):
+			var hc: int = int(ecosts[pls_pos])
 			if target_cost < 0 or hc <= target_cost:
 				target_kind = "hero"
 				target_idx = -1
 				target_cost = hc
-				target_pos = _hero_last_seen
+				target_pos = pls_pos
 	# Fallback-Exploration: nichts bekannt -> naechstgelegenes Hidden-Feld
 	# ansteuern, damit die KI aktiv erkundet und nicht passiv in der
 	# Startzone bleibt.
 	if target_cost < 0:
 		var best_ex: int = -1
-		var best_ep: Vector2i = _enemy.position
+		var best_ep: Vector2i = eh.position
 		for p in ecosts.keys():
 			var pv: Vector2i = p
-			if _fog_get(_fog_enemy, pv) != FOG_HIDDEN:
+			if _fog_get(fog_e, pv) != FOG_HIDDEN:
 				continue
 			var pc: int = int(ecosts[pv])
 			if best_ex < 0 or pc < best_ex:
@@ -1899,15 +2008,15 @@ func _run_enemy_turn() -> void:
 	# Zweite Dijkstra vom Ziel aus, um Schritt-fuer-Schritt den Gradienten
 	# absteigen zu koennen. Einfacher als Pfad-Rekonstruktion.
 	var tcosts: Dictionary = _dijkstra(target_pos, false)
-	if not tcosts.has(_enemy.position):
+	if not tcosts.has(eh.position):
 		return
 	var tiles: Array = _map["tiles"]
 	var guard: int = 0
 	var cap: int = MAP_WIDTH + MAP_HEIGHT + 10
-	while _enemy.mp > 0 and _enemy.position != target_pos and guard < cap:
+	while eh.mp > 0 and eh.position != target_pos and guard < cap:
 		guard += 1
-		var cur_val: int = int(tcosts[_enemy.position])
-		var best_next: Vector2i = _enemy.position
+		var cur_val: int = int(tcosts[eh.position])
+		var best_next: Vector2i = eh.position
 		var best_val: int = cur_val
 		var best_step: int = -1
 		var d_e := Vector2i(1, 0)
@@ -1919,7 +2028,7 @@ func _run_enemy_turn() -> void:
 			if di == 1: d = d_w
 			elif di == 2: d = d_s
 			elif di == 3: d = d_n
-			var np: Vector2i = _enemy.position + d
+			var np: Vector2i = eh.position + d
 			if not tcosts.has(np):
 				continue
 			var v: int = int(tcosts[np])
@@ -1931,7 +2040,7 @@ func _run_enemy_turn() -> void:
 			var step_cost: int = 1
 			if t == 1:
 				step_cost = 2
-			if step_cost > _enemy.mp:
+			if step_cost > eh.mp:
 				continue
 			if v < best_val:
 				best_val = v
@@ -1940,65 +2049,72 @@ func _run_enemy_turn() -> void:
 		if best_step < 0:
 			break
 		# Spieler-Held auf dem naechsten Schritt: Hero-vs-Hero-Kampf
-		# aufloesen. Gewinnt der Gegner (reine Armee vs. Kampfkraft mit
-		# Bonus), ist das Spiel verloren. Gewinnt der Spieler, ist der
-		# Gegner weg und die KI bricht den Zug ab.
-		if best_next == _hero.position:
+		# aufloesen. Gewinnt diese KI (reine Armee vs. Kampfkraft mit
+		# Bonus), ist das Spiel verloren. Gewinnt der Spieler, ist die
+		# KI weg und bricht den Zug ab.
+		if _hero != null and best_next == _hero.position:
 			var eff_hp: int = _hero.total_count() + _combat_bonus()
-			var eff_ep: int = _enemy.total_count()
+			var eff_ep: int = eh.total_count()
 			if eff_ep > eff_hp:
 				_set_combat("NIEDERLAGE: Gegner-Held hat dich besiegt")
 				_game_lost = true
 				_show_defeat_panel()
 				return
 			_set_combat("Gegner-Held hat dich angegriffen und verloren")
-			_enemy = null
+			e["hero"] = null
 			return
-		_enemy.position = best_next
-		_enemy.mp -= best_step
-	# Ziel erreicht? Einnehmen/Einsammeln je nach Ziel-Art. Gegner hat
-	# keinen Kampfkraft-Bonus, nur seine Armee zaehlt. Wenn die Wache zu
-	# stark ist, bleibt der Gegner einfach stehen und versucht es spaeter
-	# nochmal (oder Spieler nimmt inzwischen).
-	if _enemy.position == target_pos:
+		eh.position = best_next
+		eh.mp -= best_step
+	# Ziel erreicht? Einnehmen/Einsammeln je nach Ziel-Art. KI hat keinen
+	# Kampfkraft-Bonus, nur ihre Armee zaehlt. Wenn die Wache zu stark ist,
+	# bleibt die KI einfach stehen und versucht es spaeter nochmal.
+	if eh.position == target_pos:
 		if target_kind == "city":
 			var tc: Dictionary = _cities[target_idx]
 			var garrison: int = int(tc.get("garrison", 0))
 			if garrison > 0:
-				if _enemy.total_count() < garrison:
+				if eh.total_count() < garrison:
 					return
-				_enemy.apply_proportional_losses(garrison)
-			tc["owner"] = OWNER_ENEMY
+				eh.apply_proportional_losses(garrison)
+			tc["owner"] = oid
 			tc["garrison"] = 0
 		elif target_kind == "mine":
 			var obj: Dictionary = _objects[target_idx]
 			var g: int = int(obj.get("guard", 0))
 			if g > 0:
-				if _enemy.total_count() < g:
+				if eh.total_count() < g:
 					return
-				_enemy.apply_proportional_losses(g)
+				eh.apply_proportional_losses(g)
 				obj["guard"] = 0
-			obj["owner"] = OWNER_ENEMY
+			obj["owner"] = oid
 		elif target_kind == "treasure":
 			var obj2: Dictionary = _objects[target_idx]
 			var g2: int = int(obj2.get("guard", 0))
 			if g2 > 0:
-				if _enemy.total_count() < g2:
+				if eh.total_count() < g2:
 					return
-				_enemy.apply_proportional_losses(g2)
-			_enemy.gold += int(obj2["gold"])
+				eh.apply_proportional_losses(g2)
+			eh.gold += int(obj2["gold"])
 			_objects.remove_at(target_idx)
 
 
 func _check_defeat() -> void:
-	# Niederlage: alle Staedte dem Gegner. Spiegelbild zu _check_victory.
-	if _cities.size() == 0 or _enemy == null:
+	# Niederlage: Spieler hat keine Stadt mehr, es gibt aber noch mind.
+	# eine KI-Stadt. In Step 1 reicht das als Signal - die feinere
+	# Free-for-All-Siegbedingung kommt in Schritt 5.
+	if _cities.size() == 0:
 		return
+	var player_cities: int = 0
+	var ai_cities: int = 0
 	for c in _cities:
-		if int(c["owner"]) != OWNER_ENEMY:
-			return
-	_game_lost = true
-	_show_defeat_panel()
+		var ow: int = int(c["owner"])
+		if ow == OWNER_HERO:
+			player_cities += 1
+		elif ow >= OWNER_AI_MIN:
+			ai_cities += 1
+	if player_cities == 0 and ai_cities > 0:
+		_game_lost = true
+		_show_defeat_panel()
 
 
 func _show_defeat_panel() -> void:
@@ -2059,15 +2175,19 @@ func _on_end_turn() -> void:
 		_hero.xp += xp_gain
 		if _check_level_up():
 			_set_combat("Level-Up durch Kapelle! -> LEVEL %d" % _hero.level)
-	# Gegner-Zug: erst Oekonomie (Einkommen, Gebaeude, Rekruten), dann
-	# Bewegung. Reihenfolge entspricht dem Spieler-Flow - zuerst kommt das
-	# Einkommen aus den eigenen Staedten, dann wird ausgegeben, dann
-	# bewegt sich der Held mit moeglicherweise groesserer Armee.
-	_enemy_economy()
-	_run_enemy_turn()
+	# Gegner-Zuege: pro KI erst Oekonomie (Einkommen, Gebaeude, Rekruten),
+	# dann Bewegung. Reihenfolge entspricht dem Spieler-Flow. Die KIs
+	# spielen in Reihenfolge ihrer Indizes, damit die Runden-Logik
+	# deterministisch ist.
+	for ai_idx in range(_enemies.size()):
+		_enemy_economy_for(ai_idx)
+		_run_enemy_turn_for(ai_idx)
+		if _game_lost:
+			break
 	_turn_number += 1
-	_recompute_fog(OWNER_HERO)
-	_recompute_fog(OWNER_ENEMY)
+	_recompute_fog_player()
+	for i in range(_enemies.size()):
+		_recompute_fog_ai(i)
 	_recompute_costs()
 	_map_area.queue_redraw()
 	_update_labels()
