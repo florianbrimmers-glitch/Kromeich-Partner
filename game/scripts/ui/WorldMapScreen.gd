@@ -214,6 +214,14 @@ var _rng: DeterministicRng
 # Ghost-Marker "Info rottet" linear verblassen kann.
 var _fog_player: Array = []
 var _turn_number: int = 0
+# Snapshot der Spieler-Oekonomie-Werte dieser Runde, damit die Status-
+# Zeile auch dann korrekt bleibt, wenn die KI-Phase durch ein
+# Pflicht-Kampf-Overlay (KI greift Spieler an) suspendiert wird und
+# erst nach Kampfabschluss weiterlaeuft.
+var _turn_income: int = 0
+var _turn_army_gain: int = 0
+var _turn_xp_gain: int = 0
+var _turn_owned: int = 0
 
 
 func _set_status(s: String) -> void:
@@ -2144,17 +2152,20 @@ func _enemy_economy_for(idx: int) -> void:
 			spent = true
 
 
-func _run_enemy_turn_for(idx: int) -> void:
+func _run_enemy_turn_for(idx: int) -> bool:
 	# Einfache Gegner-KI: waehlt die naechstgelegene Nicht-eigene-Stadt
 	# (neutral, Spieler oder andere KI) per Dijkstra, laeuft mit
 	# Gradienten-Abstieg so weit wie MP reichen. Monster werden ignoriert
 	# (monsters_block=false), damit die KI nicht eingekesselt wird.
+	# Rueckgabe: true wenn der Zug abgeschlossen ist, false wenn ein
+	# Pflicht-Kampf-Overlay geoeffnet wurde und die AI-Phase suspendiert
+	# auf den Callback wartet.
 	if idx < 0 or idx >= _enemies.size():
-		return
+		return true
 	var e: Dictionary = _enemies[idx]
 	var eh: Hero = e["hero"] as Hero
 	if eh == null:
-		return
+		return true
 	var oid: int = int(e["owner_id"])
 	var fog_e: Array = e["fog"]
 	var pls_pos: Vector2i = e["player_last_seen_pos"]
@@ -2279,18 +2290,18 @@ func _run_enemy_turn_for(idx: int) -> void:
 				best_ex = pc
 				best_ep = pv
 		if best_ex < 0:
-			return
+			return true
 		target_kind = "explore"
 		target_idx = -1
 		target_cost = best_ex
 		target_pos = best_ep
 	if target_cost < 0:
-		return
+		return true
 	# Zweite Dijkstra vom Ziel aus, um Schritt-fuer-Schritt den Gradienten
 	# absteigen zu koennen. Einfacher als Pfad-Rekonstruktion.
 	var tcosts: Dictionary = _dijkstra(target_pos, false)
 	if not tcosts.has(eh.position):
-		return
+		return true
 	var tiles: Array = _map["tiles"]
 	var guard: int = 0
 	var cap: int = MAP_WIDTH + MAP_HEIGHT + 10
@@ -2329,21 +2340,19 @@ func _run_enemy_turn_for(idx: int) -> void:
 				best_step = step_cost
 		if best_step < 0:
 			break
-		# Spieler-Held auf dem naechsten Schritt: Hero-vs-Hero-Kampf
-		# aufloesen. Gewinnt diese KI (reine Armee vs. Kampfkraft mit
-		# Bonus), ist das Spiel verloren. Gewinnt der Spieler, ist die
-		# KI weg und bricht den Zug ab.
+		# Spieler-Held auf dem naechsten Schritt: Pflicht-Kampf via
+		# Taktik-Overlay. Der Aufruf oeffnet ein modales Overlay, das der
+		# Spieler selbst ausspielt. Wir suspendieren die KI-Phase bis
+		# zum Callback (return false -> _advance_ai_phase legt eine
+		# Pause ein und wird von _on_ai_attack_result fortgesetzt).
 		if _hero != null and best_next == _hero.position:
-			var eff_hp: int = _hero.total_count() + _combat_bonus()
-			var eff_ep: int = eh.total_count()
-			if eff_ep > eff_hp:
-				_set_combat("NIEDERLAGE: Gegner-Held hat dich besiegt")
-				_game_lost = true
-				_show_defeat_panel()
-				return
-			_set_combat("Gegner-Held hat dich angegriffen und verloren")
-			e["hero"] = null
-			return
+			var battle_terrain: int = int(tiles[best_next.y * MAP_WIDTH + best_next.x])
+			var ai_total: int = eh.total_count()
+			var next_idx: int = idx + 1
+			_open_battle("Gegner-Held", ai_total, false, battle_terrain, func(r: Dictionary) -> void:
+				_on_ai_attack_result(r, idx, next_idx)
+			)
+			return false
 		eh.position = best_next
 		eh.mp -= best_step
 	# Ziel erreicht? Einnehmen/Einsammeln je nach Ziel-Art. KI hat keinen
@@ -2355,7 +2364,7 @@ func _run_enemy_turn_for(idx: int) -> void:
 			var garrison: int = int(tc.get("garrison", 0))
 			if garrison > 0:
 				if eh.total_count() < garrison:
-					return
+					return true
 				eh.apply_proportional_losses(garrison)
 			tc["owner"] = oid
 			tc["garrison"] = 0
@@ -2364,7 +2373,7 @@ func _run_enemy_turn_for(idx: int) -> void:
 			var g: int = int(obj.get("guard", 0))
 			if g > 0:
 				if eh.total_count() < g:
-					return
+					return true
 				eh.apply_proportional_losses(g)
 				obj["guard"] = 0
 			obj["owner"] = oid
@@ -2373,10 +2382,11 @@ func _run_enemy_turn_for(idx: int) -> void:
 			var g2: int = int(obj2.get("guard", 0))
 			if g2 > 0:
 				if eh.total_count() < g2:
-					return
+					return true
 				eh.apply_proportional_losses(g2)
 			eh.gold += int(obj2["gold"])
 			_objects.remove_at(target_idx)
+	return true
 
 
 func _check_defeat() -> void:
@@ -2456,15 +2466,32 @@ func _on_end_turn() -> void:
 		_hero.xp += xp_gain
 		if _check_level_up():
 			_set_combat("Level-Up durch Kapelle! -> LEVEL %d" % _hero.level)
+	# Oekonomie-Snapshot fuer die Status-Zeile, falls die KI-Phase durch
+	# einen Pflicht-Kampf suspendiert und erst im Callback finalisiert wird.
+	_turn_income = income
+	_turn_army_gain = army_gain
+	_turn_xp_gain = xp_gain
+	_turn_owned = owned
 	# Gegner-Zuege: pro KI erst Oekonomie (Einkommen, Gebaeude, Rekruten),
 	# dann Bewegung. Reihenfolge entspricht dem Spieler-Flow. Die KIs
 	# spielen in Reihenfolge ihrer Indizes, damit die Runden-Logik
-	# deterministisch ist.
-	for ai_idx in range(_enemies.size()):
+	# deterministisch ist. Greift eine KI den Spieler an, suspendiert
+	# _advance_ai_phase und wird vom Overlay-Callback fortgesetzt.
+	_advance_ai_phase(0)
+
+
+func _advance_ai_phase(start_idx: int) -> void:
+	for ai_idx in range(start_idx, _enemies.size()):
 		_enemy_economy_for(ai_idx)
-		_run_enemy_turn_for(ai_idx)
+		var done: bool = _run_enemy_turn_for(ai_idx)
+		if not done:
+			return
 		if _game_lost:
 			break
+	_finalize_turn()
+
+
+func _finalize_turn() -> void:
 	_turn_number += 1
 	_recompute_fog_player()
 	for i in range(_enemies.size()):
@@ -2472,8 +2499,29 @@ func _on_end_turn() -> void:
 	_recompute_costs()
 	_request_redraw()
 	_update_labels()
-	_set_status("Zug beendet: +%d G, +%d A, +%d XP (%d Staedte)" % [income, army_gain, xp_gain, owned])
+	_set_status("Zug beendet: +%d G, +%d A, +%d XP (%d Staedte)" % [_turn_income, _turn_army_gain, _turn_xp_gain, _turn_owned])
 	_check_defeat()
+
+
+func _on_ai_attack_result(result: Dictionary, ai_idx: int, next_idx: int) -> void:
+	# Callback nach Pflicht-Kampf KI-greift-Spieler-an.
+	# outcome == "defeat": Spieler gefallen, Spiel verloren.
+	# outcome == "victory": Spieler gewinnt, die angreifende KI ist weg.
+	# "flee" ist hier nicht moeglich (allow_flee=false).
+	var outcome: String = String(result.get("outcome", "flee"))
+	if outcome == "defeat":
+		_apply_casualties(result)
+		_update_labels()
+		_on_battle_defeat()
+		return
+	# Sieg: Spieler nimmt Verluste hin, angreifende KI ist vernichtet.
+	_apply_casualties(result)
+	if ai_idx >= 0 and ai_idx < _enemies.size():
+		_enemies[ai_idx]["hero"] = null
+	_set_combat("Gegner-Held hat dich angegriffen und verloren")
+	_update_labels()
+	# Restliche KIs noch abarbeiten, dann normale Rundenfinalisierung.
+	_advance_ai_phase(next_idx)
 
 
 func _on_reroll() -> void:
