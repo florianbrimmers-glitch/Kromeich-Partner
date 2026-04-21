@@ -146,6 +146,7 @@ const UNIT_BUILDING := {
 @export var back_button_path: NodePath     = ^"BottomBar/BackBtn"
 @export var map_area_path: NodePath        = ^"MapArea"
 @export var minimap_path: NodePath         = ^"Minimap"
+@export var minimap_toggle_path: NodePath  = ^"TopBar/MinimapToggleBtn"
 
 var _map: Dictionary
 var _hero: Hero
@@ -241,6 +242,9 @@ func _ready() -> void:
 	if _minimap != null:
 		_minimap.gui_input.connect(_on_minimap_input)
 		_minimap.draw.connect(_draw_minimap)
+	var mm_toggle := get_node_or_null(minimap_toggle_path) as Button
+	if mm_toggle != null:
+		mm_toggle.pressed.connect(_toggle_minimap)
 	_build_combat_label()
 	_build_city_panel()
 	_build_victory_panel()
@@ -1163,6 +1167,17 @@ func _request_redraw() -> void:
 		_map_area.queue_redraw()
 	if _minimap != null:
 		_minimap.queue_redraw()
+
+
+func _toggle_minimap() -> void:
+	# Die Minimap liegt als Overlay oben rechts auf der Karte und fing
+	# vorher Taps auf Staedte/Helden in dieser Region ab - das Panel
+	# landete dann beim Minimap-Handler (Viewport zentrieren), nicht beim
+	# Map-Handler. Der Umschalter blendet sie aus, damit Spieler Objekte
+	# in der rechten oberen Ecke erreichen, ohne vorher panen zu muessen.
+	if _minimap == null:
+		return
+	_minimap.visible = not _minimap.visible
 
 
 func _on_minimap_input(event: InputEvent) -> void:
