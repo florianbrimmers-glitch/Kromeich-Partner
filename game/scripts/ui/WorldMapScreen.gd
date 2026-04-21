@@ -107,6 +107,17 @@ const CITY_SIGHT := 4
 const OBJECT_SIGHT := 2
 const FOG_ROT_TURNS := 4
 
+# Adaptive-KI-Parameter:
+# AI_THREAT_RADIUS: Manhattan-Distanz eines feindlichen Helden zur
+#   eigenen Stadt, unter der die KI defensiv umschaltet.
+# AI_HUNT_SAFETY_PCT: prozentualer Armee-Vorsprung, den die KI haben
+#   muss, bevor sie einen fremden Helden jagt (vermeidet Suizid-
+#   Angriffe gegen sichtbar staerkere Gegner).
+# AI_RAID_SAFETY_PCT: gleiche Logik fuer fixe Garnisonen/Objekt-Wachen.
+const AI_THREAT_RADIUS := 5
+const AI_HUNT_SAFETY_PCT := 10
+const AI_RAID_SAFETY_PCT := 10
+
 # Fraktionen. Bewusst generische Namen (nicht HoMM3-IP), passt zur
 # Plan-Phase 1 ("Waldvolk"/"Menschen"/"Totenreich"/"Orks").
 const FACTION_NAMES := ["Waldvolk", "Menschen", "Totenreich", "Orks"]
@@ -500,6 +511,7 @@ func _start(seed_value: int) -> void:
 				"fog": [] as Array,
 				"player_last_seen_pos": Vector2i(-1, -1),
 				"player_last_seen_turn": -1,
+				"rivals_seen": {} as Dictionary,
 			})
 			_ai_seen_by_player.append({"pos": Vector2i(-1, -1), "turn": -1})
 			taken_idx.append(best_idx)
@@ -689,6 +701,22 @@ func _recompute_fog_ai(idx: int) -> void:
 		if _fog_get(arr, _hero.position) == FOG_VISIBLE:
 			e["player_last_seen_pos"] = _hero.position
 			e["player_last_seen_turn"] = _turn_number
+	# Rivalisierende KI-Helden: wenn aktuell im Sichtfeld, deren Position
+	# und Runde merken. Target-Auswahl nutzt die Sichtungen genau wie
+	# beim Spieler-Helden - damit greifen sich KIs im Free-for-All auch
+	# untereinander an und bilden nicht automatisch eine 3v1-Front gegen
+	# den Spieler.
+	var rs: Dictionary = e.get("rivals_seen", {})
+	for j in range(_enemies.size()):
+		if j == idx:
+			continue
+		var rh: Hero = _enemies[j]["hero"] as Hero
+		if rh == null:
+			continue
+		if _fog_get(arr, rh.position) == FOG_VISIBLE:
+			var rid: int = int(_enemies[j]["owner_id"])
+			rs[rid] = {"pos": rh.position, "turn": _turn_number}
+	e["rivals_seen"] = rs
 
 
 func _fog_get(arr: Array, p: Vector2i) -> int:
@@ -2250,7 +2278,10 @@ func _run_enemy_turn_for(idx: int) -> bool:
 		if not ecosts.has(cp):
 			continue
 		var garrison_c: int = int(_cities[i].get("garrison", 0))
-		if garrison_c > 0 and army < garrison_c:
+		# Safety-Margin: KI greift nicht mit knapper Armee an, sondern
+		# braucht AI_RAID_SAFETY_PCT Prozent mehr. Verhindert 1:1-Pyrrhus-
+		# Eroberungen, bei denen die KI nach Sieg handlungsunfaehig ist.
+		if garrison_c > 0 and army * 100 < garrison_c * (100 + AI_RAID_SAFETY_PCT):
 			continue
 		var c: int = int(ecosts[cp])
 		if target_cost < 0 or c < target_cost:
@@ -2269,7 +2300,7 @@ func _run_enemy_turn_for(idx: int) -> bool:
 		if not ecosts.has(op):
 			continue
 		var guard_o: int = int(obj.get("guard", 0))
-		if guard_o > 0 and army < guard_o:
+		if guard_o > 0 and army * 100 < guard_o * (100 + AI_RAID_SAFETY_PCT):
 			continue
 		var c2: int = int(ecosts[op])
 		if target_cost < 0 or c2 < target_cost:
@@ -2277,17 +2308,43 @@ func _run_enemy_turn_for(idx: int) -> bool:
 			target_idx = i
 			target_cost = c2
 			target_pos = op
-	# Spieler-Held als Sonderziel: wenn die KI ihn juengst gesichtet hat,
-	# ist er hoechste Prioritaet (niedriger Pseudo-Cost, damit er andere
-	# Ziele schlaegt). Info verrottet nach FOG_ROT_TURNS Zuegen.
-	if pls_pos.x >= 0 and (_turn_number - pls_turn) < FOG_ROT_TURNS:
-		if ecosts.has(pls_pos):
-			var hc: int = int(ecosts[pls_pos])
-			if target_cost < 0 or hc <= target_cost:
-				target_kind = "hero"
-				target_idx = -1
-				target_cost = hc
-				target_pos = pls_pos
+	# Helden-Jagd: sowohl der Spieler als auch rivalisierende KIs sind
+	# Kandidaten, solange die letzte Sichtung nicht verrottet ist. Pro
+	# Kandidat AI_HUNT_SAFETY_PCT Prozent Armee-Vorsprung verlangen,
+	# sonst verzichtet die KI auf den Angriff (Suizid-Vermeidung). Ohne
+	# Filter joggt die KI stur auf jeden gesehenen Helden zu, egal wie
+	# stark der ist - und verliert alles in einem Kampf.
+	var hunt_candidates: Array = []
+	if _hero != null and pls_pos.x >= 0 and (_turn_number - pls_turn) < FOG_ROT_TURNS:
+		hunt_candidates.append({"pos": pls_pos, "strength": _hero.total_count()})
+	var rs_hunt: Dictionary = e.get("rivals_seen", {})
+	for rid_key in rs_hunt.keys():
+		var entry: Dictionary = rs_hunt[rid_key]
+		var rturn: int = int(entry["turn"])
+		if (_turn_number - rturn) >= FOG_ROT_TURNS:
+			continue
+		# Rival muss noch leben, um ueberhaupt angreifbar zu sein.
+		var rh_live: Hero = null
+		for oi in range(_enemies.size()):
+			if int(_enemies[oi]["owner_id"]) == int(rid_key):
+				rh_live = _enemies[oi]["hero"] as Hero
+				break
+		if rh_live == null:
+			continue
+		hunt_candidates.append({"pos": Vector2i(entry["pos"]), "strength": rh_live.total_count()})
+	for hc_entry in hunt_candidates:
+		var hp: Vector2i = hc_entry["pos"]
+		var hstr: int = int(hc_entry["strength"])
+		if not ecosts.has(hp):
+			continue
+		if army * 100 < hstr * (100 + AI_HUNT_SAFETY_PCT):
+			continue
+		var hc: int = int(ecosts[hp])
+		if target_cost < 0 or hc <= target_cost:
+			target_kind = "hero"
+			target_idx = -1
+			target_cost = hc
+			target_pos = hp
 	# Heimweg: wenn die KI genug Gold fuer eine billige Ausgabe hat, aber
 	# nicht auf einer eigenen Stadt steht, ist die naechste eigene Stadt ein
 	# valides Ziel. Grund: _enemy_economy_for gibt nur aus, wenn der Held
@@ -2325,6 +2382,52 @@ func _run_enemy_turn_for(idx: int) -> bool:
 				target_idx = best_home_i
 				target_cost = best_home_cost
 				target_pos = best_home_pos
+	# Defensives Override: jede eigene Stadt in Manhattan-Reichweite
+	# AI_THREAT_RADIUS eines aktuell sichtbaren feindlichen Helden
+	# (Spieler oder rivalisierende KI) zaehlt als bedroht. Reagiert die
+	# KI, laeuft ihr Held zur naechstgelegenen bedrohten Stadt, statt
+	# weiter zu looten. Hat Vorrang vor Raid, Hunt und Home - defensive
+	# Entscheidungen sind im Free-for-All die teuersten Fehler (Stadt
+	# verloren = oft Spielentscheidung).
+	var defend_i: int = -1
+	var defend_cost: int = -1
+	var defend_pos: Vector2i = eh.position
+	for i in range(_cities.size()):
+		if int(_cities[i]["owner"]) != oid:
+			continue
+		var cp_d: Vector2i = _cities[i]["pos"]
+		if not ecosts.has(cp_d):
+			continue
+		var is_threatened: bool = false
+		if _hero != null and _fog_get(fog_e, _hero.position) == FOG_VISIBLE:
+			var dph: int = abs(_hero.position.x - cp_d.x) + abs(_hero.position.y - cp_d.y)
+			if dph <= AI_THREAT_RADIUS:
+				is_threatened = true
+		if not is_threatened:
+			for oi in range(_enemies.size()):
+				if oi == idx:
+					continue
+				var ohd: Hero = _enemies[oi]["hero"] as Hero
+				if ohd == null:
+					continue
+				if _fog_get(fog_e, ohd.position) != FOG_VISIBLE:
+					continue
+				var dpo: int = abs(ohd.position.x - cp_d.x) + abs(ohd.position.y - cp_d.y)
+				if dpo <= AI_THREAT_RADIUS:
+					is_threatened = true
+					break
+		if not is_threatened:
+			continue
+		var cd: int = int(ecosts[cp_d])
+		if defend_cost < 0 or cd < defend_cost:
+			defend_i = i
+			defend_cost = cd
+			defend_pos = cp_d
+	if defend_i >= 0:
+		target_kind = "defend"
+		target_idx = defend_i
+		target_cost = defend_cost
+		target_pos = defend_pos
 	# Fallback-Exploration: nichts bekannt -> naechstgelegenes Hidden-Feld
 	# ansteuern, damit die KI aktiv erkundet und nicht passiv in der
 	# Startzone bleibt.
