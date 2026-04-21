@@ -7,8 +7,8 @@ extends Control
 const MAP_WIDTH := 18
 const MAP_HEIGHT := 26
 
-const CITY_COUNT := 4
-const CITY_MIN_DIST := 8
+const CITY_COUNT := 8
+const CITY_MIN_DIST := 7
 const CITY_INCOME := 500
 const OWNER_NEUTRAL := -1
 const OWNER_HERO := 0
@@ -456,36 +456,50 @@ func _start(seed_value: int) -> void:
 		_map["hero_spawn"] = spawn
 		_hero.position = spawn
 
-	# Gegner-Held: Start in der Stadt, die am weitesten von der Spieler-
-	# Stadt ist. So startet die Partie mit garantierter Distanz zwischen
-	# den beiden Helden.
-	if _cities.size() > 1 and player_start_idx >= 0:
-		var enemy_idx: int = -1
-		var best_d: int = -1
-		var ps: Vector2i = _cities[player_start_idx]["pos"]
-		for i in range(_cities.size()):
-			if i == player_start_idx:
-				continue
-			var cp: Vector2i = _cities[i]["pos"]
-			var d: int = abs(cp.x - ps.x) + abs(cp.y - ps.y)
-			if d > best_d:
-				best_d = d
-				enemy_idx = i
-		if enemy_idx >= 0:
-			_cities[enemy_idx]["owner"] = OWNER_ENEMY
-			_cities[enemy_idx]["garrison"] = 0
-			var ai0_hero := Hero.new(_cities[enemy_idx]["pos"], ENEMY_BASE_MP)
-			ai0_hero.gold = STARTING_GOLD
-			ai0_hero.add_units(STARTING_UNIT, STARTING_UNIT_COUNT)
+	# Drei KIs: jede bekommt ihre eigene Start-Stadt. Pro KI wird die
+	# Stadt gewaehlt, deren minimale Manhattan-Distanz zu allen bereits
+	# vergebenen Start-Staedten (Spieler + schon gesetzte KIs) maximal
+	# ist. So sitzen alle vier Fraktionen in moeglichst weit
+	# auseinanderliegenden Ecken, der Rest bleibt neutral zum Erobern.
+	if player_start_idx >= 0:
+		var taken_idx: Array = [player_start_idx]
+		var taken_pos: Array = [_cities[player_start_idx]["pos"]]
+		var ai_slots: int = min(OWNER_AI_MAX - OWNER_AI_MIN + 1, _cities.size() - 1)
+		for slot in range(ai_slots):
+			var best_idx: int = -1
+			var best_min_d: int = -1
+			for i in range(_cities.size()):
+				if taken_idx.has(i):
+					continue
+				var cp: Vector2i = _cities[i]["pos"]
+				var min_d: int = -1
+				for tp in taken_pos:
+					var tpv: Vector2i = tp
+					var d: int = abs(cp.x - tpv.x) + abs(cp.y - tpv.y)
+					if min_d < 0 or d < min_d:
+						min_d = d
+				if min_d > best_min_d:
+					best_min_d = min_d
+					best_idx = i
+			if best_idx < 0:
+				break
+			var owner_id: int = OWNER_AI_MIN + slot
+			_cities[best_idx]["owner"] = owner_id
+			_cities[best_idx]["garrison"] = 0
+			var ai_hero := Hero.new(_cities[best_idx]["pos"], ENEMY_BASE_MP)
+			ai_hero.gold = STARTING_GOLD
+			ai_hero.add_units(STARTING_UNIT, STARTING_UNIT_COUNT)
 			_enemies.append({
-				"hero": ai0_hero,
-				"owner_id": OWNER_ENEMY,
+				"hero": ai_hero,
+				"owner_id": owner_id,
 				"recruit_idx": 0,
 				"fog": [] as Array,
 				"player_last_seen_pos": Vector2i(-1, -1),
 				"player_last_seen_turn": -1,
 			})
 			_ai_seen_by_player.append({"pos": Vector2i(-1, -1), "turn": -1})
+			taken_idx.append(best_idx)
+			taken_pos.append(_cities[best_idx]["pos"])
 
 	# Monster platzieren: nur Gras/Wald, Mindestabstand zu Held, Staedten
 	# und anderen Monstern, Staerke 1-3.
@@ -2343,6 +2357,34 @@ func _run_enemy_turn_for(idx: int) -> bool:
 				_on_ai_attack_result(r, idx, next_idx)
 			)
 			return false
+		# Gegner-Held einer anderen KI auf dem naechsten Schritt: Auto-
+		# Resolve-Kampf (kein Overlay, Spieler ist nicht beteiligt).
+		# Sieger = hoehere Gesamtarmee; Sieger nimmt proportionale
+		# Verluste in Hoehe der Verliererarmee hin, Verlierer ist weg.
+		# Gleichstand: Angreifer (diese KI) verliert (deterministischer
+		# Tiebreaker, damit der Verteidiger einen Vorteil hat).
+		var other_idx: int = -1
+		for oi in range(_enemies.size()):
+			if oi == idx:
+				continue
+			var oh: Hero = _enemies[oi]["hero"] as Hero
+			if oh != null and oh.position == best_next:
+				other_idx = oi
+				break
+		if other_idx >= 0:
+			var other_hero: Hero = _enemies[other_idx]["hero"] as Hero
+			var att_total: int = eh.total_count()
+			var def_total: int = other_hero.total_count()
+			if att_total > def_total:
+				eh.apply_proportional_losses(def_total)
+				_enemies[other_idx]["hero"] = null
+				eh.position = best_next
+				eh.mp -= best_step
+			else:
+				other_hero.apply_proportional_losses(att_total)
+				e["hero"] = null
+				return true
+			continue
 		eh.position = best_next
 		eh.mp -= best_step
 	# Ziel erreicht? Einnehmen/Einsammeln je nach Ziel-Art. KI hat keinen
