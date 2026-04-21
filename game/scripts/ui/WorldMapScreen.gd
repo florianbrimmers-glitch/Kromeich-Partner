@@ -1729,11 +1729,19 @@ func _object_at(p: Vector2i) -> int:
 
 
 func _check_victory() -> void:
-	# Sieg-Bedingung: alle Staedte dem Helden gehoeren.
+	# Free-for-All-Sieg: alle anderen Fraktionen sind eliminiert - d.h.
+	# keine KI besitzt mehr eine Stadt, und keine KI hat noch einen
+	# lebenden Helden. Neutrale Staedte/Minen zaehlen nicht als Gegner;
+	# der Spieler muss sie nicht einnehmen, um zu gewinnen.
 	if _cities.size() == 0:
 		return
 	for c in _cities:
-		if int(c["owner"]) != OWNER_HERO:
+		var ow: int = int(c["owner"])
+		if _is_ai_owner(ow):
+			return
+	for e in _enemies:
+		var eh: Hero = e["hero"] as Hero
+		if eh != null:
 			return
 	_game_won = true
 	_show_victory_panel()
@@ -2533,6 +2541,11 @@ func _finalize_turn() -> void:
 	_update_labels()
 	_set_status("Zug beendet: +%d G, +%d A, +%d XP (%d Staedte)" % [_turn_income, _turn_army_gain, _turn_xp_gain, _turn_owned])
 	_check_defeat()
+	# Nach der kompletten KI-Phase pruefen, ob die KIs sich gegenseitig
+	# ausradiert haben und der Spieler dadurch schon gewonnen hat. Ohne
+	# diesen Aufruf wird der Sieg nur getriggert, wenn der Spieler selbst
+	# eine Stadt einnimmt oder einen KI-Held besiegt.
+	_check_victory()
 
 
 func _on_ai_attack_result(result: Dictionary, ai_idx: int, next_idx: int) -> void:
