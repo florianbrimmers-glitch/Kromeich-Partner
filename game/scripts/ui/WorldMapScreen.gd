@@ -1327,11 +1327,15 @@ func _handle_tap(pos: Vector2) -> void:
 		return
 	var target := Vector2i(tx, ty)
 	var target_city_idx: int = _city_at(target)
+	# Eigene Stadt: immer Panel oeffnen, egal wo der Held gerade steht.
+	# Vorher ging das nur, wenn der Held auf der Stadt stand - war die
+	# Stadt ausserhalb der MP-Reichweite, tat der Tap gar nichts und die
+	# Stadt wirkte "nicht anklickbar" (gemeldeter Bug).
+	if target_city_idx >= 0 and int(_cities[target_city_idx]["owner"]) == OWNER_HERO:
+		_show_city(target_city_idx)
+		return
 	if target == _hero.position:
-		if target_city_idx >= 0 and int(_cities[target_city_idx]["owner"]) == OWNER_HERO:
-			_show_city(target_city_idx)
-		else:
-			_set_status("Tap auf Held (%d,%d)" % [tx, ty])
+		_set_status("Tap auf Held (%d,%d)" % [tx, ty])
 		return
 	if not _costs.has(target):
 		if target_city_idx >= 0:
