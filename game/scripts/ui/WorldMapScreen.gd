@@ -37,12 +37,10 @@ const DAYS_PER_WEEK := 7
 const WEEKS_PER_MONTH := 4
 const MONTHS_PER_YEAR := 12
 
-# Wochen-Wachstums-Cap pro Gebaeude. Jede eigene Stadt sammelt pro
-# gebaeutem Kaserne/Schmiede/Reiterei einen Wochen-Pool der jeweiligen
-# Fraktions-Einheit, aus dem der Held rekrutiert. Der Pool wird am
-# ersten Tag jeder neuen Woche auf den Cap *gesetzt* (nicht summiert)
-# - nicht genutzter Nachschub verfaellt, wie in HoMM3. So ist der
-# Nachschub endlich und strategisches Timing zaehlt.
+# Wochen-Wachstumsrate pro Gebaeude. Jede Stadt mit Kaserne/Schmiede/
+# Reiterei sammelt den entsprechenden Fraktions-Einheiten-Pool. Der Pool
+# tickt _taeglich_ (Bresenham ueber 7 Tage), stapelt sich unendlich und
+# verfaellt nie - wer nicht rekrutiert, baut Reserven auf.
 const WEEKLY_GROWTH := {
 	"kaserne":  8,
 	"schmiede": 4,
@@ -928,28 +926,57 @@ func _calendar_text() -> String:
 
 
 # --- Pool-Helper ---
+# Wochen-Wachstum wird via Bresenham ueber 7 Tage verteilt, Summe pro
+# Woche entspricht WEEKLY_GROWTH[req]. Pools stapeln sich - nichts
+# verfaellt, auch nicht am Wochenende. Damit ist Cap nur noch der
+# Wochen-Durchsatz, nicht der Vorrats-Deckel.
 func _pool_cap_for(uid: String) -> int:
 	return int(WEEKLY_GROWTH.get(UnitType.building_for(uid), 0))
 
 
-# Initialisiert (oder setzt) den Wochen-Pool einer Stadt fuer ein
-# frisch gebautes Gebaeude. Wird beim Bau und beim Wochenstart genutzt.
+# Delta fuer einen einzelnen Tag der Woche (dow: 1..7) - integer so,
+# dass die 7 Tage aufsummiert genau cap ergeben. Beispiel cap=2:
+# dow 1-3 -> 0, dow 4 -> 1, dow 5-6 -> 0, dow 7 -> 1.
+func _day_delta(cap: int, dow: int) -> int:
+	if cap <= 0 or dow <= 0:
+		return 0
+	return (dow * cap) / DAYS_PER_WEEK - ((dow - 1) * cap) / DAYS_PER_WEEK
+
+
+# Alle Staedte bekommen die Tagesration fuer jedes ihrer produzierenden
+# Gebaeude. Auch Neutrale/KI-Staedte ticken mit, damit Eroberung keinen
+# Rueckstand auslaesst.
+func _daily_pool_tick(dow: int) -> void:
+	for c in _cities:
+		var pools: Dictionary = c.get("pools", {}) as Dictionary
+		var fid: int = int(c["faction"])
+		for bid in c["buildings"]:
+			var uid: String = UnitType.unit_for_building(fid, String(bid))
+			if uid == "":
+				continue
+			var delta: int = _day_delta(_pool_cap_for(uid), dow)
+			if delta > 0:
+				pools[uid] = int(pools.get(uid, 0)) + delta
+		c["pools"] = pools
+
+
+# Frisch gebautes Gebaeude bekommt den Catch-up dieser Woche: was waere
+# bis heute geliefert worden, wenn das Gebaeude schon am Montag gestanden
+# haette. So ist "Bau am Tag X" gleichwertig zu "stand schon" fuer die
+# laufende Woche, ohne dass Tage nachtraeglich doppelt zaehlen.
 func _prime_pool_for_building(city: Dictionary, bid: String) -> void:
 	var fid: int = int(city["faction"])
 	var uid: String = UnitType.unit_for_building(fid, bid)
 	if uid == "":
 		return
+	var cap: int = _pool_cap_for(uid)
+	var dow: int = _day_of_week()
+	var catch_up: int = (dow * cap) / DAYS_PER_WEEK
+	if catch_up <= 0:
+		return
 	var pools: Dictionary = city.get("pools", {}) as Dictionary
-	pools[uid] = _pool_cap_for(uid)
+	pools[uid] = int(pools.get(uid, 0)) + catch_up
 	city["pools"] = pools
-
-
-# Wochenstart: alle Staedte refreshen. HoMM3-Regel: Pool wird auf Cap
-# *gesetzt* (nicht aufaddiert), nicht genutzter Nachschub verfaellt.
-func _refresh_all_pools() -> void:
-	for c in _cities:
-		for bid in c["buildings"]:
-			_prime_pool_for_building(c, String(bid))
 
 
 func _build_combat_label() -> void:
@@ -2079,8 +2106,8 @@ func _show_city(city_idx: int) -> void:
 
 	# Rekrutieren: drei Buttons fuer die drei Slots der Stadt-Fraktion.
 	# Jeder Slot braucht ein Gebaeude: Nahkampf -> Kaserne, Fernkampf ->
-	# Schmiede, Schwer -> Reiterei. Button zeigt den Wochen-Pool
-	# (vorrat/cap) und ist deaktiviert, wenn leer, Held nicht vor Ort,
+	# Schmiede, Schwer -> Reiterei. Button zeigt den Pool-Vorrat plus die
+	# Wochenrate und ist deaktiviert, wenn leer, Held nicht vor Ort,
 	# Gebaeude fehlt oder die Armee schon 6 Stacks hat.
 	var hero_here: bool = _hero != null and _hero.position == Vector2i(city["pos"])
 	var pools: Dictionary = city.get("pools", {}) as Dictionary
@@ -2092,7 +2119,7 @@ func _show_city(city_idx: int) -> void:
 		var rbtn := Button.new()
 		rbtn.custom_minimum_size = Vector2(0, 110)
 		rbtn.add_theme_font_size_override("font_size", 30)
-		var unit_label: String = "%s (%d/%d)" % [UnitType.name_of(uid), have, cap]
+		var unit_label: String = "%s (%d, +%d/Wo)" % [UnitType.name_of(uid), have, cap]
 		if not built.has(req):
 			rbtn.text = "%s  -  benoetigt %s" % [unit_label, req.capitalize()]
 			rbtn.disabled = true
@@ -2100,7 +2127,7 @@ func _show_city(city_idx: int) -> void:
 			rbtn.text = "%s  -  Held nicht vor Ort" % unit_label
 			rbtn.disabled = true
 		elif have <= 0:
-			rbtn.text = "%s  -  kein Nachschub bis naechste Woche" % unit_label
+			rbtn.text = "%s  -  kein Nachschub" % unit_label
 			rbtn.disabled = true
 		elif not _hero.can_add_unit(uid):
 			rbtn.text = "%s  -  Armee voll (max %d Stacks)" % [unit_label, Hero.MAX_ARMY_SLOTS]
@@ -2158,10 +2185,10 @@ func _recruit_unit(city_idx: int, unit_id: String) -> void:
 	# die Heldenarmee teleportieren. Mirror zur Button-Logik in _show_city.
 	if _hero.position != Vector2i(city["pos"]):
 		return
-	# Wochen-Pool: leer = Nachschub erst am Wochenstart.
+	# Pool: leer = abwarten bis die Tagesration den naechsten Stack liefert.
 	var pools: Dictionary = city.get("pools", {}) as Dictionary
 	if int(pools.get(unit_id, 0)) <= 0:
-		_set_status("Kein Nachschub - naechste Woche")
+		_set_status("Kein Nachschub")
 		return
 	# Stack-Limit: neuen Typ nur rein, wenn noch Slot frei ist. Bestehende
 	# Stacks koennen immer aufstocken.
@@ -2189,9 +2216,8 @@ func _enemy_economy_for(idx: int) -> void:
 	# eigener Stadt (+Markt), max_mp mit Spaeher. Danach Ausgaben nach
 	# Prioritaet: Kaserne -> Schmiede -> Reiterei -> Markt -> Spaeher.
 	# Sobald keine Prioritaets-Gebaeude mehr affordable sind, wird Ueberschuss
-	# in Rekruten gesteckt - aus dem Wochen-Pool der Stadt, auf der die KI
-	# steht. Wachturm/Kapelle bringen dem Gegner (noch) nichts, daher
-	# ignoriert.
+	# in Rekruten gesteckt - aus dem Pool der Stadt, auf der die KI steht.
+	# Wachturm/Kapelle bringen dem Gegner (noch) nichts, daher ignoriert.
 	if idx < 0 or idx >= _enemies.size():
 		return
 	var e: Dictionary = _enemies[idx]
@@ -2672,7 +2698,7 @@ func _on_end_turn() -> void:
 	# Gebaeude-Effekte pro eigener Stadt:
 	#   Spaeher  -> max_mp hoch
 	#   Markt    -> Gold-Einkommen hoch
-	#   Kaserne/Schmiede/Reiterei -> je Wochenstart Pool auffuellen
+	#   Kaserne/Schmiede/Reiterei -> taeglich Pool auffuellen (Bresenham)
 	#   Wachturm -> +1 Kampfkraft (via _combat_bonus() dauerhaft)
 	#   Kapelle  -> +10 XP pro Tag, kann Level-Up ausloesen
 	# Level-Up-Bonus: pro Level (ueber 1) zusaetzlich +1 max_mp.
@@ -2733,11 +2759,10 @@ func _advance_ai_phase(start_idx: int) -> void:
 
 func _finalize_turn() -> void:
 	_turn_number += 1
-	# Wochenstart: Pools aller Staedte neu auf ihr Cap setzen. Unver-
-	# brauchte Rekruten der Vorwoche verfallen (HoMM3-Regel).
-	var week_rolled: bool = _turn_number % DAYS_PER_WEEK == 0
-	if week_rolled:
-		_refresh_all_pools()
+	# Tagestick: Pools aller Staedte bekommen ihre Tagesration (Bresenham
+	# ueber 7 Tage). Pools stapeln sich, nichts verfaellt. _day_of_week()
+	# bezieht sich auf den gerade begonnenen neuen Tag.
+	_daily_pool_tick(_day_of_week())
 	_recompute_fog_player()
 	for i in range(_enemies.size()):
 		_recompute_fog_ai(i)
@@ -2747,10 +2772,7 @@ func _finalize_turn() -> void:
 	# _turn_number wurde gerade erhoeht, entspricht also der Nummer des
 	# gerade beendeten Tages (Tag 1 = erster Zug). _day_num() zeigt auf
 	# den neuen, aktuellen Tag.
-	var msg: String = "Tag %d beendet: +%d G, +%d XP (%d Staedte)" % [_turn_number, _turn_income, _turn_xp_gain, _turn_owned]
-	if week_rolled:
-		msg += " - neue Woche, Pools aufgefuellt"
-	_set_status(msg)
+	_set_status("Tag %d beendet: +%d G, +%d XP (%d Staedte)" % [_turn_number, _turn_income, _turn_xp_gain, _turn_owned])
 	_check_defeat()
 	# Nach der kompletten KI-Phase pruefen, ob die KIs sich gegenseitig
 	# ausradiert haben und der Spieler dadurch schon gewonnen hat. Ohne
