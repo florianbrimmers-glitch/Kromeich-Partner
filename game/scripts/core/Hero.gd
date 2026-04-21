@@ -8,6 +8,16 @@ extends RefCounted
 # einfache Zahl mehr. Rekrutierung, Verluste und Anzeige laufen ueber
 # die Helfer add_units/remove_units/total_count.
 
+# Phase C: army ist jetzt ein Dictionary { unit_id: count }, keine
+# einfache Zahl mehr. Rekrutierung, Verluste und Anzeige laufen ueber
+# die Helfer add_units/remove_units/total_count.
+#
+# Stack-Limit: max 6 unterschiedliche Einheiten-Typen pro Held. Ein
+# neuer Typ wird abgewiesen, wenn schon 6 Slots belegt sind - bestehende
+# Stacks koennen unbegrenzt wachsen. Wert 6 (statt HoMM3-klassischer 7),
+# damit auch auf schmalen Handy-Displays die Armee-Zeile lesbar bleibt.
+const MAX_ARMY_SLOTS: int = 6
+
 var position: Vector2i
 var max_mp: int
 var mp: int
@@ -32,8 +42,17 @@ func total_count() -> int:
 		t += int(army[k])
 	return t
 
+func can_add_unit(unit_id: String) -> bool:
+	# Stack existiert schon -> Count-Erhoehung ist immer ok.
+	# Stack neu -> nur wenn noch ein Slot frei ist.
+	if army.has(unit_id):
+		return true
+	return army.size() < MAX_ARMY_SLOTS
+
 func add_units(unit_id: String, count: int) -> void:
 	if count <= 0:
+		return
+	if not can_add_unit(unit_id):
 		return
 	army[unit_id] = int(army.get(unit_id, 0)) + count
 

@@ -2011,6 +2011,8 @@ func _show_city(city_idx: int) -> void:
 	# Jeder Slot braucht ein Gebaeude: Nahkampf -> Kaserne, Fernkampf ->
 	# Schmiede, Schwer -> Reiterei. Fehlt das Gebaeude, ist der Button
 	# deaktiviert mit Hinweis. Rekrutierung braucht den Helden vor Ort.
+	# Stack-Limit: max MAX_ARMY_SLOTS unterschiedliche Einheiten-Typen -
+	# neue Slots werden abgewiesen, Aufstockung bestehender bleibt offen.
 	var hero_here: bool = _hero != null and _hero.position == Vector2i(city["pos"])
 	for uid in UnitType.ids_for_faction(fid):
 		var cost: int = UnitType.cost_of(uid)
@@ -2023,6 +2025,9 @@ func _show_city(city_idx: int) -> void:
 			rbtn.disabled = true
 		elif not hero_here:
 			rbtn.text = "%s rekrutieren  -  Held nicht vor Ort" % UnitType.name_of(uid)
+			rbtn.disabled = true
+		elif not _hero.can_add_unit(uid):
+			rbtn.text = "%s rekrutieren  -  Armee voll (max %d Stacks)" % [UnitType.name_of(uid), Hero.MAX_ARMY_SLOTS]
 			rbtn.disabled = true
 		else:
 			rbtn.text = "%s rekrutieren  -  %d G  (+1)" % [UnitType.name_of(uid), cost]
@@ -2075,6 +2080,11 @@ func _recruit_unit(city_idx: int, unit_id: String) -> void:
 	# Held muss in der Stadt stehen, sonst wuerden gekaufte Einheiten in
 	# die Heldenarmee teleportieren. Mirror zur Button-Logik in _show_city.
 	if _hero.position != Vector2i(city["pos"]):
+		return
+	# Stack-Limit: neuen Typ nur rein, wenn noch Slot frei ist. Bestehende
+	# Stacks koennen immer aufstocken.
+	if not _hero.can_add_unit(unit_id):
+		_set_status("Armee voll - max %d Stacks" % Hero.MAX_ARMY_SLOTS)
 		return
 	_hero.gold -= cost
 	_hero.add_units(unit_id, 1)
