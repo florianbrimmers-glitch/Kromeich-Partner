@@ -59,6 +59,7 @@ grow_vertical = 2
 clip_contents = true
 
 [node name="Minimap" type="Panel" parent="."]
+visible = false
 layout_mode = 1
 anchors_preset = 1
 anchor_left = 1.0

@@ -1342,13 +1342,22 @@ func _handle_tap(pos: Vector2) -> void:
 		return
 	var target := Vector2i(tx, ty)
 	var target_city_idx: int = _city_at(target)
-	# Eigene Stadt: immer Panel oeffnen, egal wo der Held gerade steht.
-	# Vorher ging das nur, wenn der Held auf der Stadt stand - war die
-	# Stadt ausserhalb der MP-Reichweite, tat der Tap gar nichts und die
-	# Stadt wirkte "nicht anklickbar" (gemeldeter Bug).
+	# Eigene Stadt:
+	#   - Held steht drauf            -> Panel oeffnen
+	#   - Stadt ausser MP-Reichweite  -> Panel oeffnen (Remote-Management)
+	#   - Stadt in MP-Reichweite      -> unten normale Lauf-Logik
+	# So blockiert das Panel nicht das Hinlaufen, wenn eine eigene Stadt
+	# gerade erreichbar ist (HoMM3-Flow: erst hinlaufen, naechster Tap
+	# oeffnet dann die Stadt).
 	if target_city_idx >= 0 and int(_cities[target_city_idx]["owner"]) == OWNER_HERO:
-		_show_city(target_city_idx)
-		return
+		if target == _hero.position:
+			_show_city(target_city_idx)
+			return
+		var reachable: bool = _costs.has(target) and int(_costs[target]) <= _hero.mp
+		if not reachable:
+			_show_city(target_city_idx)
+			return
+		# Reachable: Laufen lassen, nicht aufschnappen.
 	if target == _hero.position:
 		_set_status("Tap auf Held (%d,%d)" % [tx, ty])
 		return
@@ -1967,6 +1976,9 @@ func _show_city(city_idx: int) -> void:
 	# Rekrutieren: drei Buttons (je Einheit-Typ). Jeder braucht ein anderes
 	# Gebaeude: Schwert -> Kaserne, Bogen -> Schmiede, Reiter -> Reiterei.
 	# Fehlt das Gebaeude, ist der Button deaktiviert mit Hinweis, welches.
+	# Rekrutierung braucht den Helden vor Ort - ansonsten wuerden frisch
+	# gekaufte Einheiten in die Armee teleportiert, egal wo der Held steht.
+	var hero_here: bool = _hero != null and _hero.position == Vector2i(city["pos"])
 	for uid in UnitType.all_ids():
 		var cost: int = UnitType.cost_of(uid)
 		var req: String = String(UNIT_BUILDING.get(uid, "kaserne"))
@@ -1975,6 +1987,9 @@ func _show_city(city_idx: int) -> void:
 		rbtn.add_theme_font_size_override("font_size", 30)
 		if not built.has(req):
 			rbtn.text = "%s rekrutieren  -  benoetigt %s" % [UnitType.name_of(uid), req.capitalize()]
+			rbtn.disabled = true
+		elif not hero_here:
+			rbtn.text = "%s rekrutieren  -  Held nicht vor Ort" % UnitType.name_of(uid)
 			rbtn.disabled = true
 		else:
 			rbtn.text = "%s rekrutieren  -  %d G  (+1)" % [UnitType.name_of(uid), cost]
@@ -2019,6 +2034,10 @@ func _recruit_unit(city_idx: int, unit_id: String) -> void:
 	var built: Array = city["buildings"]
 	var req: String = String(UNIT_BUILDING.get(unit_id, "kaserne"))
 	if not built.has(req):
+		return
+	# Held muss in der Stadt stehen, sonst wuerden gekaufte Einheiten in
+	# die Heldenarmee teleportieren. Mirror zur Button-Logik in _show_city.
+	if _hero.position != Vector2i(city["pos"]):
 		return
 	_hero.gold -= cost
 	_hero.add_units(unit_id, 1)
