@@ -84,16 +84,16 @@ func apply_proportional_losses(total_loss: int) -> void:
 			new_army.erase(k)
 	army = new_army
 
-# Kurzform fuer Anzeige: "5 S / 3 B / 2 R"
+# Kurzform fuer Anzeige, z.B. "5 Sw / 3 Bw / 2 Ri". Iteriert in
+# Fraktions-Reihenfolge (UnitType.ORDER), damit die Anzeige stabil ist.
 func army_summary() -> String:
 	if army.is_empty():
 		return "0"
 	var parts: Array = []
-	for uid in ["sword", "bow", "rider"]:
+	for uid in UnitType.ORDER:
 		if army.has(uid) and int(army[uid]) > 0:
 			parts.append("%d %s" % [int(army[uid]), UnitType.short_of(uid)])
 	if parts.is_empty():
-		# Fallback: zeige rohe Eintraege
 		for k in army.keys():
-			parts.append("%d %s" % [int(army[k]), String(k).substr(0, 1).to_upper()])
+			parts.append("%d %s" % [int(army[k]), String(k).substr(0, 2)])
 	return " / ".join(parts)

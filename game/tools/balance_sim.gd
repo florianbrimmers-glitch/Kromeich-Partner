@@ -37,6 +37,11 @@ const ENGAGE_ROUND: Dictionary = {
 	"rider": 1,
 }
 
+# Der Simulator fokussiert sich aktuell auf die Menschen-Baseline
+# (sword/bow/rider). Die anderen drei Fraktionen werden in einer
+# spaeteren Iteration mit eigenem Engage-Round-Mapping dazu-gemischt.
+const BASELINE_IDS: Array = ["sword", "bow", "rider"]
+
 const MAX_ROUNDS: int = 30
 
 
@@ -79,7 +84,7 @@ func _run_pure_matrix(runs: int, seed_val: int, gold: int) -> bool:
 	print("")
 	print("| A \\ B | S | B | R |")
 	print("|---|---|---|---|")
-	var ids: Array = UnitType.all_ids()
+	var ids: Array = BASELINE_IDS
 	var all_ok: bool = true
 	var rows: Array = []
 	for a in ids:

@@ -35,7 +35,6 @@ const UNIT_COST := 150          # pro Einheit, benoetigt Kaserne
 # erste Zug nicht zwangslaeufig "Enter druecken und warten" ist - reicht
 # genau fuer eine Kaserne (500 G).
 const STARTING_GOLD := 500
-const STARTING_UNIT := "sword"
 const STARTING_UNIT_COUNT := 3
 
 # Monster
@@ -142,14 +141,6 @@ const BUILDINGS := [
 	{"id": "kapelle",  "name": "Kapelle",  "cost": 500, "effect": "+10 XP/Zug"},
 ]
 
-# Welche Einheit welches Gebaeude braucht. Kaserne ist Grundbedingung
-# fuer alle, Bogen zusaetzlich Schmiede, Reiter zusaetzlich Reiterei.
-const UNIT_BUILDING := {
-	"sword": "kaserne",
-	"bow":   "schmiede",
-	"rider": "reiterei",
-}
-
 @export var status_label_path: NodePath    = ^"TopBar/StatusLabel"
 @export var mp_label_path: NodePath        = ^"TopBar/MPLabel"
 @export var end_turn_button_path: NodePath = ^"BottomBar/EndTurnBtn"
@@ -184,6 +175,9 @@ var _pan_moved: bool = false
 # Staedte: Array aus { "pos": Vector2i, "faction": int, "owner": int,
 # "buildings": Array[String] }. Faction-ID indiziert FACTION_NAMES/_COLORS.
 var _cities: Array = []
+# Spieler-Fraktion: Fraktion der Start-Stadt (0..3). Steuert, welche
+# Boni-Einheiten der Spieler durch Level-Up und Schmiede bekommt.
+var _player_faction: int = 1
 var _city_panel: Panel
 var _city_title: Label
 var _city_gold: Label
@@ -205,7 +199,9 @@ var _game_lost: bool = false
 # Gegner-KIs. Jede KI ist ein Dictionary mit:
 #   "hero": Hero (null wenn im Kampf gefallen)
 #   "owner_id": int (1..3) - wird in city/object["owner"] gespiegelt
-#   "recruit_idx": int - Rotations-Index 0=sword,1=bow,2=rider
+#   "primary_faction": int (0..3) - Heimat-Fraktion der Start-Stadt
+#   "recruit_idx": int - Rotations-Index (0=Melee, 1=Ranged, 2=Heavy in
+#       der Reihenfolge UnitType.ids_for_faction(primary_faction))
 #   "fog": Array (MAP_WIDTH*MAP_HEIGHT) - eigene Sichtbarkeit
 #   "player_last_seen_pos": Vector2i - wo diese KI den Spieler-Held
 #       zuletzt gesehen hat (-1,-1 wenn nie)
@@ -425,7 +421,8 @@ func _start(seed_value: int) -> void:
 	_set_status("STEP 4: MapGen fertig, spawn %s" % str(spawn))
 	_hero = Hero.new(spawn, BASE_MAX_MP)
 	_hero.gold = STARTING_GOLD
-	_hero.add_units(STARTING_UNIT, STARTING_UNIT_COUNT)
+	# Start-Einheiten haengen an der Fraktion - die ergibt sich erst,
+	# wenn die Start-Stadt gewaehlt ist. Siehe player_start_idx unten.
 	_set_status("STEP 5: Hero erstellt")
 
 	# Staedte platzieren: deterministisch, nur Gras-Felder, Mindestabstand
@@ -463,6 +460,7 @@ func _start(seed_value: int) -> void:
 	# _hero wurde oben schon mit Mitten-Spawn erzeugt - Position hier
 	# ueberschreiben.
 	var player_start_idx: int = -1
+	_player_faction = 1
 	if _cities.size() > 0:
 		player_start_idx = rng.next_int(0, _cities.size() - 1)
 		_cities[player_start_idx]["owner"] = OWNER_HERO
@@ -470,6 +468,11 @@ func _start(seed_value: int) -> void:
 		spawn = _cities[player_start_idx]["pos"]
 		_map["hero_spawn"] = spawn
 		_hero.position = spawn
+		_player_faction = int(_cities[player_start_idx]["faction"])
+	# Start-Armee kommt in der Fraktion der Start-Stadt - Menschen-Schwert
+	# ist nur noch der Fallback, wenn keine Stadt gesetzt werden konnte.
+	var player_starter: String = UnitType.starter_id_for_faction(_player_faction)
+	_hero.add_units(player_starter, STARTING_UNIT_COUNT)
 
 	# Drei KIs: jede bekommt ihre eigene Start-Stadt. Pro KI wird die
 	# Stadt gewaehlt, deren minimale Manhattan-Distanz zu allen bereits
@@ -501,12 +504,15 @@ func _start(seed_value: int) -> void:
 			var owner_id: int = OWNER_AI_MIN + slot
 			_cities[best_idx]["owner"] = owner_id
 			_cities[best_idx]["garrison"] = 0
+			var ai_faction: int = int(_cities[best_idx]["faction"])
+			var ai_starter: String = UnitType.starter_id_for_faction(ai_faction)
 			var ai_hero := Hero.new(_cities[best_idx]["pos"], ENEMY_BASE_MP)
 			ai_hero.gold = STARTING_GOLD
-			ai_hero.add_units(STARTING_UNIT, STARTING_UNIT_COUNT)
+			ai_hero.add_units(ai_starter, STARTING_UNIT_COUNT)
 			_enemies.append({
 				"hero": ai_hero,
 				"owner_id": owner_id,
+				"primary_faction": ai_faction,
 				"recruit_idx": 0,
 				"fog": [] as Array,
 				"player_last_seen_pos": Vector2i(-1, -1),
@@ -1579,7 +1585,7 @@ func _build_enemy_stacks(opp_name: String, total: int) -> Array:
 
 func _army_to_stacks(army: Dictionary) -> Array:
 	var out: Array = []
-	for uid in ["sword", "bow", "rider"]:
+	for uid in UnitType.ORDER:
 		var cnt: int = int(army.get(uid, 0))
 		if cnt > 0:
 			out.append({"type": uid, "count": cnt})
@@ -1833,7 +1839,7 @@ func _check_level_up() -> bool:
 	var leveled := false
 	while _hero.level < LEVEL_THRESHOLDS.size() and _hero.xp >= int(LEVEL_THRESHOLDS[_hero.level]):
 		_hero.level += 1
-		_hero.add_units("sword", LEVEL_BONUS_ARMY)
+		_hero.add_units(UnitType.starter_id_for_faction(_player_faction), LEVEL_BONUS_ARMY)
 		leveled = true
 	return leveled
 
@@ -2001,15 +2007,14 @@ func _show_city(city_idx: int) -> void:
 			btn.pressed.connect(_buy_building.bind(city_idx, i))
 		_buildings_box.add_child(btn)
 
-	# Rekrutieren: drei Buttons (je Einheit-Typ). Jeder braucht ein anderes
-	# Gebaeude: Schwert -> Kaserne, Bogen -> Schmiede, Reiter -> Reiterei.
-	# Fehlt das Gebaeude, ist der Button deaktiviert mit Hinweis, welches.
-	# Rekrutierung braucht den Helden vor Ort - ansonsten wuerden frisch
-	# gekaufte Einheiten in die Armee teleportiert, egal wo der Held steht.
+	# Rekrutieren: drei Buttons fuer die drei Slots der Stadt-Fraktion.
+	# Jeder Slot braucht ein Gebaeude: Nahkampf -> Kaserne, Fernkampf ->
+	# Schmiede, Schwer -> Reiterei. Fehlt das Gebaeude, ist der Button
+	# deaktiviert mit Hinweis. Rekrutierung braucht den Helden vor Ort.
 	var hero_here: bool = _hero != null and _hero.position == Vector2i(city["pos"])
-	for uid in UnitType.all_ids():
+	for uid in UnitType.ids_for_faction(fid):
 		var cost: int = UnitType.cost_of(uid)
-		var req: String = String(UNIT_BUILDING.get(uid, "kaserne"))
+		var req: String = UnitType.building_for(uid)
 		var rbtn := Button.new()
 		rbtn.custom_minimum_size = Vector2(0, 110)
 		rbtn.add_theme_font_size_override("font_size", 30)
@@ -2059,8 +2064,12 @@ func _recruit_unit(city_idx: int, unit_id: String) -> void:
 	if _hero.gold < cost:
 		return
 	var city: Dictionary = _cities[city_idx]
+	# Sicherheit: nur Einheiten der Stadt-Fraktion erlaubt. Falls ein
+	# alter Button-Bind auf eine fremde Einheit verweist, abbrechen.
+	if int(UnitType.faction_of(unit_id)) != int(city["faction"]):
+		return
 	var built: Array = city["buildings"]
-	var req: String = String(UNIT_BUILDING.get(unit_id, "kaserne"))
+	var req: String = UnitType.building_for(unit_id)
 	if not built.has(req):
 		return
 	# Held muss in der Stadt stehen, sonst wuerden gekaufte Einheiten in
@@ -2075,35 +2084,44 @@ func _recruit_unit(city_idx: int, unit_id: String) -> void:
 
 
 func _enemy_unlocked_units_for(idx: int) -> Array:
+	# Die KI kann nur Einheiten ihrer Primaer-Fraktion rekrutieren, und
+	# auch die nur, wenn das noetige Gebaeude in einer Stadt *dieser*
+	# Fraktion steht, die der KI gehoert. Erobert die KI eine fremde
+	# Stadt, hilft das Gebaeude dort also nicht fuer ihre Heimat-Einheiten.
 	var out: Array = []
 	if idx < 0 or idx >= _enemies.size():
 		return out
 	var oid: int = int(_enemies[idx]["owner_id"])
-	for uid in UnitType.ORDER:
-		var req: String = String(UNIT_BUILDING.get(uid, "kaserne"))
+	var pfid: int = int(_enemies[idx].get("primary_faction", 1))
+	for uid in UnitType.ids_for_faction(pfid):
+		var req: String = UnitType.building_for(uid)
 		for c in _cities:
-			if int(c["owner"]) == oid and (c["buildings"] as Array).has(req):
+			if int(c["owner"]) == oid and int(c["faction"]) == pfid and (c["buildings"] as Array).has(req):
 				out.append(uid)
 				break
 	return out
 
 
 func _enemy_next_unit_id_for(idx: int, allowed: Array = []) -> String:
-	# Waehlt den naechsten Einheiten-Typ in strikter Rotation pro KI.
-	# Wird eine Positivliste "allowed" uebergeben, werden gesperrte Slots
-	# uebersprungen - der Rotations-Index rueckt trotzdem weiter, damit
-	# die Mischung nicht monoton wird.
+	# Rotiert durch die 3 Einheiten der KI-Primaer-Fraktion. Wird eine
+	# Positivliste "allowed" uebergeben, werden gesperrte Slots uebersprungen
+	# - der Rotations-Index rueckt trotzdem weiter, damit die Mischung
+	# nicht monoton wird.
 	if idx < 0 or idx >= _enemies.size():
 		return ""
 	var e: Dictionary = _enemies[idx]
+	var pfid: int = int(e.get("primary_faction", 1))
+	var f_order: Array = UnitType.ids_for_faction(pfid)
+	if f_order.is_empty():
+		return ""
 	var ri: int = int(e["recruit_idx"])
 	if allowed.is_empty():
-		var uid: String = UnitType.ORDER[ri % UnitType.ORDER.size()]
-		e["recruit_idx"] = (ri + 1) % UnitType.ORDER.size()
+		var uid: String = String(f_order[ri % f_order.size()])
+		e["recruit_idx"] = (ri + 1) % f_order.size()
 		return uid
-	for _step in range(UnitType.ORDER.size()):
-		var uid: String = UnitType.ORDER[ri % UnitType.ORDER.size()]
-		ri = (ri + 1) % UnitType.ORDER.size()
+	for _step in range(f_order.size()):
+		var uid: String = String(f_order[ri % f_order.size()])
+		ri = (ri + 1) % f_order.size()
 		e["recruit_idx"] = ri
 		if uid in allowed:
 			return uid
@@ -2207,26 +2225,31 @@ func _enemy_economy_for(idx: int) -> void:
 		if spent:
 			continue
 		# Keine Prioritaets-Gebaeude mehr affordable: Ueberschuss in Rekruten
-		# stecken. Rotations-Slot S -> B -> R muss _gleichzeitig_ Gold und
-		# das noetige Gebaeude (Kaserne/Schmiede/Reiterei) haben. Ist der
-		# aktuelle Slot blockiert, bleibt der Rotations-Index stehen und die
-		# KI kauft diese Runde nichts - so holt sie den Slot automatisch
-		# nach, sobald das fehlende Gebaeude steht.
+		# stecken. Rotations-Slot Melee -> Ranged -> Heavy (Primaer-Fraktion
+		# der KI) muss _gleichzeitig_ Gold und das noetige Gebaeude
+		# (Kaserne/Schmiede/Reiterei) in einer eigenen Stadt dieser Fraktion
+		# haben. Ist der aktuelle Slot blockiert, bleibt der Rotations-Index
+		# stehen und die KI kauft diese Runde nichts - so holt sie den Slot
+		# automatisch nach, sobald das fehlende Gebaeude steht.
+		var pfid: int = int(e.get("primary_faction", 1))
+		var f_order: Array = UnitType.ids_for_faction(pfid)
+		if f_order.is_empty():
+			continue
 		var ri: int = int(e["recruit_idx"])
-		var next_uid: String = UnitType.ORDER[ri % UnitType.ORDER.size()]
+		var next_uid: String = String(f_order[ri % f_order.size()])
 		var next_cost: int = UnitType.cost_of(next_uid)
-		var next_req: String = String(UNIT_BUILDING.get(next_uid, "kaserne"))
+		var next_req: String = UnitType.building_for(next_uid)
 		if eh.gold < next_cost:
 			continue
 		var has_req: bool = false
 		for c in _cities:
-			if int(c["owner"]) == oid and (c["buildings"] as Array).has(next_req):
+			if int(c["owner"]) == oid and int(c["faction"]) == pfid and (c["buildings"] as Array).has(next_req):
 				has_req = true
 				break
 		if has_req:
 			eh.gold -= next_cost
 			eh.add_units(next_uid, 1)
-			e["recruit_idx"] = (ri + 1) % UnitType.ORDER.size()
+			e["recruit_idx"] = (ri + 1) % f_order.size()
 			spent = true
 
 
@@ -2352,7 +2375,8 @@ func _run_enemy_turn_for(idx: int) -> bool:
 	# diesen Anker wuerde sich Gold endlos stapeln. Hero-Jagd hat Vorrang,
 	# sonst gewinnt das naeher gelegene Ziel (home vs. Loot).
 	var cheapest_spend: int = 300 # Spaeher ist das billigste Gebaeude
-	for uid in UnitType.ORDER:
+	var pfid_home: int = int(e.get("primary_faction", 1))
+	for uid in UnitType.ids_for_faction(pfid_home):
 		var uc: int = UnitType.cost_of(uid)
 		if uc < cheapest_spend:
 			cheapest_spend = uc
@@ -2641,7 +2665,7 @@ func _on_end_turn() -> void:
 	var income: int = owned * CITY_INCOME + markt_count * INCOME_MARKT + mine_income
 	_hero.gold += income
 	var army_gain: int = schmiede_count * SCHMIEDE_ARMY_PER_TURN
-	_hero.add_units("sword", army_gain)
+	_hero.add_units(UnitType.starter_id_for_faction(_player_faction), army_gain)
 	var xp_gain: int = kapelle_count * KAPELLE_XP_PER_TURN
 	if xp_gain > 0:
 		_hero.xp += xp_gain
