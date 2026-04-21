@@ -166,6 +166,16 @@ static func building_for(uid: String) -> String:
 	return String(SLOT_BUILDING.get(slot_of(uid), "kaserne"))
 
 
+# Umgekehrter Lookup: welche Einheit der Fraktion wird durch das
+# gegebene Gebaeude freigeschaltet? Leerer String, wenn das Gebaeude
+# keine Einheit produziert (z.B. Spaeher, Kapelle).
+static func unit_for_building(fid: int, bid: String) -> String:
+	for uid in ids_for_faction(fid):
+		if building_for(uid) == bid:
+			return String(uid)
+	return ""
+
+
 static func starter_id_for_faction(fid: int) -> String:
 	var ids: Array = ids_for_faction(fid)
 	if ids.is_empty():

@@ -88,7 +88,7 @@ theme_override_constants/separation = 16
 [node name="EndTurnBtn" type="Button" parent="BottomBar"]
 layout_mode = 2
 custom_minimum_size = Vector2(240, 96)
-text = "Ende Zug"
+text = "Ende Tag"
 
 [node name="RerollBtn" type="Button" parent="BottomBar"]
 layout_mode = 2

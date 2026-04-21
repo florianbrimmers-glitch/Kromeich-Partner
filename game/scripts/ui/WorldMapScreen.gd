@@ -31,6 +31,24 @@ const MP_BONUS_SPAEHER := 2     # pro Spaeher in eigener Stadt
 const INCOME_MARKT := 200       # zusaetzlich pro Markt in eigener Stadt
 const UNIT_COST := 150          # pro Einheit, benoetigt Kaserne
 
+# Kalender (HoMM-Stil): 1 Zug = 1 Tag, 7 Tage = 1 Woche, 4 Wochen = 1
+# Monat (28 Tage), 12 Monate = 1 Jahr. Anzeige im Header: "T3 W2 M1 J1".
+const DAYS_PER_WEEK := 7
+const WEEKS_PER_MONTH := 4
+const MONTHS_PER_YEAR := 12
+
+# Wochen-Wachstums-Cap pro Gebaeude. Jede eigene Stadt sammelt pro
+# gebaeutem Kaserne/Schmiede/Reiterei einen Wochen-Pool der jeweiligen
+# Fraktions-Einheit, aus dem der Held rekrutiert. Der Pool wird am
+# ersten Tag jeder neuen Woche auf den Cap *gesetzt* (nicht summiert)
+# - nicht genutzter Nachschub verfaellt, wie in HoMM3. So ist der
+# Nachschub endlich und strategisches Timing zaehlt.
+const WEEKLY_GROWTH := {
+	"kaserne":  8,
+	"schmiede": 4,
+	"reiterei": 2,
+}
+
 # Startgold: Spieler und Gegner beginnen mit diesem Betrag, damit der
 # erste Zug nicht zwangslaeufig "Enter druecken und warten" ist - reicht
 # genau fuer eine Kaserne (500 G).
@@ -79,11 +97,9 @@ const LEVEL_BONUS_MP := 1     # +1 max_mp pro Level-Up (additiv zur Basis)
 # schlaegt Staerke-3-Monster ohne einen einzigen Verlust.
 const LEVEL_COMBAT_BONUS := 1
 
-# Schmiede: pro eigener Stadt mit Schmiede +1 Armee/Zug (Ende-Zug).
-const SCHMIEDE_ARMY_PER_TURN := 1
 # Wachturm: pro eigener Stadt +1 Kampfkraft-Bonus (stapelt mit Level-Bonus).
 const WACHTURM_COMBAT_BONUS := 1
-# Kapelle: +XP pro Zug pro Stadt mit Kapelle.
+# Kapelle: +XP pro Tag pro Stadt mit Kapelle.
 const KAPELLE_XP_PER_TURN := 10
 
 # Monster-Aufklaerung: exakte Staerke nur sichtbar, wenn der Held in
@@ -132,13 +148,13 @@ const FACTION_COLORS := [
 # z.B. braucht Kaserne, sonst war es zu leicht, ohne Kaserne zu spielen.
 # Pro Stadt als Liste von ids in city["buildings"].
 const BUILDINGS := [
-	{"id": "kaserne",  "name": "Kaserne",  "cost": 500, "effect": "Erlaubt Schwert"},
-	{"id": "spaeher",  "name": "Spaeher",  "cost": 300, "effect": "+2 max Schritte/Zug"},
-	{"id": "markt",    "name": "Markt",    "cost": 800, "effect": "+200 Gold/Zug"},
-	{"id": "schmiede", "name": "Schmiede", "cost": 700, "effect": "+1 Armee/Zug, erlaubt Bogen", "requires": "kaserne"},
-	{"id": "reiterei", "name": "Reiterei", "cost": 1000, "effect": "Erlaubt Reiter", "requires": "schmiede"},
+	{"id": "kaserne",  "name": "Kaserne",  "cost": 500, "effect": "Nahkampf +8/Woche"},
+	{"id": "spaeher",  "name": "Spaeher",  "cost": 300, "effect": "+2 max Schritte/Tag"},
+	{"id": "markt",    "name": "Markt",    "cost": 800, "effect": "+200 Gold/Tag"},
+	{"id": "schmiede", "name": "Schmiede", "cost": 700, "effect": "Fernkampf +4/Woche", "requires": "kaserne"},
+	{"id": "reiterei", "name": "Reiterei", "cost": 1000, "effect": "Schwer +2/Woche", "requires": "schmiede"},
 	{"id": "wachturm", "name": "Wachturm", "cost": 400, "effect": "+1 Kampfkraft (dauerhaft)"},
-	{"id": "kapelle",  "name": "Kapelle",  "cost": 500, "effect": "+10 XP/Zug"},
+	{"id": "kapelle",  "name": "Kapelle",  "cost": 500, "effect": "+10 XP/Tag"},
 ]
 
 @export var status_label_path: NodePath    = ^"TopBar/StatusLabel"
@@ -227,7 +243,6 @@ var _turn_number: int = 0
 # Pflicht-Kampf-Overlay (KI greift Spieler an) suspendiert wird und
 # erst nach Kampfabschluss weiterlaeuft.
 var _turn_income: int = 0
-var _turn_army_gain: int = 0
 var _turn_xp_gain: int = 0
 var _turn_owned: int = 0
 
@@ -452,6 +467,7 @@ func _start(seed_value: int) -> void:
 			"owner": OWNER_NEUTRAL,
 			"buildings": [],
 			"garrison": rng.next_int(GARRISON_MIN, GARRISON_MAX),
+			"pools": {} as Dictionary,
 		})
 
 	# Start-Stadt waehlen: eine der platzierten Staedte wird dem Helden
@@ -878,8 +894,62 @@ func _update_labels() -> void:
 		var xp: int = int(_hero.xp)
 		var bonus: int = _combat_bonus()
 		var bonus_str: String = " (+" + str(bonus) + ")" if bonus > 0 else ""
-		ml.text = "L%d  %d/%d  G%d  %s%s  XP%d" % [
-			lvl, mp, mmax, gold, _hero.army_summary(), bonus_str, xp]
+		ml.text = "%s  L%d  %d/%d  G%d  %s%s  XP%d" % [
+			_calendar_text(), lvl, mp, mmax, gold, _hero.army_summary(), bonus_str, xp]
+
+
+# --- Kalender-Helper: Tag/Woche/Monat/Jahr aus _turn_number ---
+# _turn_number zaehlt abgeschlossene Zuege; day_num ist 1-basiert und
+# erhoeht sich pro finalisiertem Zug. Tag 1-7 = Woche 1, Woche 1-4 =
+# Monat 1, Monat 1-12 = Jahr 1.
+func _day_num() -> int:
+	return _turn_number + 1
+
+func _day_of_week() -> int:
+	return ((_day_num() - 1) % DAYS_PER_WEEK) + 1
+
+func _week_total() -> int:
+	return ((_day_num() - 1) / DAYS_PER_WEEK) + 1
+
+func _week_of_month() -> int:
+	return ((_week_total() - 1) % WEEKS_PER_MONTH) + 1
+
+func _month_total() -> int:
+	return ((_week_total() - 1) / WEEKS_PER_MONTH) + 1
+
+func _month_of_year() -> int:
+	return ((_month_total() - 1) % MONTHS_PER_YEAR) + 1
+
+func _year_num() -> int:
+	return ((_month_total() - 1) / MONTHS_PER_YEAR) + 1
+
+func _calendar_text() -> String:
+	return "T%d W%d M%d J%d" % [_day_of_week(), _week_of_month(), _month_of_year(), _year_num()]
+
+
+# --- Pool-Helper ---
+func _pool_cap_for(uid: String) -> int:
+	return int(WEEKLY_GROWTH.get(UnitType.building_for(uid), 0))
+
+
+# Initialisiert (oder setzt) den Wochen-Pool einer Stadt fuer ein
+# frisch gebautes Gebaeude. Wird beim Bau und beim Wochenstart genutzt.
+func _prime_pool_for_building(city: Dictionary, bid: String) -> void:
+	var fid: int = int(city["faction"])
+	var uid: String = UnitType.unit_for_building(fid, bid)
+	if uid == "":
+		return
+	var pools: Dictionary = city.get("pools", {}) as Dictionary
+	pools[uid] = _pool_cap_for(uid)
+	city["pools"] = pools
+
+
+# Wochenstart: alle Staedte refreshen. HoMM3-Regel: Pool wird auf Cap
+# *gesetzt* (nicht aufaddiert), nicht genutzter Nachschub verfaellt.
+func _refresh_all_pools() -> void:
+	for c in _cities:
+		for bid in c["buildings"]:
+			_prime_pool_for_building(c, String(bid))
 
 
 func _build_combat_label() -> void:
@@ -2009,28 +2079,34 @@ func _show_city(city_idx: int) -> void:
 
 	# Rekrutieren: drei Buttons fuer die drei Slots der Stadt-Fraktion.
 	# Jeder Slot braucht ein Gebaeude: Nahkampf -> Kaserne, Fernkampf ->
-	# Schmiede, Schwer -> Reiterei. Fehlt das Gebaeude, ist der Button
-	# deaktiviert mit Hinweis. Rekrutierung braucht den Helden vor Ort.
-	# Stack-Limit: max MAX_ARMY_SLOTS unterschiedliche Einheiten-Typen -
-	# neue Slots werden abgewiesen, Aufstockung bestehender bleibt offen.
+	# Schmiede, Schwer -> Reiterei. Button zeigt den Wochen-Pool
+	# (vorrat/cap) und ist deaktiviert, wenn leer, Held nicht vor Ort,
+	# Gebaeude fehlt oder die Armee schon 6 Stacks hat.
 	var hero_here: bool = _hero != null and _hero.position == Vector2i(city["pos"])
+	var pools: Dictionary = city.get("pools", {}) as Dictionary
 	for uid in UnitType.ids_for_faction(fid):
 		var cost: int = UnitType.cost_of(uid)
 		var req: String = UnitType.building_for(uid)
+		var have: int = int(pools.get(uid, 0))
+		var cap: int = _pool_cap_for(uid)
 		var rbtn := Button.new()
 		rbtn.custom_minimum_size = Vector2(0, 110)
 		rbtn.add_theme_font_size_override("font_size", 30)
+		var unit_label: String = "%s (%d/%d)" % [UnitType.name_of(uid), have, cap]
 		if not built.has(req):
-			rbtn.text = "%s rekrutieren  -  benoetigt %s" % [UnitType.name_of(uid), req.capitalize()]
+			rbtn.text = "%s  -  benoetigt %s" % [unit_label, req.capitalize()]
 			rbtn.disabled = true
 		elif not hero_here:
-			rbtn.text = "%s rekrutieren  -  Held nicht vor Ort" % UnitType.name_of(uid)
+			rbtn.text = "%s  -  Held nicht vor Ort" % unit_label
+			rbtn.disabled = true
+		elif have <= 0:
+			rbtn.text = "%s  -  kein Nachschub bis naechste Woche" % unit_label
 			rbtn.disabled = true
 		elif not _hero.can_add_unit(uid):
-			rbtn.text = "%s rekrutieren  -  Armee voll (max %d Stacks)" % [UnitType.name_of(uid), Hero.MAX_ARMY_SLOTS]
+			rbtn.text = "%s  -  Armee voll (max %d Stacks)" % [unit_label, Hero.MAX_ARMY_SLOTS]
 			rbtn.disabled = true
 		else:
-			rbtn.text = "%s rekrutieren  -  %d G  (+1)" % [UnitType.name_of(uid), cost]
+			rbtn.text = "%s  -  %d G  (+1)" % [unit_label, cost]
 			if _hero.gold < cost:
 				rbtn.disabled = true
 		rbtn.pressed.connect(_recruit_unit.bind(city_idx, uid))
@@ -2058,6 +2134,7 @@ func _buy_building(city_idx: int, bld_idx: int) -> void:
 	if b.has("requires") and not built.has(String(b["requires"])):
 		return
 	built.append(bid)
+	_prime_pool_for_building(city, bid)
 	_hero.gold -= cost
 	_update_labels()
 	_set_status("Gebaut: " + str(b["name"]))
@@ -2081,6 +2158,11 @@ func _recruit_unit(city_idx: int, unit_id: String) -> void:
 	# die Heldenarmee teleportieren. Mirror zur Button-Logik in _show_city.
 	if _hero.position != Vector2i(city["pos"]):
 		return
+	# Wochen-Pool: leer = Nachschub erst am Wochenstart.
+	var pools: Dictionary = city.get("pools", {}) as Dictionary
+	if int(pools.get(unit_id, 0)) <= 0:
+		_set_status("Kein Nachschub - naechste Woche")
+		return
 	# Stack-Limit: neuen Typ nur rein, wenn noch Slot frei ist. Bestehende
 	# Stacks koennen immer aufstocken.
 	if not _hero.can_add_unit(unit_id):
@@ -2088,54 +2170,11 @@ func _recruit_unit(city_idx: int, unit_id: String) -> void:
 		return
 	_hero.gold -= cost
 	_hero.add_units(unit_id, 1)
+	pools[unit_id] = int(pools[unit_id]) - 1
+	city["pools"] = pools
 	_update_labels()
 	_set_status("Rekrutiert: +1 %s" % UnitType.name_of(unit_id))
 	_show_city(city_idx)
-
-
-func _enemy_unlocked_units_for(idx: int) -> Array:
-	# Die KI kann nur Einheiten ihrer Primaer-Fraktion rekrutieren, und
-	# auch die nur, wenn das noetige Gebaeude in einer Stadt *dieser*
-	# Fraktion steht, die der KI gehoert. Erobert die KI eine fremde
-	# Stadt, hilft das Gebaeude dort also nicht fuer ihre Heimat-Einheiten.
-	var out: Array = []
-	if idx < 0 or idx >= _enemies.size():
-		return out
-	var oid: int = int(_enemies[idx]["owner_id"])
-	var pfid: int = int(_enemies[idx].get("primary_faction", 1))
-	for uid in UnitType.ids_for_faction(pfid):
-		var req: String = UnitType.building_for(uid)
-		for c in _cities:
-			if int(c["owner"]) == oid and int(c["faction"]) == pfid and (c["buildings"] as Array).has(req):
-				out.append(uid)
-				break
-	return out
-
-
-func _enemy_next_unit_id_for(idx: int, allowed: Array = []) -> String:
-	# Rotiert durch die 3 Einheiten der KI-Primaer-Fraktion. Wird eine
-	# Positivliste "allowed" uebergeben, werden gesperrte Slots uebersprungen
-	# - der Rotations-Index rueckt trotzdem weiter, damit die Mischung
-	# nicht monoton wird.
-	if idx < 0 or idx >= _enemies.size():
-		return ""
-	var e: Dictionary = _enemies[idx]
-	var pfid: int = int(e.get("primary_faction", 1))
-	var f_order: Array = UnitType.ids_for_faction(pfid)
-	if f_order.is_empty():
-		return ""
-	var ri: int = int(e["recruit_idx"])
-	if allowed.is_empty():
-		var uid: String = String(f_order[ri % f_order.size()])
-		e["recruit_idx"] = (ri + 1) % f_order.size()
-		return uid
-	for _step in range(f_order.size()):
-		var uid: String = String(f_order[ri % f_order.size()])
-		ri = (ri + 1) % f_order.size()
-		e["recruit_idx"] = ri
-		if uid in allowed:
-			return uid
-	return ""
 
 
 func _building_by_id(bid: String) -> Dictionary:
@@ -2147,11 +2186,12 @@ func _building_by_id(bid: String) -> Dictionary:
 
 func _enemy_economy_for(idx: int) -> void:
 	# Gegner spielt nach den gleichen Regeln wie der Spieler: Einkommen pro
-	# eigener Stadt (+Markt), Armee-Wachstum nur mit Schmiede, max_mp nur
-	# mit Spaeher. Danach Ausgaben nach Prioritaet: Kaserne -> Schmiede ->
-	# Markt -> Spaeher. Sobald keine Prioritaets-Gebaeude mehr affordable
-	# sind und Kaserne steht, wird Ueberschuss in Rekruten gesteckt.
-	# Wachturm/Kapelle bringen dem Gegner (noch) nichts, daher ignoriert.
+	# eigener Stadt (+Markt), max_mp mit Spaeher. Danach Ausgaben nach
+	# Prioritaet: Kaserne -> Schmiede -> Reiterei -> Markt -> Spaeher.
+	# Sobald keine Prioritaets-Gebaeude mehr affordable sind, wird Ueberschuss
+	# in Rekruten gesteckt - aus dem Wochen-Pool der Stadt, auf der die KI
+	# steht. Wachturm/Kapelle bringen dem Gegner (noch) nichts, daher
+	# ignoriert.
 	if idx < 0 or idx >= _enemies.size():
 		return
 	var e: Dictionary = _enemies[idx]
@@ -2161,7 +2201,6 @@ func _enemy_economy_for(idx: int) -> void:
 	var oid: int = int(e["owner_id"])
 	var owned: int = 0
 	var markt: int = 0
-	var schmiede: int = 0
 	var spaeher: int = 0
 	for c in _cities:
 		if int(c["owner"]) != oid:
@@ -2170,8 +2209,6 @@ func _enemy_economy_for(idx: int) -> void:
 		var bl: Array = c["buildings"]
 		if bl.has("markt"):
 			markt += 1
-		if bl.has("schmiede"):
-			schmiede += 1
 		if bl.has("spaeher"):
 			spaeher += 1
 	eh.max_mp = ENEMY_BASE_MP + MP_BONUS_SPAEHER * spaeher
@@ -2180,29 +2217,17 @@ func _enemy_economy_for(idx: int) -> void:
 		if int(obj["kind"]) == OBJECT_MINE and int(obj.get("owner", OWNER_NEUTRAL)) == oid:
 			e_mine_income += int(obj["gold"])
 	eh.gold += owned * CITY_INCOME + markt * INCOME_MARKT + e_mine_income
-	# Schmiede-Bonus wird auch rotierend verteilt, damit sich das Muster
-	# "Gegner hat nur Schwerter" nicht ueber die frei geschenkten Einheiten
-	# einschleicht. Einheiten-Typen, deren Gebaeude noch fehlen, werden
-	# uebersprungen - sonst haette der Gegner Reiter ohne Reiterei.
-	var smithy_gifts: int = schmiede * SCHMIEDE_ARMY_PER_TURN
-	var unlocked: Array = _enemy_unlocked_units_for(idx)
-	for _i in range(smithy_gifts):
-		if unlocked.is_empty():
-			break
-		var gift_uid: String = _enemy_next_unit_id_for(idx, unlocked)
-		if gift_uid != "":
-			eh.add_units(gift_uid, 1)
 	# Symmetrie zum Spieler: Gebaeude bauen und Rekruten kaufen nur,
 	# wenn der KI-Held aktuell auf einer eigenen Stadt steht. Sonst
-	# waechst die Armee auf der Jagd um +10 pro Zug und der Spieler
-	# hat keine Chance. Gold stapelt sich und wird bei der Rueckkehr
-	# in die Stadt ausgegeben - genau wie beim Spieler.
-	var in_own_city: bool = false
+	# waechst die Armee auf der Jagd durch Gratis-Einheiten und der
+	# Spieler hat keine Chance. Gold stapelt sich und wird bei der
+	# Rueckkehr in die Stadt ausgegeben - genau wie beim Spieler.
+	var current_city: Dictionary = {}
 	for c in _cities:
 		if int(c["owner"]) == oid and Vector2i(c["pos"]) == eh.position:
-			in_own_city = true
+			current_city = c
 			break
-	if not in_own_city:
+	if current_city.is_empty():
 		return
 	var priority: Array = ["kaserne", "schmiede", "reiterei", "markt", "spaeher"]
 	var guard: int = 0
@@ -2227,6 +2252,7 @@ func _enemy_economy_for(idx: int) -> void:
 				if req != "" and not bl.has(req):
 					continue
 				bl.append(bid)
+				_prime_pool_for_building(c, bid)
 				eh.gold -= bcost
 				spent = true
 				break
@@ -2236,11 +2262,11 @@ func _enemy_economy_for(idx: int) -> void:
 			continue
 		# Keine Prioritaets-Gebaeude mehr affordable: Ueberschuss in Rekruten
 		# stecken. Rotations-Slot Melee -> Ranged -> Heavy (Primaer-Fraktion
-		# der KI) muss _gleichzeitig_ Gold und das noetige Gebaeude
-		# (Kaserne/Schmiede/Reiterei) in einer eigenen Stadt dieser Fraktion
-		# haben. Ist der aktuelle Slot blockiert, bleibt der Rotations-Index
-		# stehen und die KI kauft diese Runde nichts - so holt sie den Slot
-		# automatisch nach, sobald das fehlende Gebaeude steht.
+		# der KI) muss _gleichzeitig_ Gold, das noetige Gebaeude und Wochen-
+		# Nachschub (current_city["pools"][uid] > 0) haben. Ist der aktuelle
+		# Slot blockiert, bleibt der Rotations-Index stehen und die KI kauft
+		# diese Runde nichts - so holt sie den Slot automatisch nach, sobald
+		# das fehlende Gebaeude steht oder die neue Woche den Pool auffuellt.
 		var pfid: int = int(e.get("primary_faction", 1))
 		var f_order: Array = UnitType.ids_for_faction(pfid)
 		if f_order.is_empty():
@@ -2251,16 +2277,21 @@ func _enemy_economy_for(idx: int) -> void:
 		var next_req: String = UnitType.building_for(next_uid)
 		if eh.gold < next_cost:
 			continue
-		var has_req: bool = false
-		for c in _cities:
-			if int(c["owner"]) == oid and int(c["faction"]) == pfid and (c["buildings"] as Array).has(next_req):
-				has_req = true
-				break
-		if has_req:
-			eh.gold -= next_cost
-			eh.add_units(next_uid, 1)
-			e["recruit_idx"] = (ri + 1) % f_order.size()
-			spent = true
+		if int(current_city["faction"]) != pfid:
+			continue
+		if not (current_city["buildings"] as Array).has(next_req):
+			continue
+		var cpools: Dictionary = current_city.get("pools", {}) as Dictionary
+		if int(cpools.get(next_uid, 0)) <= 0:
+			continue
+		if not eh.can_add_unit(next_uid):
+			continue
+		eh.gold -= next_cost
+		eh.add_units(next_uid, 1)
+		cpools[next_uid] = int(cpools[next_uid]) - 1
+		current_city["pools"] = cpools
+		e["recruit_idx"] = (ri + 1) % f_order.size()
+		spent = true
 
 
 func _run_enemy_turn_for(idx: int) -> bool:
@@ -2641,14 +2672,13 @@ func _on_end_turn() -> void:
 	# Gebaeude-Effekte pro eigener Stadt:
 	#   Spaeher  -> max_mp hoch
 	#   Markt    -> Gold-Einkommen hoch
-	#   Schmiede -> pro Zug +1 Armee
+	#   Kaserne/Schmiede/Reiterei -> je Wochenstart Pool auffuellen
 	#   Wachturm -> +1 Kampfkraft (via _combat_bonus() dauerhaft)
-	#   Kapelle  -> +10 XP pro Zug, kann Level-Up ausloesen
+	#   Kapelle  -> +10 XP pro Tag, kann Level-Up ausloesen
 	# Level-Up-Bonus: pro Level (ueber 1) zusaetzlich +1 max_mp.
 	var owned := 0
 	var spaeher_count := 0
 	var markt_count := 0
-	var schmiede_count := 0
 	var kapelle_count := 0
 	for city in _cities:
 		if int(city["owner"]) == OWNER_HERO:
@@ -2658,8 +2688,6 @@ func _on_end_turn() -> void:
 				spaeher_count += 1
 			if bl.has("markt"):
 				markt_count += 1
-			if bl.has("schmiede"):
-				schmiede_count += 1
 			if bl.has("kapelle"):
 				kapelle_count += 1
 	var level_bonus_mp: int = LEVEL_BONUS_MP * max(0, _hero.level - 1)
@@ -2674,8 +2702,6 @@ func _on_end_turn() -> void:
 			mine_income += int(obj["gold"])
 	var income: int = owned * CITY_INCOME + markt_count * INCOME_MARKT + mine_income
 	_hero.gold += income
-	var army_gain: int = schmiede_count * SCHMIEDE_ARMY_PER_TURN
-	_hero.add_units(UnitType.starter_id_for_faction(_player_faction), army_gain)
 	var xp_gain: int = kapelle_count * KAPELLE_XP_PER_TURN
 	if xp_gain > 0:
 		_hero.xp += xp_gain
@@ -2684,7 +2710,6 @@ func _on_end_turn() -> void:
 	# Oekonomie-Snapshot fuer die Status-Zeile, falls die KI-Phase durch
 	# einen Pflicht-Kampf suspendiert und erst im Callback finalisiert wird.
 	_turn_income = income
-	_turn_army_gain = army_gain
 	_turn_xp_gain = xp_gain
 	_turn_owned = owned
 	# Gegner-Zuege: pro KI erst Oekonomie (Einkommen, Gebaeude, Rekruten),
@@ -2708,13 +2733,24 @@ func _advance_ai_phase(start_idx: int) -> void:
 
 func _finalize_turn() -> void:
 	_turn_number += 1
+	# Wochenstart: Pools aller Staedte neu auf ihr Cap setzen. Unver-
+	# brauchte Rekruten der Vorwoche verfallen (HoMM3-Regel).
+	var week_rolled: bool = _turn_number % DAYS_PER_WEEK == 0
+	if week_rolled:
+		_refresh_all_pools()
 	_recompute_fog_player()
 	for i in range(_enemies.size()):
 		_recompute_fog_ai(i)
 	_recompute_costs()
 	_request_redraw()
 	_update_labels()
-	_set_status("Zug beendet: +%d G, +%d A, +%d XP (%d Staedte)" % [_turn_income, _turn_army_gain, _turn_xp_gain, _turn_owned])
+	# _turn_number wurde gerade erhoeht, entspricht also der Nummer des
+	# gerade beendeten Tages (Tag 1 = erster Zug). _day_num() zeigt auf
+	# den neuen, aktuellen Tag.
+	var msg: String = "Tag %d beendet: +%d G, +%d XP (%d Staedte)" % [_turn_number, _turn_income, _turn_xp_gain, _turn_owned]
+	if week_rolled:
+		msg += " - neue Woche, Pools aufgefuellt"
+	_set_status(msg)
 	_check_defeat()
 	# Nach der kompletten KI-Phase pruefen, ob die KIs sich gegenseitig
 	# ausradiert haben und der Spieler dadurch schon gewonnen hat. Ohne
