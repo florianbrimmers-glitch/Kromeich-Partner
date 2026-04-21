@@ -440,7 +440,7 @@ func _start(seed_value: int) -> void:
 			continue
 		_cities.append({
 			"pos": candidate,
-			"faction": _cities.size(),
+			"faction": _cities.size() % FACTION_NAMES.size(),
 			"owner": OWNER_NEUTRAL,
 			"buildings": [],
 			"garrison": rng.next_int(GARRISON_MIN, GARRISON_MAX),
