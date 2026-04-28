@@ -26,12 +26,12 @@ on:
       - '.github/workflows/game-android-build.yml'
 
 env:
-  # Godot 4.5 stable, Standard-Edition (kein Mono). .NET-Runtime crasht
+  # Godot 4.6 stable, Standard-Edition (kein Mono). .NET-Runtime crasht
   # stumm auf Android 15 + Snapdragon 8 Elite (Samsung S25 Ultra), auch
   # unter 4.4.1 und 4.5. Wir bauen die APK darum komplett ohne C# - die
   # Spiel-Logik liegt jetzt in GDScript. Die .cs-Dateien bleiben fuer
   # Desktop-Unit-Tests und den Balance-Simulator (siehe tests/).
-  GODOT_VERSION: 4.5
+  GODOT_VERSION: 4.6
   GODOT_STATUS: stable
 
 jobs:

@@ -16,7 +16,9 @@ als Round-Start-Modifikator.
 
 ## Technisches Gedaechtnis
 
-- Plattform-Detail: Godot 4.5 stable (NON-Mono), GDScript only.
+- Plattform-Detail: Godot 4.6 stable (NON-Mono), GDScript only.
+  CI ist auf 4.6 gepinnt (`game-android-build.yml: GODOT_VERSION`),
+  lokaler Editor sollte deshalb auch 4.6 sein.
 - Branch: `claude/heroes-mobile-game-yJ31W`
 
 ### Godot im Sandbox installieren
@@ -26,8 +28,8 @@ Godot ist nicht vorinstalliert, laesst sich aber on-demand reinholen
 
 ```
 cd /tmp && curl -sL -o godot.zip \
-  https://github.com/godotengine/godot/releases/download/4.5-stable/Godot_v4.5-stable_linux.x86_64.zip \
-  && unzip -o godot.zip && chmod +x Godot_v4.5-stable_linux.x86_64
+  https://github.com/godotengine/godot/releases/download/4.6-stable/Godot_v4.6-stable_linux.x86_64.zip \
+  && unzip -o godot.zip && chmod +x Godot_v4.6-stable_linux.x86_64
 ```
 
 Damit gehen:
