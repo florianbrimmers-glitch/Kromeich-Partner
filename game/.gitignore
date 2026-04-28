@@ -2,6 +2,11 @@
 .godot/
 .import/
 export.cfg
+# Asset-/Script-Metadata wird beim --import frisch erzeugt (lokal und in
+# CI); committen wuerde nur Reibung erzeugen, solange wir nicht aktiv mit
+# UID-Referenzen arbeiten.
+*.uid
+*.svg.import
 # export_presets.cfg enthaelt Android-Build-Konfig (ohne Secrets) und
 # wird versioniert. Lokale Keystore-Pfade sollten ueber Umgebungsvariablen
 # in GitHub Actions kommen.
