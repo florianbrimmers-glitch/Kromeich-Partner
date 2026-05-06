@@ -1,0 +1,64 @@
+name: Find Logistics Candidates
+
+on:
+  workflow_dispatch:
+    inputs:
+      center:
+        description: "Stadt-Preset (munich/berlin/hamburg/...) oder 'lat,lon'"
+        required: false
+        default: "munich"
+        type: string
+      radius_km:
+        description: "Suchradius in km"
+        required: false
+        default: "40"
+        type: string
+      min_area_sqm:
+        description: "Mindestfläche pro Halle in qm"
+        required: false
+        default: "5000"
+        type: string
+      send_slack:
+        description: "Top-Treffer an Slack senden"
+        required: false
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+jobs:
+  find-logistics:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run logistics search
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+        run: |
+          ARGS="--center ${{ github.event.inputs.center }} --radius ${{ github.event.inputs.radius_km }} --min-area ${{ github.event.inputs.min_area_sqm }}"
+          if [ "${{ github.event.inputs.send_slack }}" = "true" ]; then
+            ARGS="$ARGS --slack"
+          fi
+          python -m src.find_logistics $ARGS
+
+      - name: Upload CSV artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logistics-candidates
+          path: out/*.csv
+          if-no-files-found: warn

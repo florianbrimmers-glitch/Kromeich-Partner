@@ -96,3 +96,46 @@ class PipelineReport(BaseModel):
     contacts_skipped_no_email: int = 0
     contacts_skipped_session_duplicate: int = 0
     errors: list[ContactResult] = Field(default_factory=list)
+
+
+class WarehouseCandidate(BaseModel):
+    osm_type: str
+    osm_id: int
+    name: str | None = None
+    operator: str | None = None
+    area_sqm: float
+    lat: float
+    lon: float
+    street: str | None = None
+    house_number: str | None = None
+    zip_code: str | None = None
+    city: str | None = None
+    website: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    building: str | None = None
+    landuse: str | None = None
+
+    @property
+    def display_name(self) -> str:
+        return self.operator or self.name or f"OSM {self.osm_type}/{self.osm_id}"
+
+    @property
+    def address_line(self) -> str:
+        parts: list[str] = []
+        if self.street:
+            street_part = self.street
+            if self.house_number:
+                street_part = f"{self.street} {self.house_number}"
+            parts.append(street_part)
+        if self.zip_code or self.city:
+            parts.append(f"{self.zip_code or ''} {self.city or ''}".strip())
+        return ", ".join(p for p in parts if p)
+
+    @property
+    def osm_url(self) -> str:
+        return f"https://www.openstreetmap.org/{self.osm_type}/{self.osm_id}"
+
+    @property
+    def maps_url(self) -> str:
+        return f"https://www.google.com/maps?q={self.lat},{self.lon}"
