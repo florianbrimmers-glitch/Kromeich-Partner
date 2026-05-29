@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 SLACK_POST_URL = "https://slack.com/api/chat.postMessage"
 CHANNEL_ID = "C07SJMXQWEA"
 
-GROUP_LABEL_MAP: dict[int, str] = {v: k.value for k, v in GROUP_ID_MAP.items()}
+GROUP_LABEL_MAP: dict[str, str] = {v: k.value for k, v in GROUP_ID_MAP.items()}
 
 
 def _format_contact_line(result: ContactResult) -> str:

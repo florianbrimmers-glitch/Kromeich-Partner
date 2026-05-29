@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 
 DRY_RUN = os.environ.get("DRY_RUN", "").lower() in ("true", "1", "yes")
 
-GROUP_LABEL_MAP: dict[int, str] = {v: k.value for k, v in GROUP_ID_MAP.items()}
+GROUP_LABEL_MAP: dict[str, str] = {v: k.value for k, v in GROUP_ID_MAP.items()}
 
 
 def run_pipeline() -> PipelineReport:

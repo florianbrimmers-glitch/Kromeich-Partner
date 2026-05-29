@@ -46,21 +46,23 @@ Du bist ein Experte für die Immobilien- und Logistikbranche in Deutschland.
 
 Bestimme für den folgenden Kontakt die passende(n) Kategorie(n). Es gibt sechs Kategorien:
 
-1. **Eigentümer** (ID: 507350) – Immobilieneigentümer, Asset Manager, Property Manager, Vermieter von Gewerbe-/Logistikflächen, Bestandshalter. Beispiele: Logicor, CTP, Prologis, Segro, VGP, Goodman, P3 Logistic Parks, Panattoni, etc.
+1. **Eigentümer** – Immobilieneigentümer, Asset Manager, Property Manager, Vermieter von Gewerbe-/Logistikflächen, Bestandshalter. Beispiele: Logicor, CTP, Prologis, Segro, VGP, Goodman, Mileway, etc.
 
-2. **Investor** (ID: 507349) – Investmentgesellschaften, Private-Equity-Firmen, Family Offices, Fondsmanager, die in Immobilien investieren. Beispiele: Blackstone, Brookfield, CBRE Investment Management, AEW, etc.
+2. **Investor** – Investmentgesellschaften, Private-Equity-Firmen, Family Offices, Fondsmanager, die in Immobilien investieren. Beispiele: Blackstone, Brookfield, CBRE Investment Management, AEW, etc.
 
-3. **Logistiker** (ID: 636740) – Logistikunternehmen, Speditionen, Fulfillment-Dienstleister, Intralogistik-Hersteller, Supply-Chain-Unternehmen. Beispiele: Logwin, DHL, Jungheinrich, AutoStore, KNAPP, Amazon Logistics, Kühne+Nagel, etc.
+3. **Logistiker** – Logistikunternehmen, Speditionen, Fulfillment-Dienstleister, Intralogistik-Hersteller, Supply-Chain-Unternehmen. Beispiele: Logwin, DHL, Jungheinrich, AutoStore, KNAPP, Amazon Logistics, Kühne+Nagel, etc.
 
-4. **Makler** (ID: 409483) – Immobilienmakler, Gewerbemakler, Industriemakler, Beratungsunternehmen für Gewerbeimmobilien. Beispiele: CBRE, JLL, Cushman & Wakefield, Colliers, BNP Paribas Real Estate, Realogis, Logivest, etc.
+4. **Makler** – Immobilienmakler, Gewerbemakler, Industriemakler, Beratungsunternehmen für Gewerbeimmobilien. Beispiele: CBRE, JLL, Cushman & Wakefield, Colliers, BNP Paribas Real Estate, Realogis, Logivest, etc.
 
-5. **Produzent** (ID: 641030) – Produzierende Unternehmen, Hersteller, Industrieunternehmen, die Gewerbe-/Logistikflächen als Mieter oder Nutzer benötigen. Beispiele: Automobilhersteller, Maschinenbauer, Konsumgüterhersteller, Lebensmittelproduzenten, etc.
+5. **Entwickler** – Projektentwickler, die Immobilien entwickeln und bauen. Beispiele: Panattoni, Goodman Development, Aurelis, Dietz AG, Four Parx, Verdion, etc.
 
-6. **Handel** (ID: 641031) – Handelsunternehmen, Einzelhändler, Großhändler, E-Commerce-Unternehmen, die Lager- und Logistikflächen nutzen. Beispiele: Amazon, Zalando, REWE, ALDI, Lidl, Otto, MediaMarkt, etc.
+6. **Sonstiges** – Alle Kontakte, die NICHT eindeutig in eine der fünf obigen Kategorien passen. Dies ist der Fallback.
 
 Regeln:
-- Ein Kontakt kann MEHRERE Kategorien haben (z.B. ein Logistik-Investor oder ein Handelsunternehmen mit eigenen Logistikflächen).
-- Wenn der Kontakt NICHT eindeutig in eine der sechs Kategorien passt: gib ein leeres Array zurück.
+- Ein Kontakt kann MEHRERE Kategorien haben (z.B. ein Logistik-Investor oder ein Eigentümer der auch Projektentwickler ist).
+- Wenn der Kontakt eindeutig in eine oder mehrere der Kategorien 1-5 passt: weise diese zu.
+- Wenn der Kontakt in KEINE der Kategorien 1-5 passt: weise "Sonstiges" zu.
+- Jeder Kontakt MUSS mindestens eine Kategorie erhalten.
 - Nutze den Firmennamen, die Position, und den Email-Kontext für deine Entscheidung.
 
 Kontaktdaten:
@@ -74,7 +76,7 @@ Email-Kontext (Betreff + Auszug):
 
 Antworte ausschließlich mit einem JSON-Objekt:
 {{
-  "categories": ["Eigentümer" und/oder "Investor" und/oder "Logistiker" und/oder "Makler" und/oder "Produzent" und/oder "Handel"],
+  "categories": ["Eigentümer" und/oder "Investor" und/oder "Logistiker" und/oder "Makler" und/oder "Entwickler" und/oder "Sonstiges"],
   "reasoning": "Kurze Begründung"
 }}
 """
@@ -167,26 +169,23 @@ def categorize_contact(
         categories = data.get("categories", [])
         reasoning = data.get("reasoning", "")
 
-        group_ids: list[int] = []
+        group_ids: list[str] = []
         for cat_name in categories:
             for group_cat in GroupCategory:
                 if group_cat.value.lower() == cat_name.lower():
                     group_ids.append(GROUP_ID_MAP[group_cat])
                     break
 
-        if group_ids:
-            logger.info("Categorized %s as %s: %s", contact.email, categories, reasoning)
+        if not group_ids:
+            group_ids = [GROUP_ID_MAP[GroupCategory.SONSTIGES]]
+            logger.info("Fallback 'Sonstiges' für %s – %s", contact.email, reasoning)
         else:
-            logger.info(
-                "Kein Merkmal zugewiesen für %s – %s",
-                contact.email,
-                reasoning or "Unternehmen passt nicht eindeutig in eine der Kategorien",
-            )
+            logger.info("Categorized %s as %s: %s", contact.email, categories, reasoning)
 
         return group_ids
     except (json.JSONDecodeError, KeyError, IndexError) as e:
         logger.error("Failed to parse categorization response for %s: %s", contact.email, e)
-        return []
+        return [GROUP_ID_MAP[GroupCategory.SONSTIGES]]
     except anthropic.APIError as e:
         logger.error("Claude API error during categorization: %s", e)
-        return []
+        return [GROUP_ID_MAP[GroupCategory.SONSTIGES]]

@@ -35,7 +35,7 @@ def check_duplicate(email: str) -> bool:
         return False
 
 
-def create_contact(contact: ContactData, group_ids: list[int] | None = None) -> dict | None:
+def create_contact(contact: ContactData, group_ids: list[str] | None = None) -> dict | None:
     client_data: dict = {}
 
     if contact.first_name:
@@ -63,7 +63,7 @@ def create_contact(contact: ContactData, group_ids: list[int] | None = None) -> 
         client_data["office_country"] = contact.country
 
     if group_ids:
-        client_data["group_ids"] = group_ids
+        client_data["mailchimp_interest_ids"] = group_ids
 
     client_data["description"] = f"KI-Scan (GitHub Actions) vom {date.today().isoformat()} aus Email-Signatur"
 

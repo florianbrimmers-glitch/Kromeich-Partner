@@ -60,17 +60,17 @@ class GroupCategory(str, Enum):
     INVESTOR = "Investor"
     LOGISTIKER = "Logistiker"
     MAKLER = "Makler"
-    PRODUZENT = "Produzent"
-    HANDEL = "Handel"
+    ENTWICKLER = "Entwickler"
+    SONSTIGES = "Sonstiges"
 
 
-GROUP_ID_MAP: dict[GroupCategory, int] = {
-    GroupCategory.EIGENTUEMER: 507350,
-    GroupCategory.INVESTOR: 507349,
-    GroupCategory.LOGISTIKER: 636740,
-    GroupCategory.MAKLER: 409483,
-    GroupCategory.PRODUZENT: 641030,
-    GroupCategory.HANDEL: 641031,
+GROUP_ID_MAP: dict[GroupCategory, str] = {
+    GroupCategory.EIGENTUEMER: "0a0b21607f",
+    GroupCategory.INVESTOR: "825c6dd31e",
+    GroupCategory.LOGISTIKER: "c09cc4c2f4",
+    GroupCategory.MAKLER: "c0b62f43fa",
+    GroupCategory.ENTWICKLER: "4b88636ddc",
+    GroupCategory.SONSTIGES: "193c2a15bf",
 }
 
 
@@ -79,7 +79,7 @@ class ContactResult(BaseModel):
     name: str = ""
     company: str | None = None
     status: ContactStatus
-    group_ids: list[int] = Field(default_factory=list)
+    group_ids: list[str] = Field(default_factory=list)
     group_labels: list[str] = Field(default_factory=list)
     apollo_enriched: bool = False
     enriched_fields: list[str] = Field(default_factory=list)
