@@ -65,6 +65,11 @@ Regeln:
 - Jeder Kontakt MUSS mindestens eine Kategorie erhalten.
 - Nutze den Firmennamen, die Position, und den Email-Kontext für deine Entscheidung.
 
+WICHTIG – Web-Recherche:
+- Wenn dir das Unternehmen nicht eindeutig bekannt ist oder du unsicher bist, in welche Kategorie es gehört, nutze ZUERST die Websuche (web_search), um herauszufinden, was das Unternehmen macht.
+- Suche z.B. nach dem Firmennamen + "Logistik" oder dem Firmennamen + "Unternehmen" um die Branche zu klären.
+- Stütze deine Kategorisierung auf die Rechercheergebnisse.
+
 Kontaktdaten:
 - Name: {name}
 - Firma: {company}
@@ -74,10 +79,10 @@ Kontaktdaten:
 Email-Kontext (Betreff + Auszug):
 {email_context}
 
-Antworte ausschließlich mit einem JSON-Objekt:
+Gib am Ende deiner Antwort ausschließlich ein JSON-Objekt aus (nach eventueller Web-Recherche):
 {{
   "categories": ["Eigentümer" und/oder "Investor" und/oder "Logistiker" und/oder "Makler" und/oder "Entwickler" und/oder "Sonstiges"],
-  "reasoning": "Kurze Begründung"
+  "reasoning": "Kurze Begründung (inkl. Rechercheergebnis falls gesucht)"
 }}
 """
 
@@ -136,11 +141,25 @@ def extract_contact(email_data: EmailData) -> ContactData | None:
         return None
 
 
+def _extract_json_from_blocks(response) -> str:
+    """Bei Web-Search liefert die API mehrere Content-Blöcke. Wir sammeln
+    alle Text-Blöcke und nehmen den letzten, der ein JSON-Objekt enthält."""
+    text_parts = [block.text for block in response.content if block.type == "text"]
+    full_text = "\n".join(text_parts).strip()
+
+    # JSON-Objekt aus dem Text extrahieren (letzte {...}-Klammer)
+    start = full_text.rfind("{")
+    end = full_text.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        return full_text[start : end + 1]
+    return full_text
+
+
 def categorize_contact(
     contact: ContactData,
     email_subject: str,
     email_body_excerpt: str,
-) -> list[int]:
+) -> list[str]:
     client = _get_client()
 
     name = f"{contact.first_name or ''} {contact.last_name or ''}".strip()
@@ -157,11 +176,18 @@ def categorize_contact(
     try:
         response = client.messages.create(
             model="claude-sonnet-4-20250514",
-            max_tokens=512,
+            max_tokens=2048,
+            tools=[
+                {
+                    "type": "web_search_20250305",
+                    "name": "web_search",
+                    "max_uses": 3,
+                }
+            ],
             messages=[{"role": "user", "content": prompt}],
         )
 
-        text = response.content[0].text.strip()
+        text = _extract_json_from_blocks(response)
         if text.startswith("```"):
             text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
 
