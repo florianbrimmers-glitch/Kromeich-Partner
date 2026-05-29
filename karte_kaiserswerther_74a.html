@@ -29,12 +29,26 @@ var buildings = [
 
 var colors = {keep:"#2ca02c", north:"#9467bd"};
 
+// Amtliche ALKIS-Flurstücke (GEObasis NRW, WFS ALKIS vereinfacht, Stand 2024-11-25 / Dienst 2026)
+var parcels = [
+ {label:"Flur 17, Flst. 65", flaeche:"6615.0", geom:[[51.2994582, 6.8327411], [51.2994212, 6.8327916], [51.2993486, 6.8328908], [51.2992795, 6.8329851], [51.2991148, 6.83321], [51.2990628, 6.8332811], [51.2989866, 6.8333098], [51.2990224, 6.8335721], [51.2990356, 6.8336688], [51.2990358, 6.83367], [51.299046, 6.8337687], [51.2990567, 6.8337654], [51.299087, 6.8339721], [51.2991504, 6.8339504], [51.2991778, 6.8341213], [51.2994156, 6.8340322], [51.2995141, 6.8339953], [51.2996883, 6.8339301], [51.2997473, 6.833908], [51.2997835, 6.8338944], [51.2998951, 6.8338527], [51.2999759, 6.8338224], [51.300042, 6.8337976], [51.3000132, 6.8337129], [51.299879, 6.8334202], [51.2999274, 6.8334021], [51.2998996, 6.8333474], [51.2998135, 6.8331991], [51.2997182, 6.8330531], [51.2996288, 6.8329375], [51.2995438, 6.8328459], [51.2994582, 6.8327411]]},
+ {label:"Flur 17, Flst. 64", flaeche:"933.0", geom:[[51.2988946, 6.833885], [51.2985445, 6.8340173], [51.2986069, 6.8343351], [51.2989819, 6.8341947], [51.2989697, 6.8341028], [51.2989283, 6.8341167], [51.2988946, 6.833885]]}
+];
+
 var map = L.map('map');
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
   maxZoom:20, attribution:'© OpenStreetMap-Mitwirkende (ODbL)'
 }).addTo(map);
 
 var group = L.featureGroup();
+
+// Flurstücksgrenzen zuerst (liegen unter den Gebäuden)
+parcels.forEach(function(p){
+  var poly = L.polygon(p.geom,{color:"#000",weight:3,dashArray:"8 5",fill:true,fillColor:"#ffff00",fillOpacity:.12}).addTo(group);
+  poly.bindPopup("<b>"+p.label+"</b><br>Gemarkung Ratingen<br>Amtliche Fläche: "+parseFloat(p.flaeche).toLocaleString('de-DE')+" m²<br><small>Quelle: ALKIS / GEObasis NRW</small>");
+  poly.bindTooltip(p.label+"<br>"+parseFloat(p.flaeche).toLocaleString('de-DE')+" m²",{permanent:true,direction:"top",className:"lbl"});
+});
+
 buildings.forEach(function(b){
   var poly = L.polygon(b.geom,{color:colors[b.cat],weight:2,fillOpacity:.45}).addTo(group);
   poly.bindPopup("<b>"+b.label+"</b><br>OSM Way "+b.id+"<br>Grundfläche ≈ "+b.area+" m²");
@@ -46,10 +60,11 @@ map.fitBounds(group.getBounds().pad(0.15));
 var legend = L.control({position:'bottomright'});
 legend.onAdd = function(){
   var d = L.DomUtil.create('div','legend');
-  d.innerHTML = '<b>Kaiserswerther Str. – Auswahl</b><br>'+
-    '<i style="background:'+colors.keep+'"></i> Nr. 74<br>'+
+  d.innerHTML = '<b>Kaiserswerther Str. – Gelände</b><br>'+
+    '<i style="background:'+colors.keep+'"></i> Gebäude Nr. 74<br>'+
     '<i style="background:'+colors.north+'"></i> nördl. Gebäude ohne Adresse<br>'+
-    '<small>Quelle: OpenStreetMap (ODbL). Flächen aus Geometrie<br>berechnet, ±5–10 %. Grundstücksgrenzen nicht enthalten.</small>';
+    '<i style="background:#ffff00;border:2px dashed #000"></i> ALKIS-Flurstück (amtlich)<br>'+
+    '<small>Gebäude: OpenStreetMap (ODbL), Fläche aus Geometrie ±5–10 %.<br>Flurstücke: GEObasis NRW / ALKIS (amtliche Fläche).</small>';
   return d;
 };
 legend.addTo(map);
