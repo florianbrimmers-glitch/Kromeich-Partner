@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Gebäude – Kaiserswerther Str. 74a, Ratingen</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  html,body{margin:0;height:100%;font-family:Arial,Helvetica,sans-serif}
+  #map{height:100%}
+  .legend{background:#fff;padding:10px 12px;line-height:1.5em;box-shadow:0 0 8px rgba(0,0,0,.3);border-radius:6px;font-size:13px}
+  .legend i{width:14px;height:14px;display:inline-block;margin-right:6px;opacity:.8;vertical-align:middle;border:1px solid #555}
+  .lbl{background:rgba(255,255,255,.85);border:1px solid #888;border-radius:3px;padding:1px 4px;font-size:11px;font-weight:bold;white-space:nowrap}
+</style>
+</head>
+<body>
+<div id="map"></div>
+<script>
+// Daten aus OpenStreetMap (ODbL). Flächen aus Geometrie berechnet.
+// Kategorien: atu = Ausgangsgebäude, attached = baulich an 74a angebaut,
+//             neighbor = eigenständiges Nachbargebäude.
+var buildings = [
+ {id:113488876,label:"74a – A.T.U",area:1181,cat:"atu",geom:[[51.2985748,6.8335154],[51.2986262,6.8338691],[51.2989554,6.8337467],[51.2989495,6.8337059],[51.2990396,6.8336724],[51.2989941,6.8333595]]},
+ {id:113488845,label:"an 74a angebaut",area:1393,cat:"attached",geom:[[51.2990396,6.8336724],[51.2990410,6.8336818],[51.2994417,6.8335328],[51.2993805,6.8331119],[51.2993373,6.8331279],[51.2993289,6.8330700],[51.2992095,6.8331144],[51.2992173,6.8331680],[51.2991186,6.8332047],[51.2990699,6.8332800],[51.2989870,6.8333108],[51.2989941,6.8333595]]},
+ {id:113488836,label:"Anbau (155 m²)",area:155,cat:"attached",geom:[[51.2992259,6.8337019],[51.2990734,6.8337576],[51.2990913,6.8338825],[51.2992437,6.8338268]]},
+ {id:113488854,label:"ohne Adresse",area:1419,cat:"neighbor",geom:[[51.2993805,6.8331119],[51.2993643,6.8330069],[51.2995418,6.8329443],[51.2996841,6.8339334],[51.2995099,6.8339990],[51.2994417,6.8335328]]},
+ {id:113488856,label:"ohne Adresse",area:317,cat:"neighbor",geom:[[51.2987627,6.8332652],[51.2988849,6.8332542],[51.2988834,6.8331779],[51.2989482,6.8331707],[51.2989400,6.8330014],[51.2987544,6.8330229],[51.2987612,6.8332244]]},
+ {id:113488872,label:"ohne Adresse",area:189,cat:"neighbor",geom:[[51.2985254,6.8333716],[51.2985286,6.8334354],[51.2987656,6.8333459],[51.2987627,6.8332652],[51.2987612,6.8332244],[51.2986874,6.8332291],[51.2986881,6.8332923],[51.2985688,6.8333044],[51.2985720,6.8333654]]},
+ {id:113488866,label:"Nr. 76",area:170,cat:"neighbor",geom:[[51.2984327,6.8332162],[51.2984413,6.8333827],[51.2985254,6.8333716],[51.2985720,6.8333654],[51.2985688,6.8333044],[51.2985634,6.8331989]]},
+ {id:113488868,label:"ohne Adresse",area:382,cat:"neighbor",geom:[[51.2986469,6.8325221],[51.2986667,6.8329620],[51.2987782,6.8329491],[51.2987583,6.8325092]]},
+ {id:113488849,label:"Subway",area:253,cat:"neighbor",geom:[[51.2984975,6.8328342],[51.2983990,6.8328475],[51.2984163,6.8331761],[51.2985148,6.8331628]]},
+ {id:113488874,label:"Nr. 74",area:342,cat:"neighbor",geom:[[51.2988657,6.8339854],[51.2986319,6.8340756],[51.2986588,6.8342539],[51.2988926,6.8341637]]},
+ {id:113488859,label:"Nr. 72",area:1083,cat:"neighbor",geom:[[51.2986939,6.8344182],[51.2987134,6.8345528],[51.2987757,6.8345297],[51.2987820,6.8345731],[51.2988649,6.8345424],[51.2988576,6.8344918],[51.2994296,6.8342803],[51.2994030,6.8340963],[51.2987549,6.8343359],[51.2987631,6.8343926],[51.2986939,6.8344182]]},
+ {id:106539273,label:"Nr. 79",area:1005,cat:"neighbor",geom:[[51.2983436,6.8342212],[51.2982572,6.8342660],[51.2983049,6.8345013],[51.2982315,6.8345394],[51.2981685,6.8345721],[51.2981838,6.8346473],[51.2982568,6.8350074],[51.2984797,6.8348917]]},
+ {id:106539277,label:"Nr. 83 (Logistik/Büro)",area:921,cat:"neighbor",geom:[[51.2979231,6.8339015],[51.2981373,6.8338186],[51.2981218,6.8337184],[51.2981671,6.8337005],[51.2981662,6.8336832],[51.2981549,6.8336323],[51.2981555,6.8336136],[51.2981439,6.8335616],[51.2981444,6.8335444],[51.2981340,6.8334927],[51.2981338,6.8334731],[51.2981234,6.8334228],[51.2981253,6.8334136],[51.2981168,6.8333707],[51.2980923,6.8333799],[51.2980679,6.8333892],[51.2980447,6.8333680],[51.2980282,6.8333478],[51.2980037,6.8333262],[51.2979897,6.8333640],[51.2979623,6.8334333],[51.2979411,6.8334417],[51.2979203,6.8334470],[51.2978525,6.8334766]]},
+ {id:106539292,label:"ohne Adresse (groß)",area:2126,cat:"neighbor",geom:[[51.2981685,6.8345721],[51.2981838,6.8346473],[51.2974875,6.8350086],[51.2974245,6.8346981],[51.2982572,6.8342660],[51.2983049,6.8345013],[51.2982315,6.8345394]]}
+];
+
+var colors = {atu:"#d62728", attached:"#ff7f0e", neighbor:"#1f77b4"};
+
+var map = L.map('map');
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+  maxZoom:20, attribution:'© OpenStreetMap-Mitwirkende (ODbL)'
+}).addTo(map);
+
+var group = L.featureGroup();
+buildings.forEach(function(b){
+  var poly = L.polygon(b.geom,{color:colors[b.cat],weight:2,fillOpacity:.45}).addTo(group);
+  poly.bindPopup("<b>"+b.label+"</b><br>OSM Way "+b.id+"<br>Grundfläche ≈ "+b.area+" m²");
+  poly.bindTooltip(b.label+"<br>≈"+b.area+" m²",{permanent:true,direction:"center",className:"lbl"});
+});
+group.addTo(map);
+map.fitBounds(group.getBounds().pad(0.15));
+
+var legend = L.control({position:'bottomright'});
+legend.onAdd = function(){
+  var d = L.DomUtil.create('div','legend');
+  d.innerHTML = '<b>Kaiserswerther Str. 74a</b><br>'+
+    '<i style="background:'+colors.atu+'"></i> A.T.U (74a) – Ausgangsgebäude<br>'+
+    '<i style="background:'+colors.attached+'"></i> baulich an 74a angebaut<br>'+
+    '<i style="background:'+colors.neighbor+'"></i> eigenständiges Nachbargebäude<br>'+
+    '<small>Quelle: OpenStreetMap (ODbL). Flächen aus Geometrie<br>berechnet, ±5–10 %. Grundstücksgrenzen nicht enthalten.</small>';
+  return d;
+};
+legend.addTo(map);
+</script>
+</body>
+</html>
