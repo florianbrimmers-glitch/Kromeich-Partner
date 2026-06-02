@@ -19,7 +19,7 @@ def _api_key() -> str:
 
 
 def _api_key_v2() -> str | None:
-    return os.environ.get("PROPSTACK_API_KEY_V2")
+    return os.environ.get("PROPSTACK_API_V2_CONTACTS")
 
 
 def check_duplicate(email: str) -> bool:

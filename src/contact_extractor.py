@@ -181,7 +181,7 @@ def categorize_contact(
                 {
                     "type": "web_search_20250305",
                     "name": "web_search",
-                    "max_uses": 3,
+                    "max_uses": 1,
                 }
             ],
             messages=[{"role": "user", "content": prompt}],
