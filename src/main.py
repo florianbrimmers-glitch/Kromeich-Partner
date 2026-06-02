@@ -16,7 +16,7 @@ from .models import (
 from .gmail_client import search_recent_emails
 from .contact_extractor import extract_contact, categorize_contact
 from .apollo_client import enrich_contact, apply_enrichment
-from .propstack_client import check_duplicate, create_contact, find_or_create_company
+from .propstack_client import check_duplicate, create_contact, find_company
 from .slack_client import send_summary
 
 logging.basicConfig(
@@ -127,7 +127,7 @@ def run_pipeline() -> PipelineReport:
                     if cache_key in company_cache:
                         parent_id = company_cache[cache_key]
                     else:
-                        parent_id = find_or_create_company(contact)
+                        parent_id = find_company(contact.company)
                         company_cache[cache_key] = parent_id
                 propstack_result = create_contact(
                     contact,

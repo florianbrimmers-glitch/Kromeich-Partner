@@ -36,7 +36,8 @@ def check_duplicate(email: str) -> bool:
 
 
 def find_company(company_name: str) -> int | None:
-    """Sucht einen bestehenden Firmen-Datensatz (is_company=true) anhand des Namens."""
+    """Sucht einen bestehenden Firmen-Datensatz (is_company=true) anhand des Namens.
+    Gibt die Propstack-ID zurück, falls gefunden."""
     try:
         response = httpx.get(
             f"{PROPSTACK_BASE_URL}/contacts",
@@ -50,64 +51,13 @@ def find_company(company_name: str) -> int | None:
         target = company_name.strip().lower()
         for c in data:
             if c.get("is_company") and (c.get("name") or "").strip().lower() == target:
+                logger.info("Firma gefunden: %s (id=%s)", company_name, c.get("id"))
                 return c.get("id")
+        logger.info("Keine bestehende Firma gefunden für: %s", company_name)
         return None
     except (httpx.HTTPError, ValueError) as e:
         logger.error("Propstack company search failed for '%s': %s", company_name, e)
         return None
-
-
-def create_company(contact: ContactData) -> int | None:
-    """Legt einen Firmen-Datensatz an (is_company=true). Gibt die ID zurück."""
-    client_data: dict = {
-        "is_company": True,
-        "last_name": contact.company,
-    }
-    if contact.street:
-        client_data["office_street"] = contact.street
-    if contact.house_number:
-        client_data["office_house_number"] = contact.house_number
-    if contact.zip_code:
-        client_data["office_zip_code"] = contact.zip_code
-    if contact.city:
-        client_data["office_city"] = contact.city
-    if contact.country:
-        client_data["office_country"] = contact.country
-    client_data["description"] = f"KI-Scan (GitHub Actions) vom {date.today().isoformat()} – Firma automatisch angelegt"
-
-    try:
-        response = httpx.post(
-            f"{PROPSTACK_BASE_URL}/contacts",
-            params={"api_key": _api_key()},
-            json={"client": client_data},
-            headers={"Content-Type": "application/json", "Accept": "application/json"},
-            timeout=30.0,
-        )
-        response.raise_for_status()
-        result = response.json()
-        company_id = result.get("id")
-        logger.info("Firma in Propstack angelegt: %s (id=%s)", contact.company, company_id)
-        return company_id
-    except httpx.HTTPStatusError as e:
-        logger.error(
-            "Propstack create company failed for '%s': %s - %s",
-            contact.company, e.response.status_code, e.response.text,
-        )
-        return None
-    except (httpx.HTTPError, ValueError) as e:
-        logger.error("Propstack create company failed for '%s': %s", contact.company, e)
-        return None
-
-
-def find_or_create_company(contact: ContactData) -> int | None:
-    """Sucht die Firma oder legt sie neu an. Gibt die Firmen-ID zurück."""
-    if not contact.company:
-        return None
-    company_id = find_company(contact.company)
-    if company_id:
-        logger.info("Firma existiert bereits: %s (id=%s)", contact.company, company_id)
-        return company_id
-    return create_company(contact)
 
 
 def create_contact(
