@@ -16,7 +16,7 @@ from .models import (
 from .gmail_client import search_recent_emails
 from .contact_extractor import extract_contact, categorize_contact
 from .apollo_client import enrich_contact, apply_enrichment
-from .propstack_client import check_duplicate, create_contact, find_company, link_contact_to_company
+from .propstack_client import check_duplicate, create_contact, find_or_create_company, link_contact_to_company
 from .slack_client import send_summary
 
 logging.basicConfig(
@@ -132,12 +132,11 @@ def run_pipeline() -> PipelineReport:
                     report.errors.append(result)
                     continue
 
-                # Firma suchen und Person als Mitarbeiter verknüpfen (nur wenn Firma existiert)
                 person_id = propstack_result.get("id")
                 if person_id and contact.company:
                     cache_key = contact.company.strip().lower()
                     if cache_key not in company_cache:
-                        company_cache[cache_key] = find_company(contact.company)
+                        company_cache[cache_key] = find_or_create_company(contact)
                     company_id = company_cache[cache_key]
                     if company_id:
                         link_contact_to_company(person_id, company_id)

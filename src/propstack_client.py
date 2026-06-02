@@ -41,8 +41,7 @@ def check_duplicate(email: str) -> bool:
 
 
 def find_company(company_name: str) -> int | None:
-    """Sucht einen bestehenden Firmen-Datensatz (is_company=true) anhand des Namens.
-    Gibt die Propstack-ID zurück, falls gefunden (für die Verknüpfung)."""
+    """Sucht einen bestehenden Firmen-Datensatz (is_company=true) anhand des Namens."""
     try:
         response = httpx.get(
             f"{PROPSTACK_BASE_URL}/contacts",
@@ -63,6 +62,65 @@ def find_company(company_name: str) -> int | None:
     except (httpx.HTTPError, ValueError) as e:
         logger.error("Propstack company search failed for '%s': %s", company_name, e)
         return None
+
+
+def create_company(contact: ContactData) -> int | None:
+    """Legt eine Firma an (V1 POST + V2 PUT commercial:true). Gibt die ID zurück."""
+    client_data: dict = {"last_name": contact.company}
+    if contact.street:
+        client_data["office_street"] = contact.street
+    if contact.house_number:
+        client_data["office_house_number"] = contact.house_number
+    if contact.zip_code:
+        client_data["office_zip_code"] = contact.zip_code
+    if contact.city:
+        client_data["office_city"] = contact.city
+    if contact.country:
+        client_data["office_country"] = contact.country
+    client_data["description"] = f"KI-Scan (GitHub Actions) vom {date.today().isoformat()} – Firma automatisch angelegt"
+
+    try:
+        response = httpx.post(
+            f"{PROPSTACK_BASE_URL}/contacts",
+            params={"api_key": _api_key()},
+            json={"client": client_data},
+            headers={"Content-Type": "application/json", "Accept": "application/json"},
+            timeout=30.0,
+        )
+        response.raise_for_status()
+        company_id = response.json().get("id")
+        if not company_id:
+            return None
+
+        v2_key = _api_key_v2()
+        if v2_key:
+            v2_resp = httpx.put(
+                f"{PROPSTACK_BASE_URL_V2}/clients/{company_id}",
+                headers={"X-Api-Key": v2_key, "Content-Type": "application/json"},
+                json={"commercial": True, "company": contact.company},
+                timeout=30.0,
+            )
+            if v2_resp.status_code == 200:
+                logger.info("Firma angelegt: %s (id=%s, commercial=true)", contact.company, company_id)
+            else:
+                logger.warning("Firma angelegt aber commercial nicht gesetzt: %s (%s)", contact.company, v2_resp.status_code)
+        else:
+            logger.warning("Firma angelegt ohne commercial (V2-Key fehlt): %s", contact.company)
+
+        return company_id
+    except (httpx.HTTPError, ValueError) as e:
+        logger.error("Propstack create company failed for '%s': %s", contact.company, e)
+        return None
+
+
+def find_or_create_company(contact: ContactData) -> int | None:
+    """Sucht die Firma oder legt sie neu an. Gibt die Firmen-ID zurück."""
+    if not contact.company:
+        return None
+    company_id = find_company(contact.company)
+    if company_id:
+        return company_id
+    return create_company(contact)
 
 
 def link_contact_to_company(person_id: int, company_id: int) -> bool:
