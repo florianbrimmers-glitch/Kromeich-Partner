@@ -35,35 +35,9 @@ def check_duplicate(email: str) -> bool:
         return False
 
 
-def find_company(company_name: str) -> int | None:
-    """Sucht einen bestehenden Firmen-Datensatz (is_company=true) anhand des Namens.
-    Gibt die Propstack-ID zurück, falls gefunden."""
-    try:
-        response = httpx.get(
-            f"{PROPSTACK_BASE_URL}/contacts",
-            params={"api_key": _api_key(), "q": company_name, "per_page": 25},
-            timeout=30.0,
-        )
-        response.raise_for_status()
-        data = response.json()
-        if not isinstance(data, list):
-            return None
-        target = company_name.strip().lower()
-        for c in data:
-            if c.get("is_company") and (c.get("name") or "").strip().lower() == target:
-                logger.info("Firma gefunden: %s (id=%s)", company_name, c.get("id"))
-                return c.get("id")
-        logger.info("Keine bestehende Firma gefunden für: %s", company_name)
-        return None
-    except (httpx.HTTPError, ValueError) as e:
-        logger.error("Propstack company search failed for '%s': %s", company_name, e)
-        return None
-
-
 def create_contact(
     contact: ContactData,
     group_ids: list[str] | None = None,
-    parent_id: int | None = None,
 ) -> dict | None:
     client_data: dict = {}
 
@@ -90,9 +64,6 @@ def create_contact(
         client_data["office_city"] = contact.city
     if contact.country:
         client_data["office_country"] = contact.country
-
-    if parent_id:
-        client_data["parent_id"] = parent_id
 
     if group_ids:
         client_data["mailchimp_interest_ids"] = group_ids

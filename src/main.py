@@ -16,7 +16,7 @@ from .models import (
 from .gmail_client import search_recent_emails
 from .contact_extractor import extract_contact, categorize_contact
 from .apollo_client import enrich_contact, apply_enrichment
-from .propstack_client import check_duplicate, create_contact, find_company
+from .propstack_client import check_duplicate, create_contact
 from .slack_client import send_summary
 
 logging.basicConfig(
@@ -34,7 +34,6 @@ GROUP_LABEL_MAP: dict[str, str] = {v: k.value for k, v in GROUP_ID_MAP.items()}
 def run_pipeline() -> PipelineReport:
     report = PipelineReport(run_date=date.today().isoformat())
     processed_emails: set[str] = set()
-    company_cache: dict[str, int | None] = {}
 
     if DRY_RUN:
         logger.info("=== DRY RUN MODE – keine Kontakte werden angelegt ===")
@@ -121,19 +120,7 @@ def run_pipeline() -> PipelineReport:
                     name, contact.email, group_labels, company_info,
                 )
             else:
-                parent_id = None
-                if contact.company:
-                    cache_key = contact.company.strip().lower()
-                    if cache_key in company_cache:
-                        parent_id = company_cache[cache_key]
-                    else:
-                        parent_id = find_company(contact.company)
-                        company_cache[cache_key] = parent_id
-                propstack_result = create_contact(
-                    contact,
-                    group_ids if group_ids else None,
-                    parent_id=parent_id,
-                )
+                propstack_result = create_contact(contact, group_ids if group_ids else None)
                 if not propstack_result:
                     result = ContactResult(
                         email=contact.email,
