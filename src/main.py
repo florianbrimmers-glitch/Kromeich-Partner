@@ -16,7 +16,7 @@ from .models import (
 from .gmail_client import search_recent_emails
 from .contact_extractor import extract_contact, categorize_contact
 from .apollo_client import enrich_contact, apply_enrichment
-from .propstack_client import check_duplicate, create_contact
+from .propstack_client import check_duplicate, create_contact, find_company, link_contact_to_company
 from .slack_client import send_summary
 
 logging.basicConfig(
@@ -34,6 +34,7 @@ GROUP_LABEL_MAP: dict[str, str] = {v: k.value for k, v in GROUP_ID_MAP.items()}
 def run_pipeline() -> PipelineReport:
     report = PipelineReport(run_date=date.today().isoformat())
     processed_emails: set[str] = set()
+    company_cache: dict[str, int | None] = {}
 
     if DRY_RUN:
         logger.info("=== DRY RUN MODE – keine Kontakte werden angelegt ===")
@@ -112,7 +113,7 @@ def run_pipeline() -> PipelineReport:
                 logger.info("Übersprungen (existiert bereits in Propstack): %s", contact.email)
                 continue
 
-            # Step 8: Firma finden/anlegen und Person verknüpfen
+            # Step 8: Person anlegen und (falls Firma existiert) als Mitarbeiter verknüpfen
             if DRY_RUN:
                 company_info = f" | Firma: {contact.company}" if contact.company else ""
                 logger.info(
@@ -130,6 +131,17 @@ def run_pipeline() -> PipelineReport:
                     )
                     report.errors.append(result)
                     continue
+
+                # Firma suchen und Person als Mitarbeiter verknüpfen (nur wenn Firma existiert)
+                person_id = propstack_result.get("id")
+                if person_id and contact.company:
+                    cache_key = contact.company.strip().lower()
+                    if cache_key not in company_cache:
+                        company_cache[cache_key] = find_company(contact.company)
+                    company_id = company_cache[cache_key]
+                    if company_id:
+                        link_contact_to_company(person_id, company_id)
+                    time.sleep(0.5)
 
             result = ContactResult(
                 email=contact.email,

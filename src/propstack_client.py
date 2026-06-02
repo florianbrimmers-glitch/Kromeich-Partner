@@ -11,10 +11,15 @@ from .models import ContactData
 logger = logging.getLogger(__name__)
 
 PROPSTACK_BASE_URL = "https://api.propstack.de/v1"
+PROPSTACK_BASE_URL_V2 = "https://api.propstack.de/v2"
 
 
 def _api_key() -> str:
     return os.environ["PROPSTACK_API_KEY"]
+
+
+def _api_key_v2() -> str | None:
+    return os.environ.get("PROPSTACK_API_KEY_V2")
 
 
 def check_duplicate(email: str) -> bool:
@@ -32,6 +37,65 @@ def check_duplicate(email: str) -> bool:
         return exists
     except (httpx.HTTPError, ValueError) as e:
         logger.error("Propstack duplicate check failed for %s: %s", email, e)
+        return False
+
+
+def find_company(company_name: str) -> int | None:
+    """Sucht einen bestehenden Firmen-Datensatz (is_company=true) anhand des Namens.
+    Gibt die Propstack-ID zurück, falls gefunden (für die Verknüpfung)."""
+    try:
+        response = httpx.get(
+            f"{PROPSTACK_BASE_URL}/contacts",
+            params={"api_key": _api_key(), "q": company_name, "per_page": 25},
+            timeout=30.0,
+        )
+        response.raise_for_status()
+        data = response.json()
+        if not isinstance(data, list):
+            return None
+        target = company_name.strip().lower()
+        for c in data:
+            if c.get("is_company") and (c.get("name") or "").strip().lower() == target:
+                logger.info("Firma gefunden: %s (id=%s)", company_name, c.get("id"))
+                return c.get("id")
+        logger.info("Keine bestehende Firma gefunden für: %s", company_name)
+        return None
+    except (httpx.HTTPError, ValueError) as e:
+        logger.error("Propstack company search failed for '%s': %s", company_name, e)
+        return None
+
+
+def link_contact_to_company(person_id: int, company_id: int) -> bool:
+    """Verknüpft eine Person als 'Mitarbeiter' (associate) mit einer Firma über die V2-API.
+    Erzeugt den Eintrag unter 'Verknüpfte Kontakte' der Firma."""
+    v2_key = _api_key_v2()
+    if not v2_key:
+        logger.warning("PROPSTACK_API_KEY_V2 not set, skipping company linking")
+        return False
+    try:
+        response = httpx.post(
+            f"{PROPSTACK_BASE_URL_V2}/relationships",
+            headers={"X-Api-Key": v2_key, "Content-Type": "application/json"},
+            json={
+                "internal_name": "associate",
+                "name": "Mitarbeiter",
+                "client_id": person_id,
+                "related_client_id": company_id,
+            },
+            timeout=30.0,
+        )
+        if response.status_code in (200, 201, 204):
+            logger.info("Person %s mit Firma %s verknüpft (Mitarbeiter)", person_id, company_id)
+            return True
+        if response.status_code == 422:
+            logger.info("Person %s bereits mit Firma %s verknüpft", person_id, company_id)
+            return True
+        logger.error(
+            "Verknüpfung fehlgeschlagen (%s): %s", response.status_code, response.text
+        )
+        return False
+    except httpx.HTTPError as e:
+        logger.error("Verknüpfung Person %s -> Firma %s fehlgeschlagen: %s", person_id, company_id, e)
         return False
 
 
