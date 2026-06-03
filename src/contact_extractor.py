@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import os
@@ -215,3 +216,136 @@ def categorize_contact(
     except anthropic.APIError as e:
         logger.error("Claude API error during categorization: %s", e)
         return [GROUP_ID_MAP[GroupCategory.SONSTIGES]]
+
+
+BUSINESSCARD_PROMPT = """\
+Analysiere das Foto dieser Visitenkarte und extrahiere alle Kontaktdaten.
+
+Regeln:
+- Trenne Straße und Hausnummer immer in zwei separate Felder.
+- Wenn ein Feld nicht auf der Visitenkarte vorhanden ist, setze es auf null.
+- Bei mehreren Personen auf einer Karte: extrahiere nur die Hauptperson.
+
+Antworte ausschließlich mit einem JSON-Objekt in diesem Format:
+{{
+  "first_name": "string oder null",
+  "last_name": "string oder null",
+  "email": "string oder null",
+  "phone": "string oder null",
+  "company": "string oder null",
+  "position": "string oder null",
+  "street": "string oder null (NUR Straßenname, OHNE Hausnummer)",
+  "house_number": "string oder null (NUR die Hausnummer)",
+  "zip_code": "string oder null",
+  "city": "string oder null"
+}}
+"""
+
+SLACK_TEXT_PROMPT = """\
+Analysiere den folgenden Text aus einer Slack-Nachricht und extrahiere Kontaktdaten.
+Der Text kann eine formlose Notiz sein, eine kopierte Visitenkarte, oder eine Kontaktbeschreibung.
+
+Regeln:
+- Trenne Straße und Hausnummer immer in zwei separate Felder.
+- Wenn ein Feld nicht vorhanden ist, setze es auf null.
+
+Antworte ausschließlich mit einem JSON-Objekt in diesem Format:
+{{
+  "first_name": "string oder null",
+  "last_name": "string oder null",
+  "email": "string oder null",
+  "phone": "string oder null",
+  "company": "string oder null",
+  "position": "string oder null",
+  "street": "string oder null (NUR Straßenname, OHNE Hausnummer)",
+  "house_number": "string oder null (NUR die Hausnummer)",
+  "zip_code": "string oder null",
+  "city": "string oder null"
+}}
+
+Slack-Nachricht:
+{text}
+"""
+
+
+def _parse_contact_json(text: str, source: str) -> ContactData | None:
+    if text.startswith("```"):
+        text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+
+    start = text.rfind("{")
+    end = text.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        text = text[start : end + 1]
+
+    data = json.loads(text)
+
+    first_name = data.get("first_name") or None
+    last_name = data.get("last_name") or None
+
+    if not first_name and not last_name:
+        logger.info("No name found in %s", source)
+        return None
+
+    contact_email = data.get("email") or None
+
+    return ContactData(
+        first_name=first_name,
+        last_name=last_name,
+        email=contact_email.lower().strip() if contact_email else "",
+        phone=data.get("phone") or None,
+        company=data.get("company") or None,
+        position=data.get("position") or None,
+        street=data.get("street") or None,
+        house_number=data.get("house_number") or None,
+        zip_code=data.get("zip_code") or None,
+        city=data.get("city") or None,
+    )
+
+
+def extract_contact_from_image(image_data: bytes) -> ContactData | None:
+    client = _get_client()
+    b64 = base64.standard_b64encode(image_data).decode("utf-8")
+
+    try:
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=1024,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {"type": "base64", "media_type": "image/jpeg", "data": b64},
+                    },
+                    {"type": "text", "text": BUSINESSCARD_PROMPT},
+                ],
+            }],
+        )
+        text = response.content[0].text.strip()
+        return _parse_contact_json(text, "business card image")
+    except (json.JSONDecodeError, KeyError, IndexError) as e:
+        logger.error("Failed to parse business card extraction: %s", e)
+        return None
+    except anthropic.APIError as e:
+        logger.error("Claude API error during business card extraction: %s", e)
+        return None
+
+
+def extract_contact_from_text(slack_text: str) -> ContactData | None:
+    client = _get_client()
+    prompt = SLACK_TEXT_PROMPT.format(text=slack_text[:4000])
+
+    try:
+        response = client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=1024,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        resp_text = response.content[0].text.strip()
+        return _parse_contact_json(resp_text, "slack text")
+    except (json.JSONDecodeError, KeyError, IndexError) as e:
+        logger.error("Failed to parse slack text extraction: %s", e)
+        return None
+    except anthropic.APIError as e:
+        logger.error("Claude API error during slack text extraction: %s", e)
+        return None
