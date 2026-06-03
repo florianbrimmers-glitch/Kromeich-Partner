@@ -57,6 +57,7 @@ def run_pipeline() -> PipelineReport:
         try:
             # Step 3: Extract contact from signature
             contact = extract_contact(email_data)
+            time.sleep(3)
             if not contact:
                 logger.info("No contact data extracted from %s", email_data.sender_email)
                 report.contacts_skipped_no_email += 1
@@ -92,12 +93,12 @@ def run_pipeline() -> PipelineReport:
                     apollo_enriched = True
                     enriched_fields = enrichment.enriched_fields
                     logger.info("Apollo enriched %s: %s", contact.email, enriched_fields)
-                time.sleep(1.5)
+                time.sleep(3)
 
             # Step 5: Categorize contact
             group_ids = categorize_contact(contact, email_data.subject, email_data.body[:2000])
             group_labels = [GROUP_LABEL_MAP.get(gid, str(gid)) for gid in group_ids]
-            time.sleep(1.5)
+            time.sleep(3)
 
             # Step 7: Propstack duplicate check
             if check_duplicate(contact.email):
@@ -155,7 +156,7 @@ def run_pipeline() -> PipelineReport:
             report.contacts_created.append(result)
             logger.info("Kontakt angelegt: %s (%s) – Merkmale: %s", name, contact.email, group_labels)
 
-            time.sleep(1.5)
+            time.sleep(3)
 
         except Exception as e:
             logger.error("Error processing email from %s: %s", email_data.sender_email, e, exc_info=True)
