@@ -14,10 +14,14 @@ on:
         options:
           - "false"
           - "true"
-      scan_hours:
-        description: "Stunden zurück scannen (Standard: 24, für alles: 8760)"
+      scan_from_days:
+        description: "Untere Grenze: wie viele Tage zurück (Standard: 1)"
         required: false
-        default: "24"
+        default: "1"
+      scan_to_days:
+        description: "Obere Grenze: bis wie viele Tage zurück (0 = bis jetzt). Für Etappen z.B. von=150, bis=120"
+        required: false
+        default: "0"
 
 jobs:
   import-visitenkarten:
@@ -45,5 +49,10 @@ jobs:
           PROPSTACK_API_V2_CONTACTS: ${{ secrets.PROPSTACK_API_V2_CONTACTS }}
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
-          SCAN_HOURS: ${{ github.event.inputs.scan_hours || '24' }}
-        run: python -m src.slack_import
+        run: |
+          FROM_DAYS="${{ github.event.inputs.scan_from_days || '1' }}"
+          TO_DAYS="${{ github.event.inputs.scan_to_days || '0' }}"
+          export SCAN_HOURS=$(( FROM_DAYS * 24 ))
+          export SCAN_LATEST_HOURS=$(( TO_DAYS * 24 ))
+          echo "Scanne von ${FROM_DAYS}d bis ${TO_DAYS}d zurück (SCAN_HOURS=$SCAN_HOURS, SCAN_LATEST_HOURS=$SCAN_LATEST_HOURS)"
+          python -m src.slack_import

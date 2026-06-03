@@ -22,10 +22,16 @@ def _headers() -> dict:
     return {"Authorization": f"Bearer {_bot_token()}"}
 
 
-def fetch_recent_messages(hours: int = 24) -> list[dict]:
-    """Liest Nachrichten der letzten `hours` Stunden aus #visitenkarten."""
-    oldest = datetime.now(timezone.utc) - timedelta(hours=hours)
-    oldest_ts = str(oldest.timestamp())
+def fetch_recent_messages(hours: int = 24, latest_hours: int = 0) -> list[dict]:
+    """Liest Nachrichten aus #visitenkarten in einem Zeitfenster.
+
+    hours: untere Grenze (wie weit zurück, in Stunden ab jetzt)
+    latest_hours: obere Grenze (bis wie nah an jetzt; 0 = bis jetzt)
+    Beispiel: hours=3600, latest_hours=2880 → das 5.-letzte 30-Tage-Fenster.
+    """
+    now = datetime.now(timezone.utc)
+    oldest_ts = str((now - timedelta(hours=hours)).timestamp())
+    latest_ts = str((now - timedelta(hours=latest_hours)).timestamp()) if latest_hours else None
 
     messages: list[dict] = []
     cursor = None
@@ -36,6 +42,8 @@ def fetch_recent_messages(hours: int = 24) -> list[dict]:
             "oldest": oldest_ts,
             "limit": 100,
         }
+        if latest_ts:
+            params["latest"] = latest_ts
         if cursor:
             params["cursor"] = cursor
 
