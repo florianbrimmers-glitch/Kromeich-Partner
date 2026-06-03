@@ -14,6 +14,10 @@ on:
         options:
           - "false"
           - "true"
+      scan_hours:
+        description: "Stunden zurück scannen (Standard: 24, für alles: 8760)"
+        required: false
+        default: "24"
 
 jobs:
   import-visitenkarten:
@@ -41,4 +45,5 @@ jobs:
           PROPSTACK_API_V2_CONTACTS: ${{ secrets.PROPSTACK_API_V2_CONTACTS }}
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+          SCAN_HOURS: ${{ github.event.inputs.scan_hours || '24' }}
         run: python -m src.slack_import

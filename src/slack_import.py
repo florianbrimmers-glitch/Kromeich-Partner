@@ -43,8 +43,9 @@ def run_pipeline() -> PipelineReport:
     if DRY_RUN:
         logger.info("=== DRY RUN MODE – keine Kontakte werden angelegt ===")
 
-    logger.info("Step 1: Reading #visitenkarten channel...")
-    messages = fetch_recent_messages(hours=24)
+    scan_hours = int(os.environ.get("SCAN_HOURS", "24"))
+    logger.info("Step 1: Reading #visitenkarten channel (last %dh)...", scan_hours)
+    messages = fetch_recent_messages(hours=scan_hours)
     report.emails_searched = len(messages)
     logger.info("Found %d messages in #visitenkarten", len(messages))
 
