@@ -2,8 +2,8 @@ name: Daily Contact Import
 
 on:
   schedule:
-    # Mo-Fr um 6:00 UTC = 8:00 CET / 8:00 CEST
-    - cron: "0 6 * * 1-5"
+    # Mo-Fr um 1:00 UTC = 3:00 MESZ / 2:00 MEZ
+    - cron: "0 1 * * 1-5"
   workflow_dispatch:
     inputs:
       dry_run:
