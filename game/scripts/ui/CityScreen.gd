@@ -59,13 +59,11 @@ func _load_layout() -> void:
 
 
 func _build_hud() -> void:
-	var bg := ColorRect.new()
-	bg.color = Color(0.07, 0.08, 0.11, 1.0)
-	bg.anchor_right = 1.0
-	bg.anchor_bottom = 1.0
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(bg)
-	move_child(bg, 0)
+	# Achtung: KEIN Kind-ColorRect ueber die volle Flaeche als Hintergrund.
+	# Children rendern ueber dem _draw() des Parents - ein Vollbild-Kind
+	# wuerde alles Gemalte verdecken. Der Backdrop wird in _draw() selbst
+	# gemalt, HUD-Streifen oben/unten ebenfalls. So bleiben Stage und HUD
+	# in derselben Render-Schicht und stoeren sich nicht.
 
 	_title = Label.new()
 	_title.add_theme_font_size_override("font_size", 44)
@@ -154,9 +152,16 @@ func _update_hud() -> void:
 # --- Rendering ---
 
 func _draw() -> void:
+	# Vollflaechiger Backdrop (frueher ein Kind-ColorRect - das hat die
+	# Iso-Stage verdeckt, weil Children ueber dem Parent-_draw rendern).
+	draw_rect(Rect2(Vector2.ZERO, size), Color(0.07, 0.08, 0.11), true)
+	# HUD-Streifen oben/unten, damit Labels lesbar bleiben.
+	draw_rect(Rect2(Vector2.ZERO, Vector2(size.x, HUD_TOP)), Color(0.05, 0.06, 0.08), true)
+	draw_rect(Rect2(Vector2(0.0, size.y - HUD_BOTTOM), Vector2(size.x, HUD_BOTTOM)), Color(0.05, 0.06, 0.08), true)
+
 	var stage := _stage_rect()
-	# Boden-Plateau als Andeutung (spaeter: KI-Hintergrund-Textur).
-	draw_rect(Rect2(Vector2(0, HUD_TOP), Vector2(size.x, stage.size.y)), Color(0.12, 0.14, 0.13), true)
+	# Boden-Plateau (spaeter: KI-Hintergrund-Textur).
+	draw_rect(stage, Color(0.12, 0.14, 0.13), true)
 	_draw_ground_grid(stage)
 
 	_plots = _compute_plots(stage)
