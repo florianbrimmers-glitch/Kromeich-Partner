@@ -58,21 +58,21 @@ SKIP_SUBJECT_PATTERNS = [
 ]
 
 
-def _build_credentials(refresh_token: str) -> Credentials:
+def _build_credentials(refresh_token: str, client_id: str, client_secret: str) -> Credentials:
     creds = Credentials(
         token=None,
         refresh_token=refresh_token,
         token_uri="https://oauth2.googleapis.com/token",
-        client_id=os.environ["GOOGLE_CLIENT_ID"],
-        client_secret=os.environ["GOOGLE_CLIENT_SECRET"],
+        client_id=client_id,
+        client_secret=client_secret,
         scopes=["https://www.googleapis.com/auth/gmail.readonly"],
     )
     creds.refresh(Request())
     return creds
 
 
-def _get_gmail_service(refresh_token: str):
-    creds = _build_credentials(refresh_token)
+def _get_gmail_service(refresh_token: str, client_id: str, client_secret: str):
+    creds = _build_credentials(refresh_token, client_id, client_secret)
     return build("gmail", "v1", credentials=creds)
 
 
@@ -121,8 +121,15 @@ def _decode_body(payload: dict) -> str:
     return ""
 
 
-def _fetch_emails_for_account(refresh_token: str, account_label: str, hours: int = 24, limit: int = 50) -> list[EmailData]:
-    service = _get_gmail_service(refresh_token)
+def _fetch_emails_for_account(
+    refresh_token: str,
+    client_id: str,
+    client_secret: str,
+    account_label: str,
+    hours: int = 24,
+    limit: int = 50,
+) -> list[EmailData]:
+    service = _get_gmail_service(refresh_token, client_id, client_secret)
     query = "newer_than:1d"
 
     results = (
@@ -185,18 +192,23 @@ def search_recent_emails(hours: int = 24, limit: int = 50) -> list[EmailData]:
     all_emails: list[EmailData] = []
     account_count = 0
 
-    token_keys = [
-        ("GOOGLE_REFRESH_TOKEN", "Florian Brimmers"),
-        ("GOOGLE_REFRESH_TOKEN_2", "Denise Kromeich"),
-        ("GOOGLE_REFRESH_TOKEN_3", "Marek Zimmermann"),
-        ("GOOGLE_REFRESH_TOKEN_4", "Lena Klinnert"),
+    client_id_1 = os.environ.get("GOOGLE_CLIENT_ID", "")
+    client_secret_1 = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+    client_id_2 = os.environ.get("GOOGLE_CLIENT_ID_2", client_id_1)
+    client_secret_2 = os.environ.get("GOOGLE_CLIENT_SECRET_2", client_secret_1)
+
+    accounts = [
+        ("GOOGLE_REFRESH_TOKEN", "Florian Brimmers", client_id_1, client_secret_1),
+        ("GOOGLE_REFRESH_TOKEN_2", "Denise Kromeich", client_id_1, client_secret_1),
+        ("GOOGLE_REFRESH_TOKEN_3", "Marek Zimmermann", client_id_2, client_secret_2),
+        ("GOOGLE_REFRESH_TOKEN_4", "Lena Klinnert", client_id_2, client_secret_2),
     ]
 
-    for env_key, label in token_keys:
+    for env_key, label, cid, csec in accounts:
         token = os.environ.get(env_key)
         if token:
             account_count += 1
-            all_emails.extend(_fetch_emails_for_account(token, label, hours, limit))
+            all_emails.extend(_fetch_emails_for_account(token, cid, csec, label, hours, limit))
 
     logger.info("Total: %d emails from %d account(s)", len(all_emails), account_count)
     return all_emails
