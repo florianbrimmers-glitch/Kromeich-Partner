@@ -183,14 +183,20 @@ def _fetch_emails_for_account(refresh_token: str, account_label: str, hours: int
 
 def search_recent_emails(hours: int = 24, limit: int = 50) -> list[EmailData]:
     all_emails: list[EmailData] = []
+    account_count = 0
 
-    token_1 = os.environ.get("GOOGLE_REFRESH_TOKEN")
-    if token_1:
-        all_emails.extend(_fetch_emails_for_account(token_1, "Account 1", hours, limit))
+    token_keys = [
+        ("GOOGLE_REFRESH_TOKEN", "Florian Brimmers"),
+        ("GOOGLE_REFRESH_TOKEN_2", "Denise Kromeich"),
+        ("GOOGLE_REFRESH_TOKEN_3", "Marek Zimmermann"),
+        ("GOOGLE_REFRESH_TOKEN_4", "Lena Klinnert"),
+    ]
 
-    token_2 = os.environ.get("GOOGLE_REFRESH_TOKEN_2")
-    if token_2:
-        all_emails.extend(_fetch_emails_for_account(token_2, "Account 2", hours, limit))
+    for env_key, label in token_keys:
+        token = os.environ.get(env_key)
+        if token:
+            account_count += 1
+            all_emails.extend(_fetch_emails_for_account(token, label, hours, limit))
 
-    logger.info("Total: %d emails from %d account(s)", len(all_emails), (1 if token_1 else 0) + (1 if token_2 else 0))
+    logger.info("Total: %d emails from %d account(s)", len(all_emails), account_count)
     return all_emails
