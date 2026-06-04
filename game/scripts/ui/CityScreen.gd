@@ -247,11 +247,22 @@ func _draw_diamond_outline(c: Vector2, hw: float, hh: float, col: Color, wdt: fl
 
 
 func _plot_label(p: Dictionary, at: Vector2) -> void:
+	# Drei Zeilen pro Plot:
+	#   1) Gebaeude-Name
+	#   2) Zustand: Kosten / Voraussetzung / Vorrat / "fertig"
+	#   3) Effekt-Beschreibung (was tut das Gebaeude?) - klein und dezent,
+	#      aber immer sichtbar, damit man auch ungebaute Gebaeude einschaetzen
+	#      kann. War im alten Button-Panel automatisch im Button-Text drin.
 	var line1: String = String(p["name"])
 	var line2: String = String(p["sub"])
+	var line3: String = String(p["effect"])
 	_centered_text(line1, at, 26, Color(0.95, 0.95, 0.98))
+	var y_off := 30.0
 	if line2 != "":
-		_centered_text(line2, at + Vector2(0, 30), 22, p["sub_col"])
+		_centered_text(line2, at + Vector2(0, y_off), 22, p["sub_col"])
+		y_off += 26.0
+	if line3 != "":
+		_centered_text(line3, at + Vector2(0, y_off), 20, Color(0.78, 0.82, 0.90, 0.85))
 
 
 func _centered_text(txt: String, at: Vector2, fsize: int, col: Color) -> void:
@@ -298,6 +309,7 @@ func _compute_plots(stage: Rect2) -> Array:
 			"z": int(lp.get("z", 0)),
 			"sub": _plot_subline(def, is_built, fid),
 			"sub_col": _plot_sub_color(def, is_built, fid),
+			"effect": String(def.get("effect", "")),
 		})
 
 	# Hinten-nach-vorne: kleineres y zuerst, z als Tiebreaker.
@@ -374,7 +386,13 @@ func _act_on_plot(p: Dictionary) -> void:
 	if uid != "":
 		recruit_requested.emit(uid)
 	else:
-		set_status("%s steht bereits." % String(p["name"]))
+		# Kein Militaergebaeude -> Effekt aus dem Plot-Dict zeigen, damit
+		# der Tap zumindest die Wirkung in der Statuszeile spiegelt.
+		var eff: String = String(p["effect"])
+		if eff != "":
+			set_status("%s: %s" % [String(p["name"]), eff])
+		else:
+			set_status("%s steht bereits." % String(p["name"]))
 
 
 func _in_diamond(pt: Vector2, c: Vector2, hw: float, hh: float) -> bool:
