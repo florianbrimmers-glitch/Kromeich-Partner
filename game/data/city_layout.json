@@ -1,0 +1,12 @@
+{
+	"_comment": "Hotspot-Positionen der Stadt-Gebaeude im isometrischen Stadt-Screen. x/y sind normalisiert (0..1) relativ zur Buehnen-Flaeche (Bereich zwischen HUD oben und Status-Leiste unten). y waechst nach unten = naeher zur Kamera. Gezeichnet wird hinten-nach-vorne (kleineres y zuerst); z ueberschreibt die Reihenfolge bei Gleichstand. Platzierung ist bewusst Daten, nicht Code - hier justieren, sobald echte KI-Hintergruende stehen.",
+	"buildings": {
+		"kapelle":  { "x": 0.50, "y": 0.14, "z": 0 },
+		"schmiede": { "x": 0.30, "y": 0.30, "z": 0 },
+		"reiterei": { "x": 0.70, "y": 0.30, "z": 0 },
+		"markt":    { "x": 0.17, "y": 0.52, "z": 0 },
+		"wachturm": { "x": 0.83, "y": 0.52, "z": 0 },
+		"kaserne":  { "x": 0.40, "y": 0.66, "z": 0 },
+		"spaeher":  { "x": 0.63, "y": 0.70, "z": 0 }
+	}
+}

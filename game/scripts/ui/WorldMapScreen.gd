@@ -197,6 +197,12 @@ var _city_title: Label
 var _city_gold: Label
 var _buildings_box: VBoxContainer
 var _selected_city: int = -1
+# Neuer isometrischer Stadt-Screen (Platzhalter-Grafik, spaeter KI-Sprites).
+# Solange true, ersetzt er das alte Button-Panel (_show_city_panel bleibt als
+# Fallback erhalten). Die Oekonomie-Logik (_buy_building/_recruit_unit) wird
+# per Signal wiederverwendet, nicht dupliziert.
+const USE_ISO_CITY_SCREEN := true
+var _city_screen: CityScreen
 # Monster: Array aus { "pos": Vector2i, "strength": int }.
 var _monsters: Array = []
 # Karten-Objekte: Array aus { "pos": Vector2i, "kind": int, "owner": int,
@@ -249,6 +255,10 @@ func _set_status(s: String) -> void:
 	var lbl := get_node_or_null(status_label_path) as Label
 	if lbl != null:
 		lbl.text = s
+	# Liegt der Stadt-Screen drueber, dieselbe Meldung dort spiegeln -
+	# sonst landet Feedback wie "Kein Nachschub" unsichtbar dahinter.
+	if _city_screen != null and _city_screen.visible:
+		_city_screen.set_status(s)
 	print("[WorldMap] " + s)
 
 
@@ -267,6 +277,7 @@ func _ready() -> void:
 		mm_toggle.pressed.connect(_toggle_minimap)
 	_build_combat_label()
 	_build_city_panel()
+	_build_city_screen()
 	_build_victory_panel()
 
 	(get_node(end_turn_button_path) as Button).pressed.connect(_on_end_turn)
@@ -2071,7 +2082,65 @@ func _on_victory_new_map() -> void:
 	_start(_seed + 1)
 
 
+func _build_city_screen() -> void:
+	var cs := CityScreen.new()
+	cs.anchor_right = 1.0
+	cs.anchor_bottom = 1.0
+	add_child(cs)
+	cs.build_requested.connect(_on_city_build)
+	cs.recruit_requested.connect(_on_city_recruit)
+	cs.closed.connect(_on_city_closed)
+	_city_screen = cs
+
+
+# Baut das Kontext-Buendel, das die View zum Rendern braucht. Die View
+# enthaelt keine Logik - alle Werte kommen von hier und werden bei jedem
+# open()/refresh() neu gereicht.
+func _city_ctx(city_idx: int) -> Dictionary:
+	var city: Dictionary = _cities[city_idx]
+	return {
+		"city": city,
+		"hero": _hero,
+		"buildings": BUILDINGS,
+		"faction_names": FACTION_NAMES,
+		"faction_colors": FACTION_COLORS,
+		"weekly_growth": WEEKLY_GROWTH,
+		"calendar": _calendar_text(),
+		"hero_here": _hero != null and _hero.position == Vector2i(city["pos"]),
+	}
+
+
+# Einstieg: routet auf den Iso-Screen, faellt sonst auf das alte Panel
+# zurueck. Wird auch von _buy_building/_recruit_unit am Ende aufgerufen und
+# dient damit zugleich als Refresh.
 func _show_city(city_idx: int) -> void:
+	_selected_city = city_idx
+	if USE_ISO_CITY_SCREEN and _city_screen != null:
+		_city_screen.open(_city_ctx(city_idx))
+		return
+	_show_city_panel(city_idx)
+
+
+func _on_city_build(building_id: String) -> void:
+	if _selected_city < 0:
+		return
+	for i in range(BUILDINGS.size()):
+		if String(BUILDINGS[i]["id"]) == building_id:
+			_buy_building(_selected_city, i)
+			return
+
+
+func _on_city_recruit(unit_id: String) -> void:
+	if _selected_city < 0:
+		return
+	_recruit_unit(_selected_city, unit_id)
+
+
+func _on_city_closed() -> void:
+	_hide_city()
+
+
+func _show_city_panel(city_idx: int) -> void:
 	_selected_city = city_idx
 	var city: Dictionary = _cities[city_idx]
 	var fid: int = int(city["faction"])
@@ -2144,6 +2213,8 @@ func _show_city(city_idx: int) -> void:
 
 func _hide_city() -> void:
 	_city_panel.visible = false
+	if _city_screen != null:
+		_city_screen.visible = false
 	_selected_city = -1
 
 
