@@ -206,7 +206,10 @@ def search_recent_emails(hours: int = 24, limit: int = 50) -> list[EmailData]:
         token = os.environ.get(env_key)
         if token:
             account_count += 1
-            all_emails.extend(_fetch_emails_for_account(token, client_id, client_secret, label, hours, limit))
+            try:
+                all_emails.extend(_fetch_emails_for_account(token, client_id, client_secret, label, hours, limit))
+            except Exception as e:
+                logger.error("[%s] Fehler beim Abrufen: %s – überspringe Account", label, e)
 
     logger.info("Total: %d emails from %d account(s)", len(all_emails), account_count)
     return all_emails
