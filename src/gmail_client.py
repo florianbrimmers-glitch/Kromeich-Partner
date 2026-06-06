@@ -192,23 +192,21 @@ def search_recent_emails(hours: int = 24, limit: int = 50) -> list[EmailData]:
     all_emails: list[EmailData] = []
     account_count = 0
 
-    client_id_1 = os.environ.get("GOOGLE_CLIENT_ID", "")
-    client_secret_1 = os.environ.get("GOOGLE_CLIENT_SECRET", "")
-    client_id_2 = os.environ.get("GOOGLE_CLIENT_ID_2", client_id_1)
-    client_secret_2 = os.environ.get("GOOGLE_CLIENT_SECRET_2", client_secret_1)
+    client_id = os.environ.get("GOOGLE_CLIENT_ID", "")
+    client_secret = os.environ.get("GOOGLE_CLIENT_SECRET", "")
 
     accounts = [
-        ("GOOGLE_REFRESH_TOKEN", "Florian Brimmers", client_id_1, client_secret_1),
-        ("GOOGLE_REFRESH_TOKEN_2", "Denise Kromeich", client_id_1, client_secret_1),
-        ("GOOGLE_REFRESH_TOKEN_3", "Marek Zimmermann", client_id_2, client_secret_2),
-        ("GOOGLE_REFRESH_TOKEN_4", "Lena Klinnert", client_id_2, client_secret_2),
+        ("GOOGLE_REFRESH_TOKEN", "Florian Brimmers"),
+        ("GOOGLE_REFRESH_TOKEN_2", "Denise Kromeich"),
+        ("GOOGLE_REFRESH_TOKEN_3", "Marek Zimmermann"),
+        ("GOOGLE_REFRESH_TOKEN_4", "Lena Klinnert"),
     ]
 
-    for env_key, label, cid, csec in accounts:
+    for env_key, label in accounts:
         token = os.environ.get(env_key)
         if token:
             account_count += 1
-            all_emails.extend(_fetch_emails_for_account(token, cid, csec, label, hours, limit))
+            all_emails.extend(_fetch_emails_for_account(token, client_id, client_secret, label, hours, limit))
 
     logger.info("Total: %d emails from %d account(s)", len(all_emails), account_count)
     return all_emails
