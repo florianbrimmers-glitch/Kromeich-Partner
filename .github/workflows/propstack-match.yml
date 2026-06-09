@@ -27,6 +27,7 @@ jobs:
 
       - name: Upload result
         if: always()
+        continue-on-error: true   # Artifact-Quota darf den Run nicht rot machen
         uses: actions/upload-artifact@v4
         with:
           name: propstack-match-result

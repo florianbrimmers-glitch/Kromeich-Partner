@@ -19,7 +19,7 @@ import time
 import requests
 
 BASE = "https://api.propstack.de/v1"
-MATCH_RADIUS_M = 400
+MATCH_RADIUS_M = 1000   # lockerer: 1 km Geo-Treffer (vorher 400 m)
 HERE = os.path.dirname(__file__)
 # Beide OSM-Listen: (Datei, Flächenspalte, Quelle)
 OSM_SOURCES = [
@@ -105,6 +105,26 @@ def load_osm():
     return rows
 
 
+def parse_zip_city(place):
+    """Aus 'Straße 1 33790 Halle (Westf.)' -> ('33790', 'halle')."""
+    m = re.search(r"\b(\d{5})\b", place or "")
+    ozip = m.group(1) if m else ""
+    ocity = ""
+    if m:
+        rest = place[m.end():].strip()
+        rest = re.sub(r"\(.*?\)", "", rest)  # Klammern raus
+        ocity = re.sub(r"[^a-zäöüß ]", "", rest.lower()).strip().split(" ")[0]
+    return ozip, ocity
+
+
+def name_tokens(name):
+    """Aussagekräftige Tokens eines Betreibernamens (>=4 Zeichen, ohne Rechtsformen)."""
+    stop = {"gmbh", "co", "kg", "ohg", "ag", "und", "the", "werk", "logistik",
+            "logistics", "lager", "service", "deutschland", "germany"}
+    toks = re.findall(r"[a-zäöüß0-9]{4,}", (name or "").lower())
+    return [t for t in toks if t not in stop]
+
+
 def gfloat(u, *keys):
     for k in keys:
         v = u.get(k)
@@ -128,6 +148,10 @@ def main():
     report = []
     for o in osm:
         cands = []
+        ozip, ocity = parse_zip_city(o["place"])
+        osm_str = norm_street(o["place"])
+        otoks = set(name_tokens(o["name"]))
+        nearest = None  # (dist_m, unit-info) – nächstes Objekt mit Koordinaten
         for u in units:
             lat, lng = u.get("lat"), u.get("lng")
             dist = None
@@ -136,16 +160,30 @@ def main():
                     dist = haversine(o["Lat"], o["Lon"], float(lat), float(lng))
                 except (TypeError, ValueError):
                     dist = None
+            if dist is not None and (nearest is None or dist < nearest[0]):
+                nearest = (dist, u)
             geo_hit = dist is not None and dist <= MATCH_RADIUS_M
-            # Adress-Fallback
+
+            # Adresse: gleiche PLZ ODER gleiche Stadt, plus Straßen-Teilstring
+            ucity = re.sub(r"[^a-zäöüß ]", "", (u.get("city") or "").lower()).strip().split(" ")[0]
+            same_loc = (ozip and str(u.get("zip_code") or "").strip() == ozip) or \
+                       (ocity and ucity and (ocity == ucity or ocity in ucity or ucity in ocity))
             addr_hit = False
-            ozip = "".join(filter(str.isdigit, o["place"]))[:5]
-            if ozip and u.get("zip_code") and str(u["zip_code"]).strip() == ozip:
-                osm_str = norm_street(o["place"])
+            if same_loc:
                 ps_str = norm_street(u.get("street", ""))
-                if ps_str and (ps_str in osm_str or osm_str.find(ps_str[:6]) >= 0):
+                if ps_str and len(ps_str) >= 5 and (ps_str in osm_str or ps_str[:6] in osm_str):
                     addr_hit = True
-            if geo_hit or addr_hit:
+
+            # Name: aussagekräftiges Token des Betreibers taucht im Propstack-Objekt auf
+            name_hit = False
+            if otoks:
+                hay = f"{u.get('name','')} {u.get('title','')} {u.get('street','')}".lower()
+                if any(t in hay for t in otoks):
+                    name_hit = True
+
+            if geo_hit or addr_hit or name_hit:
+                why = ",".join(w for w, b in
+                               (("geo", geo_hit), ("adresse", addr_hit), ("name", name_hit)) if b)
                 cands.append({
                     "id": u.get("id"),
                     "name": u.get("name") or u.get("title") or "",
@@ -157,9 +195,9 @@ def main():
                     "marketing_type": u.get("marketing_type"),
                     "status": (u.get("property_status") or {}).get("name") if isinstance(u.get("property_status"), dict) else u.get("status"),
                     "dist_m": round(dist) if dist is not None else None,
-                    "match": "geo" if geo_hit else "adresse",
+                    "match": why,
                 })
-        report.append({"osm": o, "matches": cands})
+        report.append({"osm": o, "matches": cands, "nearest": nearest})
 
     # Ausgabe – nach Quelle gruppiert
     for source in ("Einzelhalle", "Komplex"):
@@ -182,7 +220,15 @@ def main():
                           f"{m['marketing_type']}/{m['status']} | Match={m['match']} ({m['dist_m']} m)")
             else:
                 print(f"\n❌ nicht in Propstack: {head}")
-        print(f"\n→ {hits} von {len(group)} {source}n mit Propstack-Treffer.")
+                near = r.get("nearest")
+                if near:
+                    d, u = near
+                    addr = " ".join(filter(None, [u.get("street", ""), str(u.get("zip_code") or ""),
+                                                  u.get("city", "")])).strip()
+                    print(f"     (nächstes Propstack-Objekt: {round(d/1000,1)} km entfernt – "
+                          f"#{u.get('id')} {addr or u.get('name') or u.get('title') or '?'})")
+        print(f"\n→ {hits} von {len(group)} {source}n mit Propstack-Treffer "
+              f"(Radius {MATCH_RADIUS_M} m + Stadt/Straße + Betreibername).")
 
 
 if __name__ == "__main__":
