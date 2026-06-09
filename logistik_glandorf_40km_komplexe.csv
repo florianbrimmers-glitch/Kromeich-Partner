@@ -1,0 +1,21 @@
+Gesamtflaeche_m2;Anzahl_Gebaeude;Entfernung_km;Dom_Typ;Name_Betreiber;Standort;Lat;Lon;OSM_Link_ein_Gebaeude
+35347;16;18.3;yes;Lagerhaus 1844;Groneweg 30 48231 Warendorf;51.91945;7.956606;https://www.openstreetmap.org/way/89707226
+31793;2;23.4;yes;;Im Westerfeld 1 49504 Lotte;52.286744;7.926182;https://www.openstreetmap.org/way/317740099
+38550;2;25.5;warehouse;Thomas Philipps Logistikzentrum Melle;Ochsenweg 29 49324 Melle;52.218518;8.302957;https://www.openstreetmap.org/way/271810423
+33844;4;26.0;yes;;Brochterbecker Damm 48369 Saerbeck;52.182889;7.659992;https://www.openstreetmap.org/way/224356914
+30297;1;26.2;warehouse;Walbusch;Ravenna-Park 1 33790 Halle (Westf.);52.026335;8.375826;https://www.openstreetmap.org/way/332559501
+35596;2;27.2;industrial;;Brackweder Straße 33790 Halle (Westf.);52.032391;8.393283;https://www.openstreetmap.org/way/125366620
+38860;1;27.5;industrial;;Up'n Nien Esch 26-34 48268 Greven;52.108012;7.603422;https://www.openstreetmap.org/way/292728921
+39432;1;30.5;industrial;;Robert-Bosch-Straße 48268 Greven;52.138368;7.566002;https://www.openstreetmap.org/way/1348664839
+36647;6;30.9;yes;;Wilmersstraße 54 48282 Emsdetten;52.150949;7.564476;https://www.openstreetmap.org/way/263778115
+31916;2;31.4;yes;;Franz-Fischer-Weg 48268 Greven;52.1349;7.552362;https://www.openstreetmap.org/way/281987653
+35152;19;32.4;yes;;Weseler Straße 401 48163 Münster;51.93145;7.597053;https://www.openstreetmap.org/way/128243249
+32485;18;32.9;yes;;Robert-Bosch-Straße 33334 Gütersloh;51.926128;8.411862;https://www.openstreetmap.org/way/191417413
+36145;2;33.0;yes;;Brockhagener Straße 200 33649 Bielefeld;51.97581;8.454618;https://www.openstreetmap.org/way/175622597
+34634;11;33.4;yes;Westnetz;Am Sandberg 45 33378 Rheda-Wiedenbrück;51.847253;8.309327;https://www.openstreetmap.org/way/291155907
+34998;1;34.3;industrial;;Schledehauser Straße 133 49152 Bad Essen;52.324266;8.314783;https://www.openstreetmap.org/way/394465118
+38706;4;34.9;industrial;;Voltastraße 59229 Ahlen;51.771048;7.924587;https://www.openstreetmap.org/way/280706355
+35753;8;35.5;industrial;Gestamp Umformtechnik;Gaswerkstraße 33647 Bielefeld;51.993373;8.501983;https://www.openstreetmap.org/way/177315827
+34476;4;36.9;yes;;A 2 33334 Gütersloh;51.888921;8.441988;https://www.openstreetmap.org/way/790206459
+36252;6;37.1;industrial;;Mielestraße 2 33611 Bielefeld;52.038099;8.542034;https://www.openstreetmap.org/way/28327428
+38145;2;38.1;yes;;Siemensstraße 50 48341 Altenberge;52.033531;7.452044;https://www.openstreetmap.org/way/75311834
