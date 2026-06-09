@@ -30,6 +30,13 @@ jobs:
           PROPSTACK_API_KEY: ${{ secrets.PROPSTACK_API_KEY }}
         run: python3 scripts/fetch_propstack_units.py 2778398 5032898 2777954
 
+      - name: Propstack-Objekte (Gewerbe, Region)
+        env:
+          PROPSTACK_API_KEY: ${{ secrets.PROPSTACK_API_KEY }}
+          REGION_RADIUS_KM: "80"
+          ONLY_COMMERCIAL: "1"
+        run: python3 scripts/list_propstack_objects.py
+
       - name: Upload result
         if: always()
         continue-on-error: true   # Artifact-Quota darf den Run nicht rot machen
