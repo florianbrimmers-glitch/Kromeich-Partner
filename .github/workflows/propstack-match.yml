@@ -25,6 +25,11 @@ jobs:
           PROPSTACK_API_KEY: ${{ secrets.PROPSTACK_API_KEY }}
         run: python3 scripts/match_propstack.py | tee propstack_match_result.txt
 
+      - name: Detail der Nachbar-Kandidaten
+        env:
+          PROPSTACK_API_KEY: ${{ secrets.PROPSTACK_API_KEY }}
+        run: python3 scripts/fetch_propstack_units.py 2778398 5032898 2777954
+
       - name: Upload result
         if: always()
         continue-on-error: true   # Artifact-Quota darf den Run nicht rot machen
