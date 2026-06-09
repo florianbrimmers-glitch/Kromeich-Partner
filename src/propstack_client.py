@@ -22,7 +22,9 @@ def _api_key_v2() -> str | None:
     return os.environ.get("PROPSTACK_API_V2_CONTACTS")
 
 
-def check_duplicate(email: str) -> bool:
+def check_duplicate(email: str) -> bool | None:
+    """Prüft, ob ein Kontakt mit dieser Email bereits existiert.
+    Gibt None zurück, wenn die Prüfung fehlschlägt (damit kein Duplikat angelegt wird)."""
     try:
         response = httpx.get(
             f"{PROPSTACK_BASE_URL}/contacts",
@@ -37,7 +39,37 @@ def check_duplicate(email: str) -> bool:
         return exists
     except (httpx.HTTPError, ValueError) as e:
         logger.error("Propstack duplicate check failed for %s: %s", email, e)
+        return None
+
+
+def check_duplicate_by_name(first_name: str, last_name: str) -> bool | None:
+    """Duplikat-Prüfung über Vor- und Nachname (für Kontakte ohne Email, z.B. Visitenkarten).
+    Gibt None zurück, wenn die Prüfung fehlschlägt."""
+    try:
+        response = httpx.get(
+            f"{PROPSTACK_BASE_URL}/contacts",
+            params={"api_key": _api_key(), "q": f"{first_name} {last_name}", "per_page": 25},
+            timeout=30.0,
+        )
+        response.raise_for_status()
+        data = response.json()
+        if not isinstance(data, list):
+            return False
+        target_first = first_name.strip().lower()
+        target_last = last_name.strip().lower()
+        for c in data:
+            if c.get("is_company"):
+                continue
+            if (
+                (c.get("first_name") or "").strip().lower() == target_first
+                and (c.get("last_name") or "").strip().lower() == target_last
+            ):
+                logger.info("Propstack duplicate (name match) found for %s %s", first_name, last_name)
+                return True
         return False
+    except (httpx.HTTPError, ValueError) as e:
+        logger.error("Propstack name duplicate check failed for %s %s: %s", first_name, last_name, e)
+        return None
 
 
 def find_company(company_name: str) -> int | None:
@@ -128,7 +160,7 @@ def link_contact_to_company(person_id: int, company_id: int) -> bool:
     Erzeugt den Eintrag unter 'Verknüpfte Kontakte' der Firma."""
     v2_key = _api_key_v2()
     if not v2_key:
-        logger.warning("PROPSTACK_API_KEY_V2 not set, skipping company linking")
+        logger.warning("PROPSTACK_API_V2_CONTACTS not set, skipping company linking")
         return False
     try:
         response = httpx.post(
@@ -168,7 +200,8 @@ def create_contact(
     if contact.last_name:
         client_data["last_name"] = contact.last_name
 
-    client_data["email"] = contact.email
+    if contact.email:
+        client_data["email"] = contact.email
 
     if contact.phone:
         client_data["office_phone"] = contact.phone

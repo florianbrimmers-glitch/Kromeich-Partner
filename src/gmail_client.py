@@ -130,7 +130,9 @@ def _fetch_emails_for_account(
     limit: int = 50,
 ) -> list[EmailData]:
     service = _get_gmail_service(refresh_token, client_id, client_secret)
-    query = "newer_than:1d"
+    # Gmail-Suche unterstützt nur ganze Tage (d), keine Stunden
+    days = max(1, hours // 24)
+    query = f"newer_than:{days}d"
 
     results = (
         service.users()
