@@ -11,12 +11,17 @@ Die formal gezählten Treffer (4/25 Einzelhallen, 2/20 Komplexe) sind fast aussc
 **Namens-Fehltreffer** über weite Distanzen. Real räumlich nah sind nur 3 Kandidaten – alle mit
 *abweichender* Adresse (Nachbarobjekte, nicht dieselbe Halle).
 
-## Räumlich plausible Kandidaten (manuell prüfen)
-| OSM-Halle | Propstack-Objekt | Distanz | Bewertung |
-|-----------|------------------|---------|-----------|
-| Dometic Waeco, Gutenbergstraße 1, Emsdetten | #2778398 „Gutenbergstraße 20, Emsdetten" | gleiche Straße | **gleiche Straße**, andere Hausnr. → wahrscheinlich Nachbargebäude |
-| Dieter-Fuchs-Straße 10, Dissen | #5032898 „Westring, Dissen" (Fläche 19.748 m²) | 490 m | gleiche Stadt, andere Straße → eher Nachbarobjekt |
-| Mielestraße 2, Bielefeld | #2777954 „Stadtheider Straße 55, Bielefeld" | 399 m | andere Straße + andere PLZ → eher Nachbarobjekt |
+## Detailprüfung der 3 Kandidaten (Propstack-Objekt im Detail vs. OSM-Halle)
+Alle drei wurden über die Propstack-Einzel-API (GET /v1/units/{id}) verifiziert. **Ergebnis: keiner ist dieselbe Immobilie.**
+
+| OSM-Halle | Propstack-Objekt (#ID) | Befund |
+|-----------|------------------------|--------|
+| Dometic Waeco, Gutenbergstr. 1, Emsdetten (Lager, 31.056 m²) | #2778398 „Gutenbergstr. 20" | **Wohnung** (rs_type=APARTMENT, object_type=LIVING) — nur Straßenname-Zufall. **Kein Treffer.** |
+| Dieter-Fuchs-Str. 10, Dissen (Lager, 36.856 m²; 52.1054, 8.1901) | #5032898 „Westring, Dissen / A33" (INDUSTRY, 19.748 m², Makler O. Sahin; 52.1102, 8.1926) | **andere Halle** im selben Gewerbegebiet, ~560 m entfernt, andere Straße, halbe Fläche. **Kein Treffer**, aber: KP hat dort bereits ein Lagerhallen-Mandat. |
+| Mielestr. 2, Bielefeld (Industrie-Komplex) | #2777954 „Stadtheider Str. 55" (INDUSTRY; 52.0403, 8.5466) | anderes Gewerbeobjekt ~470 m entfernt, andere Straße/PLZ. **Kein Treffer.** |
+
+**Fazit der Detailprüfung:** 0 echte Treffer. Bemerkenswert ist nur, dass KP im Gewerbegebiet Dissen/A33
+bereits eine (andere) Lagerhalle betreut (#5032898, Makler Oguzhan Sahin) — nützlicher Kontext für die Akquise dort.
 
 ## Namens-Fehltreffer (KEINE echten Treffer)
 - „Thomas Philipps …" → matchte ~20 Objekte mit Token *thomas* (Schifferstadt, Grammetal, Düsseldorf …) in **150–333 km** Entfernung.
