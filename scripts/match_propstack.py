@@ -20,7 +20,12 @@ import requests
 
 BASE = "https://api.propstack.de/v1"
 MATCH_RADIUS_M = 400
-OSM_CSV = os.path.join(os.path.dirname(__file__), "..", "logistik_glandorf_40km.csv")
+HERE = os.path.dirname(__file__)
+# Beide OSM-Listen: (Datei, Flächenspalte, Quelle)
+OSM_SOURCES = [
+    (os.path.join(HERE, "..", "logistik_glandorf_40km.csv"), "Flaeche_m2", "Einzelhalle"),
+    (os.path.join(HERE, "..", "logistik_glandorf_40km_komplexe.csv"), "Gesamtflaeche_m2", "Komplex"),
+]
 
 
 def api_key():
@@ -80,12 +85,23 @@ def fetch_units(key):
 
 
 def load_osm():
+    """Liest beide Listen und normalisiert auf gemeinsame Felder."""
     rows = []
-    with open(OSM_CSV, encoding="utf-8") as f:
-        for row in csv.DictReader(f, delimiter=";"):
-            row["Lat"] = float(row["Lat"])
-            row["Lon"] = float(row["Lon"])
-            rows.append(row)
+    for path, area_col, source in OSM_SOURCES:
+        if not os.path.exists(path):
+            print(f"WARN: {path} fehlt, übersprungen.", file=sys.stderr)
+            continue
+        with open(path, encoding="utf-8") as f:
+            for r in csv.DictReader(f, delimiter=";"):
+                rows.append({
+                    "source": source,
+                    "area": r.get(area_col, ""),
+                    "dist_km": r.get("Entfernung_km", ""),
+                    "name": r.get("Name_Betreiber", ""),
+                    "place": r.get("Standort", ""),
+                    "Lat": float(r["Lat"]),
+                    "Lon": float(r["Lon"]),
+                })
     return rows
 
 
@@ -123,9 +139,9 @@ def main():
             geo_hit = dist is not None and dist <= MATCH_RADIUS_M
             # Adress-Fallback
             addr_hit = False
-            ozip = "".join(filter(str.isdigit, o["Standort"]))[:5]
+            ozip = "".join(filter(str.isdigit, o["place"]))[:5]
             if ozip and u.get("zip_code") and str(u["zip_code"]).strip() == ozip:
-                osm_str = norm_street(o["Standort"])
+                osm_str = norm_street(o["place"])
                 ps_str = norm_street(u.get("street", ""))
                 if ps_str and (ps_str in osm_str or osm_str.find(ps_str[:6]) >= 0):
                     addr_hit = True
@@ -145,24 +161,28 @@ def main():
                 })
         report.append({"osm": o, "matches": cands})
 
-    # Ausgabe
-    print("\n" + "=" * 70)
-    print("ABGLEICH OSM-Hallen  ↔  Propstack-Bestand")
-    print("=" * 70)
-    hits = 0
-    for r in report:
-        o = r["osm"]
-        head = f"{o['Flaeche_m2']} m² | {o['Entfernung_km']} km | {o['Name_Betreiber'] or '—'} | {o['Standort']}"
-        if r["matches"]:
-            hits += 1
-            print(f"\n✅ IN PROPSTACK: {head}")
-            for m in r["matches"]:
-                print(f"     → #{m['id']} '{m['name']}' | {m['address']} | "
-                      f"Grundst.={m['plot_area']} Fläche={m['floor_space']} | "
-                      f"{m['marketing_type']}/{m['status']} | Match={m['match']} ({m['dist_m']} m)")
-        else:
-            print(f"\n❌ nicht in Propstack: {head}")
-    print(f"\n{hits} von {len(report)} OSM-Hallen haben einen Propstack-Treffer.")
+    # Ausgabe – nach Quelle gruppiert
+    for source in ("Einzelhalle", "Komplex"):
+        group = [r for r in report if r["osm"]["source"] == source]
+        if not group:
+            continue
+        print("\n" + "=" * 72)
+        print(f"ABGLEICH ({source}n)  ↔  Propstack-Bestand")
+        print("=" * 72)
+        hits = 0
+        for r in group:
+            o = r["osm"]
+            head = f"{o['area']} m² | {o['dist_km']} km | {o['name'] or '—'} | {o['place']}"
+            if r["matches"]:
+                hits += 1
+                print(f"\n✅ IN PROPSTACK: {head}")
+                for m in r["matches"]:
+                    print(f"     → #{m['id']} '{m['name']}' | {m['address']} | "
+                          f"Grundst.={m['plot_area']} Fläche={m['floor_space']} | "
+                          f"{m['marketing_type']}/{m['status']} | Match={m['match']} ({m['dist_m']} m)")
+            else:
+                print(f"\n❌ nicht in Propstack: {head}")
+        print(f"\n→ {hits} von {len(group)} {source}n mit Propstack-Treffer.")
 
 
 if __name__ == "__main__":
