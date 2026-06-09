@@ -1,0 +1,12 @@
+Flaeche_m2;Entfernung_km;Gebaeudetyp;Name_Betreiber;Standort;Lat;Lon;OSM_ID;OSM_Link
+38270;12.3;industrial;;Dackmar 48336 Sassenberg;51.977059;8.062541;way/110583261;https://www.openstreetmap.org/way/110583261
+38133;25.4;warehouse;Thomas Philipps Logistikzentrum Melle;Ochsenweg 29 49324;52.218388;8.301875;way/271810423;https://www.openstreetmap.org/way/271810423
+30335;26.2;warehouse;Walbusch;Ravenna-Park 1 33790 Halle (Westf.);52.026335;8.375826;way/332559501;https://www.openstreetmap.org/way/332559501
+35633;27.1;industrial;;Brackweder Straße 33790 Halle (Westf.);52.032696;8.392027;way/125366620;https://www.openstreetmap.org/way/125366620
+38837;27.5;industrial;;Up'n Nien Esch 26-34 48268 Greven;52.108012;7.603422;way/292728921;https://www.openstreetmap.org/way/292728921
+35433;29.3;industrial;Coppenrath & Wiese;Westerkappelner Straße 49497 Mettingen;52.313452;7.800531;way/201921345;https://www.openstreetmap.org/way/201921345
+39382;30.5;industrial;;Robert-Bosch-Straße 48268 Greven;52.138368;7.566002;way/1348664839;https://www.openstreetmap.org/way/1348664839
+38660;33.8;industrial;;Ringstraße 155 33378 Rheda-Wiedenbrück;51.837988;8.298101;way/106234152;https://www.openstreetmap.org/way/106234152
+34808;34.3;industrial;;Schledehauser Straße 133 49152 Bad Essen;52.324266;8.314783;way/394465118;https://www.openstreetmap.org/way/394465118
+36527;37.5;industrial;;Waldstraße 51-55 33415 Verl;51.889885;8.453591;way/88423908;https://www.openstreetmap.org/way/88423908
+36925;39.3;industrial;Werk 2;Werkstraße 2 32289 Rödinghausen;52.243835;8.514703;way/233967313;https://www.openstreetmap.org/way/233967313
