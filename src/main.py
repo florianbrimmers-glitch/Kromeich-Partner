@@ -101,7 +101,20 @@ def run_pipeline() -> PipelineReport:
             time.sleep(3)
 
             # Step 7: Propstack duplicate check
-            if check_duplicate(contact.email):
+            is_duplicate = check_duplicate(contact.email)
+            if is_duplicate is None:
+                # Prüfung fehlgeschlagen – nicht anlegen, sonst drohen Dubletten
+                report.errors.append(
+                    ContactResult(
+                        email=contact.email,
+                        name=name,
+                        status=ContactStatus.ERROR,
+                        error="Propstack-Duplikat-Prüfung fehlgeschlagen – Kontakt übersprungen",
+                    )
+                )
+                logger.warning("Duplikat-Prüfung fehlgeschlagen, überspringe %s", contact.email)
+                continue
+            if is_duplicate:
                 result = ContactResult(
                     email=contact.email,
                     name=name,

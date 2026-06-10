@@ -20,7 +20,13 @@ from .contact_extractor import (
     categorize_contact,
 )
 from .apollo_client import enrich_contact, apply_enrichment
-from .propstack_client import check_duplicate, create_contact, find_or_create_company, link_contact_to_company
+from .propstack_client import (
+    check_duplicate,
+    check_duplicate_by_name,
+    create_contact,
+    find_or_create_company,
+    link_contact_to_company,
+)
 from .slack_client import send_summary
 
 logging.basicConfig(
@@ -112,8 +118,22 @@ def run_pipeline() -> PipelineReport:
                 group_labels = [GROUP_LABEL_MAP.get(gid, str(gid)) for gid in group_ids]
                 time.sleep(3)
 
-                # Propstack duplicate check
-                if contact.email and check_duplicate(contact.email):
+                # Propstack duplicate check (ohne Email: über Vor-/Nachname)
+                if contact.email:
+                    is_duplicate = check_duplicate(contact.email)
+                else:
+                    is_duplicate = check_duplicate_by_name(contact.first_name, contact.last_name)
+                if is_duplicate is None:
+                    # Prüfung fehlgeschlagen – nicht anlegen, sonst drohen Dubletten
+                    report.errors.append(ContactResult(
+                        email=contact.email or name,
+                        name=name,
+                        status=ContactStatus.ERROR,
+                        error="Propstack-Duplikat-Prüfung fehlgeschlagen – Kontakt übersprungen",
+                    ))
+                    logger.warning("Duplikat-Prüfung fehlgeschlagen, überspringe %s", name)
+                    continue
+                if is_duplicate:
                     result = ContactResult(
                         email=contact.email,
                         name=name,
@@ -123,7 +143,7 @@ def run_pipeline() -> PipelineReport:
                         group_labels=group_labels,
                     )
                     report.contacts_skipped_duplicate.append(result)
-                    logger.info("Übersprungen (existiert bereits): %s", contact.email)
+                    logger.info("Übersprungen (existiert bereits): %s", contact.email or name)
                     continue
 
                 # Create contact

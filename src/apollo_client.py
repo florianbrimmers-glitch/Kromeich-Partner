@@ -13,6 +13,10 @@ APOLLO_MATCH_URL = "https://api.apollo.io/v1/people/match"
 
 
 def enrich_contact(contact: ContactData) -> EnrichmentResult | None:
+    if not contact.email:
+        logger.info("No email for contact, skipping Apollo enrichment")
+        return None
+
     api_key = os.environ.get("APOLLO_API_KEY")
     if not api_key:
         logger.warning("APOLLO_API_KEY not set, skipping enrichment")

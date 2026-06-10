@@ -106,7 +106,7 @@ def extract_contact(email_data: EmailData) -> ContactData | None:
 
     try:
         response = client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-6",
             max_tokens=1024,
             messages=[{"role": "user", "content": prompt}],
         )
@@ -176,11 +176,11 @@ def categorize_contact(
 
     try:
         response = client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-6",
             max_tokens=2048,
             tools=[
                 {
-                    "type": "web_search_20250305",
+                    "type": "web_search_20260209",
                     "name": "web_search",
                     "max_uses": 1,
                 }
@@ -308,7 +308,7 @@ def extract_contact_from_image(image_data: bytes) -> ContactData | None:
 
     try:
         response = client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-6",
             max_tokens=1024,
             messages=[{
                 "role": "user",
@@ -337,7 +337,7 @@ def extract_contact_from_text(slack_text: str) -> ContactData | None:
 
     try:
         response = client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model="claude-sonnet-4-6",
             max_tokens=1024,
             messages=[{"role": "user", "content": prompt}],
         )
