@@ -2,15 +2,10 @@ class_name Hero
 extends RefCounted
 
 # Minimaler Helden-Zustand fuer die Weltkarte.
-# Position in Kachel-Koordinaten, Bewegungspunkte pro Zug.
+# Position in Kachel-Koordinaten, Bewegungspunkte pro Tag.
 #
-# Phase C: army ist jetzt ein Dictionary { unit_id: count }, keine
-# einfache Zahl mehr. Rekrutierung, Verluste und Anzeige laufen ueber
-# die Helfer add_units/remove_units/total_count.
-
-# Phase C: army ist jetzt ein Dictionary { unit_id: count }, keine
-# einfache Zahl mehr. Rekrutierung, Verluste und Anzeige laufen ueber
-# die Helfer add_units/remove_units/total_count.
+# army ist ein Dictionary { unit_id: count }. Rekrutierung, Verluste und
+# Anzeige laufen ueber die Helfer add_units/remove_units/total_count.
 #
 # Stack-Limit: max 6 unterschiedliche Einheiten-Typen pro Held. Ein
 # neuer Typ wird abgewiesen, wenn schon 6 Slots belegt sind - bestehende

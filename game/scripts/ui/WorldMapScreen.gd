@@ -907,51 +907,29 @@ func _update_labels() -> void:
 			_calendar_text(), lvl, mp, mmax, gold, _hero.army_summary(), bonus_str, xp]
 
 
-# --- Kalender-Helper: Tag/Woche/Monat/Jahr aus _turn_number ---
-# _turn_number zaehlt abgeschlossene Zuege; day_num ist 1-basiert und
-# erhoeht sich pro finalisiertem Zug. Tag 1-7 = Woche 1, Woche 1-4 =
-# Monat 1, Monat 1-12 = Jahr 1.
+# --- Kalender-Helper: duenne Delegates auf GameCalendar (core/), wo die
+# Mathematik headless getestet wird (tools/test_core_logic.gd). ---
 func _day_num() -> int:
-	return _turn_number + 1
+	return GameCalendar.day_num(_turn_number)
 
 func _day_of_week() -> int:
-	return ((_day_num() - 1) % DAYS_PER_WEEK) + 1
-
-func _week_total() -> int:
-	return ((_day_num() - 1) / DAYS_PER_WEEK) + 1
-
-func _week_of_month() -> int:
-	return ((_week_total() - 1) % WEEKS_PER_MONTH) + 1
-
-func _month_total() -> int:
-	return ((_week_total() - 1) / WEEKS_PER_MONTH) + 1
-
-func _month_of_year() -> int:
-	return ((_month_total() - 1) % MONTHS_PER_YEAR) + 1
-
-func _year_num() -> int:
-	return ((_month_total() - 1) / MONTHS_PER_YEAR) + 1
+	return GameCalendar.day_of_week(_turn_number)
 
 func _calendar_text() -> String:
-	return "T%d W%d M%d J%d" % [_day_of_week(), _week_of_month(), _month_of_year(), _year_num()]
+	return GameCalendar.calendar_text(_turn_number)
 
 
 # --- Pool-Helper ---
-# Wochen-Wachstum wird via Bresenham ueber 7 Tage verteilt, Summe pro
-# Woche entspricht WEEKLY_GROWTH[req]. Pools stapeln sich - nichts
-# verfaellt, auch nicht am Wochenende. Damit ist Cap nur noch der
-# Wochen-Durchsatz, nicht der Vorrats-Deckel.
+# Wochen-Wachstum wird via Bresenham ueber 7 Tage verteilt (Mathe in
+# GameCalendar.day_delta), Summe pro Woche entspricht WEEKLY_GROWTH[req].
+# Pools stapeln sich - nichts verfaellt. Cap ist nur der Wochen-Durchsatz,
+# kein Vorrats-Deckel.
 func _pool_cap_for(uid: String) -> int:
 	return int(WEEKLY_GROWTH.get(UnitType.building_for(uid), 0))
 
 
-# Delta fuer einen einzelnen Tag der Woche (dow: 1..7) - integer so,
-# dass die 7 Tage aufsummiert genau cap ergeben. Beispiel cap=2:
-# dow 1-3 -> 0, dow 4 -> 1, dow 5-6 -> 0, dow 7 -> 1.
 func _day_delta(cap: int, dow: int) -> int:
-	if cap <= 0 or dow <= 0:
-		return 0
-	return (dow * cap) / DAYS_PER_WEEK - ((dow - 1) * cap) / DAYS_PER_WEEK
+	return GameCalendar.day_delta(cap, dow)
 
 
 # Alle Staedte bekommen die Tagesration fuer jedes ihrer produzierenden
@@ -982,7 +960,7 @@ func _prime_pool_for_building(city: Dictionary, bid: String) -> void:
 		return
 	var cap: int = _pool_cap_for(uid)
 	var dow: int = _day_of_week()
-	var catch_up: int = (dow * cap) / DAYS_PER_WEEK
+	var catch_up: int = GameCalendar.catch_up(cap, dow)
 	if catch_up <= 0:
 		return
 	var pools: Dictionary = city.get("pools", {}) as Dictionary

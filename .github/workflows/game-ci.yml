@@ -1,5 +1,13 @@
 name: Game CI
 
+# Testet das ECHTE Spiel (GDScript, headless Godot), nicht mehr den
+# verworfenen Python/C#-Prototyp. Drei Stufen:
+#   1. Projekt-Import + Parse-Check: jede .gd/.tscn muss sauber laden.
+#   2. Logik-Tests: tools/test_core_logic.gd + tools/test_city_screen.gd
+#      (Exit-Code-basiert, brechen den Build).
+#   3. Balance-Sim: informativ (Balance ist bekannt ausserhalb des
+#      Korridors), bricht den Build NICHT, Output landet im Log.
+
 on:
   push:
     branches: [main, 'claude/**']
@@ -10,36 +18,62 @@ on:
     paths:
       - 'game/**'
 
+env:
+  GODOT_VERSION: '4.6'
+  GODOT_STATUS: stable
+
 jobs:
-  balance-tests:
-    name: Balance-Simulator + Data-Tests
+  gdscript-tests:
+    name: Godot Headless - Parse + Logik-Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Cache Godot binary
+        id: godot-cache
+        uses: actions/cache@v4
         with:
-          python-version: '3.11'
+          path: ~/godot-bin
+          key: godot-${{ env.GODOT_VERSION }}-${{ env.GODOT_STATUS }}-linux
 
-      - name: Install pytest
-        run: pip install pytest
+      - name: Download Godot
+        if: steps.godot-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/godot-bin
+          curl -sL -o ~/godot-bin/godot.zip \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-${GODOT_STATUS}/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64.zip"
+          unzip -o ~/godot-bin/godot.zip -d ~/godot-bin
+          chmod +x ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64
 
-      - name: Run data & sim tests
-        run: python -m pytest game/tests/ -v
+      - name: Import project (Class-Cache aufbauen)
+        run: |
+          GODOT=~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64
+          $GODOT --headless --path game/ --import || true
+          # class_name-Cache braucht manchmal zwei Anlaeufe bei frischem Checkout.
+          $GODOT --headless --path game/ --import
 
-      - name: Smoke-run balance simulator
-        run: python game/tools/balance_sim.py --runs 200 --week 4 --seed 42
+      - name: Parse-Check (Projekt laedt ohne Script-Fehler)
+        run: |
+          GODOT=~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64
+          OUT=$($GODOT --headless --path game/ --quit 2>&1 || true)
+          echo "$OUT"
+          if echo "$OUT" | grep -qiE "SCRIPT ERROR|Parse Error"; then
+            echo "::error::Script-/Parse-Fehler beim Projekt-Load"
+            exit 1
+          fi
 
-  dotnet-build:
-    name: C#-Build (Battle-Engine)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+      - name: Core-Logik-Tests
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/test_core_logic.gd
 
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '8.0.x'
+      - name: CityScreen-Smoke-Test
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/test_city_screen.gd
 
-      - name: Build Core-Library
-        working-directory: game
-        run: dotnet build KromeichHeroes.csproj -c Release --verbosity minimal || echo "Godot-SDK fehlt lokal, wird im echten Projekt-Open-in-Godot nachgezogen"
+      - name: Balance-Simulator (informativ, bricht nicht)
+        continue-on-error: true
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/balance_sim.gd -- --runs=500
