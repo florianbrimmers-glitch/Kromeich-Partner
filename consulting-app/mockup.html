@@ -1,0 +1,732 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8" />
+<title>Kromeich Consulting — Vision (Vollausbau)</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          brand: { 50: "#f5f7ff", 100: "#e4e9ff", 500: "#4f5bd5", 600: "#3f49b5", 700: "#2f3795" },
+        },
+      },
+    },
+  };
+</script>
+<style>
+  body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .screen { display: none; }
+  .screen.active { display: block; }
+  .nav-item.active { background: rgb(30 41 59); color: white; }
+  .badge { display: inline-flex; align-items: center; border-radius: 9999px; padding: 0.125rem 0.5rem; font-size: 0.75rem; font-weight: 500; }
+  .card { background: white; border: 1px solid rgb(226 232 240); border-radius: 0.5rem; box-shadow: 0 1px 2px rgb(0 0 0 / 0.05); }
+</style>
+</head>
+<body class="bg-slate-50 text-slate-900">
+
+<div class="flex min-h-screen">
+
+  <!-- Sidebar -->
+  <aside class="w-64 bg-slate-900 text-slate-100 flex flex-col">
+    <div class="px-5 py-5 border-b border-slate-800">
+      <div class="font-semibold">Kromeich Consulting</div>
+      <div class="text-xs text-slate-400 mt-0.5">florian.brimmers@kromeichpartner.de</div>
+    </div>
+    <nav class="flex-1 p-3 space-y-1 text-sm">
+      <button onclick="show('dashboard', this)" class="nav-item active w-full text-left px-3 py-2 rounded hover:bg-slate-800 flex items-center gap-2">📊 Dashboard</button>
+      <button onclick="show('inbox', this)" class="nav-item w-full text-left px-3 py-2 rounded hover:bg-slate-800 flex items-center justify-between">
+        <span>📥 Inbox</span>
+        <span class="badge bg-brand-500 text-white">7</span>
+      </button>
+      <button onclick="show('clients', this)" class="nav-item w-full text-left px-3 py-2 rounded hover:bg-slate-800">👥 Mandanten</button>
+      <button onclick="show('project', this)" class="nav-item w-full text-left px-3 py-2 rounded hover:bg-slate-800">📁 Projekte</button>
+      <button onclick="show('tasks', this)" class="nav-item w-full text-left px-3 py-2 rounded hover:bg-slate-800">✅ Meine Aufgaben</button>
+      <button onclick="show('chat', this)" class="nav-item w-full text-left px-3 py-2 rounded hover:bg-slate-800">💬 Chat</button>
+      <button onclick="show('portal', this)" class="nav-item w-full text-left px-3 py-2 rounded hover:bg-slate-800">🔐 Mandanten-Portal (Vorschau)</button>
+      <button onclick="show('settings', this)" class="nav-item w-full text-left px-3 py-2 rounded hover:bg-slate-800">⚙️ Einstellungen</button>
+    </nav>
+    <div class="p-3 text-xs text-slate-500 border-t border-slate-800">
+      Vision-Mockup · Phase 1–4
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="flex-1 overflow-y-auto">
+    <div class="max-w-6xl mx-auto px-8 py-8">
+
+      <!-- ============ DASHBOARD ============ -->
+      <section id="dashboard" class="screen active space-y-8">
+        <div>
+          <h1 class="text-2xl font-bold">Guten Morgen, Florian 👋</h1>
+          <p class="text-slate-600 mt-1">Du hast <strong>4 offene Aufgaben</strong>, <strong>7 ungelesene Mails</strong> und 1 WhatsApp-Nachricht.</p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div class="card p-4">
+            <div class="text-sm text-slate-500">Aktive Projekte</div>
+            <div class="text-3xl font-bold mt-1">12</div>
+            <div class="text-xs text-emerald-600 mt-1">+2 diese Woche</div>
+          </div>
+          <div class="card p-4">
+            <div class="text-sm text-slate-500">Offene Aufgaben (Team)</div>
+            <div class="text-3xl font-bold mt-1">38</div>
+            <div class="text-xs text-amber-600 mt-1">5 überfällig</div>
+          </div>
+          <div class="card p-4">
+            <div class="text-sm text-slate-500">Antwortzeit (⌀)</div>
+            <div class="text-3xl font-bold mt-1">2.3h</div>
+            <div class="text-xs text-emerald-600 mt-1">−40 Min vs. letzte Woche</div>
+          </div>
+        </div>
+
+        <section>
+          <h2 class="text-lg font-semibold mb-3">Meine Aufgaben heute</h2>
+          <div class="card divide-y divide-slate-100">
+            <div class="px-4 py-3 flex items-center justify-between hover:bg-slate-50">
+              <div>
+                <div class="font-medium">Bewertungsgutachten finalisieren</div>
+                <div class="text-xs text-slate-500 mt-0.5">Müller Immobilien · Bewertung Bürogebäude Westend</div>
+              </div>
+              <div class="flex items-center gap-3 text-xs">
+                <span class="text-rose-600 font-medium">Heute</span>
+                <span class="badge bg-rose-100 text-rose-700">Dringend</span>
+              </div>
+            </div>
+            <div class="px-4 py-3 flex items-center justify-between hover:bg-slate-50">
+              <div>
+                <div class="font-medium">Marktanalyse Q2 vorbereiten</div>
+                <div class="text-xs text-slate-500 mt-0.5">Schneider Holding · Strategieprojekt 2026</div>
+              </div>
+              <div class="flex items-center gap-3 text-xs">
+                <span class="text-slate-600">14.06.</span>
+                <span class="badge bg-amber-100 text-amber-700">Hoch</span>
+              </div>
+            </div>
+            <div class="px-4 py-3 flex items-center justify-between hover:bg-slate-50">
+              <div>
+                <div class="font-medium">Telefonat mit Dr. Weber nachbereiten</div>
+                <div class="text-xs text-slate-500 mt-0.5">Weber & Söhne · Nachfolgeberatung</div>
+              </div>
+              <div class="flex items-center gap-3 text-xs">
+                <span class="text-slate-600">15.06.</span>
+                <span class="badge bg-slate-100 text-slate-700">Mittel</span>
+              </div>
+            </div>
+            <div class="px-4 py-3 flex items-center justify-between hover:bg-slate-50">
+              <div>
+                <div class="font-medium">Vertragsentwurf prüfen</div>
+                <div class="text-xs text-slate-500 mt-0.5">Müller Immobilien · Ankauf Halle Offenbach</div>
+              </div>
+              <div class="flex items-center gap-3 text-xs">
+                <span class="text-slate-600">17.06.</span>
+                <span class="badge bg-slate-100 text-slate-700">Mittel</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <section>
+            <h2 class="text-lg font-semibold mb-3">Letzte Mandanten-Kommunikation</h2>
+            <div class="card divide-y divide-slate-100">
+              <div class="px-4 py-3 hover:bg-slate-50 flex items-start gap-3">
+                <div class="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-xs">✉️</div>
+                <div class="flex-1 min-w-0">
+                  <div class="text-sm font-medium truncate">Dr. Müller — Re: Gutachten Westend</div>
+                  <div class="text-xs text-slate-500 truncate">"Vielen Dank, ich schaue mir das heute Abend an…"</div>
+                </div>
+                <div class="text-xs text-slate-500">10:14</div>
+              </div>
+              <div class="px-4 py-3 hover:bg-slate-50 flex items-start gap-3">
+                <div class="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-xs">💬</div>
+                <div class="flex-1 min-w-0">
+                  <div class="text-sm font-medium truncate">Schneider (WhatsApp)</div>
+                  <div class="text-xs text-slate-500 truncate">"Können wir Donnerstag um 14 Uhr?"</div>
+                </div>
+                <div class="text-xs text-slate-500">09:22</div>
+              </div>
+              <div class="px-4 py-3 hover:bg-slate-50 flex items-start gap-3">
+                <div class="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-xs">✉️</div>
+                <div class="flex-1 min-w-0">
+                  <div class="text-sm font-medium truncate">Weber & Söhne — Unterlagen Nachfolge</div>
+                  <div class="text-xs text-slate-500 truncate">"Anbei die Bilanz 2024 wie besprochen."</div>
+                </div>
+                <div class="text-xs text-slate-500">Gestern</div>
+              </div>
+            </div>
+          </section>
+
+          <section>
+            <h2 class="text-lg font-semibold mb-3">Aktive Projekte</h2>
+            <div class="card divide-y divide-slate-100">
+              <a class="px-4 py-3 hover:bg-slate-50 flex items-center justify-between">
+                <div>
+                  <div class="text-xs text-slate-500">Müller Immobilien GmbH</div>
+                  <div class="font-medium">Bewertung Bürogebäude Westend</div>
+                </div>
+                <span class="badge bg-emerald-100 text-emerald-700">Aktiv</span>
+              </a>
+              <a class="px-4 py-3 hover:bg-slate-50 flex items-center justify-between">
+                <div>
+                  <div class="text-xs text-slate-500">Schneider Holding</div>
+                  <div class="font-medium">Strategieprojekt 2026</div>
+                </div>
+                <span class="badge bg-emerald-100 text-emerald-700">Aktiv</span>
+              </a>
+              <a class="px-4 py-3 hover:bg-slate-50 flex items-center justify-between">
+                <div>
+                  <div class="text-xs text-slate-500">Weber & Söhne</div>
+                  <div class="font-medium">Nachfolgeberatung</div>
+                </div>
+                <span class="badge bg-amber-100 text-amber-700">Pausiert</span>
+              </a>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <!-- ============ INBOX ============ -->
+      <section id="inbox" class="screen space-y-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <h1 class="text-2xl font-bold">Zentrale Inbox</h1>
+            <p class="text-slate-600 mt-1">info@kromeichpartner.de · 7 ungelesen</p>
+          </div>
+          <button class="bg-brand-600 text-white px-4 py-2 rounded text-sm font-medium">+ Neue E-Mail</button>
+        </div>
+
+        <div class="card overflow-hidden">
+          <div class="grid grid-cols-12 min-h-[600px]">
+            <!-- Liste -->
+            <div class="col-span-5 border-r border-slate-200">
+              <div class="px-3 py-2 border-b border-slate-200 bg-slate-50 flex items-center gap-2 text-xs">
+                <select class="border-0 bg-transparent text-xs"><option>Alle</option><option>Ungelesen</option><option>Mir zugewiesen</option></select>
+                <input class="flex-1 px-2 py-1 text-xs border border-slate-200 rounded" placeholder="Suchen…" />
+              </div>
+              <div class="divide-y divide-slate-100">
+                <div class="px-3 py-3 bg-brand-50 border-l-4 border-brand-500 cursor-pointer">
+                  <div class="flex items-center justify-between">
+                    <div class="text-xs font-semibold">Dr. Müller &lt;mueller@mueller-immo.de&gt;</div>
+                    <div class="text-xs text-slate-500">10:14</div>
+                  </div>
+                  <div class="text-sm font-medium mt-0.5">Re: Gutachten Westend</div>
+                  <div class="text-xs text-slate-500 truncate mt-0.5">Vielen Dank, ich schaue mir das heute Abend an. Eine Rückfrage zu Seite 12…</div>
+                  <div class="flex items-center gap-1 mt-1">
+                    <span class="badge bg-emerald-100 text-emerald-700 text-[10px]">Müller · Westend</span>
+                    <span class="badge bg-rose-100 text-rose-700 text-[10px]">Florian</span>
+                  </div>
+                </div>
+                <div class="px-3 py-3 cursor-pointer hover:bg-slate-50">
+                  <div class="flex items-center justify-between">
+                    <div class="text-xs font-semibold">noreply@notar-koehler.de</div>
+                    <div class="text-xs text-slate-500">09:48</div>
+                  </div>
+                  <div class="text-sm font-medium mt-0.5">Beurkundungstermin 24.06. bestätigt</div>
+                  <div class="text-xs text-slate-500 truncate mt-0.5">Hiermit bestätigen wir den Termin zur Beurkundung am 24.06.2026 um 14:00 Uhr…</div>
+                  <div class="flex items-center gap-1 mt-1">
+                    <span class="badge bg-slate-100 text-slate-600 text-[10px]">📎 1 Anhang</span>
+                  </div>
+                </div>
+                <div class="px-3 py-3 cursor-pointer hover:bg-slate-50">
+                  <div class="flex items-center justify-between">
+                    <div class="text-xs font-semibold">Weber & Söhne</div>
+                    <div class="text-xs text-slate-500">Gestern</div>
+                  </div>
+                  <div class="text-sm font-medium mt-0.5">Unterlagen Nachfolge — Bilanz 2024</div>
+                  <div class="text-xs text-slate-500 truncate mt-0.5">Anbei die Bilanz 2024 wie besprochen. Bei Rückfragen melden Sie sich gerne.</div>
+                  <div class="flex items-center gap-1 mt-1">
+                    <span class="badge bg-emerald-100 text-emerald-700 text-[10px]">Weber · Nachfolge</span>
+                    <span class="badge bg-slate-100 text-slate-600 text-[10px]">📎 3</span>
+                  </div>
+                </div>
+                <div class="px-3 py-3 cursor-pointer hover:bg-slate-50 opacity-60">
+                  <div class="flex items-center justify-between">
+                    <div class="text-xs font-normal">Schneider &lt;c.schneider@schneider-h.de&gt;</div>
+                    <div class="text-xs text-slate-500">Mo</div>
+                  </div>
+                  <div class="text-sm mt-0.5">Re: Marktanalyse Q2 — Korrekturen</div>
+                  <div class="text-xs text-slate-500 truncate mt-0.5">Im Anhang die kommentierte Fassung mit kleinen Korrekturen…</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Mail-Detail -->
+            <div class="col-span-7 flex flex-col">
+              <div class="px-5 py-4 border-b border-slate-200">
+                <div class="text-lg font-semibold">Re: Gutachten Westend</div>
+                <div class="text-xs text-slate-500 mt-1">
+                  <span class="font-medium">Dr. Müller</span> &lt;mueller@mueller-immo.de&gt; · an info@kromeichpartner.de · 10:14
+                </div>
+                <div class="flex items-center gap-2 mt-3 text-xs">
+                  <span class="text-slate-600">Projekt:</span>
+                  <span class="badge bg-emerald-100 text-emerald-700">Müller Immobilien · Bewertung Westend</span>
+                  <button class="text-slate-400 hover:text-slate-700">×</button>
+                  <span class="mx-2 text-slate-300">|</span>
+                  <span class="text-slate-600">Zugewiesen an:</span>
+                  <span class="badge bg-rose-100 text-rose-700">Florian</span>
+                </div>
+              </div>
+              <div class="flex-1 px-5 py-4 text-sm space-y-3 overflow-y-auto">
+                <p>Hallo Florian,</p>
+                <p>vielen Dank für die Übersendung des Gutachtens. Ich schaue mir das heute Abend an.</p>
+                <p>Eine kurze Rückfrage zu Seite 12: Sie schreiben dort von einem Liquidationswert von 2,3 Mio. €. Beziehen Sie sich da auf das Bewertungsdatum 01.06. oder bereits auf den prognostizierten Wert zum 31.12.2026?</p>
+                <p>Beste Grüße<br>Dr. Müller</p>
+                <div class="border border-slate-200 rounded p-3 bg-slate-50 mt-4">
+                  <div class="text-xs text-slate-500 mb-2">Vorheriger Verlauf (3 Mails):</div>
+                  <div class="text-xs text-slate-600">
+                    <strong>09.06. 16:42 — Florian Brimmers:</strong> Anbei wie besprochen das Gutachten…<br>
+                    <strong>07.06. 11:08 — Dr. Müller:</strong> Wann können wir mit dem Entwurf rechnen?…<br>
+                    <strong>02.06. 09:30 — Florian Brimmers:</strong> Auftragsbestätigung Bewertung…
+                  </div>
+                </div>
+              </div>
+              <div class="border-t border-slate-200 p-4 flex items-center gap-2">
+                <button class="bg-brand-600 text-white px-3 py-1.5 rounded text-sm">↩ Antworten</button>
+                <button class="border border-slate-300 px-3 py-1.5 rounded text-sm">↪ Weiterleiten</button>
+                <button class="border border-slate-300 px-3 py-1.5 rounded text-sm">+ Aufgabe daraus</button>
+                <button class="border border-slate-300 px-3 py-1.5 rounded text-sm">📎 Anhänge ins Projekt</button>
+                <div class="flex-1"></div>
+                <button class="text-slate-400 hover:text-slate-700">Archivieren</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ CLIENTS ============ -->
+      <section id="clients" class="screen space-y-6">
+        <div class="flex items-center justify-between">
+          <h1 class="text-2xl font-bold">Mandanten</h1>
+          <button class="bg-brand-600 text-white px-4 py-2 rounded text-sm font-medium">+ Neuer Mandant</button>
+        </div>
+
+        <div class="card overflow-hidden">
+          <table class="w-full text-sm">
+            <thead class="bg-slate-50 text-xs uppercase text-slate-500">
+              <tr>
+                <th class="text-left px-4 py-3 font-medium">Name</th>
+                <th class="text-left px-4 py-3 font-medium">Firma</th>
+                <th class="text-left px-4 py-3 font-medium">Projekte</th>
+                <th class="text-left px-4 py-3 font-medium">Letzter Kontakt</th>
+                <th class="text-left px-4 py-3 font-medium">Portal-Zugang</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr class="hover:bg-slate-50 cursor-pointer">
+                <td class="px-4 py-3 font-medium">Dr. Andreas Müller</td>
+                <td class="px-4 py-3 text-slate-600">Müller Immobilien GmbH</td>
+                <td class="px-4 py-3 text-slate-600">3 aktiv</td>
+                <td class="px-4 py-3 text-slate-600">Heute, 10:14</td>
+                <td class="px-4 py-3"><span class="badge bg-emerald-100 text-emerald-700">aktiv</span></td>
+              </tr>
+              <tr class="hover:bg-slate-50 cursor-pointer">
+                <td class="px-4 py-3 font-medium">Christian Schneider</td>
+                <td class="px-4 py-3 text-slate-600">Schneider Holding AG</td>
+                <td class="px-4 py-3 text-slate-600">1 aktiv</td>
+                <td class="px-4 py-3 text-slate-600">Heute, 09:22 (WhatsApp)</td>
+                <td class="px-4 py-3"><span class="badge bg-emerald-100 text-emerald-700">aktiv</span></td>
+              </tr>
+              <tr class="hover:bg-slate-50 cursor-pointer">
+                <td class="px-4 py-3 font-medium">Familie Weber</td>
+                <td class="px-4 py-3 text-slate-600">Weber & Söhne KG</td>
+                <td class="px-4 py-3 text-slate-600">1 pausiert</td>
+                <td class="px-4 py-3 text-slate-600">Gestern</td>
+                <td class="px-4 py-3"><span class="badge bg-slate-100 text-slate-600">eingeladen</span></td>
+              </tr>
+              <tr class="hover:bg-slate-50 cursor-pointer">
+                <td class="px-4 py-3 font-medium">Stefanie Bauer</td>
+                <td class="px-4 py-3 text-slate-600">Bauer Consulting</td>
+                <td class="px-4 py-3 text-slate-600">2 abgeschlossen</td>
+                <td class="px-4 py-3 text-slate-600">vor 6 Tagen</td>
+                <td class="px-4 py-3"><span class="badge bg-slate-100 text-slate-600">—</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ============ PROJECT DETAIL ============ -->
+      <section id="project" class="screen space-y-6">
+        <div>
+          <div class="text-sm text-slate-500">Müller Immobilien GmbH</div>
+          <h1 class="text-2xl font-bold mt-0.5">Bewertung Bürogebäude Westend</h1>
+          <div class="flex items-center gap-3 mt-2 text-xs text-slate-500">
+            <span class="badge bg-emerald-100 text-emerald-700">Aktiv</span>
+            <span>Deadline: 30.06.2026</span>
+            <span>·</span>
+            <span>3 Teammitglieder, Mandant eingeladen</span>
+          </div>
+        </div>
+
+        <div class="border-b border-slate-200 flex gap-1 text-sm">
+          <button class="px-4 py-2 border-b-2 border-brand-600 text-brand-600 font-medium">Übersicht</button>
+          <button class="px-4 py-2 text-slate-600 hover:text-slate-900">Aufgaben (12)</button>
+          <button class="px-4 py-2 text-slate-600 hover:text-slate-900">Notizen (8)</button>
+          <button class="px-4 py-2 text-slate-600 hover:text-slate-900">Dokumente (24)</button>
+          <button class="px-4 py-2 text-slate-600 hover:text-slate-900">📥 Kommunikation (47)</button>
+          <button class="px-4 py-2 text-slate-600 hover:text-slate-900">💬 Chat</button>
+          <button class="px-4 py-2 text-slate-600 hover:text-slate-900">⏱ Stunden (32h)</button>
+        </div>
+
+        <div class="grid grid-cols-3 gap-6">
+          <div class="col-span-2 space-y-6">
+            <section>
+              <h2 class="text-lg font-semibold mb-3">Aktive Aufgaben</h2>
+              <div class="card divide-y divide-slate-100">
+                <div class="px-4 py-3 flex items-center gap-3">
+                  <select class="text-xs border-slate-300 rounded px-2 py-1 bg-amber-50 border">
+                    <option>In Arbeit</option>
+                  </select>
+                  <div class="flex-1">
+                    <div class="font-medium text-sm">Bewertungsgutachten finalisieren</div>
+                    <div class="text-xs text-slate-500 mt-0.5">Florian · Heute · Dringend</div>
+                  </div>
+                </div>
+                <div class="px-4 py-3 flex items-center gap-3">
+                  <select class="text-xs border-slate-300 rounded px-2 py-1 bg-white border">
+                    <option>Review</option>
+                  </select>
+                  <div class="flex-1">
+                    <div class="font-medium text-sm">Marktdaten Westend Q2 einarbeiten</div>
+                    <div class="text-xs text-slate-500 mt-0.5">Sebastian · 16.06. · Hoch</div>
+                  </div>
+                </div>
+                <div class="px-4 py-3 flex items-center gap-3">
+                  <select class="text-xs border-slate-300 rounded px-2 py-1 bg-white border">
+                    <option>Offen</option>
+                  </select>
+                  <div class="flex-1">
+                    <div class="font-medium text-sm">Termin Besichtigung 28.06. abstimmen</div>
+                    <div class="text-xs text-slate-500 mt-0.5">Florian · 20.06. · Mittel</div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section>
+              <h2 class="text-lg font-semibold mb-3">Letzte Aktivität</h2>
+              <div class="space-y-3 text-sm">
+                <div class="flex gap-3">
+                  <div class="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-xs flex-shrink-0">✉️</div>
+                  <div>
+                    <div><strong>Dr. Müller</strong> hat geantwortet: "Re: Gutachten Westend"</div>
+                    <div class="text-xs text-slate-500">vor 23 Minuten</div>
+                  </div>
+                </div>
+                <div class="flex gap-3">
+                  <div class="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center text-xs flex-shrink-0">📄</div>
+                  <div>
+                    <div><strong>Sebastian</strong> hat hochgeladen: <span class="text-brand-600">Marktdaten_Westend_Q2.xlsx</span></div>
+                    <div class="text-xs text-slate-500">vor 2 Stunden</div>
+                  </div>
+                </div>
+                <div class="flex gap-3">
+                  <div class="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-xs flex-shrink-0">💬</div>
+                  <div>
+                    <div><strong>Florian</strong> im internen Chat: "Können wir den Liquidationswert nochmal zu zweit anschauen?"</div>
+                    <div class="text-xs text-slate-500">gestern, 17:30</div>
+                  </div>
+                </div>
+                <div class="flex gap-3">
+                  <div class="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center text-xs flex-shrink-0">✓</div>
+                  <div>
+                    <div><strong>Sebastian</strong> hat Aufgabe abgeschlossen: "Vergleichsmieten recherchieren"</div>
+                    <div class="text-xs text-slate-500">gestern, 14:12</div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <aside class="space-y-4 text-sm">
+            <div class="card p-4">
+              <div class="text-xs uppercase text-slate-500 mb-2">Team</div>
+              <div class="space-y-2">
+                <div class="flex items-center gap-2"><div class="w-6 h-6 rounded-full bg-rose-200 text-xs flex items-center justify-center">FB</div>Florian Brimmers <span class="text-xs text-slate-500 ml-auto">Lead</span></div>
+                <div class="flex items-center gap-2"><div class="w-6 h-6 rounded-full bg-emerald-200 text-xs flex items-center justify-center">SK</div>Sebastian Kromeich</div>
+                <div class="flex items-center gap-2"><div class="w-6 h-6 rounded-full bg-amber-200 text-xs flex items-center justify-center">DM</div>Dr. Müller <span class="text-xs text-amber-600 ml-auto">Mandant</span></div>
+              </div>
+            </div>
+            <div class="card p-4">
+              <div class="text-xs uppercase text-slate-500 mb-2">Budget</div>
+              <div class="text-sm">Budget: <strong>15.000 €</strong></div>
+              <div class="text-sm">Verbraucht: 6.400 € (32h)</div>
+              <div class="h-2 bg-slate-100 rounded mt-2"><div class="h-full bg-brand-500 rounded" style="width: 42%"></div></div>
+            </div>
+            <div class="card p-4">
+              <div class="text-xs uppercase text-slate-500 mb-2">Verknüpfte Mandanten</div>
+              <a class="text-brand-600 hover:underline">Dr. Andreas Müller</a>
+              <div class="text-xs text-slate-500">Müller Immobilien GmbH</div>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- ============ TASKS ============ -->
+      <section id="tasks" class="screen space-y-6">
+        <h1 class="text-2xl font-bold">Meine Aufgaben</h1>
+
+        <div class="grid grid-cols-4 gap-4">
+          <div>
+            <div class="text-xs uppercase font-semibold text-slate-500 mb-2">Offen (5)</div>
+            <div class="space-y-2">
+              <div class="card p-3 text-sm">
+                <div class="text-xs text-slate-500">Müller · Westend</div>
+                <div class="font-medium">Termin Besichtigung 28.06.</div>
+                <div class="text-xs text-slate-500 mt-1">20.06. · Mittel</div>
+              </div>
+              <div class="card p-3 text-sm">
+                <div class="text-xs text-slate-500">Weber · Nachfolge</div>
+                <div class="font-medium">Bilanz 2024 durchsehen</div>
+                <div class="text-xs text-slate-500 mt-1">22.06. · Mittel</div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="text-xs uppercase font-semibold text-slate-500 mb-2">In Arbeit (2)</div>
+            <div class="space-y-2">
+              <div class="card p-3 text-sm border-amber-300">
+                <div class="text-xs text-slate-500">Müller · Westend</div>
+                <div class="font-medium">Gutachten finalisieren</div>
+                <div class="text-xs text-rose-600 font-medium mt-1">Heute · Dringend</div>
+              </div>
+              <div class="card p-3 text-sm border-amber-300">
+                <div class="text-xs text-slate-500">Schneider · Strategie 2026</div>
+                <div class="font-medium">Marktanalyse Q2</div>
+                <div class="text-xs text-slate-500 mt-1">14.06. · Hoch</div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="text-xs uppercase font-semibold text-slate-500 mb-2">Review (1)</div>
+            <div class="space-y-2">
+              <div class="card p-3 text-sm">
+                <div class="text-xs text-slate-500">Müller · Ankauf Halle OF</div>
+                <div class="font-medium">Vertragsentwurf prüfen</div>
+                <div class="text-xs text-slate-500 mt-1">17.06.</div>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="text-xs uppercase font-semibold text-slate-500 mb-2">Diese Woche fertig (4)</div>
+            <div class="space-y-2 opacity-60">
+              <div class="card p-3 text-sm">
+                <div class="text-xs text-slate-500">Müller · Westend</div>
+                <div class="font-medium line-through">Vergleichsmieten recherchieren</div>
+              </div>
+              <div class="card p-3 text-sm">
+                <div class="text-xs text-slate-500">Bauer · Strategie</div>
+                <div class="font-medium line-through">Abschlussbericht</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ CHAT ============ -->
+      <section id="chat" class="screen space-y-4">
+        <h1 class="text-2xl font-bold">Chat — Müller · Bewertung Westend</h1>
+
+        <div class="card flex h-[600px]">
+          <div class="w-48 border-r border-slate-200 p-2 text-sm">
+            <div class="px-3 py-2 rounded bg-brand-50 text-brand-700 font-medium cursor-pointer">
+              # intern
+              <div class="text-xs font-normal text-slate-500">3 Mitglieder</div>
+            </div>
+            <div class="px-3 py-2 rounded hover:bg-slate-50 cursor-pointer mt-1">
+              # mit Mandant
+              <div class="text-xs text-slate-500">Dr. Müller +3</div>
+            </div>
+            <div class="text-xs uppercase text-slate-400 mt-4 mb-1 px-3">Andere Projekte</div>
+            <div class="px-3 py-1.5 rounded hover:bg-slate-50 cursor-pointer text-slate-700">Schneider · Strategie</div>
+            <div class="px-3 py-1.5 rounded hover:bg-slate-50 cursor-pointer text-slate-700">Weber · Nachfolge</div>
+          </div>
+
+          <div class="flex-1 flex flex-col">
+            <div class="px-4 py-3 border-b border-slate-200 text-sm">
+              <strong>#intern</strong> · nur Team sieht diese Nachrichten
+            </div>
+            <div class="flex-1 p-4 space-y-4 overflow-y-auto text-sm">
+              <div class="flex gap-3">
+                <div class="w-8 h-8 rounded-full bg-emerald-200 text-xs flex items-center justify-center flex-shrink-0">SK</div>
+                <div>
+                  <div><strong>Sebastian</strong> <span class="text-xs text-slate-500">gestern, 16:42</span></div>
+                  <div>Habe die Marktdaten hochgeladen. Westend zieht ordentlich an, +6% YoY.</div>
+                </div>
+              </div>
+              <div class="flex gap-3">
+                <div class="w-8 h-8 rounded-full bg-rose-200 text-xs flex items-center justify-center flex-shrink-0">FB</div>
+                <div>
+                  <div><strong>Florian</strong> <span class="text-xs text-slate-500">gestern, 17:30</span></div>
+                  <div>Können wir den Liquidationswert nochmal zu zweit anschauen? Müller hatte da letzte Woche Bauchschmerzen.</div>
+                </div>
+              </div>
+              <div class="flex gap-3">
+                <div class="w-8 h-8 rounded-full bg-emerald-200 text-xs flex items-center justify-center flex-shrink-0">SK</div>
+                <div>
+                  <div><strong>Sebastian</strong> <span class="text-xs text-slate-500">heute, 08:15</span></div>
+                  <div>Klar, 14 Uhr passt mir. <strong>@Florian</strong> ich bringe die DCF-Tabelle mit.</div>
+                </div>
+              </div>
+            </div>
+            <div class="border-t border-slate-200 p-3 flex gap-2">
+              <input class="flex-1 border border-slate-300 rounded px-3 py-2 text-sm" placeholder="Nachricht an #intern…" />
+              <button class="bg-brand-600 text-white px-4 py-2 rounded text-sm">Senden</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ PORTAL ============ -->
+      <section id="portal" class="screen space-y-4">
+        <div class="bg-amber-50 border border-amber-200 rounded p-3 text-sm text-amber-800">
+          Vorschau: <strong>so sieht der Mandanten-Login aus</strong> — Dr. Müller sieht nur das, was ihr explizit für ihn freigegeben habt.
+        </div>
+        <h1 class="text-2xl font-bold">Willkommen im Mandanten-Portal, Dr. Müller</h1>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <a class="card p-4 hover:shadow-md">
+            <div class="font-semibold">Bewertung Bürogebäude Westend</div>
+            <div class="text-xs text-slate-500 mt-1">Aktiv · 3 neue Dokumente, 1 ungelesene Nachricht</div>
+          </a>
+          <a class="card p-4 hover:shadow-md">
+            <div class="font-semibold">Ankauf Halle Offenbach</div>
+            <div class="text-xs text-slate-500 mt-1">Aktiv · Wartet auf Ihre Freigabe</div>
+          </a>
+        </div>
+
+        <div class="card p-5 mt-4">
+          <h2 class="font-semibold mb-3">Bewertung Bürogebäude Westend</h2>
+          <div class="grid grid-cols-2 gap-6">
+            <div>
+              <div class="text-xs uppercase text-slate-500 mb-2">Geteilte Dokumente</div>
+              <div class="divide-y divide-slate-100">
+                <div class="py-2 text-sm">📄 Auftragsbestätigung.pdf <span class="text-xs text-slate-500 ml-2">02.06.</span></div>
+                <div class="py-2 text-sm">📄 Bewertungsgutachten_v3.pdf <span class="text-xs text-slate-500 ml-2">09.06.</span></div>
+                <div class="py-2 text-sm">📊 Marktdaten_Westend.xlsx <span class="text-xs text-slate-500 ml-2">heute</span></div>
+              </div>
+              <button class="mt-3 text-sm text-brand-600">+ Dokument hochladen</button>
+            </div>
+            <div>
+              <div class="text-xs uppercase text-slate-500 mb-2">Direkter Draht</div>
+              <div class="bg-slate-50 rounded p-3 text-sm space-y-2 h-40 overflow-y-auto">
+                <div><strong>Florian:</strong> Anbei das Gutachten v3.</div>
+                <div><strong>Sie:</strong> Vielen Dank, schaue heute Abend rein.</div>
+              </div>
+              <input class="w-full mt-2 border border-slate-300 rounded px-3 py-2 text-sm" placeholder="Nachricht schreiben…" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ SETTINGS ============ -->
+      <section id="settings" class="screen space-y-6">
+        <h1 class="text-2xl font-bold">Einstellungen</h1>
+
+        <div class="card p-5">
+          <h2 class="font-semibold mb-3">📧 E-Mail-Konten</h2>
+          <p class="text-sm text-slate-600 mb-4">Hier verbindet ihr eure Team-Postfächer. Mails aus diesen Konten landen in der zentralen Inbox.</p>
+          <div class="divide-y divide-slate-100 border border-slate-200 rounded">
+            <div class="p-3 flex items-center justify-between">
+              <div>
+                <div class="font-medium text-sm">info@kromeichpartner.de</div>
+                <div class="text-xs text-slate-500">Google Workspace · OAuth · zuletzt sync: vor 2 Min.</div>
+              </div>
+              <span class="badge bg-emerald-100 text-emerald-700">verbunden</span>
+            </div>
+            <div class="p-3 flex items-center justify-between">
+              <div>
+                <div class="font-medium text-sm">kanzlei@kromeichpartner.de</div>
+                <div class="text-xs text-slate-500">IMAP · zuletzt sync: vor 1 Min.</div>
+              </div>
+              <span class="badge bg-emerald-100 text-emerald-700">verbunden</span>
+            </div>
+          </div>
+          <button class="mt-3 text-sm text-brand-600">+ Konto hinzufügen</button>
+        </div>
+
+        <div class="card p-5">
+          <h2 class="font-semibold mb-3">💬 WhatsApp Business</h2>
+          <p class="text-sm text-slate-600 mb-4">Geschäftsnummer für Mandantenkommunikation, angebunden über 360dialog (Meta-verifiziert).</p>
+          <div class="border border-slate-200 rounded p-3 flex items-center justify-between">
+            <div>
+              <div class="font-medium text-sm">+49 69 1234567 (Kromeich Partner)</div>
+              <div class="text-xs text-slate-500">360dialog · Webhook aktiv · letzte Nachricht: vor 9 Min.</div>
+            </div>
+            <span class="badge bg-emerald-100 text-emerald-700">aktiv</span>
+          </div>
+        </div>
+
+        <div class="card p-5">
+          <h2 class="font-semibold mb-3">👥 Team</h2>
+          <div class="divide-y divide-slate-100 border border-slate-200 rounded">
+            <div class="p-3 flex items-center justify-between text-sm">
+              <div>
+                <div class="font-medium">Florian Brimmers</div>
+                <div class="text-xs text-slate-500">florian.brimmers@kromeichpartner.de</div>
+              </div>
+              <span class="badge bg-rose-100 text-rose-700">Admin</span>
+            </div>
+            <div class="p-3 flex items-center justify-between text-sm">
+              <div>
+                <div class="font-medium">Sebastian Kromeich</div>
+                <div class="text-xs text-slate-500">sebastian.kromeich@kromeichpartner.de</div>
+              </div>
+              <span class="badge bg-slate-100 text-slate-600">Team</span>
+            </div>
+          </div>
+          <button class="mt-3 text-sm text-brand-600">+ Team-Mitglied einladen</button>
+        </div>
+
+        <div class="card p-5">
+          <h2 class="font-semibold mb-3">🔌 Integrationen</h2>
+          <div class="grid grid-cols-2 gap-3 text-sm">
+            <div class="border border-slate-200 rounded p-3 flex items-center justify-between">
+              <div>
+                <div class="font-medium">Propstack</div>
+                <div class="text-xs text-slate-500">Kontakt-Sync aktiv</div>
+              </div>
+              <span class="badge bg-emerald-100 text-emerald-700">an</span>
+            </div>
+            <div class="border border-slate-200 rounded p-3 flex items-center justify-between">
+              <div>
+                <div class="font-medium">Apollo.io</div>
+                <div class="text-xs text-slate-500">Anreicherung neue Kontakte</div>
+              </div>
+              <span class="badge bg-emerald-100 text-emerald-700">an</span>
+            </div>
+            <div class="border border-slate-200 rounded p-3 flex items-center justify-between">
+              <div>
+                <div class="font-medium">DATEV</div>
+                <div class="text-xs text-slate-500">Rechnungs-Export</div>
+              </div>
+              <span class="badge bg-slate-100 text-slate-600">aus</span>
+            </div>
+            <div class="border border-slate-200 rounded p-3 flex items-center justify-between">
+              <div>
+                <div class="font-medium">Kalender (Google/Outlook)</div>
+                <div class="text-xs text-slate-500">Termin-Sync</div>
+              </div>
+              <span class="badge bg-slate-100 text-slate-600">geplant</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<script>
+  function show(id, btn) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    window.scrollTo(0, 0);
+  }
+</script>
+</body>
+</html>
