@@ -133,9 +133,9 @@ static func grow_cluster(tiles: Array, width: int, height: int, terrain: int, ta
 
 
 static func _has_neighbor(tiles: Array, width: int, height: int, x: int, y: int, terrain: int) -> bool:
-	for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
-		var nx := x + d.x
-		var ny := y + d.y
+	for d: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+		var nx: int = x + d.x
+		var ny: int = y + d.y
 		if nx < 0 or nx >= width or ny < 0 or ny >= height:
 			continue
 		if int(tiles[ny * width + nx]) == terrain:

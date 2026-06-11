@@ -17,6 +17,7 @@ func _init() -> void:
 	_test_hero_army()
 	_test_hero_losses()
 	_test_unit_type()
+	_test_other_modules_parse()
 
 	print("")
 	if _fails == 0:
@@ -120,3 +121,18 @@ func _test_unit_type() -> void:
 				"Fraktion %d: %s <-> %s Roundtrip" % [fid, uid, bid])
 	_check(UnitType.unit_for_building(1, "markt") == "", "Markt produziert keine Einheit")
 	_check(UnitType.starter_id_for_faction(2) == "skelett", "Totenreich-Starter = Skelett")
+
+
+# Static-Calls auf weitere Module zwingen Godot, deren Scripts wirklich
+# zu kompilieren - sonst gleitet ein Parse-Fehler in MapGen/Pathfinder
+# durch --quit (siehe Run 27363969609, Android-Export hat es erst beim
+# Build erwischt).
+func _test_other_modules_parse() -> void:
+	print("== Andere Module (Parse-Smoke) ==")
+	var rng := DeterministicRng.new(42)
+	var map: Dictionary = MapGen.generate(8, 8, rng)
+	_check(int(map.get("width", 0)) == 8 and (map.get("tiles", []) as Array).size() == 64,
+		"MapGen.generate kompiliert + erzeugt 8x8")
+	var costs: Dictionary = Pathfinder.compute_costs(map, Vector2i(0, 0))
+	_check(int(costs.get(Vector2i(0, 0), -1)) == 0,
+		"Pathfinder.compute_costs kompiliert + Start-Kosten == 0")

@@ -134,7 +134,11 @@ jobs:
         with:
           name: KromeichHeroes-${{ github.event.inputs.build_type || 'debug' }}-${{ github.sha }}
           path: game/build/*.apk
-          retention-days: 14
+          # Storage-Quota auf GitHub Free ist eng (500 MB). 28 MB/APK *
+          # viele Commits sprengt das schnell - siehe Run 27363969609,
+          # der genau daran scheiterte. Lieber kurze Retention; aktuelle
+          # APK liegt sowieso schon lokal beim Tester.
+          retention-days: 3
 
       - name: Upload Godot logs on failure
         if: failure()

@@ -28,9 +28,9 @@ static func compute_costs(map: Dictionary, start: Vector2i) -> Dictionary:
 		open.remove_at(best_idx)
 		var cur_cost: int = int(costs[cur])
 
-		for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
-			var nx := cur.x + d.x
-			var ny := cur.y + d.y
+		for d: Vector2i in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+			var nx: int = cur.x + d.x
+			var ny: int = cur.y + d.y
 			if nx < 0 or nx >= width or ny < 0 or ny >= height:
 				continue
 			var t: int = int(tiles[ny * width + nx])
