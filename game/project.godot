@@ -1,10 +1,8 @@
-; Godot 4.5 Projekt fuer Kromeich Heroes.
-; Reine GDScript-App. C# crasht auf Android 15 + Snapdragon 8 Elite
-; (Samsung S25 Ultra), siehe Diagnose in Commits d5388a6..fbd7c35.
-; Die C#-Dateien in scripts/ bleiben fuer Desktop-Unit-Tests und den
-; Balance-Simulator erhalten, werden aber von keiner Szene geladen
-; und "C#" ist aus config/features entfernt, damit die .NET-Runtime
-; auf Android gar nicht erst gestartet wird.
+; Godot 4.6 Projekt fuer Kromeich Heroes.
+; Reine GDScript-App. Historie: C# crashte auf Android 15 + Snapdragon 8
+; Elite (Samsung S25 Ultra), siehe Diagnose in Commits d5388a6..fbd7c35.
+; Der C#/Python-Prototyp wurde danach komplett nach GDScript portiert und
+; die Altdateien entfernt (Git-History hat sie weiterhin).
 
 config_version=5
 

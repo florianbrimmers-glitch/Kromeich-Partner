@@ -1,98 +1,73 @@
 # Kromeich Heroes
 
-Rundenbasiertes, HoMM3-inspiriertes Handyspiel. Asynchroner Multiplayer
-fuer Spiele mit Familie und Freunden ueber mehrere Tage.
+Rundenbasiertes, HoMM3-inspiriertes Handyspiel in **Godot 4.6** (reines
+GDScript). Ziel: asynchroner Multiplayer fuer Spiele mit Familie und
+Freunden ueber mehrere Tage.
 
-**Phase**: Fundament (siehe Plan-Datei im Root-Ordner).
+## Was laeuft (spielbar)
 
-## Status dieser Session
+- **Weltkarte** (`scripts/ui/WorldMapScreen.gd`): deterministische
+  Zufallskarte (Seed), 6 Terrain-Typen, Fog of War, Dijkstra-Bewegung,
+  Staedte/Goldminen/Schaetze/Monster, KI-Gegner mit eigener Oekonomie.
+- **Kalender**: 1 Zug = 1 Tag, 7 Tage = Woche, 4 Wochen = Monat,
+  12 Monate = Jahr (`scripts/core/GameCalendar.gd`).
+- **4 Fraktionen** (Waldvolk/Menschen/Totenreich/Orks) mit je 3 Einheiten
+  (`scripts/core/UnitType.gd`), taegliches Pool-Wachstum pro Stadt
+  (Bresenham-verteilt, stapelt sich, verfaellt nicht).
+- **Stadt-Screen** (`scripts/ui/CityScreen.gd`): isometrische Ansicht mit
+  Gebaeude-Hotspots (aktuell Platzhalter-Grafik; KI-Sprite-Pipeline siehe
+  `assets/city/ART_SPEC.md`).
+- **Taktischer Kampf** (`scripts/ui/TacticalBattleScreen.gd`): Grid-Kampf
+  mit Initiative, Fernkampf, Gegenschlag, Obstacles.
+- **Held** (`scripts/core/Hero.gd`): Level, XP, Armee mit max 6 Stacks.
 
-Dieses Verzeichnis enthaelt das **Scaffold** und die Balance-Datenbasis.
-Was laeuft:
+## Tests & CI
 
-- `data/*.json` — 4 Fraktionen, 28 Einheiten, 22 Spells, 20 Artefakte
-  (davon 8 `game_changer`) und 2 Karten-Templates. Jede Zeile mit
-  `balance_source`-Kommentar.
-- `data/balance_notes.md` — Audit-Trail fuer jede Abweichung von HoMM3/HotA.
-- `scripts/core/Battle.cs` + `DeterministicRng.cs` + `MapGen.cs` —
-  deterministische, xorshift64-basierte Engine (C#, .NET 8).
-- `scripts/net/SupabaseClient.cs` + `supabase_schema.sql` —
-  Multiplayer-Schema (matches, moves, match_players) mit RLS + Client-Stub.
-- `tools/balance_sim.py` — Monte-Carlo-Simulator mit Helden, Spells, Morale.
-- `tools/map_gen.py` — Zonen-basierter Zufallskarten-Generator,
-  ASCII-Render fuer Debug, exakt spiegelgleich zu MapGen.cs.
-- `tools/play_battle.py` — CLI-Kampf mit Turn-Log.
-- `tests/` — **19 pytest-Tests**, alle gruen.
-
-Was **noch nicht** laeuft (geplant fuer Folge-Commits):
-
-- Godot-Szenen: Main.tscn (Titel) und Battle.tscn (Auto-Replay-Kampf)
-  sind da. Weltkarte, Stadt, Held-Screen folgen.
-- Android-Build-Pipeline: Workflow ist eingerichtet (siehe unten),
-  aber noch nicht ueber CI verifiziert.
-- Supabase-Realtime-WebSocket-Client (bisher nur REST-Stub)
-- C#-Test-Runner (bisher nur Python-Tests)
-- Artefakt-Effekte in Battle.cs (Daten da, Python-Sim hat sie; C# noch nicht)
-
-## Android-APK bauen (CI)
-
-1. GitHub-UI → Actions → "Android APK Build" → "Run workflow".
-2. `build_type` waehlen (`debug` zum Probieren, `release` erst wenn wir
-   eine echte Signing-Keystore in Secrets hinterlegt haben).
-3. Nach ~10-15 Minuten erscheint ein APK-Artefakt (`KromeichHeroes-debug-<sha>`).
-4. Download -> auf Android-Handy installieren (Einstellungen ->
-   "Installation aus unbekannten Quellen" einmalig erlauben).
-
-**Wichtig:** Godot-4.2-C#-nach-Android gilt als experimentell. Erste
-Builds scheitern meist an einem der folgenden Punkte; beide sind
-dokumentiert/fixbar:
-- Android-Build-Template nicht installiert -> Step
-  `Install Android build template` im Workflow soll das machen.
-- Debug-Keystore fehlt -> Workflow legt `~/.android/debug.keystore` an.
-- Java-SDK-Pfad falsch -> Workflow zieht ihn aus `JAVA_HOME`.
-
-Bei Failure zieht der Workflow `godot-logs-<sha>` als Artefakt;
-dort stehen die naechsten Schritte drin.
-
-## Setup
+Headless-Tests laufen ohne Display, lokal wie in der CI
+(`.github/workflows/game-ci.yml`):
 
 ```bash
-# Python-Simulator + Tests (benoetigt: python 3.11+, pytest)
-pip install pytest
-python -m pytest game/tests/ -v
-
-# Balance-Simulator
-python game/tools/balance_sim.py --runs 1000 --week 4 --seed 42
-
-# Einen Kampf live anschauen
-python game/tools/play_battle.py --a menschen --b totenreich --seed 42 --verbose
-
-# Zufallskarte generieren und rendern
-python game/tools/map_gen.py --template duell_klein --seed 42 --render
-
-# Godot-Projekt (erst sinnvoll, wenn Scenes da sind)
-# 1. Godot 4.2+ mit .NET/C# Unterstuetzung installieren
-# 2. game/project.godot oeffnen
-
-# Supabase (Multiplayer): scripts/net/supabase_schema.sql im SQL-Editor
-# eines neuen Supabase-Projekts ausfuehren. SUPABASE_URL + ANON_KEY in
-# Godot-Projekt-Settings als Autoload-Variable hinterlegen.
+godot --headless --path game/ --import          # einmal (Class-Cache)
+godot --headless --path game/ --script tools/test_core_logic.gd
+godot --headless --path game/ --script tools/test_city_screen.gd
+godot --headless --path game/ --script tools/balance_sim.gd -- --runs=500
 ```
+
+## Test-Loop auf dem Handy
+
+- **Schnell (empfohlen)**: One-Click-Deploy aus dem Godot-Editor uebers
+  WLAN aufs Phone — Setup in `SETUP_WIRELESS_DEPLOY.md`.
+- **APK aus CI** (zum Verteilen an Mitspieler): jeder Push baut via
+  `.github/workflows/game-android-build.yml` ein APK-Artefakt
+  (GitHub -> Actions -> Run -> "Artifacts", Login noetig, 14 Tage gueltig).
+
+## Verzeichnis
+
+- `scripts/core/` — Spiellogik, headless-testbar, kein Rendering
+- `scripts/ui/` — Screens (Control-basiert, programmatisch aufgebaut)
+- `tools/` — Headless-Skripte: Tests + Balance-Simulator
+- `data/` — JSON-Datenbasis; Stand teils noch Planungs-Phase
+  (28-Einheiten-Roster etc.), Migration in die Engine offen.
+  `data/balance_notes.md` = Audit-Trail fuer Balance-Entscheidungen.
+- `assets/` — Grafik (minimal; Art-Pipeline: `assets/city/ART_SPEC.md`)
+- `scripts/net/supabase_schema.sql` — geplantes Multiplayer-Schema
+  (matches/moves/match_players mit RLS), noch nicht angebunden.
+
+Hinweis: Der urspruengliche C#/.NET- und Python-Prototyp wurde komplett
+nach GDScript portiert und entfernt; die Git-History hat die Altdateien.
 
 ## Design-Philosophie
 
 Kern-Leitlinie: **Chancengleichheit aller Fraktionen und Builds**, analog
-zur Equilibris-Mod-Philosophie (HoMM4). Umgesetzt durch:
+zur Equilibris-Mod-Philosophie (HoMM4):
 
-1. Datengetriebene Balance — alle Zahlen in `data/*.json`, nichts
-   hart-codiert.
-2. Simulator als Gatekeeper — Zielwert 45-55 Prozent Winrate pro Matchup.
-3. 8+ game-changer-Artefakte ermoeglichen distinkte Builds (Archmage,
-   Armageddon-Dragon-Slave, Nekro-Swarm, Siege, …).
-4. RNG-lastige Auto-Win-Abilities (Blind, Bind, Curse) auf 10-20 Prozent
-   Chance gedeckelt.
-5. Keine Ubisoft-IP: alle Namen generisch, alle Assets werden eigen
-   erstellt.
+1. Balance-Zahlen sollen langfristig datengetrieben sein (`data/*.json`).
+2. Simulator als Gatekeeper — Zielkorridor 40-60 Prozent Winrate pro
+   Matchup (`tools/balance_sim.gd`; aktuell bekannt ausserhalb, Tuning
+   steht aus).
+3. Game-changer-Artefakte fuer distinkte Builds (geplant).
+4. RNG-lastige Auto-Win-Abilities gedeckelt (geplant).
+5. Keine Ubisoft-IP: alle Namen generisch, alle Assets eigen erstellt.
 
 ## Rechtliches
 
@@ -100,6 +75,7 @@ HoMM3 ist Ubisoft-IP. Dieses Projekt uebernimmt nur **Mechaniken** (nicht
 schutzfaehig), keine Grafiken, Namen oder Texte. Fraktionen heissen
 „Waldvolk", „Totenreich" usw. — nicht „Rampart", „Necropolis".
 
-## Quellenverzeichnis fuer Balance-Entscheidungen
+## Offene Design-Notizen
 
-Siehe `data/balance_notes.md`.
+Siehe `CLAUDE.md` (Fraktions-Misch-Malus, Sandbox-Godot-Setup) und
+`data/balance_notes.md`.
