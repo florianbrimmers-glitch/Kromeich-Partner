@@ -192,16 +192,10 @@ var _cities: Array = []
 # Spieler-Fraktion: Fraktion der Start-Stadt (0..3). Steuert, welche
 # Boni-Einheiten der Spieler durch Level-Up und Schmiede bekommt.
 var _player_faction: int = 1
-var _city_panel: Panel
-var _city_title: Label
-var _city_gold: Label
-var _buildings_box: VBoxContainer
 var _selected_city: int = -1
-# Neuer isometrischer Stadt-Screen (Platzhalter-Grafik, spaeter KI-Sprites).
-# Solange true, ersetzt er das alte Button-Panel (_show_city_panel bleibt als
-# Fallback erhalten). Die Oekonomie-Logik (_buy_building/_recruit_unit) wird
-# per Signal wiederverwendet, nicht dupliziert.
-const USE_ISO_CITY_SCREEN := true
+# Isometrischer Stadt-Screen. Bau-/Rekrut-Logik laeuft per Signal an die
+# bestehenden _buy_building/_recruit_unit zurueck (siehe _city_screen-Setup),
+# damit Oekonomie an einer Stelle bleibt.
 var _city_screen: CityScreen
 # Monster: Array aus { "pos": Vector2i, "strength": int }.
 var _monsters: Array = []
@@ -276,7 +270,6 @@ func _ready() -> void:
 	if mm_toggle != null:
 		mm_toggle.pressed.connect(_toggle_minimap)
 	_build_combat_label()
-	_build_city_panel()
 	_build_city_screen()
 	_build_victory_panel()
 
@@ -1930,65 +1923,6 @@ func _check_level_up() -> bool:
 	return leveled
 
 
-func _build_city_panel() -> void:
-	var panel := Panel.new()
-	panel.visible = false
-	panel.anchor_left = 0.5
-	panel.anchor_top = 0.5
-	panel.anchor_right = 0.5
-	panel.anchor_bottom = 0.5
-	panel.offset_left = -480
-	panel.offset_top = -700
-	panel.offset_right = 480
-	panel.offset_bottom = 700
-	add_child(panel)
-	_city_panel = panel
-
-	# Opaker Hintergrund - default Panel-Theme ist halbtransparent und
-	# auf der Weltkarte unleserlich.
-	var bg := ColorRect.new()
-	bg.color = Color(0.10, 0.11, 0.14, 1.0)
-	bg.anchor_right = 1.0
-	bg.anchor_bottom = 1.0
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	panel.add_child(bg)
-
-	var vb := VBoxContainer.new()
-	vb.anchor_right = 1.0
-	vb.anchor_bottom = 1.0
-	vb.offset_left = 40
-	vb.offset_top = 40
-	vb.offset_right = -40
-	vb.offset_bottom = -40
-	vb.add_theme_constant_override("separation", 28)
-	panel.add_child(vb)
-
-	_city_title = Label.new()
-	_city_title.text = "Stadt"
-	_city_title.add_theme_font_size_override("font_size", 48)
-	vb.add_child(_city_title)
-
-	_city_gold = Label.new()
-	_city_gold.text = "Gold: 0"
-	_city_gold.add_theme_font_size_override("font_size", 32)
-	vb.add_child(_city_gold)
-
-	_buildings_box = VBoxContainer.new()
-	_buildings_box.add_theme_constant_override("separation", 16)
-	vb.add_child(_buildings_box)
-
-	var spacer := Control.new()
-	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
-	vb.add_child(spacer)
-
-	var close_btn := Button.new()
-	close_btn.text = "Schliessen"
-	close_btn.custom_minimum_size = Vector2(0, 120)
-	close_btn.add_theme_font_size_override("font_size", 32)
-	close_btn.pressed.connect(_hide_city)
-	vb.add_child(close_btn)
-
-
 func _build_victory_panel() -> void:
 	# Vollbild-Overlay. Wird sichtbar, sobald alle Staedte dem Helden
 	# gehoeren. "Neue Karte" startet per _on_reroll einen neuen Seed.
@@ -2088,15 +2022,13 @@ func _city_ctx(city_idx: int) -> Dictionary:
 	}
 
 
-# Einstieg: routet auf den Iso-Screen, faellt sonst auf das alte Panel
-# zurueck. Wird auch von _buy_building/_recruit_unit am Ende aufgerufen und
-# dient damit zugleich als Refresh.
+# Einstieg fuer "Stadt oeffnen": gibt der CityScreen-Overlay den
+# aktuellen Kontext. Wird auch von _buy_building/_recruit_unit am Ende
+# aufgerufen und dient damit zugleich als Refresh nach Aktionen.
 func _show_city(city_idx: int) -> void:
 	_selected_city = city_idx
-	if USE_ISO_CITY_SCREEN and _city_screen != null:
+	if _city_screen != null:
 		_city_screen.open(_city_ctx(city_idx))
-		return
-	_show_city_panel(city_idx)
 
 
 func _on_city_build(building_id: String) -> void:
@@ -2118,79 +2050,7 @@ func _on_city_closed() -> void:
 	_hide_city()
 
 
-func _show_city_panel(city_idx: int) -> void:
-	_selected_city = city_idx
-	var city: Dictionary = _cities[city_idx]
-	var fid: int = int(city["faction"])
-	_city_title.text = "Stadt " + FACTION_NAMES[fid]
-	_city_gold.text = "Gold: " + str(_hero.gold)
-	for c in _buildings_box.get_children():
-		c.queue_free()
-	var built: Array = city["buildings"]
-	for i in range(BUILDINGS.size()):
-		var b: Dictionary = BUILDINGS[i]
-		var bid: String = b["id"]
-		var bname: String = b["name"]
-		var cost: int = int(b["cost"])
-		var effect: String = String(b["effect"]) if b.has("effect") else ""
-		var requires: String = String(b["requires"]) if b.has("requires") else ""
-		var btn := Button.new()
-		btn.custom_minimum_size = Vector2(0, 140)
-		btn.add_theme_font_size_override("font_size", 30)
-		if built.has(bid):
-			btn.text = bname + "  (Gebaut)\n" + effect
-			btn.disabled = true
-		elif requires != "" and not built.has(requires):
-			# Voraussetzung fehlt: Hinweis statt Effekt-Text, Button aus.
-			btn.text = bname + "  -  " + str(cost) + " G\nBenoetigt: " + requires.capitalize()
-			btn.disabled = true
-		else:
-			btn.text = bname + "  -  " + str(cost) + " G\n" + effect
-			if _hero.gold < cost:
-				btn.disabled = true
-			btn.pressed.connect(_buy_building.bind(city_idx, i))
-		_buildings_box.add_child(btn)
-
-	# Rekrutieren: drei Buttons fuer die drei Slots der Stadt-Fraktion.
-	# Jeder Slot braucht ein Gebaeude: Nahkampf -> Kaserne, Fernkampf ->
-	# Schmiede, Schwer -> Reiterei. Button zeigt den Pool-Vorrat plus die
-	# Wochenrate und ist deaktiviert, wenn leer, Held nicht vor Ort,
-	# Gebaeude fehlt oder die Armee schon 6 Stacks hat.
-	var hero_here: bool = _hero != null and _hero.position == Vector2i(city["pos"])
-	var pools: Dictionary = city.get("pools", {}) as Dictionary
-	for uid in UnitType.ids_for_faction(fid):
-		var cost: int = UnitType.cost_of(uid)
-		var req: String = UnitType.building_for(uid)
-		var have: int = int(pools.get(uid, 0))
-		var cap: int = _pool_cap_for(uid)
-		var rbtn := Button.new()
-		rbtn.custom_minimum_size = Vector2(0, 110)
-		rbtn.add_theme_font_size_override("font_size", 30)
-		var unit_label: String = "%s (%d, +%d/Wo)" % [UnitType.name_of(uid), have, cap]
-		if not built.has(req):
-			rbtn.text = "%s  -  benoetigt %s" % [unit_label, req.capitalize()]
-			rbtn.disabled = true
-		elif not hero_here:
-			rbtn.text = "%s  -  Held nicht vor Ort" % unit_label
-			rbtn.disabled = true
-		elif have <= 0:
-			rbtn.text = "%s  -  kein Nachschub" % unit_label
-			rbtn.disabled = true
-		elif not _hero.can_add_unit(uid):
-			rbtn.text = "%s  -  Armee voll (max %d Stacks)" % [unit_label, Hero.MAX_ARMY_SLOTS]
-			rbtn.disabled = true
-		else:
-			rbtn.text = "%s  -  %d G  (+1)" % [unit_label, cost]
-			if _hero.gold < cost:
-				rbtn.disabled = true
-		rbtn.pressed.connect(_recruit_unit.bind(city_idx, uid))
-		_buildings_box.add_child(rbtn)
-
-	_city_panel.visible = true
-
-
 func _hide_city() -> void:
-	_city_panel.visible = false
 	if _city_screen != null:
 		_city_screen.visible = false
 	_selected_city = -1

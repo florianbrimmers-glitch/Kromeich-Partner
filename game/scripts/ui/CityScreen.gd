@@ -22,10 +22,23 @@ const LAYOUT_PATH := "res://data/city_layout.json"
 const HUD_TOP := 150.0
 const HUD_BOTTOM := 180.0
 
+# Art-Pipeline: Pfade nach Konvention. Liegt ein PNG dort, wird es am
+# Hotspot statt des Platzhalter-Iso-Blocks gerendert; sonst Fallback auf
+# Prozedural. Datei-Konvention siehe game/assets/city/ART_SPEC.md.
+const ART_FACTION_DIR := "res://assets/city/%s/%s.png"      # %s=Fraktion, %s=building_id
+const ART_BG := "res://assets/city/%s/bg.png"               # %s=Fraktion
+const ART_CONSTRUCTION := "res://assets/city/_shared/construction.png"
+const FACTION_DIRS := ["waldvolk", "menschen", "totenreich", "orks"]
+
 # ctx wird von WorldMapScreen.open()/refresh() befuellt, siehe dort.
 var _ctx: Dictionary = {}
 var _layout: Dictionary = {}
 var _plots: Array = []   # zuletzt berechnete Hotspots fuer Treffer-Tests
+
+# Cache fuer geladene Texturen: pfad -> Texture2D oder null (nicht gefunden,
+# wird kein zweites Mal nachgeschlagen). Vermeidet ResourceLoader-Spam pro
+# Frame und macht "leerer Ordner" zu einem No-Op.
+var _tex_cache: Dictionary = {}
 
 var _title: Label
 var _gold: Label
@@ -160,9 +173,13 @@ func _draw() -> void:
 	draw_rect(Rect2(Vector2(0.0, size.y - HUD_BOTTOM), Vector2(size.x, HUD_BOTTOM)), Color(0.05, 0.06, 0.08), true)
 
 	var stage := _stage_rect()
-	# Boden-Plateau (spaeter: KI-Hintergrund-Textur).
-	draw_rect(stage, Color(0.12, 0.14, 0.13), true)
-	_draw_ground_grid(stage)
+	# Stadt-Hintergrund: KI-Bild wenn vorhanden, sonst Boden-Plateau + Grid.
+	var bg_tex: Texture2D = _texture(ART_BG % _faction_dir())
+	if bg_tex != null:
+		draw_texture_rect(bg_tex, stage, false)
+	else:
+		draw_rect(stage, Color(0.12, 0.14, 0.13), true)
+		_draw_ground_grid(stage)
 
 	_plots = _compute_plots(stage)
 	for p in _plots:
@@ -189,21 +206,53 @@ func _draw_plot(p: Dictionary) -> void:
 	var hh: float = p["hh"]
 	var built: bool = p["built"]
 	var col: Color = p["color"]
+	var bid: String = String(p["id"])
 
 	# Schlagschatten als flache Ellipse (hier: gestauchte Raute).
 	_draw_diamond(c + Vector2(0, hh * 0.18), hw * 1.05, hh * 1.05, Color(0, 0, 0, 0.25))
 
+	# Versuche zuerst eine KI/Hand-Textur. Hoehen-Konvention: gebaut sieht
+	# hoeher aus als Baustelle, damit Iso-Tiefe lesbar bleibt.
+	var tex_path: String = ""
+	if built:
+		tex_path = ART_FACTION_DIR % [_faction_dir(), bid]
+	else:
+		tex_path = ART_CONSTRUCTION
+	var tex: Texture2D = _texture(tex_path)
+	if tex != null:
+		_draw_sprite_at(tex, c, hw, hh, built)
+		_plot_label(p, c + Vector2(0, hh + 18.0))
+		return
+
+	# Kein Sprite vorhanden -> Platzhalter wie bisher.
 	if not built:
-		# Baustelle: nur Boden-Raute mit Umriss.
 		_draw_diamond(c, hw, hh, Color(col.r, col.g, col.b, 0.18))
 		_draw_diamond_outline(c, hw, hh, Color(col.r, col.g, col.b, 0.55), 2.0)
 		_plot_label(p, c + Vector2(0, hh + 18.0))
 		return
 
-	# Gebaut: extrudierter Iso-Block (Platzhalter fuer das spaetere Sprite).
 	var height: float = hh * 2.0
 	_draw_iso_block(c, hw, hh, height, col)
 	_plot_label(p, c + Vector2(0, hh + 18.0))
+
+
+# Zeichnet ein Sprite an einem Hotspot, breitenproportional skaliert.
+# Anker ist die Boden-Mitte des Plots (selbe Position wie der Iso-Block),
+# damit Texturen ohne Layout-Anpassung 1:1 in die Slots fallen.
+func _draw_sprite_at(tex: Texture2D, ground_center: Vector2, hw: float, hh: float, built: bool) -> void:
+	var src: Vector2 = tex.get_size()
+	if src.x <= 0.0 or src.y <= 0.0:
+		return
+	# Sprite-Breite skaliert mit Plot-Raute; gebaute Gebaeude leicht groesser
+	# als Baustellen, damit hierarchisch lesbar.
+	var sprite_w: float = hw * (4.6 if built else 3.4)
+	var sprite_h: float = sprite_w * (src.y / src.x)
+	# Anker auf Bodenmitte: x zentriert, y so dass die untere Bildkante
+	# leicht ueber dem Plot-Suedpunkt liegt (~10% Boden-Ueberlapp).
+	var rect := Rect2(
+		ground_center - Vector2(sprite_w * 0.5, sprite_h - hh * 0.2),
+		Vector2(sprite_w, sprite_h))
+	draw_texture_rect(tex, rect, false)
 
 
 func _draw_iso_block(c: Vector2, hw: float, hh: float, h: float, base: Color) -> void:
@@ -422,3 +471,26 @@ func _city_has(bid: String) -> bool:
 func _city_pools() -> Dictionary:
 	var city: Dictionary = _ctx.get("city", {})
 	return city.get("pools", {}) as Dictionary
+
+
+# Fraktions-Index -> Verzeichnisname unter assets/city/. Liste muss zur
+# FACTION_NAMES-Konvention in WorldMapScreen passen.
+func _faction_dir() -> String:
+	var fid: int = _faction_id()
+	if fid >= 0 and fid < FACTION_DIRS.size():
+		return String(FACTION_DIRS[fid])
+	return "menschen"
+
+
+# Texture-Loader mit Cache. ResourceLoader gibt bei nicht-existierendem
+# Pfad null zurueck, das speichern wir auch -> kein zweiter Versuch pro
+# Frame. So bleibt der Render-Loop guenstig, auch wenn die meisten Slots
+# noch keine Bilder haben.
+func _texture(path: String) -> Texture2D:
+	if _tex_cache.has(path):
+		return _tex_cache[path] as Texture2D
+	var tex: Texture2D = null
+	if ResourceLoader.exists(path):
+		tex = load(path) as Texture2D
+	_tex_cache[path] = tex
+	return tex

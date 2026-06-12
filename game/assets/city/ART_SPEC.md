@@ -69,10 +69,18 @@ Jeweils + Stil-Block + Palette anhängen.
 - **kapelle** (XP): *small stone chapel with arched stained-glass window and
   bell*.
 
-## So kommt die Art ins Spiel (nächster Code-Schritt)
-Aktuell zeichnet `CityScreen.gd` Platzhalter-Iso-Blöcke. Geplanter Schritt:
-Textur-Laden mit Fallback — liegt unter dem o.g. Pfad ein PNG, wird es am
-Hotspot gerendert, sonst der Platzhalter-Block. Dadurch erscheinen Sprites
-**ohne weitere Code-Änderung**, sobald die Dateien liegen; jedes Gebäude
-upgradet einzeln. Hotspot-Positionen danach in `data/city_layout.json`
-feinjustieren (an `bg.png` ausrichten).
+## So kommt die Art ins Spiel
+**Bereits implementiert.** `CityScreen.gd` greift bei jedem Render-Frame zu:
+- `assets/city/<faction>/bg.png` — wenn vorhanden, Stadt-Hintergrund statt
+  Boden-Plateau mit Iso-Grid.
+- `assets/city/<faction>/<building_id>.png` — wenn vorhanden, Sprite am
+  Hotspot statt extrudiertem Iso-Block.
+- `assets/city/_shared/construction.png` — wenn vorhanden, Sprite an
+  unbestehenden Hotspots statt Baustellen-Raute.
+
+PNG legen -> APK neu bauen (oder im Editor F5) -> Sprite erscheint. Texturen
+werden gecached, Negativ-Hits gemerkt: leere Ordner kosten nichts.
+
+**Hotspot-Position justieren**, sobald `bg.png` steht: `game/data/city_layout.json`
+(x/y relativ zur Stage). Code-frei.
+
