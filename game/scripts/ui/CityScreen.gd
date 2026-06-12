@@ -30,6 +30,10 @@ const HUD_BOTTOM := 180.0
 const ART_EXTENSIONS := [".svg", ".png"]
 const ART_FACTION_DIR := "res://assets/city/%s/%s"            # %s=Fraktion, %s=building_id (ohne Ext)
 const ART_BG := "res://assets/city/%s/bg"                     # %s=Fraktion
+# Baustelle: zuerst gebaeude-spezifisch (construction-<bid>), dann generisch.
+# So kann pro Gebaeudetyp eine "Vorahnung" des spaeteren Baus angedeutet
+# werden, ohne dass jeder Slot zwingend eine eigene SVG braucht.
+const ART_CONSTRUCTION_BID := "res://assets/city/_shared/construction-%s"
 const ART_CONSTRUCTION := "res://assets/city/_shared/construction"
 const FACTION_DIRS := ["waldvolk", "menschen", "totenreich", "orks"]
 
@@ -215,14 +219,14 @@ func _draw_plot(p: Dictionary) -> void:
 	_draw_diamond(c + Vector2(0, hh * 0.18), hw * 1.05, hh * 1.05, Color(0, 0, 0, 0.25))
 
 	# Versuche zuerst eine Sprite-Textur (SVG bevorzugt, PNG als Fallback).
-	# Hoehen-Konvention: gebaut sieht hoeher aus als Baustelle, damit
-	# Iso-Tiefe lesbar bleibt.
-	var tex_path_no_ext: String = ""
+	# Bei ungebauten Gebaeuden: erst gebaeude-spezifisch, dann generisch.
+	var tex: Texture2D = null
 	if built:
-		tex_path_no_ext = ART_FACTION_DIR % [_faction_dir(), bid]
+		tex = _texture_with_ext(ART_FACTION_DIR % [_faction_dir(), bid])
 	else:
-		tex_path_no_ext = ART_CONSTRUCTION
-	var tex: Texture2D = _texture_with_ext(tex_path_no_ext)
+		tex = _texture_with_ext(ART_CONSTRUCTION_BID % bid)
+		if tex == null:
+			tex = _texture_with_ext(ART_CONSTRUCTION)
 	if tex != null:
 		_draw_sprite_at(tex, c, hw, hh, built)
 		_plot_label(p, c + Vector2(0, hh + 18.0))

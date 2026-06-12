@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Baustelle Spaeher: erste Stelzen schon aufgestellt, noch keine
+     Plattform. Holzbalken liegen daneben. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="csp_post" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7a5a30"/>
+      <stop offset="1" stop-color="#3a2614"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="256" cy="388" rx="170" ry="26" fill="#000" opacity="0.32"/>
+
+  <!-- VIER STELZEN: schon stehend (Vorahnung Spaeher) -->
+  <polygon points="160,370 174,376 174,200 160,194" fill="url(#csp_post)" stroke="#2a1a08" stroke-width="1.5"/>
+  <polygon points="338,370 352,362 352,186 338,194" fill="url(#csp_post)" stroke="#2a1a08" stroke-width="1.5"/>
+  <polygon points="248,388 262,388 262,196 248,196" fill="url(#csp_post)" stroke="#2a1a08" stroke-width="1.5"/>
+  <polygon points="248,326 258,326 258,148 248,148" fill="#3a2614" opacity="0.85"/>
+
+  <!-- Diagonale Stuetzen (im Bau) -->
+  <line x1="174" y1="290" x2="248" y2="262" stroke="#3a2614" stroke-width="3"/>
+  <line x1="338" y1="280" x2="262" y2="252" stroke="#3a2614" stroke-width="3"/>
+
+  <!-- KEINE Plattform oder Dach (das kommt erst), nur ein Querbalken oben -->
+  <polygon points="174,200 352,184 352,196 174,212" fill="#5c3c18" stroke="#3a2412" stroke-width="2"/>
+
+  <!-- Stapel von Holzbalken am Boden (Material fuer das Dach) -->
+  <polygon points="86,388 158,396 158,380 86,372" fill="#5a3a18" stroke="#2a1a08" stroke-width="1.5"/>
+  <polygon points="86,372 158,380 158,366 86,358" fill="#7a5a30" stroke="#2a1a08" stroke-width="1.5"/>
+
+  <!-- Stroh-Stapel (Vorrat fuer Dach) -->
+  <ellipse cx="402" cy="378" rx="32" ry="14" fill="#caa050"/>
+  <ellipse cx="402" cy="368" rx="30" ry="12" fill="#dabc6a"/>
+  <line x1="372" y1="372" x2="432" y2="372" stroke="#7a5a18" stroke-width="0.8" opacity="0.7"/>
+</svg>

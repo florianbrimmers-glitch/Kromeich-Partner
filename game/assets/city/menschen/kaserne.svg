@@ -1,11 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Kaserne. Isometrische Sicht (2:1 dimetric), Licht oben-links.
-     Bodengeometrie: Raute N(256,192) E(448,288) S(256,384) W(64,288).
-     Stil-Konvention fuer alle Menschen-Gebaeude:
-     - linke Wand heller (Sonnenseite), rechte dunkler
-     - Sandstein-Palette
-     - Rot-braunes Dach
-     - Goldakzente sparsam fuer Lesbarkeit -->
+<!-- Kaserne. Iteration 2: groesseres Hauptbanner ueber dem Tor, zweites
+     Banner am Dach, gekreuzte Schwerter an der rechten Wand, deutlich
+     groessere Strohpuppe vor dem Tor. Vorher zu plain. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
     <linearGradient id="ks_wallL" x1="0" y1="0" x2="0" y2="1">
@@ -20,50 +16,87 @@
       <stop offset="0" stop-color="#9c3d2c"/>
       <stop offset="1" stop-color="#6c2820"/>
     </linearGradient>
+    <linearGradient id="ks_banner" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#d44030"/>
+      <stop offset="1" stop-color="#8a1c14"/>
+    </linearGradient>
   </defs>
 
   <!-- Boden-Schatten -->
   <ellipse cx="256" cy="392" rx="210" ry="34" fill="#000" opacity="0.32"/>
 
-  <!-- Linke Wand: zwischen Boden W(64,288)-S(256,384) und Dach W2(64,176)-S2(256,272) -->
+  <!-- Linke Wand -->
   <polygon points="64,288 256,384 256,272 64,176" fill="url(#ks_wallL)"
            stroke="#3b2a17" stroke-width="2"/>
-  <!-- Steinfugen, dezent -->
   <line x1="100" y1="208" x2="100" y2="356" stroke="#6f5530" stroke-width="1.2" opacity="0.45"/>
   <line x1="160" y1="225" x2="160" y2="368" stroke="#6f5530" stroke-width="1.2" opacity="0.45"/>
   <line x1="220" y1="244" x2="220" y2="378" stroke="#6f5530" stroke-width="1.2" opacity="0.45"/>
 
-  <!-- Tor links (zur Sonne hin offen) -->
-  <polygon points="138,300 196,329 196,254 138,225" fill="#2c1c0c"/>
-  <polygon points="144,303 192,327 192,260 144,234" fill="#1a1006"/>
+  <!-- Grosses Tor links -->
+  <polygon points="130,304 200,338 200,242 130,210" fill="#2c1c0c"/>
+  <polygon points="136,306 196,335 196,248 136,219" fill="#1a1006"/>
+  <!-- Tor-Beschlaege -->
+  <circle cx="148" cy="280" r="3" fill="#7a5a18"/>
+  <circle cx="184" cy="296" r="3" fill="#7a5a18"/>
+  <circle cx="148" cy="246" r="3" fill="#7a5a18"/>
+  <circle cx="184" cy="264" r="3" fill="#7a5a18"/>
 
-  <!-- Rechte Wand: S(256,384)-E(448,288)-E2(448,176)-S2(256,272) -->
+  <!-- Grosses Hauptbanner ueber dem Tor -->
+  <rect x="140" y="156" width="56" height="62" fill="url(#ks_banner)"
+        stroke="#5a1410" stroke-width="1.5"/>
+  <polygon points="140,218 168,236 196,218" fill="url(#ks_banner)" stroke="#5a1410" stroke-width="1.5"/>
+  <!-- Banner-Emblem: gekreuzte Schwerter -->
+  <line x1="148" y1="172" x2="188" y2="208" stroke="#e6c247" stroke-width="3"/>
+  <line x1="188" y1="172" x2="148" y2="208" stroke="#e6c247" stroke-width="3"/>
+  <circle cx="168" cy="190" r="4" fill="#e6c247"/>
+  <!-- Querstange ueber Banner -->
+  <line x1="134" y1="152" x2="204" y2="152" stroke="#3a2614" stroke-width="3"/>
+
+  <!-- Rechte Wand -->
   <polygon points="256,384 448,288 448,176 256,272" fill="url(#ks_wallR)"
            stroke="#2a1c0d" stroke-width="2"/>
   <line x1="312" y1="356" x2="312" y2="244" stroke="#3a2a16" stroke-width="1.2" opacity="0.5"/>
   <line x1="372" y1="326" x2="372" y2="214" stroke="#3a2a16" stroke-width="1.2" opacity="0.5"/>
   <line x1="424" y1="300" x2="424" y2="188" stroke="#3a2a16" stroke-width="1.2" opacity="0.5"/>
 
-  <!-- Kleines Fenster rechts -->
-  <polygon points="334,300 372,281 372,253 334,272" fill="#3c3120"/>
-  <polygon points="340,294 366,281 366,261 340,274" fill="#7a6336"/>
+  <!-- Gekreuzte Schwerter als Wand-Trophaee (rechte Wand) -->
+  <line x1="328" y1="302" x2="384" y2="266" stroke="#caa84a" stroke-width="4" stroke-linecap="round"/>
+  <line x1="384" y1="302" x2="328" y2="266" stroke="#caa84a" stroke-width="4" stroke-linecap="round"/>
+  <!-- Schwert-Griffe -->
+  <rect x="324" y="298" width="10" height="10" fill="#3a2614"/>
+  <rect x="378" y="298" width="10" height="10" fill="#3a2614"/>
+  <!-- Mittelschild -->
+  <circle cx="356" cy="284" r="9" fill="#8a3028" stroke="#3a1410" stroke-width="1.5"/>
+  <circle cx="356" cy="284" r="4" fill="#e6c247"/>
 
-  <!-- Dach: Raute N2(256,80) E2(448,176) S2(256,272) W2(64,176) -->
+  <!-- Dach: Raute -->
   <polygon points="256,80 448,176 256,272 64,176" fill="url(#ks_roof)"
            stroke="#3a1410" stroke-width="2"/>
-  <!-- Dach-Sparren -->
   <line x1="256" y1="80" x2="256" y2="272" stroke="#5a1c14" stroke-width="2" opacity="0.6"/>
   <line x1="160" y1="128" x2="352" y2="224" stroke="#5a1c14" stroke-width="1.5" opacity="0.4"/>
   <line x1="352" y1="128" x2="160" y2="224" stroke="#5a1c14" stroke-width="1.5" opacity="0.4"/>
 
-  <!-- Banner / Wimpel ueber dem Tor -->
-  <polygon points="160,180 180,180 184,222 156,222" fill="#c93a2c"/>
-  <polygon points="160,180 184,222 156,222" fill="#a52a20"/>
-  <circle cx="170" cy="194" r="5" fill="#e6c247"/>
+  <!-- Dach-Wimpel (zweites Banner) -->
+  <line x1="256" y1="80" x2="256" y2="34" stroke="#3a1410" stroke-width="2.5"/>
+  <polygon points="256,36 304,46 256,60" fill="#d44030"/>
+  <polygon points="256,60 304,46 304,68 256,82" fill="#8a1c14"/>
+  <circle cx="270" cy="50" r="3" fill="#e6c247"/>
 
-  <!-- Trainings-Strohpuppe vor dem Tor -->
-  <line x1="118" y1="332" x2="118" y2="378" stroke="#6c4a22" stroke-width="3"/>
-  <line x1="100" y1="354" x2="136" y2="354" stroke="#6c4a22" stroke-width="3"/>
-  <circle cx="118" cy="332" r="9" fill="#caa55a"/>
-  <line x1="118" y1="332" x2="118" y2="345" stroke="#7c5a22" stroke-width="1.2"/>
+  <!-- Trainings-Strohpuppe vor dem Tor (deutlich groesser) -->
+  <!-- Pfosten -->
+  <line x1="118" y1="328" x2="118" y2="396" stroke="#5a3a18" stroke-width="6"/>
+  <!-- Querbalken (Arme) -->
+  <line x1="86" y1="354" x2="150" y2="354" stroke="#5a3a18" stroke-width="5"/>
+  <!-- Strohball-Kopf -->
+  <ellipse cx="118" cy="324" rx="14" ry="14" fill="#caa55a"/>
+  <ellipse cx="118" cy="320" rx="12" ry="10" fill="#dabc6a"/>
+  <line x1="106" y1="318" x2="130" y2="318" stroke="#5a3a18" stroke-width="1.2" opacity="0.7"/>
+  <line x1="108" y1="324" x2="128" y2="324" stroke="#5a3a18" stroke-width="1.2" opacity="0.7"/>
+  <!-- Strohbinde am Hals -->
+  <rect x="110" y="334" width="16" height="6" fill="#7a5a18"/>
+  <!-- Stroh-Koerper -->
+  <polygon points="105,354 131,354 134,386 102,386" fill="#caa55a"/>
+  <line x1="112" y1="360" x2="126" y2="360" stroke="#5a3a18" stroke-width="1" opacity="0.6"/>
+  <line x1="112" y1="370" x2="126" y2="370" stroke="#5a3a18" stroke-width="1" opacity="0.6"/>
+  <line x1="112" y1="380" x2="126" y2="380" stroke="#5a3a18" stroke-width="1" opacity="0.6"/>
 </svg>

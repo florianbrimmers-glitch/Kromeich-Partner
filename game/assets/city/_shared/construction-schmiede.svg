@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Baustelle Schmiede: niedriger Klotz mit angefangenem Schornstein-Stub
+     und Werkzeug-Pile. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="cs_sL" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a89a88"/>
+      <stop offset="1" stop-color="#766658"/>
+    </linearGradient>
+    <linearGradient id="cs_sR" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#665a4c"/>
+      <stop offset="1" stop-color="#3e3528"/>
+    </linearGradient>
+    <linearGradient id="cs_beam" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a87238"/>
+      <stop offset="1" stop-color="#5c3c18"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="256" cy="388" rx="190" ry="30" fill="#000" opacity="0.32"/>
+
+  <path d="M 96,320 L 256,400 L 256,300 L 232,280 L 220,294 L 188,272 L 164,290 L 138,266 L 116,278 L 96,260 Z"
+        fill="url(#cs_sL)" stroke="#3a2c1c" stroke-width="3"/>
+  <line x1="148" y1="298" x2="148" y2="370" stroke="#3a2c1a" stroke-width="2" opacity="0.7"/>
+  <line x1="200" y1="324" x2="200" y2="385" stroke="#3a2c1a" stroke-width="2" opacity="0.7"/>
+
+  <path d="M 256,400 L 416,320 L 416,260 L 384,272 L 360,256 L 332,272 L 308,260 L 280,278 L 256,300 Z"
+        fill="url(#cs_sR)" stroke="#241a10" stroke-width="3"/>
+  <line x1="300" y1="370" x2="300" y2="280" stroke="#241a10" stroke-width="2" opacity="0.7"/>
+
+  <!-- SCHORNSTEIN-STUB: schon ein paar Reihen, Rauch ueberlegung weglassen -->
+  <polygon points="290,220 326,236 326,140 290,124" fill="#5a4636" stroke="#2a1c10" stroke-width="2"/>
+  <polygon points="326,236 342,228 342,132 326,140" fill="#3a2c20" stroke="#1a1006" stroke-width="2"/>
+  <polygon points="290,124 326,140 342,132 306,118" fill="#7a6450"/>
+  <!-- Ziegel-Reihen am Schornstein, deutet "im Bau" an -->
+  <line x1="290" y1="160" x2="326" y2="172" stroke="#3a2c20" stroke-width="1.4" opacity="0.6"/>
+  <line x1="290" y1="180" x2="326" y2="192" stroke="#3a2c20" stroke-width="1.4" opacity="0.6"/>
+  <line x1="290" y1="200" x2="326" y2="212" stroke="#3a2c20" stroke-width="1.4" opacity="0.6"/>
+
+  <!-- Geruest dezent -->
+  <polygon points="94,256 110,260 110,180 94,174" fill="url(#cs_beam)" stroke="#3a2412" stroke-width="2"/>
+  <polygon points="218,300 234,306 234,228 218,222" fill="url(#cs_beam)" stroke="#3a2412" stroke-width="2"/>
+
+  <!-- Amboss im Vordergrund (deutet Schmiede an) -->
+  <polygon points="138,382 184,392 184,372 138,362" fill="#1a1a1c"/>
+  <polygon points="128,378 138,382 138,362 128,358" fill="#0c0c0e"/>
+  <polygon points="122,358 192,376 192,366 122,348" fill="#2a2a2c"/>
+
+  <!-- Schubkarre + Steinhaufen -->
+  <polygon points="262,386 332,396 332,378 262,368" fill="#8a6230"/>
+  <circle cx="270" cy="394" r="9" fill="#2a1a08" stroke="#0c0604" stroke-width="1.5"/>
+  <ellipse cx="402" cy="372" rx="32" ry="13" fill="#5e5246"/>
+</svg>

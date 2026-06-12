@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Baustelle Reiterei: Holz-Rahmen wie ein angefangener Stall, schon
+     Heuballen daneben. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="cr_wood" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a87238"/>
+      <stop offset="1" stop-color="#5c3c18"/>
+    </linearGradient>
+    <linearGradient id="cr_wallL" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9a7244"/>
+      <stop offset="1" stop-color="#6c4a24"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="256" cy="388" rx="190" ry="30" fill="#000" opacity="0.32"/>
+
+  <!-- Holz-Stuetzwand-Stub (linke Seite des spaeteren Stalls) -->
+  <polygon points="96,328 256,400 256,300 96,224" fill="url(#cr_wallL)" stroke="#2c1a08" stroke-width="2.5"/>
+  <line x1="124" y1="266" x2="124" y2="360" stroke="#3c2810" stroke-width="2" opacity="0.6"/>
+  <line x1="160" y1="284" x2="160" y2="378" stroke="#3c2810" stroke-width="2" opacity="0.6"/>
+  <line x1="200" y1="304" x2="200" y2="388" stroke="#3c2810" stroke-width="2" opacity="0.6"/>
+
+  <!-- Geruest fuer die andere Seite, noch offen -->
+  <polygon points="280,300 296,306 296,180 280,174" fill="url(#cr_wood)" stroke="#3a2412" stroke-width="2"/>
+  <polygon points="400,260 416,254 416,140 400,134" fill="url(#cr_wood)" stroke="#3a2412" stroke-width="2"/>
+  <polygon points="280,180 416,228 416,240 280,192" fill="url(#cr_wood)" stroke="#3a2412" stroke-width="2"/>
+
+  <!-- Grosser Stall-Pfosten als "Tor"-Vorahnung -->
+  <polygon points="252,316 268,322 268,200 252,194" fill="#5a3a18" stroke="#2a1a08" stroke-width="2"/>
+
+  <!-- HEUBALLEN: schon da, deutlich erkennbar -->
+  <ellipse cx="382" cy="368" rx="44" ry="20" fill="#d8b85a"/>
+  <ellipse cx="382" cy="358" rx="42" ry="18" fill="#e6cc6e"/>
+  <line x1="350" y1="362" x2="414" y2="362" stroke="#a0863a" stroke-width="0.8" opacity="0.6"/>
+  <line x1="358" y1="354" x2="406" y2="354" stroke="#a0863a" stroke-width="0.8" opacity="0.6"/>
+
+  <ellipse cx="320" cy="382" rx="28" ry="13" fill="#caa84a"/>
+  <ellipse cx="320" cy="376" rx="28" ry="12" fill="#d8b85a"/>
+
+  <!-- Schubkarre vorne -->
+  <polygon points="142,388 212,396 212,378 142,368" fill="#8a6230"/>
+  <circle cx="150" cy="394" r="9" fill="#2a1a08" stroke="#0c0604" stroke-width="1.5"/>
+</svg>

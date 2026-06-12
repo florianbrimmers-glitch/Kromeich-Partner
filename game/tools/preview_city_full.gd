@@ -21,6 +21,12 @@ const STAGE_W_FRAC := 0.15
 
 
 func _init() -> void:
+	_render(true,  "user://city-full-built.png")
+	_render(false, "user://city-full-construction.png")
+	quit(0)
+
+
+func _render(all_built: bool, out_path: String) -> void:
 	var canvas := Image.create(W, H, false, Image.FORMAT_RGBA8)
 	canvas.fill(Color(0.07, 0.08, 0.11, 1.0))
 	# HUD-Streifen oben/unten
@@ -53,12 +59,21 @@ func _init() -> void:
 		var lp: Dictionary = layout[bid]
 		var cx: float = stage_x + float(lp.get("x", 0.5)) * stage_w
 		var cy: float = stage_y + float(lp.get("y", 0.5)) * stage_h
-		var tex_path := "res://assets/city/menschen/%s.svg" % bid
+		var tex_path := ""
+		if all_built:
+			tex_path = "res://assets/city/menschen/%s.svg" % bid
+		else:
+			# Spiegelt CityScreen-Logik: erst spezifische Baustelle, dann generisch.
+			var specific := "res://assets/city/_shared/construction-%s.svg" % bid
+			if ResourceLoader.exists(specific):
+				tex_path = specific
+			else:
+				tex_path = "res://assets/city/_shared/construction.svg"
 		if not ResourceLoader.exists(tex_path):
 			continue
 		var tex: Texture2D = load(tex_path) as Texture2D
 		var img: Image = tex.get_image()
-		var sprite_w: int = int(hw * 2.4)
+		var sprite_w: int = int(hw * (2.4 if all_built else 1.9))
 		var sprite_h: int = int(sprite_w * (float(img.get_height()) / float(img.get_width())))
 		var img_scaled := Image.create(sprite_w, sprite_h, false, Image.FORMAT_RGBA8)
 		img_scaled.copy_from(img)
@@ -68,9 +83,8 @@ func _init() -> void:
 		_blend_clipped(canvas, img_scaled, dst_x, dst_y)
 		print("[OK] %s @ (%d,%d) size=%dx%d" % [bid, cx, cy, sprite_w, sprite_h])
 
-	var save_err: int = canvas.save_png("user://city-full-preview.png")
-	print("save_err=%d -> %s" % [save_err, ProjectSettings.globalize_path("user://city-full-preview.png")])
-	quit(0)
+	var save_err: int = canvas.save_png(out_path)
+	print("save_err=%d -> %s" % [save_err, ProjectSettings.globalize_path(out_path)])
 
 
 func _load_layout() -> Dictionary:
