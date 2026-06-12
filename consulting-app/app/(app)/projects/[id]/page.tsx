@@ -21,7 +21,16 @@ export default async function ProjectDetailPage({
 
   const project = await prisma.project.findUnique({
     where: { id },
-    include: { client: true },
+    include: {
+      client: true,
+      emailThreads: {
+        orderBy: { lastMessageAt: "desc" },
+        include: {
+          messages: { orderBy: { sentAt: "desc" }, take: 1 },
+          _count: { select: { messages: true } },
+        },
+      },
+    },
   });
   if (!project) notFound();
 
@@ -104,6 +113,54 @@ export default async function ProjectDetailPage({
       <section>
         <h2 className="text-lg font-semibold mb-3">Dokumente</h2>
         <DocumentsList projectId={id} />
+      </section>
+
+      <section>
+        <h2 className="text-lg font-semibold mb-3">
+          Kommunikation ({project.emailThreads.length})
+        </h2>
+        {project.emailThreads.length === 0 ? (
+          <div className="card text-sm text-slate-600">
+            Noch keine E-Mails zugeordnet. Ordne Threads in der{" "}
+            <Link href="/inbox" className="text-brand-600">
+              Inbox
+            </Link>{" "}
+            diesem Projekt zu.
+          </div>
+        ) : (
+          <div className="card p-0 divide-y divide-slate-100">
+            {project.emailThreads.map((t) => {
+              const latest = t.messages[0];
+              return (
+                <Link
+                  key={t.id}
+                  href={`/inbox/${t.id}`}
+                  className="block px-4 py-3 hover:bg-slate-50"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="font-medium text-sm">
+                      {t.subject}
+                      {t._count.messages > 1 && (
+                        <span className="text-slate-400 ml-1">
+                          ({t._count.messages})
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-slate-500 whitespace-nowrap">
+                      {formatDate(t.lastMessageAt)}
+                    </div>
+                  </div>
+                  <div className="text-xs text-slate-500 truncate mt-0.5">
+                    {latest?.direction === "OUT"
+                      ? `An: ${latest.toAddr}`
+                      : latest?.fromAddr}{" "}
+                    — {latest?.textBody.replace(/\s+/g, " ").slice(0, 100)}
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
       </section>
 
       <section>

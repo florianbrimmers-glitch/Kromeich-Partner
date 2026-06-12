@@ -1,8 +1,13 @@
-# Consulting-Tool – Phase 1
+# Consulting-Tool – Phase 1 + 2
 
-Internes Consulting-Werkzeug (Asana-Ersatz) für Kromeich Partner. Phase 1 deckt
-Mandanten, Projekte, Aufgaben, Notizen und Dokumente ab. Phase 2 (zentrale
-Team-Inbox), Phase 3 (Mandanten-Portal + Chat) und Phase 4 (WhatsApp) folgen.
+Internes Consulting-Werkzeug (Asana-Ersatz) für Kromeich Partner.
+
+- **Phase 1** ✅ — Mandanten, Projekte, Aufgaben, Notizen, Dokumente
+- **Phase 2** ✅ — zentrale Team-Inbox: E-Mails empfangen (IMAP), aus dem Tool
+  antworten (SMTP, korrektes Threading), Mails Projekten zuordnen, Aufgaben
+  aus Mails erstellen, Anhänge ins Projekt übernehmen
+- **Phase 3** (geplant) — Mandanten-Portal + Chat
+- **Phase 4** (geplant) — WhatsApp Business API
 
 ## Tech-Stack
 
@@ -54,14 +59,52 @@ App läuft auf <http://localhost:3000>, Mailpit-Web-UI auf
 3. Auf den Login-Link klicken → ihr seid eingeloggt und automatisch
    `TEAM_ADMIN`
 
-## Funktionen Phase 1
+### Demo-Daten (empfohlen für den ersten Eindruck)
+
+```bash
+node scripts/seed-demo.mjs          # Mandanten, Projekte, Aufgaben + gefüllte Inbox
+node scripts/seed-demo.mjs --reset  # Demo-Daten löschen und neu anlegen
+```
+
+Damit ist die Inbox sofort mit 3 Beispiel-Threads gefüllt — ohne dass ein
+echtes Postfach verbunden sein muss. Antworten aus der Demo-Inbox gehen an
+Mailpit (<http://localhost:8025>).
+
+## Funktionen
 
 - **Dashboard** mit eigenen Aufgaben + aktiven Projekten
+- **Zentrale Inbox** (`/inbox`): Threads mit Filter (Ungelesen / Mir zugewiesen /
+  Archiv) und Suche, Antworten + neue Mails direkt aus dem Tool,
+  Projekt-Zuordnung, Team-Zuweisung ("Du kümmerst dich"),
+  "Aufgabe daraus erstellen", Anhänge ins Projekt übernehmen
 - **Mandanten** anlegen und bearbeiten
-- **Projekte** pro Mandant
+- **Projekte** pro Mandant, inkl. zugeordneter E-Mail-Kommunikation
 - **Aufgaben** pro Projekt mit Status, Priorität, Zuweisung, Deadline
 - **Notizen** (Markdown) pro Projekt
 - **Dokumenten-Upload** (lokal in `storage/uploads/`)
+- **Einstellungen**: E-Mail-Konten (IMAP/SMTP) und Team-Übersicht
+
+### Echtes Postfach verbinden
+
+Unter **Einstellungen → E-Mail-Konten**:
+
+- **Gmail / Google Workspace**: `imap.gmail.com` (993) / `smtp.gmail.com`
+  (587) mit einem [App-Passwort](https://support.google.com/accounts/answer/185833)
+  (2FA muss aktiviert sein)
+- **Andere Anbieter** (IONOS, Strato, …): IMAP-/SMTP-Daten des Anbieters
+
+Mails abrufen: Button **↻ Synchronisieren** in der Inbox, oder automatisch
+per Cron (alle 5 Min.):
+
+```bash
+curl -X POST -H "Authorization: Bearer $CRON_SECRET" https://…/api/email/sync
+```
+
+> ⚠️ Postfach-Passwörter liegen aktuell unverschlüsselt in der Datenbank —
+> für den selbst gehosteten Einsatz im kleinen Team akzeptabel,
+> at-rest-Verschlüsselung steht auf der Roadmap. Eingehende Mail-Adressen,
+> die zu Mandanten passen, werden automatisch deren aktivstem Projekt
+> zugeordnet.
 
 ## Verzeichnisstruktur
 
@@ -93,13 +136,12 @@ consulting-app/
 
 ## Roadmap
 
-- **Phase 2 — zentrale Team-Inbox**: IMAP/SMTP-Anbindung, Posteingang im Tool,
-  aus dem Tool antworten, Mail → Projekt-Zuordnung, Anhänge in
-  Document-Storage.
 - **Phase 3 — Mandanten-Portal + Chat**: Login-Rolle `CLIENT`, sichtbare
   Notizen/Dokumente per `visibility`-Flag, Realtime-Chat (SSE) pro Projekt.
 - **Phase 4 — WhatsApp + Kontakt-Tool-Anbindung**: WhatsApp Business API über
   BSP, Kontakt-Stammdaten aus dem bestehenden `src/`-Python-Code übernehmen.
+- **Härtung**: Verschlüsselung der Postfach-Passwörter, HTML-Mail-Darstellung
+  (aktuell wird der Text-Part angezeigt), Mehrfach-Ordner-Sync (aktuell INBOX).
 
 ## Deployment-Hinweise (Production)
 

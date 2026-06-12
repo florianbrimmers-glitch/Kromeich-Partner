@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { requireUser } from "@/lib/access";
 import { signOut } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 
 export default async function AppLayout({
   children,
@@ -8,6 +9,10 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const user = await requireUser();
+
+  const unreadCount = await prisma.emailThread.count({
+    where: { status: "OPEN", unread: true },
+  });
 
   async function handleSignOut() {
     "use server";
@@ -23,9 +28,19 @@ export default async function AppLayout({
         </div>
         <nav className="flex-1 p-3 space-y-1 text-sm">
           <NavLink href="/dashboard" label="Dashboard" />
+          <Link
+            href="/inbox"
+            className="flex items-center justify-between px-3 py-1.5 rounded hover:bg-slate-800 transition-colors"
+          >
+            <span>Inbox</span>
+            {unreadCount > 0 && (
+              <span className="badge bg-brand-500 text-white">{unreadCount}</span>
+            )}
+          </Link>
           <NavLink href="/clients" label="Mandanten" />
           <NavLink href="/projects" label="Projekte" />
           <NavLink href="/tasks" label="Meine Aufgaben" />
+          <NavLink href="/settings" label="Einstellungen" />
         </nav>
         <form action={handleSignOut} className="p-3 border-t border-slate-800">
           <button className="w-full text-left px-3 py-1.5 rounded text-sm text-slate-300 hover:bg-slate-800">
