@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Baustelle (fraktions-neutral). Halbfertiger Steinklotz mit Holzgeruest,
+     Werkzeug. Bewusst dezent, damit fertige Gebaeude dominieren. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="cn_stoneL" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#988878"/>
+      <stop offset="1" stop-color="#6c5e50"/>
+    </linearGradient>
+    <linearGradient id="cn_stoneR" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5e5246"/>
+      <stop offset="1" stop-color="#3a3024"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Boden-Schatten -->
+  <ellipse cx="256" cy="386" rx="180" ry="26" fill="#000" opacity="0.28"/>
+
+  <!-- Halbhoher Steinklotz: linke Wand -->
+  <polygon points="96,304 256,384 256,304 96,224" fill="url(#cn_stoneL)"
+           stroke="#3a2c1c" stroke-width="2"/>
+  <!-- Unebener oberer Rand (im Bau) -->
+  <polygon points="96,224 130,212 162,228 200,218 240,234 256,304 96,304" fill="none"/>
+  <line x1="130" y1="252" x2="130" y2="358" stroke="#4e4030" stroke-width="1.2" opacity="0.6"/>
+  <line x1="180" y1="276" x2="180" y2="370" stroke="#4e4030" stroke-width="1.2" opacity="0.6"/>
+  <line x1="222" y1="296" x2="222" y2="380" stroke="#4e4030" stroke-width="1.2" opacity="0.6"/>
+
+  <!-- Rechte Wand, etwas niedriger (im Bau) -->
+  <polygon points="256,384 416,304 416,240 256,304" fill="url(#cn_stoneR)"
+           stroke="#241a10" stroke-width="2"/>
+  <line x1="296" y1="364" x2="296" y2="284" stroke="#3a2c1a" stroke-width="1.2" opacity="0.6"/>
+  <line x1="340" y1="342" x2="340" y2="260" stroke="#3a2c1a" stroke-width="1.2" opacity="0.6"/>
+  <line x1="384" y1="320" x2="384" y2="252" stroke="#3a2c1a" stroke-width="1.2" opacity="0.6"/>
+
+  <!-- Holzgeruest links: Pfosten + Querbalken -->
+  <line x1="100" y1="208" x2="100" y2="306" stroke="#6c4a22" stroke-width="3"/>
+  <line x1="156" y1="234" x2="156" y2="332" stroke="#6c4a22" stroke-width="3"/>
+  <line x1="216" y1="262" x2="216" y2="362" stroke="#6c4a22" stroke-width="3"/>
+  <line x1="100" y1="234" x2="216" y2="290" stroke="#6c4a22" stroke-width="2.5"/>
+  <line x1="100" y1="260" x2="216" y2="316" stroke="#6c4a22" stroke-width="2.5"/>
+  <!-- Gerueststrebe schraeg -->
+  <line x1="100" y1="208" x2="216" y2="262" stroke="#3a2614" stroke-width="2" opacity="0.7"/>
+
+  <!-- Schubkarre vorne -->
+  <polygon points="270,372 320,388 320,374 270,358" fill="#7a5a30"/>
+  <polygon points="270,358 320,374 320,366 270,350" fill="#9c7a44"/>
+  <circle cx="276" cy="386" r="6" fill="#3a2614" stroke="#1a0e08" stroke-width="1"/>
+  <line x1="318" y1="362" x2="338" y2="354" stroke="#3a2614" stroke-width="3"/>
+
+  <!-- Steinhaufen rechts -->
+  <ellipse cx="400" cy="368" rx="34" ry="14" fill="#5e5246"/>
+  <ellipse cx="396" cy="358" rx="22" ry="10" fill="#766656"/>
+  <ellipse cx="408" cy="348" rx="14" ry="7" fill="#988878"/>
+
+  <!-- Holzlatte schraeg, deutet "im Bau" an -->
+  <polygon points="178,180 196,176 360,266 342,272" fill="#9a7038" stroke="#5a3a18" stroke-width="1"/>
+
+  <!-- Kleine "?" oder Hammer-Andeutung: weglassen, zu noisy -->
+</svg>

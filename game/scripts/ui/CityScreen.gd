@@ -22,12 +22,15 @@ const LAYOUT_PATH := "res://data/city_layout.json"
 const HUD_TOP := 150.0
 const HUD_BOTTOM := 180.0
 
-# Art-Pipeline: Pfade nach Konvention. Liegt ein PNG dort, wird es am
-# Hotspot statt des Platzhalter-Iso-Blocks gerendert; sonst Fallback auf
-# Prozedural. Datei-Konvention siehe game/assets/city/ART_SPEC.md.
-const ART_FACTION_DIR := "res://assets/city/%s/%s.png"      # %s=Fraktion, %s=building_id
-const ART_BG := "res://assets/city/%s/bg.png"               # %s=Fraktion
-const ART_CONSTRUCTION := "res://assets/city/_shared/construction.png"
+# Art-Pipeline: Pfade nach Konvention. Liegt ein PNG oder SVG dort, wird
+# es am Hotspot statt des Platzhalter-Iso-Blocks gerendert; sonst Fallback
+# auf Prozedural. SVG hat Vorrang vor PNG, damit selbstgeschriebene Iso-
+# Sprites durch spaeter gelieferte gemalte PNGs einfach ueberschrieben
+# werden koennen. Datei-Konvention siehe game/assets/city/ART_SPEC.md.
+const ART_EXTENSIONS := [".svg", ".png"]
+const ART_FACTION_DIR := "res://assets/city/%s/%s"            # %s=Fraktion, %s=building_id (ohne Ext)
+const ART_BG := "res://assets/city/%s/bg"                     # %s=Fraktion
+const ART_CONSTRUCTION := "res://assets/city/_shared/construction"
 const FACTION_DIRS := ["waldvolk", "menschen", "totenreich", "orks"]
 
 # ctx wird von WorldMapScreen.open()/refresh() befuellt, siehe dort.
@@ -173,8 +176,8 @@ func _draw() -> void:
 	draw_rect(Rect2(Vector2(0.0, size.y - HUD_BOTTOM), Vector2(size.x, HUD_BOTTOM)), Color(0.05, 0.06, 0.08), true)
 
 	var stage := _stage_rect()
-	# Stadt-Hintergrund: KI-Bild wenn vorhanden, sonst Boden-Plateau + Grid.
-	var bg_tex: Texture2D = _texture(ART_BG % _faction_dir())
+	# Stadt-Hintergrund: Bild wenn vorhanden, sonst Boden-Plateau + Grid.
+	var bg_tex: Texture2D = _texture_with_ext(ART_BG % _faction_dir())
 	if bg_tex != null:
 		draw_texture_rect(bg_tex, stage, false)
 	else:
@@ -211,14 +214,15 @@ func _draw_plot(p: Dictionary) -> void:
 	# Schlagschatten als flache Ellipse (hier: gestauchte Raute).
 	_draw_diamond(c + Vector2(0, hh * 0.18), hw * 1.05, hh * 1.05, Color(0, 0, 0, 0.25))
 
-	# Versuche zuerst eine KI/Hand-Textur. Hoehen-Konvention: gebaut sieht
-	# hoeher aus als Baustelle, damit Iso-Tiefe lesbar bleibt.
-	var tex_path: String = ""
+	# Versuche zuerst eine Sprite-Textur (SVG bevorzugt, PNG als Fallback).
+	# Hoehen-Konvention: gebaut sieht hoeher aus als Baustelle, damit
+	# Iso-Tiefe lesbar bleibt.
+	var tex_path_no_ext: String = ""
 	if built:
-		tex_path = ART_FACTION_DIR % [_faction_dir(), bid]
+		tex_path_no_ext = ART_FACTION_DIR % [_faction_dir(), bid]
 	else:
-		tex_path = ART_CONSTRUCTION
-	var tex: Texture2D = _texture(tex_path)
+		tex_path_no_ext = ART_CONSTRUCTION
+	var tex: Texture2D = _texture_with_ext(tex_path_no_ext)
 	if tex != null:
 		_draw_sprite_at(tex, c, hw, hh, built)
 		_plot_label(p, c + Vector2(0, hh + 18.0))
@@ -247,10 +251,14 @@ func _draw_sprite_at(tex: Texture2D, ground_center: Vector2, hw: float, hh: floa
 	# als Baustellen, damit hierarchisch lesbar.
 	var sprite_w: float = hw * (4.6 if built else 3.4)
 	var sprite_h: float = sprite_w * (src.y / src.x)
-	# Anker auf Bodenmitte: x zentriert, y so dass die untere Bildkante
-	# leicht ueber dem Plot-Suedpunkt liegt (~10% Boden-Ueberlapp).
+	# Anker: SVGs sind so geschnitten, dass die Bodenraute des Gebaeudes
+	# vertikal bei ~56% der Bildhoehe sitzt (ViewBox 0..512, Bodenmitte
+	# bei y=288). Sprite so platzieren, dass dieser Anker auf das Plot-
+	# Zentrum trifft, dann sitzen die Gebaeude wirklich auf ihrer Raute,
+	# statt "ueber" ihr zu schweben.
+	const SPRITE_GROUND_FRAC := 0.56
 	var rect := Rect2(
-		ground_center - Vector2(sprite_w * 0.5, sprite_h - hh * 0.2),
+		ground_center - Vector2(sprite_w * 0.5, sprite_h * SPRITE_GROUND_FRAC),
 		Vector2(sprite_w, sprite_h))
 	draw_texture_rect(tex, rect, false)
 
@@ -494,3 +502,14 @@ func _texture(path: String) -> Texture2D:
 		tex = load(path) as Texture2D
 	_tex_cache[path] = tex
 	return tex
+
+
+# Variante ohne Extension: probiert .svg, .png. So koennen
+# selbstgeschriebene SVG-Sprites spaeter durch gemalte PNGs ueberschrieben
+# werden, ohne Code-Change.
+func _texture_with_ext(path_no_ext: String) -> Texture2D:
+	for ext in ART_EXTENSIONS:
+		var t: Texture2D = _texture(path_no_ext + String(ext))
+		if t != null:
+			return t
+	return null

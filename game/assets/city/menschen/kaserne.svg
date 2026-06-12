@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Kaserne. Isometrische Sicht (2:1 dimetric), Licht oben-links.
+     Bodengeometrie: Raute N(256,192) E(448,288) S(256,384) W(64,288).
+     Stil-Konvention fuer alle Menschen-Gebaeude:
+     - linke Wand heller (Sonnenseite), rechte dunkler
+     - Sandstein-Palette
+     - Rot-braunes Dach
+     - Goldakzente sparsam fuer Lesbarkeit -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="ks_wallL" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#caa97a"/>
+      <stop offset="1" stop-color="#a5824f"/>
+    </linearGradient>
+    <linearGradient id="ks_wallR" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8c6a40"/>
+      <stop offset="1" stop-color="#5e4527"/>
+    </linearGradient>
+    <linearGradient id="ks_roof" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9c3d2c"/>
+      <stop offset="1" stop-color="#6c2820"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Boden-Schatten -->
+  <ellipse cx="256" cy="392" rx="210" ry="34" fill="#000" opacity="0.32"/>
+
+  <!-- Linke Wand: zwischen Boden W(64,288)-S(256,384) und Dach W2(64,176)-S2(256,272) -->
+  <polygon points="64,288 256,384 256,272 64,176" fill="url(#ks_wallL)"
+           stroke="#3b2a17" stroke-width="2"/>
+  <!-- Steinfugen, dezent -->
+  <line x1="100" y1="208" x2="100" y2="356" stroke="#6f5530" stroke-width="1.2" opacity="0.45"/>
+  <line x1="160" y1="225" x2="160" y2="368" stroke="#6f5530" stroke-width="1.2" opacity="0.45"/>
+  <line x1="220" y1="244" x2="220" y2="378" stroke="#6f5530" stroke-width="1.2" opacity="0.45"/>
+
+  <!-- Tor links (zur Sonne hin offen) -->
+  <polygon points="138,300 196,329 196,254 138,225" fill="#2c1c0c"/>
+  <polygon points="144,303 192,327 192,260 144,234" fill="#1a1006"/>
+
+  <!-- Rechte Wand: S(256,384)-E(448,288)-E2(448,176)-S2(256,272) -->
+  <polygon points="256,384 448,288 448,176 256,272" fill="url(#ks_wallR)"
+           stroke="#2a1c0d" stroke-width="2"/>
+  <line x1="312" y1="356" x2="312" y2="244" stroke="#3a2a16" stroke-width="1.2" opacity="0.5"/>
+  <line x1="372" y1="326" x2="372" y2="214" stroke="#3a2a16" stroke-width="1.2" opacity="0.5"/>
+  <line x1="424" y1="300" x2="424" y2="188" stroke="#3a2a16" stroke-width="1.2" opacity="0.5"/>
+
+  <!-- Kleines Fenster rechts -->
+  <polygon points="334,300 372,281 372,253 334,272" fill="#3c3120"/>
+  <polygon points="340,294 366,281 366,261 340,274" fill="#7a6336"/>
+
+  <!-- Dach: Raute N2(256,80) E2(448,176) S2(256,272) W2(64,176) -->
+  <polygon points="256,80 448,176 256,272 64,176" fill="url(#ks_roof)"
+           stroke="#3a1410" stroke-width="2"/>
+  <!-- Dach-Sparren -->
+  <line x1="256" y1="80" x2="256" y2="272" stroke="#5a1c14" stroke-width="2" opacity="0.6"/>
+  <line x1="160" y1="128" x2="352" y2="224" stroke="#5a1c14" stroke-width="1.5" opacity="0.4"/>
+  <line x1="352" y1="128" x2="160" y2="224" stroke="#5a1c14" stroke-width="1.5" opacity="0.4"/>
+
+  <!-- Banner / Wimpel ueber dem Tor -->
+  <polygon points="160,180 180,180 184,222 156,222" fill="#c93a2c"/>
+  <polygon points="160,180 184,222 156,222" fill="#a52a20"/>
+  <circle cx="170" cy="194" r="5" fill="#e6c247"/>
+
+  <!-- Trainings-Strohpuppe vor dem Tor -->
+  <line x1="118" y1="332" x2="118" y2="378" stroke="#6c4a22" stroke-width="3"/>
+  <line x1="100" y1="354" x2="136" y2="354" stroke="#6c4a22" stroke-width="3"/>
+  <circle cx="118" cy="332" r="9" fill="#caa55a"/>
+  <line x1="118" y1="332" x2="118" y2="345" stroke="#7c5a22" stroke-width="1.2"/>
+</svg>
