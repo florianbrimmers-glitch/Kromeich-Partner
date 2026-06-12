@@ -1,18 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Stadt-Hintergrund Menschen. Atmosphaere statt Detail-Schlacht:
-     die Gebaeude-Sprites sollen darueber dominieren koennen.
-     - ViewBox 1080x1600 = Stage-Aspect (Phone minus HUD)
-     - Licht/Sonne von oben-links, passt zu den Gebaeude-SVGs
-     - Tiefenstaffelung: Himmel -> Fernberge -> Mittelberge mit Burg ->
-       Wald-Huegel -> Gras-Plateau -> Vordergrund-Boden
-     - Saturation nimmt zum Vordergrund hin zu (atmosphaerische Perspektive) -->
+<!-- Stadt-Hintergrund Menschen, Iteration 3 (Travian-Stil).
+     Ovaler Stadtinnenraum mit Steinmauer, Eingangstor unten, Plaza
+     im Zentrum, Sandwege strahlenfoermig zu jedem Gebaeude-Hotspot.
+     Drumherum: Wiese, Baeume, Hintergrund-Berge.
+     ViewBox: 1080x1600 (Stage-Aspect).
+     Gebaeude-Hotspots (data/city_layout.json) liegen innerhalb der Mauer. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1600">
   <defs>
     <linearGradient id="bg_sky" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0"   stop-color="#2e4a6c"/>
-      <stop offset="0.45" stop-color="#5e7a98"/>
-      <stop offset="0.85" stop-color="#c0a880"/>
-      <stop offset="1"   stop-color="#d8b888"/>
+      <stop offset="0"    stop-color="#3a567c"/>
+      <stop offset="0.5"  stop-color="#7a98b8"/>
+      <stop offset="1"    stop-color="#c8b890"/>
     </linearGradient>
     <radialGradient id="bg_sun_glow" cx="0.5" cy="0.5" r="0.5">
       <stop offset="0"   stop-color="#fff4cc" stop-opacity="0.65"/>
@@ -23,115 +21,171 @@
       <stop offset="0" stop-color="#6e7c8c"/>
       <stop offset="1" stop-color="#5a6878"/>
     </linearGradient>
-    <linearGradient id="bg_mid" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#4a5a68"/>
-      <stop offset="1" stop-color="#2c3a48"/>
+    <linearGradient id="bg_outer_grass" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6a8a44"/>
+      <stop offset="1" stop-color="#3e5824"/>
     </linearGradient>
-    <linearGradient id="bg_hill" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#5e6f44"/>
-      <stop offset="1" stop-color="#3c4a2a"/>
+    <radialGradient id="bg_inner_grass" cx="0.5" cy="0.5" r="0.6">
+      <stop offset="0" stop-color="#8aa452"/>
+      <stop offset="1" stop-color="#5e7a38"/>
+    </radialGradient>
+    <linearGradient id="bg_wall_stone" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a8988a"/>
+      <stop offset="1" stop-color="#6c5e50"/>
     </linearGradient>
-    <linearGradient id="bg_ground" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#566d3c"/>
-      <stop offset="0.5" stop-color="#3e5028"/>
-      <stop offset="1" stop-color="#2a3a1c"/>
-    </linearGradient>
+    <radialGradient id="bg_plaza" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#d8c8a0"/>
+      <stop offset="1" stop-color="#a89272"/>
+    </radialGradient>
     <radialGradient id="bg_vignette" cx="0.5" cy="0.55" r="0.75">
-      <stop offset="0.6" stop-color="#000" stop-opacity="0"/>
-      <stop offset="1"   stop-color="#000" stop-opacity="0.45"/>
+      <stop offset="0.7" stop-color="#000" stop-opacity="0"/>
+      <stop offset="1"   stop-color="#000" stop-opacity="0.4"/>
     </radialGradient>
   </defs>
 
-  <!-- Himmel -->
-  <rect x="0" y="0" width="1080" height="1100" fill="url(#bg_sky)"/>
-  <!-- Sonne oben-links: kompakt, definierte Scheibe + enger Halo,
-       statt des frueheren diffusen Riesen-Gradients. -->
-  <circle cx="190" cy="230" r="180" fill="url(#bg_sun_glow)"/>
-  <circle cx="190" cy="230" r="46"  fill="#f4d674" opacity="0.78"/>
-  <circle cx="190" cy="230" r="32"  fill="#fff4cc"/>
+  <!-- Himmel (kleinerer Streifen, jetzt nur oberer Bereich) -->
+  <rect x="0" y="0" width="1080" height="540" fill="url(#bg_sky)"/>
+  <!-- Sonne oben-links -->
+  <circle cx="170" cy="170" r="170" fill="url(#bg_sun_glow)"/>
+  <circle cx="170" cy="170" r="42"  fill="#f4d674" opacity="0.78"/>
+  <circle cx="170" cy="170" r="28"  fill="#fff4cc"/>
+  <!-- Wolken -->
+  <ellipse cx="420" cy="220" rx="100" ry="18" fill="#fff" opacity="0.30"/>
+  <ellipse cx="460" cy="210" rx="60"  ry="12" fill="#fff" opacity="0.32"/>
+  <ellipse cx="820" cy="280" rx="120" ry="22" fill="#fff" opacity="0.22"/>
+  <ellipse cx="850" cy="270" rx="70"  ry="14" fill="#fff" opacity="0.24"/>
 
-  <!-- Wolken (lockere Formen, niedrige Opacity) -->
-  <ellipse cx="380" cy="240" rx="120" ry="22" fill="#fff" opacity="0.30"/>
-  <ellipse cx="430" cy="226" rx="80"  ry="16" fill="#fff" opacity="0.32"/>
-  <ellipse cx="780" cy="320" rx="140" ry="26" fill="#fff" opacity="0.22"/>
-  <ellipse cx="820" cy="306" rx="90"  ry="18" fill="#fff" opacity="0.24"/>
-  <ellipse cx="200" cy="380" rx="100" ry="18" fill="#fff" opacity="0.18"/>
+  <!-- Fernberge (dezent, halbverdeckt vom Aussenland) -->
+  <path d="M -20 510 L 80 420 L 200 480 L 340 400 L 480 470 L 620 410 L 760 480 L 900 420 L 1080 480 L 1100 540 L -20 540 Z"
+        fill="url(#bg_far)" opacity="0.9"/>
 
-  <!-- Fernberge: weiche Silhouette -->
-  <path d="M -20 760 L 120 580 L 220 660 L 360 540 L 500 620 L 640 530 L 790 640 L 920 560 L 1080 620 L 1100 780 L -20 780 Z"
-        fill="url(#bg_far)" opacity="0.92"/>
-  <!-- Schnee-Highlights auf Fernbergen -->
-  <path d="M 350 550 L 360 540 L 380 552 L 372 560 Z" fill="#dde4ec" opacity="0.6"/>
-  <path d="M 632 540 L 640 530 L 660 544 L 650 552 Z" fill="#dde4ec" opacity="0.55"/>
+  <!-- Aussen-Land: Wiese rundum -->
+  <rect x="0" y="500" width="1080" height="1100" fill="url(#bg_outer_grass)"/>
 
-  <!-- Mittlere Bergkette: schmaler Streifen, der hinter den Wald-Huegeln
-       herausschaut. Peaks bei y=540..620, Tal bei y=680. So sieht man die
-       Tiefenstaffel Himmel -> Fernberge -> Mittelberge -> Wald -> Plateau. -->
-  <path d="M -20 700 L 80 600 L 180 660 L 320 540 L 460 640 L 600 580 L 740 660 L 880 580 L 1020 640 L 1100 660 L 1100 720 L -20 720 Z"
-        fill="url(#bg_mid)"/>
+  <!-- Sand/Erde-Streifen am Aussenrand der Stadt (Andeutung Wegkreuzung) -->
+  <ellipse cx="540" cy="920" rx="500" ry="420" fill="#7a6644" opacity="0.55"/>
 
-  <!-- Burg auf einem der Mittelberge (Gipfel bei 320,540). Klein, dezent. -->
-  <polygon points="298,540 348,540 354,520 290,520" fill="#3c424c"/>
-  <polygon points="298,520 348,520 348,494 298,494" fill="#4a5260"/>
-  <polygon points="298,494 312,494 312,478 298,478" fill="#4a5260"/>
-  <polygon points="334,494 348,494 348,478 334,478" fill="#4a5260"/>
-  <polygon points="316,494 330,494 330,464 316,464" fill="#3a424e"/>
-  <polygon points="316,464 330,464 323,452" fill="#7a2418"/>
-  <line x1="323" y1="452" x2="323" y2="440" stroke="#1a1a20" stroke-width="1.6"/>
-  <polygon points="323,440 339,446 323,452" fill="#c93a2c"/>
-
-  <!-- Wald-Huegel im Mittelgrund (weiter oben angesetzt, damit das Gras-
-       Plateau frueher beginnt und mehr Gebaeude erdig wirken). -->
-  <path d="M -20 720 L 60 600 L 180 660 L 280 580 L 400 640 L 540 560 L 680 640 L 820 580 L 960 660 L 1100 620 L 1100 760 L -20 760 Z"
-        fill="url(#bg_hill)"/>
-  <!-- Baumgruppen als Cluster aus Kreisen, dezent -->
-  <g opacity="0.85">
-    <circle cx="100" cy="630" r="16" fill="#2c3a1c"/>
-    <circle cx="124" cy="620" r="13" fill="#324222"/>
-    <circle cx="240" cy="650" r="14" fill="#2c3a1c"/>
-    <circle cx="262" cy="640" r="11" fill="#324222"/>
-    <circle cx="356" cy="638" r="18" fill="#2c3a1c"/>
-    <circle cx="384" cy="626" r="13" fill="#324222"/>
-    <circle cx="496" cy="608" r="14" fill="#324222"/>
-    <circle cx="600" cy="638" r="16" fill="#2c3a1c"/>
-    <circle cx="626" cy="628" r="12" fill="#324222"/>
-    <circle cx="740" cy="638" r="18" fill="#2c3a1c"/>
-    <circle cx="768" cy="624" r="13" fill="#324222"/>
-    <circle cx="900" cy="650" r="16" fill="#2c3a1c"/>
-    <circle cx="928" cy="638" r="13" fill="#324222"/>
-  </g>
-
-  <!-- Gras-Plateau: grosser Vordergrund, beginnt frueher (y=760), damit
-       die mittleren Gebaeude-Hotspots (y_norm ~0.30..0.52) auf Gras
-       sitzen statt scheinbar in den Bergen zu schweben. -->
-  <path d="M -20 760 L 1100 760 L 1100 1600 L -20 1600 Z" fill="url(#bg_ground)"/>
-
-  <!-- Iso-Boden-Linien sehr dezent (Andeutung von Gelaende) -->
-  <g stroke="#586c3a" stroke-width="2" opacity="0.18">
-    <line x1="-20" y1="900"  x2="1100" y2="960"/>
-    <line x1="-20" y1="1060" x2="1100" y2="1120"/>
-    <line x1="-20" y1="1220" x2="1100" y2="1280"/>
-    <line x1="-20" y1="1380" x2="1100" y2="1440"/>
-    <line x1="-20" y1="1540" x2="1100" y2="1600"/>
-  </g>
-
-  <!-- Wege/Trampelpfade -->
-  <path d="M 300 800 Q 380 1000 350 1200 Q 320 1400 400 1560"
-        stroke="#7a6440" stroke-width="14" fill="none" opacity="0.5"/>
-  <path d="M 720 800 Q 680 1000 720 1200 Q 760 1400 700 1560"
-        stroke="#7a6440" stroke-width="14" fill="none" opacity="0.5"/>
-
-  <!-- Einzelne Baeume im Vordergrund am Rand, fuer Komposition -->
+  <!-- Baeume aussen, locker verteilt rund um die Stadt -->
   <g opacity="0.95">
-    <ellipse cx="50" cy="1480" rx="38" ry="52" fill="#2a3c20"/>
-    <rect x="44" y="1500" width="12" height="50" fill="#4a3220"/>
-    <ellipse cx="28" cy="1460" rx="24" ry="34" fill="#324624"/>
-
-    <ellipse cx="1030" cy="1500" rx="40" ry="54" fill="#2a3c20"/>
-    <rect x="1024" y="1522" width="12" height="50" fill="#4a3220"/>
-    <ellipse cx="1054" cy="1480" rx="26" ry="36" fill="#324624"/>
+    <!-- Hinten links -->
+    <ellipse cx="68"  cy="640" rx="30" ry="42" fill="#324624"/>
+    <rect    x="62"   y="660"  width="12" height="40" fill="#4a3220"/>
+    <ellipse cx="44"  cy="624" rx="22" ry="30" fill="#3a5028"/>
+    <!-- Hinten rechts -->
+    <ellipse cx="1014" cy="660" rx="32" ry="44" fill="#324624"/>
+    <rect    x="1008" y="678"  width="12" height="42" fill="#4a3220"/>
+    <ellipse cx="1036" cy="640" rx="22" ry="32" fill="#3a5028"/>
+    <ellipse cx="996"  cy="688" rx="20" ry="28" fill="#324624"/>
+    <!-- Links mitte -->
+    <ellipse cx="42"   cy="980"  rx="28" ry="40" fill="#324624"/>
+    <rect    x="36"    y="998"   width="12" height="40" fill="#4a3220"/>
+    <ellipse cx="38"   cy="1280" rx="32" ry="44" fill="#324624"/>
+    <rect    x="32"    y="1298"  width="12" height="42" fill="#4a3220"/>
+    <ellipse cx="60"   cy="1258" rx="24" ry="32" fill="#3a5028"/>
+    <!-- Rechts mitte -->
+    <ellipse cx="1042" cy="1000" rx="30" ry="42" fill="#324624"/>
+    <rect    x="1036"  y="1020"  width="12" height="40" fill="#4a3220"/>
+    <ellipse cx="1024" cy="1300" rx="34" ry="46" fill="#324624"/>
+    <rect    x="1018"  y="1318"  width="12" height="44" fill="#4a3220"/>
+    <ellipse cx="1046" cy="1278" rx="24" ry="32" fill="#3a5028"/>
+    <!-- Vorn -->
+    <ellipse cx="80"   cy="1480" rx="34" ry="48" fill="#2c3c20"/>
+    <rect    x="74"    y="1500"  width="14" height="50" fill="#4a3220"/>
+    <ellipse cx="1000" cy="1500" rx="36" ry="50" fill="#2c3c20"/>
+    <rect    x="994"   y="1522"  width="14" height="50" fill="#4a3220"/>
   </g>
 
-  <!-- Vignette: dunkleres Aussenringt, damit Stadt-Fokus im Zentrum bleibt -->
+  <!-- STADTMAUER: ovale Doppellinie. Aussen-Stein, innen heller. -->
+  <ellipse cx="540" cy="920" rx="480" ry="380" fill="none"
+           stroke="#3a2e22" stroke-width="6"/>
+  <ellipse cx="540" cy="920" rx="470" ry="370" fill="url(#bg_wall_stone)"
+           stroke="none"/>
+  <ellipse cx="540" cy="920" rx="440" ry="350" fill="#3a2e22"/>
+  <!-- Innere Mauer-Schwelle (heller Stein-Streifen) -->
+  <ellipse cx="540" cy="920" rx="436" ry="346" fill="url(#bg_inner_grass)"/>
+  <!-- Mauer-Zinnen: Andeutung als Strich-Cluster am Aussenrand -->
+  <g stroke="#3a2e22" stroke-width="2.5" opacity="0.7">
+    <line x1="60"   y1="900"  x2="60"   y2="884"/>
+    <line x1="120"  y1="700"  x2="124"  y2="684"/>
+    <line x1="240"  y1="580"  x2="248"  y2="568"/>
+    <line x1="420"  y1="528"  x2="424"  y2="514"/>
+    <line x1="540"  y1="522"  x2="540"  y2="506"/>
+    <line x1="660"  y1="528"  x2="660"  y2="514"/>
+    <line x1="840"  y1="580"  x2="836"  y2="568"/>
+    <line x1="960"  y1="700"  x2="956"  y2="684"/>
+    <line x1="1020" y1="900"  x2="1020" y2="884"/>
+    <line x1="960"  y1="1140" x2="956"  y2="1126"/>
+    <line x1="120"  y1="1140" x2="124"  y2="1126"/>
+  </g>
+
+  <!-- TOR: Unterbrechung der Mauer in der Mitte unten + Holzbrücke -->
+  <!-- Aussparung im Stein-Ring (uebermalen mit Wiese) -->
+  <path d="M 460 1296 Q 540 1306 620 1296 L 620 1330 Q 540 1340 460 1330 Z"
+        fill="url(#bg_outer_grass)"/>
+  <!-- Holzplanken-Brueckchen vom Tor nach drausssen -->
+  <polygon points="476,1296 604,1296 614,1380 466,1380" fill="#8a5e2c" stroke="#3a2412" stroke-width="2"/>
+  <line x1="478"  y1="1316" x2="610"  y2="1316" stroke="#3a2412" stroke-width="1.4" opacity="0.6"/>
+  <line x1="478"  y1="1336" x2="610"  y2="1336" stroke="#3a2412" stroke-width="1.4" opacity="0.6"/>
+  <line x1="478"  y1="1356" x2="610"  y2="1356" stroke="#3a2412" stroke-width="1.4" opacity="0.6"/>
+  <!-- Tor-Pfosten links/rechts -->
+  <polygon points="448,1296 466,1300 466,1180 448,1176" fill="#5a3a18" stroke="#2a1a08" stroke-width="2"/>
+  <polygon points="614,1300 632,1296 632,1176 614,1180" fill="#5a3a18" stroke="#2a1a08" stroke-width="2"/>
+  <!-- Tor-Querbalken oben -->
+  <polygon points="448,1180 632,1176 632,1162 448,1166" fill="#5a3a18" stroke="#2a1a08" stroke-width="2"/>
+  <!-- Tor-Banner -->
+  <polygon points="528,1162 552,1162 552,1196 540,1206 528,1196" fill="#c93a2c" stroke="#5a1410" stroke-width="1.5"/>
+
+  <!-- PLAZA in der Mitte: heller Stein-Kreis -->
+  <ellipse cx="540" cy="920" rx="86" ry="44" fill="url(#bg_plaza)" stroke="#7a644a" stroke-width="2"/>
+  <!-- Brunnen-Andeutung in der Plaza-Mitte -->
+  <ellipse cx="540" cy="920" rx="22" ry="12" fill="#445c66" stroke="#2a3a40" stroke-width="2"/>
+  <ellipse cx="540" cy="918" rx="22" ry="10" fill="#6a8a98"/>
+  <ellipse cx="540" cy="916" rx="14" ry="6"  fill="#88a8b6"/>
+  <!-- Brunnen-Mauer Rand -->
+  <ellipse cx="540" cy="922" rx="22" ry="6"  fill="#7a644a"/>
+
+  <!-- WEGE: sandige Pfade von Plaza zu den 7 Gebaeude-Slots.
+       Hotspots (siehe city_layout.json):
+         kapelle  (0.50, 0.34) = (540, 544)
+         schmiede (0.27, 0.46) = (292, 736)
+         reiterei (0.73, 0.46) = (788, 736)
+         markt    (0.18, 0.62) = (194, 992)
+         wachturm (0.82, 0.62) = (886, 992)
+         kaserne  (0.34, 0.76) = (367, 1216)
+         spaeher  (0.66, 0.76) = (713, 1216) -->
+  <g stroke="#b8a070" stroke-width="34" stroke-linecap="round" opacity="0.9" fill="none">
+    <line x1="540" y1="920" x2="540" y2="600"/>
+    <line x1="540" y1="920" x2="320" y2="780"/>
+    <line x1="540" y1="920" x2="760" y2="780"/>
+    <line x1="540" y1="920" x2="240" y2="980"/>
+    <line x1="540" y1="920" x2="840" y2="980"/>
+    <line x1="540" y1="920" x2="400" y2="1180"/>
+    <line x1="540" y1="920" x2="680" y2="1180"/>
+  </g>
+  <!-- Weg vom Tor zum Plaza -->
+  <line x1="540" y1="920" x2="540" y2="1296" stroke="#b8a070" stroke-width="42"
+        stroke-linecap="round" opacity="0.9"/>
+  <!-- Plaza-Umrandung erneut darueber (damit Pfade nicht in den Brunnen laufen) -->
+  <ellipse cx="540" cy="920" rx="86" ry="44" fill="url(#bg_plaza)" stroke="#7a644a" stroke-width="2"/>
+  <ellipse cx="540" cy="920" rx="22" ry="12" fill="#445c66" stroke="#2a3a40" stroke-width="2"/>
+  <ellipse cx="540" cy="918" rx="22" ry="10" fill="#6a8a98"/>
+  <ellipse cx="540" cy="916" rx="14" ry="6"  fill="#88a8b6"/>
+  <ellipse cx="540" cy="922" rx="22" ry="6"  fill="#7a644a"/>
+
+  <!-- Kleine Grueninseln zwischen den Wegen, damit's nicht so kahl wirkt -->
+  <g opacity="0.85">
+    <ellipse cx="420" cy="700"  rx="18" ry="9"  fill="#5e7a38"/>
+    <ellipse cx="670" cy="700"  rx="18" ry="9"  fill="#5e7a38"/>
+    <ellipse cx="380" cy="980"  rx="22" ry="11" fill="#5e7a38"/>
+    <ellipse cx="700" cy="980"  rx="22" ry="11" fill="#5e7a38"/>
+    <ellipse cx="430" cy="1130" rx="14" ry="7"  fill="#5e7a38"/>
+    <ellipse cx="640" cy="1130" rx="14" ry="7"  fill="#5e7a38"/>
+    <!-- Mini-Baeume innen, dezent -->
+    <ellipse cx="420" cy="690"  rx="12" ry="16" fill="#324624"/>
+    <ellipse cx="670" cy="690"  rx="12" ry="16" fill="#324624"/>
+  </g>
+
+  <!-- Schatten-Vignette: weniger stark als vorher, damit der innenraum
+       hell und einladend wirkt -->
   <rect x="0" y="0" width="1080" height="1600" fill="url(#bg_vignette)"/>
 </svg>

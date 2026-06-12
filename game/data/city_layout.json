@@ -1,12 +1,12 @@
 {
-	"_comment": "Hotspot-Positionen der Stadt-Gebaeude im isometrischen Stadt-Screen. x/y sind normalisiert (0..1) relativ zur Buehnen-Flaeche (Bereich zwischen HUD oben und Status-Leiste unten). y waechst nach unten = naeher zur Kamera. Gezeichnet wird hinten-nach-vorne (kleineres y zuerst); z ueberschreibt die Reihenfolge bei Gleichstand. Iteration 2: kaserne und spaeher von 0.66/0.70 auf 0.62/0.78 auseinandergezogen, weil sie mit den neuen SVG-Sprites visuell zu nah waren. Auch markt/wachturm etwas weiter aus der Mitte.",
+	"_comment": "Iteration 3 (Travian-style): Gebaeude bewegen sich in den Innenraum einer ovalen Stadtmauer (definiert in assets/city/menschen/bg.svg). Kapelle hinten, Kaserne+Spaeher vorne nahe dem Tor, Markt+Wachturm seitlich, Schmiede+Reiterei mittlere Reihe. Plaza-Mitte bleibt frei (x=0.5, y=0.55), spaeter ggf. fuer Brunnen.",
 	"buildings": {
-		"kapelle":  { "x": 0.50, "y": 0.13, "z": 0 },
-		"schmiede": { "x": 0.28, "y": 0.30, "z": 0 },
-		"reiterei": { "x": 0.72, "y": 0.30, "z": 0 },
-		"markt":    { "x": 0.18, "y": 0.52, "z": 0 },
-		"wachturm": { "x": 0.82, "y": 0.52, "z": 0 },
-		"kaserne":  { "x": 0.32, "y": 0.74, "z": 0 },
-		"spaeher":  { "x": 0.68, "y": 0.74, "z": 0 }
+		"kapelle":  { "x": 0.50, "y": 0.34, "z": 0 },
+		"schmiede": { "x": 0.27, "y": 0.46, "z": 0 },
+		"reiterei": { "x": 0.73, "y": 0.46, "z": 0 },
+		"markt":    { "x": 0.18, "y": 0.62, "z": 0 },
+		"wachturm": { "x": 0.82, "y": 0.62, "z": 0 },
+		"kaserne":  { "x": 0.34, "y": 0.76, "z": 0 },
+		"spaeher":  { "x": 0.66, "y": 0.76, "z": 0 }
 	}
 }
