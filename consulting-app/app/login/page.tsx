@@ -9,6 +9,11 @@ export default async function LoginPage({
   const checkMail = params["check-mail"];
   const error = params.error;
 
+  const mailpitUrl =
+    process.env.CODESPACE_NAME && process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN
+      ? `https://${process.env.CODESPACE_NAME}-8025.${process.env.GITHUB_CODESPACES_PORT_FORWARDING_DOMAIN}`
+      : "http://localhost:8025";
+
   async function handleSignIn(formData: FormData) {
     "use server";
     const email = formData.get("email") as string;
@@ -27,8 +32,8 @@ export default async function LoginPage({
           <div className="rounded-md bg-emerald-50 border border-emerald-200 p-3 text-sm text-emerald-800">
             Wir haben dir eine E-Mail mit dem Login-Link geschickt. Lokal findest
             du sie in Mailpit:{" "}
-            <a className="underline font-medium" href="http://localhost:8025" target="_blank" rel="noreferrer">
-              localhost:8025
+            <a className="underline font-medium" href={mailpitUrl} target="_blank" rel="noreferrer">
+              {mailpitUrl.replace(/^https?:\/\//, "")}
             </a>
           </div>
         ) : (
