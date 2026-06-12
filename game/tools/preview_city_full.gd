@@ -73,7 +73,8 @@ func _render(all_built: bool, out_path: String) -> void:
 			continue
 		var tex: Texture2D = load(tex_path) as Texture2D
 		var img: Image = tex.get_image()
-		var sprite_w: int = int(hw * (2.4 if all_built else 1.9))
+		# muss zu CityScreen.gd Sprite-Faktoren passen.
+		var sprite_w: int = int(hw * (2.0 if all_built else 1.5))
 		var sprite_h: int = int(sprite_w * (float(img.get_height()) / float(img.get_width())))
 		var img_scaled := Image.create(sprite_w, sprite_h, false, Image.FORMAT_RGBA8)
 		img_scaled.copy_from(img)

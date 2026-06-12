@@ -253,10 +253,11 @@ func _draw_sprite_at(tex: Texture2D, ground_center: Vector2, hw: float, hh: floa
 	if src.x <= 0.0 or src.y <= 0.0:
 		return
 	# Sprite-Breite skaliert mit Plot-Raute. Werte sind in Vielfachen der
-	# Plot-Halbbreite (hw). 2.4/1.9 entspricht in etwa der Groesse der
-	# alten Iso-Bloecke - groesser hat sich im Test (Bild Run #...) zu
-	# starken Ueberlappungen gefuehrt: Markt verdeckte Kaserne.
-	var sprite_w: float = hw * (2.4 if built else 1.9)
+	# Plot-Halbbreite (hw). 2.0/1.5 entspricht einer "Stadt mit Details"-
+	# Skalierung: Gebaeude wirken nicht mehr wie 7 dominante Kloetze, sondern
+	# lassen Raum fuer Wege, Plaza und Hintergrund-Deko (Huetten, Brunnen
+	# etc. in bg.svg).
+	var sprite_w: float = hw * (2.0 if built else 1.5)
 	var sprite_h: float = sprite_w * (src.y / src.x)
 	# Anker: SVGs sind so geschnitten, dass die Bodenraute des Gebaeudes
 	# vertikal bei ~56% der Bildhoehe sitzt (ViewBox 0..512, Bodenmitte
