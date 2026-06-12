@@ -134,6 +134,9 @@ const AI_RAID_SAFETY_PCT := 10
 # Fraktionen. Bewusst generische Namen (nicht HoMM3-IP), passt zur
 # Plan-Phase 1 ("Waldvolk"/"Menschen"/"Totenreich"/"Orks").
 const FACTION_NAMES := ["Waldvolk", "Menschen", "Totenreich", "Orks"]
+# Verzeichnis-Slugs fuer assets/city und assets/world/cities. Muss zu
+# CityScreen.FACTION_DIRS passen (selbe Reihenfolge wie FACTION_NAMES).
+const FACTION_DIRS := ["waldvolk", "menschen", "totenreich", "orks"]
 const FACTION_COLORS := [
 	Color(0.45, 0.85, 0.45),   # Waldvolk - gruen
 	Color(0.95, 0.85, 0.35),   # Menschen - gold
@@ -1038,15 +1041,29 @@ func _draw_map() -> void:
 		var fid: int = int(city["faction"])
 		var owner: int = int(city["owner"])
 		var cpos := origin + Vector2(cp.x * _tile_size, cp.y * _tile_size)
-		var inset: float = _tile_size * 0.18
+		# Sprite-Rect deckt das ganze Tile (mit minimalem Inset, damit der
+		# Owner-Ring sauber sitzt). Faellt zurueck auf Farb-Rechteck wenn
+		# kein Stadt-Sprite fuer die Fraktion existiert.
+		var inset: float = _tile_size * 0.06
 		var crect := Rect2(
 			cpos + Vector2(inset, inset),
 			Vector2(_tile_size - 1.0 - 2.0 * inset, _tile_size - 1.0 - 2.0 * inset)
 		)
-		var fc: Color = FACTION_COLORS[fid] if fid >= 0 and fid < FACTION_COLORS.size() else Color.WHITE
-		if cfog == FOG_EXPLORED:
-			fc = fc.darkened(0.45)
-		_map_area.draw_rect(crect, fc, true)
+		var city_sprite_name: String = ""
+		if fid >= 0 and fid < FACTION_DIRS.size():
+			city_sprite_name = "cities/%s.svg" % String(FACTION_DIRS[fid])
+		var city_tex: Texture2D = _world_texture(city_sprite_name) if city_sprite_name != "" else null
+		if city_tex != null:
+			_map_area.draw_texture_rect(city_tex, crect, false)
+			if cfog == FOG_EXPLORED:
+				_map_area.draw_rect(crect, Color(0, 0, 0, 0.55), true)
+		else:
+			# Fallback: alte farbige Box (wenn Asset fehlt).
+			var fc: Color = FACTION_COLORS[fid] if fid >= 0 and fid < FACTION_COLORS.size() else Color.WHITE
+			if cfog == FOG_EXPLORED:
+				fc = fc.darkened(0.45)
+			_map_area.draw_rect(crect, fc, true)
+		# Owner-Ring (immer, ob Sprite oder Fallback)
 		if owner == OWNER_HERO:
 			_map_area.draw_rect(crect, Color(1.0, 0.85, 0.2), false, 4.0)
 		elif owner >= OWNER_AI_MIN:
@@ -1126,39 +1143,45 @@ func _draw_map() -> void:
 		var okind: int = int(obj["kind"])
 		var oowner: int = int(obj.get("owner", OWNER_NEUTRAL))
 		var opos := origin + Vector2(op.x * _tile_size, op.y * _tile_size)
-		var oinset: float = _tile_size * 0.28
+		var oinset: float = _tile_size * 0.10
 		var orect := Rect2(
 			opos + Vector2(oinset, oinset),
 			Vector2(_tile_size - 1.0 - 2.0 * oinset, _tile_size - 1.0 - 2.0 * oinset)
 		)
-		var ofill: Color = Color(0.95, 0.80, 0.20) if okind == OBJECT_MINE else Color(0.85, 0.50, 0.20)
-		if ofog == FOG_EXPLORED:
-			ofill = ofill.darkened(0.45)
-		_map_area.draw_rect(orect, ofill, true)
-		# Symbol auf das Feld malen, damit Mine und Truhe auf einen Blick
-		# unterscheidbar sind - nicht nur ueber die Farbe.
-		var sym_col := Color(0.25, 0.15, 0.05)
-		if okind == OBJECT_MINE:
-			# Gekreuzte Spitzhacken-Striche (X) ueber das ganze Feld.
-			var sw: float = max(2.0, _tile_size * 0.06)
-			var sr1 := orect.position
-			var sr2 := orect.position + orect.size
-			_map_area.draw_line(sr1, sr2, sym_col, sw)
-			_map_area.draw_line(Vector2(sr1.x, sr2.y), Vector2(sr2.x, sr1.y), sym_col, sw)
+		# Sprite-basiert: Mine oder Truhe als SVG. Fallback auf alte Strich-
+		# Symbole wenn das Asset fehlt.
+		var obj_sprite: String = "objects/mine.svg" if okind == OBJECT_MINE else "objects/chest.svg"
+		var obj_tex: Texture2D = _world_texture(obj_sprite)
+		if obj_tex != null:
+			_map_area.draw_texture_rect(obj_tex, orect, false)
+			if ofog == FOG_EXPLORED:
+				_map_area.draw_rect(orect, Color(0, 0, 0, 0.55), true)
 		else:
-			# Truhe: waagerechter Deckel-Strich + Schloss-Punkt darunter.
-			var lid_y: float = orect.position.y + orect.size.y * 0.38
-			_map_area.draw_line(
-				Vector2(orect.position.x, lid_y),
-				Vector2(orect.position.x + orect.size.x, lid_y),
-				sym_col,
-				max(2.0, _tile_size * 0.05)
-			)
-			var lock_c := Vector2(
-				orect.position.x + orect.size.x * 0.5,
-				lid_y + orect.size.y * 0.18
-			)
-			_map_area.draw_circle(lock_c, max(2.0, _tile_size * 0.07), sym_col)
+			# Alte Fallback-Variante.
+			var ofill: Color = Color(0.95, 0.80, 0.20) if okind == OBJECT_MINE else Color(0.85, 0.50, 0.20)
+			if ofog == FOG_EXPLORED:
+				ofill = ofill.darkened(0.45)
+			_map_area.draw_rect(orect, ofill, true)
+			var sym_col := Color(0.25, 0.15, 0.05)
+			if okind == OBJECT_MINE:
+				var sw: float = max(2.0, _tile_size * 0.06)
+				var sr1 := orect.position
+				var sr2 := orect.position + orect.size
+				_map_area.draw_line(sr1, sr2, sym_col, sw)
+				_map_area.draw_line(Vector2(sr1.x, sr2.y), Vector2(sr2.x, sr1.y), sym_col, sw)
+			else:
+				var lid_y: float = orect.position.y + orect.size.y * 0.38
+				_map_area.draw_line(
+					Vector2(orect.position.x, lid_y),
+					Vector2(orect.position.x + orect.size.x, lid_y),
+					sym_col,
+					max(2.0, _tile_size * 0.05)
+				)
+				var lock_c := Vector2(
+					orect.position.x + orect.size.x * 0.5,
+					lid_y + orect.size.y * 0.18
+				)
+				_map_area.draw_circle(lock_c, max(2.0, _tile_size * 0.07), sym_col)
 		if oowner == OWNER_HERO:
 			_map_area.draw_rect(orect, Color(1.0, 0.85, 0.2), false, 4.0)
 		elif oowner >= OWNER_AI_MIN:
@@ -1191,8 +1214,14 @@ func _draw_map() -> void:
 	var hero_px := origin + Vector2(_hero.position.x * _tile_size, _hero.position.y * _tile_size)
 	var center := hero_px + Vector2(_tile_size * 0.5, _tile_size * 0.5)
 	var radius := _tile_size * 0.35
-	_map_area.draw_circle(center, radius, Color(1.0, 0.85, 0.2))
-	_map_area.draw_arc(center, radius, 0.0, TAU, 24, Color(0.2, 0.15, 0.05), 2.0)
+	# Held als Sprite, sonst gelber Kreis-Fallback.
+	var hero_tex: Texture2D = _world_texture("units/hero.svg")
+	if hero_tex != null:
+		var hrect := Rect2(hero_px, Vector2(_tile_size - 1.0, _tile_size - 1.0))
+		_map_area.draw_texture_rect(hero_tex, hrect, false)
+	else:
+		_map_area.draw_circle(center, radius, Color(1.0, 0.85, 0.2))
+		_map_area.draw_arc(center, radius, 0.0, TAU, 24, Color(0.2, 0.15, 0.05), 2.0)
 
 	# KI-Helden: pro KI entweder voller Marker (in Sicht) oder Ghost an
 	# zuletzt bekannter Position (Alpha ueber FOG_ROT_TURNS verblassend).
@@ -1209,8 +1238,14 @@ func _draw_map() -> void:
 			if efog == FOG_VISIBLE:
 				var epx := origin + Vector2(ex.x * _tile_size, ex.y * _tile_size)
 				var ecenter := epx + Vector2(_tile_size * 0.5, _tile_size * 0.5)
-				_map_area.draw_circle(ecenter, radius, efill)
-				_map_area.draw_arc(ecenter, radius, 0.0, TAU, 24, ering, 2.0)
+				# Gegner als Sprite mit Fraktions-Modulate.
+				var enemy_tex: Texture2D = _world_texture("units/enemy.svg")
+				if enemy_tex != null:
+					var erect := Rect2(epx, Vector2(_tile_size - 1.0, _tile_size - 1.0))
+					_map_area.draw_texture_rect(enemy_tex, erect, false, efill)
+				else:
+					_map_area.draw_circle(ecenter, radius, efill)
+					_map_area.draw_arc(ecenter, radius, 0.0, TAU, 24, ering, 2.0)
 				var earmy: int = eh.total_count()
 				var etxt: String = str(earmy)
 				var ecol: Color
@@ -1282,6 +1317,23 @@ func _terrain_texture(t: int) -> Texture2D:
 		if ResourceLoader.exists(path):
 			tex = load(path) as Texture2D
 	_terrain_tex_cache[t] = tex
+	return tex
+
+
+# Welt-Sprite-Cache (Staedte, Helden, Objekte). Schluessel = beliebiger
+# Kurzname, Wert = Texture2D oder null wenn nicht gefunden.
+var _world_tex_cache: Dictionary = {}
+const WORLD_ASSET_BASE := "res://assets/world/"
+
+
+func _world_texture(rel_path: String) -> Texture2D:
+	if _world_tex_cache.has(rel_path):
+		return _world_tex_cache[rel_path] as Texture2D
+	var path: String = WORLD_ASSET_BASE + rel_path
+	var tex: Texture2D = null
+	if ResourceLoader.exists(path):
+		tex = load(path) as Texture2D
+	_world_tex_cache[rel_path] = tex
 	return tex
 
 

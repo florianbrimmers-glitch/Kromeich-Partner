@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Goldmine. Stein-Hangbruch mit Hoehleneingang, gekreuzten Spitzhacken,
+     goldenem Erz im Eingang. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="mn_stone" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8a7e6e"/>
+      <stop offset="1" stop-color="#4a4032"/>
+    </linearGradient>
+    <radialGradient id="mn_glow" cx="0.5" cy="0.4" r="0.5">
+      <stop offset="0"   stop-color="#f5dc88"/>
+      <stop offset="0.6" stop-color="#caa84a"/>
+      <stop offset="1"   stop-color="#7a5a18"/>
+    </radialGradient>
+  </defs>
+  <ellipse cx="32" cy="58" rx="22" ry="3.5" fill="#000" opacity="0.45"/>
+  <!-- Felshintergrund (Hang) -->
+  <polygon points="6,54 10,28 18,16 28,22 34,12 42,18 50,14 56,26 60,54"
+           fill="url(#mn_stone)" stroke="#2a1a08" stroke-width="1.5"/>
+  <!-- Stein-Highlight -->
+  <polygon points="18,16 24,22 28,22 22,14" fill="#a8988a" opacity="0.6"/>
+  <polygon points="42,18 46,22 50,14 46,12" fill="#a8988a" opacity="0.6"/>
+  <!-- Hoehleneingang: schwarzer Bogen -->
+  <path d="M 22 54 L 22 36 Q 22 26 32 26 Q 42 26 42 36 L 42 54 Z" fill="#0c0604"/>
+  <!-- Inneres Gold-Glow im Eingang -->
+  <ellipse cx="32" cy="44" rx="8" ry="6" fill="url(#mn_glow)" opacity="0.85"/>
+  <!-- Stuetzbalken vorm Eingang (Holz) -->
+  <rect x="22" y="24" width="20" height="4" fill="#7a5a30" stroke="#2a1a08" stroke-width="0.8"/>
+  <rect x="20" y="24" width="4"  height="30" fill="#7a5a30" stroke="#2a1a08" stroke-width="0.8"/>
+  <rect x="40" y="24" width="4"  height="30" fill="#7a5a30" stroke="#2a1a08" stroke-width="0.8"/>
+  <!-- Gekreuzte Spitzhacken vor dem Eingang -->
+  <g stroke="#5a3a18" stroke-width="1.5" stroke-linecap="round">
+    <line x1="12" y1="48" x2="28" y2="56"/>
+    <line x1="28" y1="48" x2="12" y2="56"/>
+  </g>
+  <g fill="#a8988a" stroke="#2a1a08" stroke-width="0.6">
+    <polygon points="8,48 14,52 12,46"/>
+    <polygon points="32,48 26,52 28,46"/>
+  </g>
+  <!-- Goldnuggets vor dem Eingang -->
+  <circle cx="50" cy="52" r="2.5" fill="#f4dc7c" stroke="#7a5a18" stroke-width="0.6"/>
+  <circle cx="54" cy="48" r="1.8" fill="#e6c247" stroke="#7a5a18" stroke-width="0.6"/>
+</svg>
