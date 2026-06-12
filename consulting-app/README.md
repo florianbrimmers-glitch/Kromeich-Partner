@@ -18,6 +18,24 @@ Internes Consulting-Werkzeug (Asana-Ersatz) für Kromeich Partner.
 - **Mailpit** als lokaler Mail-Catcher (für Magic-Link-Tests)
 - **Docker Compose** für Postgres + Mailpit
 
+## Testen ohne Installation: GitHub Codespaces
+
+Schnellster Weg zum Ausprobieren — alles läuft im Browser, **ohne dass du
+etwas auf deinem PC installieren musst**:
+
+1. Auf GitHub: dieses Repo öffnen, oben grüner Button **Code** → Tab
+   **Codespaces** → **Create codespace on
+   `claude/consulting-tool-brainstorm-DfaiH`**.
+2. Codespaces baut für ein bis zwei Minuten den Container, installiert
+   Dependencies, fährt Postgres und Mailpit hoch und startet den Dev-Server.
+3. Wenn fertig: Port 3000 öffnet sich automatisch in einem Tab → das ist
+   die App. Login mit `florian.brimmers@kromeichpartner.de` → Mailpit
+   (Port 8025 in der Ports-Leiste) → Login-Link anklicken.
+
+Die ersten 60 Codespace-Stunden pro Monat sind auf Personal-Accounts
+gratis. Stoppst du den Codespace, wird er pausiert und du verbrauchst
+keine Zeit.
+
 ## Lokales Setup
 
 ### Voraussetzungen

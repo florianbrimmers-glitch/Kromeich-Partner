@@ -10,6 +10,9 @@ const adminEmails = (process.env.TEAM_ADMIN_EMAILS ?? "")
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
+  // Notwendig hinter Reverse-Proxies wie Codespaces, Vercel, eigenem Caddy/Traefik:
+  // Auth.js akzeptiert dann den per X-Forwarded-Host übermittelten Host.
+  trustHost: true,
   session: { strategy: "database" },
   pages: {
     signIn: "/login",
