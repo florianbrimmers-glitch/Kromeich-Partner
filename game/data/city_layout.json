@@ -1,5 +1,5 @@
 {
-	"_comment": "Iteration 3 (Travian-style): Gebaeude bewegen sich in den Innenraum einer ovalen Stadtmauer (definiert in assets/city/menschen/bg.svg). Kapelle hinten, Kaserne+Spaeher vorne nahe dem Tor, Markt+Wachturm seitlich, Schmiede+Reiterei mittlere Reihe. Plaza-Mitte bleibt frei (x=0.5, y=0.55), spaeter ggf. fuer Brunnen.",
+	"_comment": "Iteration 4: Stadtmauer ('mauer') als baubares Gebaeude mit eigenem Hotspot am Tor unten Mitte. Wenn 'mauer' nicht in city.buildings ist, zeichnet CityScreen das wall_overlay.svg nicht und die Stadt ist offen. Andere Hotspots bleiben unveraendert.",
 	"buildings": {
 		"kapelle":  { "x": 0.50, "y": 0.34, "z": 0 },
 		"schmiede": { "x": 0.27, "y": 0.46, "z": 0 },
@@ -7,6 +7,7 @@
 		"markt":    { "x": 0.18, "y": 0.62, "z": 0 },
 		"wachturm": { "x": 0.82, "y": 0.62, "z": 0 },
 		"kaserne":  { "x": 0.34, "y": 0.76, "z": 0 },
-		"spaeher":  { "x": 0.66, "y": 0.76, "z": 0 }
+		"spaeher":  { "x": 0.66, "y": 0.76, "z": 0 },
+		"mauer":    { "x": 0.50, "y": 0.90, "z": 0 }
 	}
 }

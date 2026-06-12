@@ -189,6 +189,17 @@ func _draw() -> void:
 		draw_rect(stage, Color(0.12, 0.14, 0.13), true)
 		_draw_ground_grid(stage)
 
+	# Stadtmauer-Overlay zwischen BG und Gebaeuden, NUR wenn das Gebaeude
+	# "mauer" gebaut ist. So ist die Stadt im Fruehgame offen und wird
+	# durch den Mauerbau visuell befestigt.
+	var city: Dictionary = _ctx.get("city", {})
+	var built_arr: Array = city.get("buildings", [])
+	if built_arr.has("mauer"):
+		var wall_tex: Texture2D = _texture_with_ext(
+			"res://assets/city/%s/wall_overlay" % _faction_dir())
+		if wall_tex != null:
+			draw_texture_rect(wall_tex, stage, false)
+
 	_plots = _compute_plots(stage)
 	for p in _plots:
 		_draw_plot(p)

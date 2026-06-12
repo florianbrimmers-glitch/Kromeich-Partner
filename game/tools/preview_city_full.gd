@@ -42,6 +42,15 @@ func _render(all_built: bool, out_path: String) -> void:
 	else:
 		_fill_rect(canvas, 0, HUD_TOP, W, H - HUD_TOP - HUD_BOTTOM, Color(0.12, 0.14, 0.13))
 
+	# Wall-Overlay (Mauer): nur im all_built-Preview, mirror der CityScreen-
+	# Logik die das Overlay zeigt wenn "mauer" in city.buildings ist.
+	var wall_path := "res://assets/city/menschen/wall_overlay.svg"
+	if all_built and ResourceLoader.exists(wall_path):
+		var wall_tex: Texture2D = load(wall_path) as Texture2D
+		var wall_img: Image = wall_tex.get_image()
+		wall_img.resize(W, H - HUD_TOP - HUD_BOTTOM, Image.INTERPOLATE_LANCZOS)
+		canvas.blend_rect(wall_img, Rect2i(0, 0, W, H - HUD_TOP - HUD_BOTTOM), Vector2i(0, HUD_TOP))
+
 	var layout: Dictionary = _load_layout()
 	var stage_x: float = 0.0
 	var stage_y: float = float(HUD_TOP)

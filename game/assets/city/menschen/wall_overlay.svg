@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Wall-Overlay fuer Menschen. Wird vom CityScreen DRAUEBER auf bg.svg
+     gezeichnet, wenn das Gebaeude "mauer" gebaut ist. Ohne Mauer ist
+     die Stadt offen (nur innere Gras-Ellipse aus bg.svg).
+     Selbe ViewBox 1080x1600 wie bg.svg, damit dieselbe Transformation
+     greift. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1600">
+  <defs>
+    <linearGradient id="bg_wall_stone" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#a8988a"/>
+      <stop offset="1" stop-color="#6c5e50"/>
+    </linearGradient>
+    <!-- Mask: weiss = Wall-Ring sichtbar, schwarz = ausgeschnitten. Damit
+         die Mauer als Ring wirkt und das Stadt-Innere von bg.svg
+         (inner_grass + Plaza + Deko) durchscheint. -->
+    <mask id="wall_ring_mask" maskUnits="userSpaceOnUse">
+      <rect x="0" y="0" width="1080" height="1600" fill="black"/>
+      <ellipse cx="540" cy="920" rx="488" ry="388" fill="white"/>
+      <ellipse cx="540" cy="920" rx="440" ry="348" fill="black"/>
+    </mask>
+  </defs>
+
+  <!-- STADTMAUER: konzentrische Ellipsen, geclippt auf den Ring durch
+       die Mask oben. Aussen-Schatten -> Aussenwand -> Mauerkrone ->
+       Innen-Schatten. Innerhalb des Rings ist transparent (was bg.svg
+       zeichnet bleibt sichtbar). -->
+  <g mask="url(#wall_ring_mask)">
+    <ellipse cx="540" cy="920" rx="486" ry="386" fill="#1c140c" opacity="0.85"/>
+    <ellipse cx="540" cy="920" rx="478" ry="378" fill="#6e5a44"/>
+    <ellipse cx="540" cy="920" rx="466" ry="370" fill="url(#bg_wall_stone)"/>
+    <ellipse cx="540" cy="920" rx="450" ry="358" fill="#5a4636"/>
+    <ellipse cx="540" cy="920" rx="442" ry="350" fill="#3a2e22"/>
+  </g>
+
+  <!-- Stein-Block-Fugen auf der Mauerkrone -->
+  <g stroke="#3a2c1c" stroke-width="1.2" opacity="0.55">
+    <line x1="1012" y1="920"  x2="990"  y2="920"/>
+    <line x1="996"  y1="1016" x2="975"  y2="1004"/>
+    <line x1="949"  y1="1107" x2="932"  y2="1090"/>
+    <line x1="874"  y1="1184" x2="861"  y2="1163"/>
+    <line x1="776"  y1="1244" x2="769"  y2="1220"/>
+    <line x1="304"  y1="1244" x2="311"  y2="1220"/>
+    <line x1="206"  y1="1184" x2="219"  y2="1163"/>
+    <line x1="131"  y1="1107" x2="148"  y2="1090"/>
+    <line x1="84"   y1="1016" x2="105"  y2="1004"/>
+    <line x1="68"   y1="920"  x2="90"   y2="920"/>
+    <line x1="84"   y1="823"  x2="105"  y2="836"/>
+    <line x1="131"  y1="733"  x2="148"  y2="750"/>
+    <line x1="206"  y1="656"  x2="219"  y2="677"/>
+    <line x1="304"  y1="596"  x2="311"  y2="620"/>
+    <line x1="418"  y1="559"  x2="421"  y2="584"/>
+    <line x1="540"  y1="546"  x2="540"  y2="572"/>
+    <line x1="662"  y1="559"  x2="659"  y2="584"/>
+    <line x1="776"  y1="596"  x2="769"  y2="620"/>
+    <line x1="874"  y1="656"  x2="861"  y2="677"/>
+    <line x1="949"  y1="733"  x2="932"  y2="750"/>
+    <line x1="996"  y1="823"  x2="975"  y2="836"/>
+  </g>
+
+  <!-- 24 Zinnen-Merlons -->
+  <g fill="#5e4e3a" stroke="#1a120a" stroke-width="1.2">
+    <rect x="1005.0" y="904.0" width="14" height="16" transform="rotate(90.0 1012.0 920.0)"/>
+    <rect x="988.9" y="1000.8" width="14" height="16" transform="rotate(105.0 995.9 1016.8)"/>
+    <rect x="941.8" y="1091.0" width="14" height="16" transform="rotate(120.0 948.8 1107.0)"/>
+    <rect x="866.8" y="1168.5" width="14" height="16" transform="rotate(135.0 873.8 1184.5)"/>
+    <rect x="769.0" y="1227.9" width="14" height="16" transform="rotate(150.0 776.0 1243.9)"/>
+    <rect x="655.2" y="1265.3" width="14" height="16" transform="rotate(165.0 662.2 1281.3)"/>
+    <rect x="410.8" y="1265.3" width="14" height="16" transform="rotate(195.0 417.8 1281.3)"/>
+    <rect x="297.0" y="1227.9" width="14" height="16" transform="rotate(210.0 304.0 1243.9)"/>
+    <rect x="199.2" y="1168.5" width="14" height="16" transform="rotate(225.0 206.2 1184.5)"/>
+    <rect x="124.2" y="1091.0" width="14" height="16" transform="rotate(240.0 131.2 1107.0)"/>
+    <rect x="77.1" y="1000.8" width="14" height="16" transform="rotate(255.0 84.1 1016.8)"/>
+    <rect x="61.0" y="904.0" width="14" height="16" transform="rotate(270.0 68.0 920.0)"/>
+    <rect x="77.1" y="807.2" width="14" height="16" transform="rotate(285.0 84.1 823.2)"/>
+    <rect x="124.2" y="717.0" width="14" height="16" transform="rotate(300.0 131.2 733.0)"/>
+    <rect x="199.2" y="639.5" width="14" height="16" transform="rotate(315.0 206.2 655.5)"/>
+    <rect x="297.0" y="580.1" width="14" height="16" transform="rotate(330.0 304.0 596.1)"/>
+    <rect x="410.8" y="542.7" width="14" height="16" transform="rotate(345.0 417.8 558.7)"/>
+    <rect x="533.0" y="530.0" width="14" height="16" transform="rotate(360.0 540.0 546.0)"/>
+    <rect x="655.2" y="542.7" width="14" height="16" transform="rotate(15.0 662.2 558.7)"/>
+    <rect x="769.0" y="580.1" width="14" height="16" transform="rotate(30.0 776.0 596.1)"/>
+    <rect x="866.8" y="639.5" width="14" height="16" transform="rotate(45.0 873.8 655.5)"/>
+    <rect x="941.8" y="717.0" width="14" height="16" transform="rotate(60.0 948.8 733.0)"/>
+    <rect x="988.9" y="807.2" width="14" height="16" transform="rotate(75.0 995.9 823.2)"/>
+  </g>
+
+  <!-- 5 Mauertuerme -->
+  <!-- Nord -->
+  <ellipse cx="540" cy="552"  rx="36" ry="14" fill="#000" opacity="0.45"/>
+  <circle  cx="540" cy="546"  r="34" fill="#7a6450" stroke="#2a1c10" stroke-width="2.5"/>
+  <circle  cx="540" cy="546"  r="26" fill="#5e4a36" stroke="#2a1c10" stroke-width="1.5"/>
+  <circle  cx="540" cy="546"  r="6"  fill="#1a1006"/>
+  <line x1="540" y1="546" x2="540" y2="510" stroke="#3a2c1a" stroke-width="2.5"/>
+  <polygon points="540,510 568,517 540,524" fill="#c93a2c" stroke="#5a1410" stroke-width="1"/>
+  <!-- Ost -->
+  <ellipse cx="1012" cy="926" rx="32" ry="13" fill="#000" opacity="0.45"/>
+  <circle  cx="1012" cy="920" r="28" fill="#7a6450" stroke="#2a1c10" stroke-width="2.5"/>
+  <circle  cx="1012" cy="920" r="20" fill="#5e4a36" stroke="#2a1c10" stroke-width="1.5"/>
+  <circle  cx="1012" cy="920" r="5"  fill="#1a1006"/>
+  <!-- West -->
+  <ellipse cx="68"  cy="926"  rx="32" ry="13" fill="#000" opacity="0.45"/>
+  <circle  cx="68"  cy="920"  r="28" fill="#7a6450" stroke="#2a1c10" stroke-width="2.5"/>
+  <circle  cx="68"  cy="920"  r="20" fill="#5e4a36" stroke="#2a1c10" stroke-width="1.5"/>
+  <circle  cx="68"  cy="920"  r="5"  fill="#1a1006"/>
+  <!-- SE -->
+  <ellipse cx="776" cy="1250" rx="30" ry="12" fill="#000" opacity="0.45"/>
+  <circle  cx="776" cy="1244" r="26" fill="#7a6450" stroke="#2a1c10" stroke-width="2.5"/>
+  <circle  cx="776" cy="1244" r="18" fill="#5e4a36" stroke="#2a1c10" stroke-width="1.5"/>
+  <circle  cx="776" cy="1244" r="4"  fill="#1a1006"/>
+  <!-- SW -->
+  <ellipse cx="304" cy="1250" rx="30" ry="12" fill="#000" opacity="0.45"/>
+  <circle  cx="304" cy="1244" r="26" fill="#7a6450" stroke="#2a1c10" stroke-width="2.5"/>
+  <circle  cx="304" cy="1244" r="18" fill="#5e4a36" stroke="#2a1c10" stroke-width="1.5"/>
+  <circle  cx="304" cy="1244" r="4"  fill="#1a1006"/>
+
+  <!-- TOR: Aussparung der Mauer in der Mitte unten + Holzbrueckchen,
+       Pfosten, Querbalken und Banner -->
+  <polygon points="476,1296 604,1296 614,1380 466,1380" fill="#8a5e2c" stroke="#3a2412" stroke-width="2"/>
+  <line x1="478"  y1="1316" x2="610"  y2="1316" stroke="#3a2412" stroke-width="1.4" opacity="0.6"/>
+  <line x1="478"  y1="1336" x2="610"  y2="1336" stroke="#3a2412" stroke-width="1.4" opacity="0.6"/>
+  <line x1="478"  y1="1356" x2="610"  y2="1356" stroke="#3a2412" stroke-width="1.4" opacity="0.6"/>
+  <polygon points="448,1296 466,1300 466,1180 448,1176" fill="#5a3a18" stroke="#2a1a08" stroke-width="2"/>
+  <polygon points="614,1300 632,1296 632,1176 614,1180" fill="#5a3a18" stroke="#2a1a08" stroke-width="2"/>
+  <polygon points="448,1180 632,1176 632,1162 448,1166" fill="#5a3a18" stroke="#2a1a08" stroke-width="2"/>
+  <polygon points="528,1162 552,1162 552,1196 540,1206 528,1196" fill="#c93a2c" stroke="#5a1410" stroke-width="1.5"/>
+</svg>

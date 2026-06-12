@@ -50,7 +50,8 @@ func _init() -> void:
 	cs.open(ctx)
 
 	# 1) Layout geladen?
-	ok = _check(cs._layout.size() == 7, "Layout hat 7 Eintraege (ist %d)" % cs._layout.size()) and ok
+	# Layout enthaelt alle Gebaeude-Hotspots inkl. mauer -> aktuell 8.
+	ok = _check(cs._layout.size() == 8, "Layout hat 8 Eintraege (ist %d)" % cs._layout.size()) and ok
 
 	# 2) Hotspots berechnet?
 	var plots: Array = cs._compute_plots(cs._stage_rect())

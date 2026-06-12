@@ -156,6 +156,7 @@ const BUILDINGS := [
 	{"id": "reiterei", "name": "Reiterei", "cost": 1000, "effect": "Schwer +2/Woche", "requires": "schmiede"},
 	{"id": "wachturm", "name": "Wachturm", "cost": 400, "effect": "+1 Kampfkraft (dauerhaft)"},
 	{"id": "kapelle",  "name": "Kapelle",  "cost": 500, "effect": "+10 XP/Tag"},
+	{"id": "mauer",    "name": "Stadtmauer", "cost": 1200, "effect": "Stadtverteidigung (Kampf-Bonus folgt)"},
 ]
 
 @export var status_label_path: NodePath    = ^"TopBar/StatusLabel"
