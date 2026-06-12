@@ -26,8 +26,15 @@ func _init() -> void:
 	# HUD-Streifen oben/unten
 	_fill_rect(canvas, 0, 0, W, HUD_TOP, Color(0.05, 0.06, 0.08))
 	_fill_rect(canvas, 0, H - HUD_BOTTOM, W, HUD_BOTTOM, Color(0.05, 0.06, 0.08))
-	# Stage-Backdrop
-	_fill_rect(canvas, 0, HUD_TOP, W, H - HUD_TOP - HUD_BOTTOM, Color(0.12, 0.14, 0.13))
+	# Stage-Backdrop: bg.svg falls vorhanden, sonst Plateau-Farbe.
+	var bg_path := "res://assets/city/menschen/bg.svg"
+	if ResourceLoader.exists(bg_path):
+		var bg_tex: Texture2D = load(bg_path) as Texture2D
+		var bg_img: Image = bg_tex.get_image()
+		bg_img.resize(W, H - HUD_TOP - HUD_BOTTOM, Image.INTERPOLATE_LANCZOS)
+		canvas.blend_rect(bg_img, Rect2i(0, 0, W, H - HUD_TOP - HUD_BOTTOM), Vector2i(0, HUD_TOP))
+	else:
+		_fill_rect(canvas, 0, HUD_TOP, W, H - HUD_TOP - HUD_BOTTOM, Color(0.12, 0.14, 0.13))
 
 	var layout: Dictionary = _load_layout()
 	var stage_x: float = 0.0

@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Stadt-Hintergrund Menschen. Atmosphaere statt Detail-Schlacht:
+     die Gebaeude-Sprites sollen darueber dominieren koennen.
+     - ViewBox 1080x1600 = Stage-Aspect (Phone minus HUD)
+     - Licht/Sonne von oben-links, passt zu den Gebaeude-SVGs
+     - Tiefenstaffelung: Himmel -> Fernberge -> Mittelberge mit Burg ->
+       Wald-Huegel -> Gras-Plateau -> Vordergrund-Boden
+     - Saturation nimmt zum Vordergrund hin zu (atmosphaerische Perspektive) -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1080 1600">
+  <defs>
+    <linearGradient id="bg_sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0"   stop-color="#2e4a6c"/>
+      <stop offset="0.45" stop-color="#5e7a98"/>
+      <stop offset="0.85" stop-color="#c0a880"/>
+      <stop offset="1"   stop-color="#d8b888"/>
+    </linearGradient>
+    <radialGradient id="bg_sun" cx="0.18" cy="0.16" r="0.18">
+      <stop offset="0"   stop-color="#fff4cc" stop-opacity="0.95"/>
+      <stop offset="0.45" stop-color="#f8d068" stop-opacity="0.5"/>
+      <stop offset="1"   stop-color="#f8d068" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="bg_far" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#6e7c8c"/>
+      <stop offset="1" stop-color="#5a6878"/>
+    </linearGradient>
+    <linearGradient id="bg_mid" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4a5a68"/>
+      <stop offset="1" stop-color="#2c3a48"/>
+    </linearGradient>
+    <linearGradient id="bg_hill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5e6f44"/>
+      <stop offset="1" stop-color="#3c4a2a"/>
+    </linearGradient>
+    <linearGradient id="bg_ground" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#566d3c"/>
+      <stop offset="0.5" stop-color="#3e5028"/>
+      <stop offset="1" stop-color="#2a3a1c"/>
+    </linearGradient>
+    <radialGradient id="bg_vignette" cx="0.5" cy="0.55" r="0.75">
+      <stop offset="0.6" stop-color="#000" stop-opacity="0"/>
+      <stop offset="1"   stop-color="#000" stop-opacity="0.45"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Himmel -->
+  <rect x="0" y="0" width="1080" height="1100" fill="url(#bg_sky)"/>
+  <!-- Sonne oben-links -->
+  <rect x="0" y="0" width="1080" height="900" fill="url(#bg_sun)"/>
+
+  <!-- Wolken (lockere Formen, niedrige Opacity) -->
+  <ellipse cx="380" cy="240" rx="120" ry="22" fill="#fff" opacity="0.30"/>
+  <ellipse cx="430" cy="226" rx="80"  ry="16" fill="#fff" opacity="0.32"/>
+  <ellipse cx="780" cy="320" rx="140" ry="26" fill="#fff" opacity="0.22"/>
+  <ellipse cx="820" cy="306" rx="90"  ry="18" fill="#fff" opacity="0.24"/>
+  <ellipse cx="200" cy="380" rx="100" ry="18" fill="#fff" opacity="0.18"/>
+
+  <!-- Fernberge: weiche Silhouette -->
+  <path d="M -20 760 L 120 580 L 220 660 L 360 540 L 500 620 L 640 530 L 790 640 L 920 560 L 1080 620 L 1100 780 L -20 780 Z"
+        fill="url(#bg_far)" opacity="0.92"/>
+  <!-- Schnee-Highlights auf Fernbergen -->
+  <path d="M 350 550 L 360 540 L 380 552 L 372 560 Z" fill="#dde4ec" opacity="0.6"/>
+  <path d="M 632 540 L 640 530 L 660 544 L 650 552 Z" fill="#dde4ec" opacity="0.55"/>
+
+  <!-- Mittlere Bergkette mit Burg-Silhouette -->
+  <path d="M -20 940 L 80 800 L 180 880 L 320 720 L 460 820 L 600 760 L 740 840 L 880 760 L 1020 820 L 1100 880 L 1100 1000 L -20 1000 Z"
+        fill="url(#bg_mid)"/>
+
+  <!-- Burg auf einem Fernberg-Gipfel (sehr winzig, nur als Atmosphaere). -->
+  <polygon points="616,540 650,540 656,524 612,524" fill="#3c424c"/>
+  <polygon points="618,524 650,524 650,504 618,504" fill="#4a5260"/>
+  <polygon points="624,504 638,504 638,488 624,488" fill="#3a424e"/>
+  <polygon points="624,488 638,488 631,478" fill="#7a2418"/>
+  <line x1="631" y1="478" x2="631" y2="466" stroke="#1a1a20" stroke-width="1.4"/>
+  <polygon points="631,466 644,470 631,474" fill="#c93a2c"/>
+
+  <!-- Wald-Huegel im Mittelgrund (weiter oben angesetzt, damit das Gras-
+       Plateau frueher beginnt und mehr Gebaeude erdig wirken). -->
+  <path d="M -20 720 L 60 600 L 180 660 L 280 580 L 400 640 L 540 560 L 680 640 L 820 580 L 960 660 L 1100 620 L 1100 760 L -20 760 Z"
+        fill="url(#bg_hill)"/>
+  <!-- Baumgruppen als Cluster aus Kreisen, dezent -->
+  <g opacity="0.85">
+    <circle cx="100" cy="630" r="16" fill="#2c3a1c"/>
+    <circle cx="124" cy="620" r="13" fill="#324222"/>
+    <circle cx="240" cy="650" r="14" fill="#2c3a1c"/>
+    <circle cx="262" cy="640" r="11" fill="#324222"/>
+    <circle cx="356" cy="638" r="18" fill="#2c3a1c"/>
+    <circle cx="384" cy="626" r="13" fill="#324222"/>
+    <circle cx="496" cy="608" r="14" fill="#324222"/>
+    <circle cx="600" cy="638" r="16" fill="#2c3a1c"/>
+    <circle cx="626" cy="628" r="12" fill="#324222"/>
+    <circle cx="740" cy="638" r="18" fill="#2c3a1c"/>
+    <circle cx="768" cy="624" r="13" fill="#324222"/>
+    <circle cx="900" cy="650" r="16" fill="#2c3a1c"/>
+    <circle cx="928" cy="638" r="13" fill="#324222"/>
+  </g>
+
+  <!-- Gras-Plateau: grosser Vordergrund, beginnt frueher (y=760), damit
+       die mittleren Gebaeude-Hotspots (y_norm ~0.30..0.52) auf Gras
+       sitzen statt scheinbar in den Bergen zu schweben. -->
+  <path d="M -20 760 L 1100 760 L 1100 1600 L -20 1600 Z" fill="url(#bg_ground)"/>
+
+  <!-- Iso-Boden-Linien sehr dezent (Andeutung von Gelaende) -->
+  <g stroke="#586c3a" stroke-width="2" opacity="0.18">
+    <line x1="-20" y1="900"  x2="1100" y2="960"/>
+    <line x1="-20" y1="1060" x2="1100" y2="1120"/>
+    <line x1="-20" y1="1220" x2="1100" y2="1280"/>
+    <line x1="-20" y1="1380" x2="1100" y2="1440"/>
+    <line x1="-20" y1="1540" x2="1100" y2="1600"/>
+  </g>
+
+  <!-- Wege/Trampelpfade -->
+  <path d="M 300 800 Q 380 1000 350 1200 Q 320 1400 400 1560"
+        stroke="#7a6440" stroke-width="14" fill="none" opacity="0.5"/>
+  <path d="M 720 800 Q 680 1000 720 1200 Q 760 1400 700 1560"
+        stroke="#7a6440" stroke-width="14" fill="none" opacity="0.5"/>
+
+  <!-- Einzelne Baeume im Vordergrund am Rand, fuer Komposition -->
+  <g opacity="0.95">
+    <ellipse cx="50" cy="1480" rx="38" ry="52" fill="#2a3c20"/>
+    <rect x="44" y="1500" width="12" height="50" fill="#4a3220"/>
+    <ellipse cx="28" cy="1460" rx="24" ry="34" fill="#324624"/>
+
+    <ellipse cx="1030" cy="1500" rx="40" ry="54" fill="#2a3c20"/>
+    <rect x="1024" y="1522" width="12" height="50" fill="#4a3220"/>
+    <ellipse cx="1054" cy="1480" rx="26" ry="36" fill="#324624"/>
+  </g>
+
+  <!-- Vignette: dunkleres Aussenringt, damit Stadt-Fokus im Zentrum bleibt -->
+  <rect x="0" y="0" width="1080" height="1600" fill="url(#bg_vignette)"/>
+</svg>
