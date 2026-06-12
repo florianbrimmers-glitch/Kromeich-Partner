@@ -16,6 +16,7 @@ extends Control
 
 signal build_requested(building_id: String)
 signal recruit_requested(unit_id: String)
+signal plaza_tapped(stats: String)
 signal closed()
 
 const LAYOUT_PATH := "res://data/city_layout.json"
@@ -431,12 +432,74 @@ func _gui_input(event: InputEvent) -> void:
 
 
 func _handle_tap(pos: Vector2) -> void:
+	# Plaza-Hit zuerst (Vordergrund-Element ueber den Wegen): wenn der Tap
+	# in den Brunnen-Plaza-Bereich faellt, Stadt-Statistik in der Status-
+	# zeile zeigen, ohne dass danach noch ein Gebaeude-Hit ausgewertet wird.
+	if _hit_plaza(pos):
+		_show_plaza_stats()
+		return
 	# Vorne (groesseres y) hat Vorrang -> rueckwaerts durch die Zeichenliste.
 	for i in range(_plots.size() - 1, -1, -1):
 		var p: Dictionary = _plots[i]
 		if _in_diamond(pos, p["center"], p["hw"], p["hh"]):
 			_act_on_plot(p)
 			return
+
+
+# Plaza/Brunnen-Treffer: passt zur Lage in bg.svg (normalisierter Mittel-
+# punkt 0.5, 0.575, ellipt. Radius). Werte hier weil im bg.svg fix.
+const PLAZA_NORM_X := 0.50
+const PLAZA_NORM_Y := 0.575
+const PLAZA_NORM_RX := 0.10
+const PLAZA_NORM_RY := 0.045
+
+
+func _hit_plaza(pos: Vector2) -> bool:
+	var stage := _stage_rect()
+	var cx: float = stage.position.x + PLAZA_NORM_X * stage.size.x
+	var cy: float = stage.position.y + PLAZA_NORM_Y * stage.size.y
+	var rx: float = PLAZA_NORM_RX * stage.size.x
+	var ry: float = PLAZA_NORM_RY * stage.size.y
+	if rx <= 0.0 or ry <= 0.0:
+		return false
+	var dx: float = (pos.x - cx) / rx
+	var dy: float = (pos.y - cy) / ry
+	return dx * dx + dy * dy <= 1.0
+
+
+func _show_plaza_stats() -> void:
+	var city: Dictionary = _ctx.get("city", {})
+	var fid: int = _faction_id()
+	var built: Array = city.get("buildings", [])
+	var defs: Array = _ctx.get("buildings", [])
+	var built_count: int = built.size()
+	var total: int = defs.size()
+	# Wochenrate aufaddieren: pro Militaergebaeude die fraktionsspezifische
+	# WEEKLY_GROWTH-Rate, fuer nicht-militaerische Gebaeude den Effekt-Text.
+	var growth: int = 0
+	var effects: Array = []
+	var weekly: Dictionary = _ctx.get("weekly_growth", {})
+	for def in defs:
+		var bid: String = String(def["id"])
+		if not built.has(bid):
+			continue
+		var uid: String = UnitType.unit_for_building(fid, bid)
+		if uid != "":
+			growth += int(weekly.get(bid, 0))
+		else:
+			var eff: String = String(def.get("effect", ""))
+			if eff != "":
+				effects.append(eff)
+	var fnames: Array = _ctx.get("faction_names", [])
+	var fname: String = String(fnames[fid]) if fid >= 0 and fid < fnames.size() else "?"
+	var parts: Array = ["Stadt %s: %d/%d gebaut" % [fname, built_count, total]]
+	if growth > 0:
+		parts.append("+%d Einheiten/Wo" % growth)
+	if not effects.is_empty():
+		parts.append(", ".join(effects))
+	var msg: String = " - ".join(parts)
+	plaza_tapped.emit(msg)
+	set_status(msg)
 
 
 func _act_on_plot(p: Dictionary) -> void:

@@ -11,6 +11,7 @@ extends SceneTree
 
 var _got_recruit: String = ""
 var _got_build: String = ""
+var _got_plaza: String = ""
 
 
 func _init() -> void:
@@ -22,6 +23,7 @@ func _init() -> void:
 
 	cs.recruit_requested.connect(func(uid: String) -> void: _got_recruit = uid)
 	cs.build_requested.connect(func(bid: String) -> void: _got_build = bid)
+	cs.plaza_tapped.connect(func(stats: String) -> void: _got_plaza = stats)
 
 	var buildings: Array = [
 		{"id": "kaserne",  "name": "Kaserne",  "cost": 500, "effect": "x"},
@@ -76,6 +78,20 @@ func _init() -> void:
 	cs._handle_tap(Vector2(5, 5))
 	ok = _check(_got_build == "" and _got_recruit == "",
 		"Tap ins Leere loest nichts aus") and ok
+
+	# 6) Plaza-Tap: emittiert plaza_tapped mit Stadt-Statistik
+	var stage := cs._stage_rect()
+	var plaza_pos := stage.position + Vector2(
+		CityScreen.PLAZA_NORM_X * stage.size.x,
+		CityScreen.PLAZA_NORM_Y * stage.size.y)
+	_got_build = ""
+	_got_recruit = ""
+	_got_plaza = ""
+	cs._handle_tap(plaza_pos)
+	ok = _check(_got_build == "" and _got_recruit == "",
+		"Plaza-Tap loest weder build noch recruit aus") and ok
+	ok = _check(_got_plaza.contains("Menschen") and _got_plaza.contains("gebaut"),
+		"Plaza-Tap emittiert Stadt-Statistik (war '%s')" % _got_plaza) and ok
 
 	print("")
 	if ok:

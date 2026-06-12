@@ -1006,21 +1006,24 @@ func _draw_map() -> void:
 			if fog == FOG_HIDDEN:
 				_map_area.draw_rect(rect, Color(0.04, 0.04, 0.06), true)
 				continue
-			var col := _terrain_color(ti)
 			var reachable: bool = _costs.has(key) and int(_costs[key]) <= _hero.mp
-			if fog == FOG_EXPLORED:
-				# Einmal gesehen, aktuell ausser Sicht: fest gedimmt und
-				# kein reachability-Highlight (man koennte zwar hinlaufen,
-				# aber die Info ist veraltet). Wichtig: NICHT zusaetzlich
-				# mit reachability-Darken kombinieren, sonst wirken eigene
-				# Staedte und Minen heller als weit entfernte Sichtzonen.
-				col = col.darkened(0.55)
-			elif not reachable:
-				# VISIBLE ausserhalb Bewegungsreichweite: nur leicht gedimmt,
-				# damit Sichtbereich um eigene Burgen/Minen klar heller
-				# bleibt als EXPLORED.
-				col = col.darkened(0.3)
-			_map_area.draw_rect(rect, col, true)
+			# Terrain: zuerst Textur, sonst Color-Fallback. Fog-/Reachability-
+			# Dim laeuft als schwarzes Alpha-Overlay, damit das Texturen-Bild
+			# nicht doppelt eingefaerbt wird.
+			var tex: Texture2D = _terrain_texture(ti)
+			if tex != null:
+				_map_area.draw_texture_rect(tex, rect, false)
+				if fog == FOG_EXPLORED:
+					_map_area.draw_rect(rect, Color(0, 0, 0, 0.55), true)
+				elif not reachable:
+					_map_area.draw_rect(rect, Color(0, 0, 0, 0.30), true)
+			else:
+				var col := _terrain_color(ti)
+				if fog == FOG_EXPLORED:
+					col = col.darkened(0.55)
+				elif not reachable:
+					col = col.darkened(0.3)
+				_map_area.draw_rect(rect, col, true)
 			if fog == FOG_VISIBLE and reachable and key != _hero.position:
 				_map_area.draw_rect(rect, Color(1.0, 1.0, 1.0, 0.25), false, 2.0)
 
@@ -1252,6 +1255,34 @@ func _terrain_color(t: int) -> Color:
 		MapGen.TILE_SAND:     return Color(0.85, 0.78, 0.48)
 		MapGen.TILE_SWAMP:    return Color(0.35, 0.40, 0.22)
 	return Color(0.5, 0.5, 0.5)
+
+
+# Terrain-Texturen aus assets/world/terrain/<name>.svg. Liegt eine Datei,
+# wird sie statt der flachen _terrain_color-Farbe gerendert. Negativ-Cache
+# (null) wird gemerkt, sodass leere Slots null Kosten haben.
+const TERRAIN_ASSET_PATH := "res://assets/world/terrain/%s.svg"
+const TERRAIN_NAMES := {
+	MapGen.TILE_GRASS:    "grass",
+	MapGen.TILE_FOREST:   "forest",
+	MapGen.TILE_WATER:    "water",
+	MapGen.TILE_MOUNTAIN: "mountain",
+	MapGen.TILE_SAND:     "sand",
+	MapGen.TILE_SWAMP:    "swamp",
+}
+var _terrain_tex_cache: Dictionary = {}
+
+
+func _terrain_texture(t: int) -> Texture2D:
+	if _terrain_tex_cache.has(t):
+		return _terrain_tex_cache[t] as Texture2D
+	var name: String = String(TERRAIN_NAMES.get(t, ""))
+	var tex: Texture2D = null
+	if name != "":
+		var path: String = TERRAIN_ASSET_PATH % name
+		if ResourceLoader.exists(path):
+			tex = load(path) as Texture2D
+	_terrain_tex_cache[t] = tex
+	return tex
 
 
 func _terrain_name(t: int) -> String:
@@ -2001,6 +2032,7 @@ func _build_city_screen() -> void:
 	add_child(cs)
 	cs.build_requested.connect(_on_city_build)
 	cs.recruit_requested.connect(_on_city_recruit)
+	cs.plaza_tapped.connect(_set_status)
 	cs.closed.connect(_on_city_closed)
 	_city_screen = cs
 
