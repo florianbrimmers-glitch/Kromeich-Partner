@@ -38,6 +38,12 @@ jobs:
   android-apk:
     name: Godot -> APK (arm64-v8a)
     runs-on: ubuntu-latest
+    # contents: write -> wir publizieren die APK als GitHub-Release-Asset
+    # (siehe letzter Step). Releases zaehlen NICHT gegen die Artifact-
+    # Storage-Quota und liefern einen konstanten Download-Link, der nach
+    # jedem Build aktualisiert wird.
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
 
@@ -139,6 +145,29 @@ jobs:
           # der genau daran scheiterte. Lieber kurze Retention; aktuelle
           # APK liegt sowieso schon lokal beim Tester.
           retention-days: 3
+        # if-no-files-found NICHT auf error setzen - der Release-Step unten
+        # ist jetzt der primaere Liefer-Kanal. Artifact bleibt fuer 3 Tage
+        # als Backup, schlaegt aber bei voller Quota nicht den Build ab.
+        continue-on-error: true
+
+      - name: Rolling Release "latest-mobile" mit APK aktualisieren
+        # Faengt den Quota-Fall ab: Releases zaehlen nicht gegen die
+        # Artifact-Storage-Quota und liefern einen stabilen Download-Link
+        # https://github.com/<owner>/<repo>/releases/tag/latest-mobile
+        # Bei jedem Build wird der Tag verschoben und die APK ueberschrieben.
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest-mobile
+          name: "Aktueller mobiler Build (auto, ${{ github.ref_name }})"
+          body: |
+            Automatisch generierte APK fuer Branch `${{ github.ref_name }}`
+            Commit: ${{ github.sha }}
+            Build-Typ: ${{ github.event.inputs.build_type || 'debug' }}
+
+            Wird bei jedem Push/Run-Workflow ueberschrieben.
+          files: game/build/*.apk
+          make_latest: false
+          prerelease: true
 
       - name: Upload Godot logs on failure
         if: failure()
