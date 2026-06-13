@@ -8,7 +8,7 @@ export default async function ClientsPage() {
 
   const clients = await prisma.client.findMany({
     orderBy: { name: "asc" },
-    include: { _count: { select: { projects: true } } },
+    include: { _count: { select: { properties: true } } },
   });
 
   async function createClient(formData: FormData) {
@@ -65,7 +65,7 @@ export default async function ClientsPage() {
                 {c.company && <div className="text-xs text-slate-500">{c.company}</div>}
               </div>
               <div className="text-xs text-slate-500">
-                {c._count.projects} Projekt{c._count.projects === 1 ? "" : "e"}
+                {c._count.properties} Objekt{c._count.properties === 1 ? "" : "e"}
               </div>
             </Link>
           ))}

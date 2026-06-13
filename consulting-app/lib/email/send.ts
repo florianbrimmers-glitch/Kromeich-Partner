@@ -80,6 +80,7 @@ export async function sendNewMail(params: {
   to: string;
   subject: string;
   body: string;
+  propertyId?: string | null;
   projectId?: string | null;
 }): Promise<string> {
   const account = await prisma.emailAccount.findUniqueOrThrow({
@@ -98,6 +99,7 @@ export async function sendNewMail(params: {
   const thread = await prisma.emailThread.create({
     data: {
       accountId: account.id,
+      propertyId: params.propertyId ?? null,
       projectId: params.projectId ?? null,
       subject: params.subject,
       normalizedSubject: normalizeSubject(params.subject),

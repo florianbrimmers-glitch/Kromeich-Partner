@@ -47,6 +47,7 @@ export default async function InboxPage({
     },
     include: {
       project: { include: { client: true } },
+      property: { include: { client: true } },
       assignee: true,
       messages: {
         orderBy: { sentAt: "desc" },
@@ -189,7 +190,13 @@ export default async function InboxPage({
                 </div>
                 <div className="text-xs text-slate-500 truncate mt-0.5">{snippet}</div>
                 <div className="flex items-center gap-1.5 mt-1.5">
-                  {t.project && (
+                  {t.property && (
+                    <span className="badge bg-emerald-100 text-emerald-700">
+                      {t.property.client.company || t.property.client.name} ·{" "}
+                      {t.property.name}
+                    </span>
+                  )}
+                  {!t.property && t.project && (
                     <span className="badge bg-emerald-100 text-emerald-700">
                       {t.project.client.name} · {t.project.name}
                     </span>

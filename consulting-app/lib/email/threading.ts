@@ -50,17 +50,19 @@ export async function findThreadFor(
 
 /**
  * Komfort-Feature: Mail von bekannter Mandanten-Adresse → automatisch dem
- * neuesten aktiven Projekt dieses Mandanten zuordnen.
+ * Objekt dieses Mandanten zuordnen, das zuletzt aktualisiert wurde.
+ * Wenn der Mandant mehrere Objekte hat, ist das nur ein Vorschlag — der User
+ * kann im Thread-Detail auf das richtige Objekt umstellen.
  */
-export async function guessProjectFor(fromAddr: string): Promise<string | null> {
+export async function guessPropertyFor(fromAddr: string): Promise<string | null> {
   const address = extractAddress(fromAddr);
   if (!address) return null;
 
   const client = await prisma.client.findFirst({
     where: { email: { equals: address, mode: "insensitive" } },
     select: {
-      projects: {
-        where: { status: "ACTIVE" },
+      properties: {
+        where: { archivedAt: null },
         orderBy: { updatedAt: "desc" },
         take: 1,
         select: { id: true },
@@ -68,5 +70,5 @@ export async function guessProjectFor(fromAddr: string): Promise<string | null> 
     },
   });
 
-  return client?.projects[0]?.id ?? null;
+  return client?.properties[0]?.id ?? null;
 }

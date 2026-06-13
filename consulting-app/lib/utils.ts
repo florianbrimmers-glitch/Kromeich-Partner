@@ -47,3 +47,57 @@ export const PRIORITY_LABELS: Record<string, string> = {
   HIGH: "Hoch",
   URGENT: "Dringend",
 };
+
+// Reihenfolge bestimmt die Sortierung der Sektionen auf der Objektseite.
+export const TASK_CATEGORY_ORDER = [
+  "LEASE_ANALYSIS",
+  "DEADLINE",
+  "MAINTENANCE",
+  "DEFECT",
+  "NKA",
+  "AMENDMENT",
+  "REPORTING",
+  "HANDOVER",
+  "CORRESPONDENCE",
+  "GENERIC",
+] as const;
+
+export const TASK_CATEGORY_LABELS: Record<string, string> = {
+  LEASE_ANALYSIS: "Mietvertraganalyse",
+  MAINTENANCE: "Wartung",
+  DEADLINE: "Fristen & Termine",
+  DEFECT: "Mängel & Schäden",
+  NKA: "Nebenkostenabrechnung",
+  AMENDMENT: "Nachträge",
+  REPORTING: "Reporting",
+  HANDOVER: "Übergabe",
+  CORRESPONDENCE: "Schriftwechsel",
+  GENERIC: "Allgemein",
+};
+
+export const TASK_CATEGORY_SHORT: Record<string, string> = {
+  LEASE_ANALYSIS: "MV",
+  MAINTENANCE: "Wartung",
+  DEADLINE: "Frist",
+  DEFECT: "Mangel",
+  NKA: "NKA",
+  AMENDMENT: "Nachtrag",
+  REPORTING: "Reporting",
+  HANDOVER: "Übergabe",
+  CORRESPONDENCE: "Mail",
+  GENERIC: "Allgemein",
+};
+
+// Tailwind-Klassen für den farbigen Kategorie-Chip auf Aufgaben.
+export const TASK_CATEGORY_BADGE: Record<string, string> = {
+  LEASE_ANALYSIS: "bg-violet-100 text-violet-800",
+  MAINTENANCE: "bg-amber-100 text-amber-800",
+  DEADLINE: "bg-rose-100 text-rose-800",
+  DEFECT: "bg-orange-100 text-orange-800",
+  NKA: "bg-emerald-100 text-emerald-800",
+  AMENDMENT: "bg-sky-100 text-sky-800",
+  REPORTING: "bg-indigo-100 text-indigo-800",
+  HANDOVER: "bg-teal-100 text-teal-800",
+  CORRESPONDENCE: "bg-slate-100 text-slate-700",
+  GENERIC: "bg-slate-100 text-slate-700",
+};

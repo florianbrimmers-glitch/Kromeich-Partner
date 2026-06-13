@@ -5,7 +5,7 @@ import { writeFile, mkdir } from "node:fs/promises";
 import { join, dirname } from "node:path";
 import type { EmailAccount } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { normalizeSubject, findThreadFor, guessProjectFor } from "@/lib/email/threading";
+import { normalizeSubject, findThreadFor, guessPropertyFor } from "@/lib/email/threading";
 
 const STORAGE_DIR = join(process.cwd(), "storage", "uploads");
 
@@ -130,11 +130,11 @@ async function storeIncomingMail(account: EmailAccount, parsed: ParsedMail): Pro
   let threadId = await findThreadFor(account.id, parsed.inReplyTo ?? null, references, normalized);
 
   if (!threadId) {
-    const projectId = await guessProjectFor(fromAddr);
+    const propertyId = await guessPropertyFor(fromAddr);
     const thread = await prisma.emailThread.create({
       data: {
         accountId: account.id,
-        projectId,
+        propertyId,
         subject,
         normalizedSubject: normalized,
         lastMessageAt: sentAt,

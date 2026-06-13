@@ -38,8 +38,9 @@ export default async function AppLayout({
             )}
           </Link>
           <NavLink href="/clients" label="Mandanten" />
-          <NavLink href="/projects" label="Projekte" />
+          <NavLink href="/properties" label="Objekte" />
           <NavLink href="/tasks" label="Meine Aufgaben" />
+          <NavLink href="/projects" label="Projekte" />
           <NavLink href="/settings" label="Einstellungen" />
         </nav>
         <form action={handleSignOut} className="p-3 border-t border-slate-800">

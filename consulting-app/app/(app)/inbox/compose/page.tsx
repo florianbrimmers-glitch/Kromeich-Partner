@@ -7,12 +7,12 @@ import { sendNewMail } from "@/lib/email/send";
 export default async function ComposePage() {
   await requireTeamMember();
 
-  const [accounts, projects] = await Promise.all([
+  const [accounts, properties] = await Promise.all([
     prisma.emailAccount.findMany({ orderBy: { createdAt: "asc" } }),
-    prisma.project.findMany({
-      where: { status: { in: ["ACTIVE", "ON_HOLD"] } },
+    prisma.property.findMany({
+      where: { archivedAt: null },
       include: { client: true },
-      orderBy: { updatedAt: "desc" },
+      orderBy: [{ client: { name: "asc" } }, { name: "asc" }],
     }),
   ]);
 
@@ -23,9 +23,15 @@ export default async function ComposePage() {
     const to = (formData.get("to") as string)?.trim();
     const subject = (formData.get("subject") as string)?.trim();
     const body = (formData.get("body") as string)?.trim();
-    const projectId = (formData.get("projectId") as string) || null;
+    const propertyId = (formData.get("propertyId") as string) || null;
     if (!accountId || !to || !subject || !body) return;
-    const threadId = await sendNewMail({ accountId, to, subject, body, projectId });
+    const threadId = await sendNewMail({
+      accountId,
+      to,
+      subject,
+      body,
+      propertyId,
+    });
     redirect(`/inbox/${threadId}`);
   }
 
@@ -66,12 +72,12 @@ export default async function ComposePage() {
             </select>
           </div>
           <div>
-            <label className="label">Projekt (optional)</label>
-            <select className="input" name="projectId">
-              <option value="">— kein Projekt —</option>
-              {projects.map((p) => (
+            <label className="label">Objekt (optional)</label>
+            <select className="input" name="propertyId">
+              <option value="">— kein Objekt —</option>
+              {properties.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.client.name} · {p.name}
+                  {(p.client.company || p.client.name) + " · " + p.name}
                 </option>
               ))}
             </select>

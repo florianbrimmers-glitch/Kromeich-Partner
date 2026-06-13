@@ -19,6 +19,7 @@ export default async function ThreadPage({
     include: {
       account: true,
       project: { include: { client: true } },
+      property: { include: { client: true } },
       assignee: true,
       messages: {
         orderBy: { sentAt: "asc" },
@@ -33,11 +34,11 @@ export default async function ThreadPage({
     await prisma.emailThread.update({ where: { id }, data: { unread: false } });
   }
 
-  const [projects, teamMembers] = await Promise.all([
-    prisma.project.findMany({
-      where: { status: { in: ["ACTIVE", "ON_HOLD"] } },
+  const [properties, teamMembers] = await Promise.all([
+    prisma.property.findMany({
+      where: { archivedAt: null },
       include: { client: true },
-      orderBy: { updatedAt: "desc" },
+      orderBy: [{ client: { name: "asc" } }, { name: "asc" }],
     }),
     prisma.user.findMany({
       where: { role: { in: ["TEAM_ADMIN", "TEAM_MEMBER"] } },
@@ -54,11 +55,16 @@ export default async function ThreadPage({
     revalidatePath(`/inbox/${id}`);
   }
 
-  async function assignProject(formData: FormData) {
+  async function assignProperty(formData: FormData) {
     "use server";
     await requireTeamMember();
-    const projectId = (formData.get("projectId") as string) || null;
-    await prisma.emailThread.update({ where: { id }, data: { projectId } });
+    const propertyId = (formData.get("propertyId") as string) || null;
+    await prisma.emailThread.update({
+      where: { id },
+      // beim Wechsel auf ein Objekt entfernen wir die alte Projektzuordnung,
+      // damit nicht beide gleichzeitig gesetzt sind und in der UI doppelt erscheinen.
+      data: { propertyId, projectId: propertyId ? null : undefined },
+    });
     revalidatePath(`/inbox/${id}`);
   }
 
@@ -91,52 +97,41 @@ export default async function ThreadPage({
       where: { id },
       include: { messages: { orderBy: { sentAt: "desc" }, take: 1 } },
     });
-    if (!current.projectId) return;
+    if (!current.propertyId && !current.projectId) return;
     const latest = current.messages[0];
     await prisma.task.create({
       data: {
+        propertyId: current.propertyId,
         projectId: current.projectId,
         title: current.subject,
+        category: "CORRESPONDENCE",
         description: `Aus E-Mail von ${latest?.fromAddr ?? "?"} (${latest ? latest.sentAt.toLocaleDateString("de-DE") : ""}):\n\n${latest?.textBody.slice(0, 500) ?? ""}`,
         assigneeId: current.assigneeId ?? user.id,
       },
     });
-    redirect(`/projects/${current.projectId}`);
-  }
-
-  async function saveAttachmentsToProject() {
-    "use server";
-    const user = await requireTeamMember();
-    const current = await prisma.emailThread.findUniqueOrThrow({
-      where: { id },
-      include: { messages: { include: { attachments: true } } },
-    });
-    if (!current.projectId) return;
-    for (const message of current.messages) {
-      for (const att of message.attachments) {
-        const exists = await prisma.document.findFirst({
-          where: { projectId: current.projectId, storageKey: att.storageKey },
-        });
-        if (exists) continue;
-        await prisma.document.create({
-          data: {
-            projectId: current.projectId,
-            uploadedById: user.id,
-            filename: att.filename,
-            storageKey: att.storageKey,
-            mimeType: att.mimeType,
-            sizeBytes: att.sizeBytes,
-          },
-        });
-      }
+    if (current.propertyId) {
+      redirect(`/properties/${current.propertyId}`);
+    } else {
+      redirect(`/projects/${current.projectId}`);
     }
-    redirect(`/projects/${current.projectId}`);
   }
 
   const attachmentCount = thread.messages.reduce(
     (sum, m) => sum + m.attachments.length,
-    0
+    0,
   );
+
+  const contextLink = thread.property
+    ? {
+        href: `/properties/${thread.property.id}`,
+        label: `${thread.property.client.company || thread.property.client.name} · ${thread.property.name}`,
+      }
+    : thread.project
+      ? {
+          href: `/projects/${thread.project.id}`,
+          label: `${thread.project.client.name} · ${thread.project.name}`,
+        }
+      : null;
 
   return (
     <div className="space-y-5">
@@ -151,16 +146,19 @@ export default async function ThreadPage({
         </div>
       </div>
 
-      {/* Aktionsleiste: Projekt, Zuweisung, Archiv */}
       <div className="card flex flex-wrap items-end gap-4">
-        <form action={assignProject} className="flex items-end gap-2">
+        <form action={assignProperty} className="flex items-end gap-2">
           <div>
-            <label className="label">Projekt</label>
-            <select className="input min-w-[220px]" name="projectId" defaultValue={thread.projectId ?? ""}>
-              <option value="">— kein Projekt —</option>
-              {projects.map((p) => (
+            <label className="label">Objekt</label>
+            <select
+              className="input min-w-[260px]"
+              name="propertyId"
+              defaultValue={thread.propertyId ?? ""}
+            >
+              <option value="">— kein Objekt —</option>
+              {properties.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.client.name} · {p.name}
+                  {(p.client.company || p.client.name) + " · " + p.name}
                 </option>
               ))}
             </select>
@@ -171,7 +169,11 @@ export default async function ThreadPage({
         <form action={assignUser} className="flex items-end gap-2">
           <div>
             <label className="label">Kümmert sich</label>
-            <select className="input min-w-[180px]" name="assigneeId" defaultValue={thread.assigneeId ?? ""}>
+            <select
+              className="input min-w-[180px]"
+              name="assigneeId"
+              defaultValue={thread.assigneeId ?? ""}
+            >
               <option value="">— niemand —</option>
               {teamMembers.map((m) => (
                 <option key={m.id} value={m.id}>
@@ -187,22 +189,20 @@ export default async function ThreadPage({
           <form action={createTaskFromThread}>
             <button
               className="btn-secondary"
-              disabled={!thread.projectId}
-              title={thread.projectId ? "" : "Erst ein Projekt zuordnen"}
+              disabled={!thread.propertyId && !thread.projectId}
+              title={
+                thread.propertyId || thread.projectId
+                  ? ""
+                  : "Erst einem Objekt zuordnen"
+              }
             >
               + Aufgabe daraus
             </button>
           </form>
           {attachmentCount > 0 && (
-            <form action={saveAttachmentsToProject}>
-              <button
-                className="btn-secondary"
-                disabled={!thread.projectId}
-                title={thread.projectId ? "" : "Erst ein Projekt zuordnen"}
-              >
-                📎 {attachmentCount} Anhänge ins Projekt
-              </button>
-            </form>
+            <span className="badge bg-slate-100 text-slate-600">
+              📎 {attachmentCount} Anhänge
+            </span>
           )}
           <form action={toggleArchive}>
             <button className="btn-ghost">
@@ -212,23 +212,22 @@ export default async function ThreadPage({
         </div>
       </div>
 
-      {thread.project && (
+      {contextLink && (
         <div className="text-sm">
           Zugeordnet zu:{" "}
-          <Link href={`/projects/${thread.project.id}`} className="text-brand-600 font-medium">
-            {thread.project.client.name} · {thread.project.name}
+          <Link href={contextLink.href} className="text-brand-600 font-medium">
+            {contextLink.label}
           </Link>
         </div>
       )}
 
-      {/* Nachrichtenverlauf */}
       <div className="space-y-3">
         {thread.messages.map((m) => (
           <div
             key={m.id}
             className={classNames(
               "card",
-              m.direction === "OUT" && "border-brand-100 bg-brand-50/40"
+              m.direction === "OUT" && "border-brand-100 bg-brand-50/40",
             )}
           >
             <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
@@ -239,7 +238,8 @@ export default async function ThreadPage({
                   </span>
                 ) : (
                   <span>
-                    <strong className="text-slate-700">{m.fromAddr}</strong> → {m.toAddr}
+                    <strong className="text-slate-700">{m.fromAddr}</strong> →{" "}
+                    {m.toAddr}
                   </span>
                 )}
               </div>
@@ -263,7 +263,6 @@ export default async function ThreadPage({
         ))}
       </div>
 
-      {/* Antworten */}
       <form action={reply} className="card space-y-3">
         <div>
           <label className="label">Antworten als {thread.account.email}</label>
