@@ -202,6 +202,7 @@ def search_recent_emails(hours: int = 24, limit: int = 50) -> list[EmailData]:
         ("GOOGLE_REFRESH_TOKEN_2", "Denise Kromeich"),
         ("GOOGLE_REFRESH_TOKEN_3", "Marek Zimmermann"),
         ("GOOGLE_REFRESH_TOKEN_4", "Lena Klinnert"),
+        ("GOOGLE_REFRESH_TOKEN_5", "Oguzhan Sahin"),
     ]
 
     for env_key, label in accounts:

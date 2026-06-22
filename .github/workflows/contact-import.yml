@@ -41,6 +41,7 @@ jobs:
           GOOGLE_REFRESH_TOKEN_2: ${{ secrets.GOOGLE_REFRESH_TOKEN_2 }}
           GOOGLE_REFRESH_TOKEN_3: ${{ secrets.GOOGLE_REFRESH_TOKEN_3 }}
           GOOGLE_REFRESH_TOKEN_4: ${{ secrets.GOOGLE_REFRESH_TOKEN_4 }}
+          GOOGLE_REFRESH_TOKEN_5: ${{ secrets.GOOGLE_REFRESH_TOKEN_5 }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           APOLLO_API_KEY: ${{ secrets.APOLLO_API_KEY }}
           PROPSTACK_API_KEY: ${{ secrets.PROPSTACK_API_KEY }}
