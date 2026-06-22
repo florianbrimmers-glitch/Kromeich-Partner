@@ -48,6 +48,14 @@ SKIP_PREFIXES = {
     "orders",
     "sales",
     "accounts",
+    "myscout",
+    "notify",
+    "notice",
+    "rueckgabe",
+    "belegerinnerungen",
+    "hallo",
+    "event",
+    "coaching",
 }
 SKIP_SUBJECT_PATTERNS = [
     re.compile(r"newsletter", re.IGNORECASE),
