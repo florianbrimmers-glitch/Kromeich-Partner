@@ -31,6 +31,11 @@ const HUD_BOTTOM := 180.0
 const ART_EXTENSIONS := [".svg", ".png"]
 const ART_FACTION_DIR := "res://assets/city/%s/%s"            # %s=Fraktion, %s=building_id (ohne Ext)
 const ART_BG := "res://assets/city/%s/bg"                     # %s=Fraktion
+# Gemalter Hintergrund mit gebauter Stadtmauer. Wenn vorhanden UND
+# "mauer" gebaut ist, ersetzt er bg komplett (statt Overlay-Schicht).
+const ART_BG_WALLED := "res://assets/city/%s/bg_walled"       # %s=Fraktion
+# Fallback fuer Fraktionen ohne bg_walled: Wall-Ring als Overlay-Layer.
+const ART_WALL_OVERLAY := "res://assets/city/%s/wall_overlay" # %s=Fraktion
 # Baustelle: zuerst gebaeude-spezifisch (construction-<bid>), dann generisch.
 # So kann pro Gebaeudetyp eine "Vorahnung" des spaeteren Baus angedeutet
 # werden, ohne dass jeder Slot zwingend eine eigene SVG braucht.
@@ -181,22 +186,27 @@ func _draw() -> void:
 	draw_rect(Rect2(Vector2(0.0, size.y - HUD_BOTTOM), Vector2(size.x, HUD_BOTTOM)), Color(0.05, 0.06, 0.08), true)
 
 	var stage := _stage_rect()
-	# Stadt-Hintergrund: Bild wenn vorhanden, sonst Boden-Plateau + Grid.
-	var bg_tex: Texture2D = _texture_with_ext(ART_BG % _faction_dir())
+	# Stadt-Hintergrund in drei Stufen:
+	#   1. Mauer gebaut + bg_walled vorhanden -> gemaltes Mauer-Bild
+	#   2. sonst bg (+ ggf. wall_overlay wenn Mauer gebaut, Fallback fuer
+	#      Fraktionen ohne eigenes bg_walled)
+	#   3. gar kein Bild -> Boden-Plateau + Iso-Grid
+	var city: Dictionary = _ctx.get("city", {})
+	var built_arr: Array = city.get("buildings", [])
+	var has_wall: bool = built_arr.has("mauer")
+	var bg_tex: Texture2D = null
+	if has_wall:
+		bg_tex = _texture_with_ext(ART_BG_WALLED % _faction_dir())
+	var walled_bg_used: bool = bg_tex != null
+	if bg_tex == null:
+		bg_tex = _texture_with_ext(ART_BG % _faction_dir())
 	if bg_tex != null:
 		draw_texture_rect(bg_tex, stage, false)
 	else:
 		draw_rect(stage, Color(0.12, 0.14, 0.13), true)
 		_draw_ground_grid(stage)
-
-	# Stadtmauer-Overlay zwischen BG und Gebaeuden, NUR wenn das Gebaeude
-	# "mauer" gebaut ist. So ist die Stadt im Fruehgame offen und wird
-	# durch den Mauerbau visuell befestigt.
-	var city: Dictionary = _ctx.get("city", {})
-	var built_arr: Array = city.get("buildings", [])
-	if built_arr.has("mauer"):
-		var wall_tex: Texture2D = _texture_with_ext(
-			"res://assets/city/%s/wall_overlay" % _faction_dir())
+	if has_wall and not walled_bg_used:
+		var wall_tex: Texture2D = _texture_with_ext(ART_WALL_OVERLAY % _faction_dir())
 		if wall_tex != null:
 			draw_texture_rect(wall_tex, stage, false)
 
@@ -458,12 +468,13 @@ func _handle_tap(pos: Vector2) -> void:
 			return
 
 
-# Plaza/Brunnen-Treffer: passt zur Lage in bg.svg (normalisierter Mittel-
-# punkt 0.5, 0.575, ellipt. Radius). Werte hier weil im bg.svg fix.
+# Plaza/Brunnen-Treffer: passt zur Lage in den gemalten bg.png/bg_walled.png
+# (Brunnen-Plaza bei ~60 % Stage-Hoehe, mittig). Werte hier weil in den
+# Bildern fix.
 const PLAZA_NORM_X := 0.50
-const PLAZA_NORM_Y := 0.575
-const PLAZA_NORM_RX := 0.10
-const PLAZA_NORM_RY := 0.045
+const PLAZA_NORM_Y := 0.60
+const PLAZA_NORM_RX := 0.14
+const PLAZA_NORM_RY := 0.06
 
 
 func _hit_plaza(pos: Vector2) -> bool:

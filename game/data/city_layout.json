@@ -1,13 +1,13 @@
 {
-	"_comment": "Iteration 4: Stadtmauer ('mauer') als baubares Gebaeude mit eigenem Hotspot am Tor unten Mitte. Wenn 'mauer' nicht in city.buildings ist, zeichnet CityScreen das wall_overlay.svg nicht und die Stadt ist offen. Andere Hotspots bleiben unveraendert.",
+	"_comment": "Iteration 5 (gemalte Canva-Hintergruende): Hotspots in den Innenhof der gemalten Ringmauer (bg_walled.png) gelegt - Band y 0.48..0.74, x 0.22..0.78. Plaza/Brunnen liegt bei (0.50, 0.60) und bleibt frei. Mauer-Hotspot am Tor unten. Positionen passen auch fuer das offene Dorf (bg.png), da beide Bilder dieselbe Plaza-Komposition haben.",
 	"buildings": {
-		"kapelle":  { "x": 0.50, "y": 0.34, "z": 0 },
-		"schmiede": { "x": 0.27, "y": 0.46, "z": 0 },
-		"reiterei": { "x": 0.73, "y": 0.46, "z": 0 },
-		"markt":    { "x": 0.18, "y": 0.62, "z": 0 },
-		"wachturm": { "x": 0.82, "y": 0.62, "z": 0 },
-		"kaserne":  { "x": 0.34, "y": 0.76, "z": 0 },
-		"spaeher":  { "x": 0.66, "y": 0.76, "z": 0 },
-		"mauer":    { "x": 0.50, "y": 0.90, "z": 0 }
+		"kapelle":  { "x": 0.50, "y": 0.475, "z": 0 },
+		"schmiede": { "x": 0.29, "y": 0.535, "z": 0 },
+		"reiterei": { "x": 0.71, "y": 0.535, "z": 0 },
+		"markt":    { "x": 0.23, "y": 0.645, "z": 0 },
+		"wachturm": { "x": 0.77, "y": 0.645, "z": 0 },
+		"kaserne":  { "x": 0.36, "y": 0.72, "z": 0 },
+		"spaeher":  { "x": 0.64, "y": 0.72, "z": 0 },
+		"mauer":    { "x": 0.50, "y": 0.80, "z": 0 }
 	}
 }

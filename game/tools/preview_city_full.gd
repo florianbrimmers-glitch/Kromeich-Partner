@@ -32,24 +32,29 @@ func _render(all_built: bool, out_path: String) -> void:
 	# HUD-Streifen oben/unten
 	_fill_rect(canvas, 0, 0, W, HUD_TOP, Color(0.05, 0.06, 0.08))
 	_fill_rect(canvas, 0, H - HUD_BOTTOM, W, HUD_BOTTOM, Color(0.05, 0.06, 0.08))
-	# Stage-Backdrop: bg.svg falls vorhanden, sonst Plateau-Farbe.
-	var bg_path := "res://assets/city/menschen/bg.svg"
-	if ResourceLoader.exists(bg_path):
+	# Stage-Backdrop, mirror der CityScreen-Logik: all_built nutzt
+	# bg_walled falls vorhanden, sonst bg (.png oder .svg), sonst Plateau.
+	var bg_path := ""
+	if all_built:
+		bg_path = _first_existing([
+			"res://assets/city/menschen/bg_walled.png",
+			"res://assets/city/menschen/bg_walled.svg"])
+	if bg_path == "":
+		bg_path = _first_existing([
+			"res://assets/city/menschen/bg.svg",
+			"res://assets/city/menschen/bg.png"])
+	if bg_path != "":
 		var bg_tex: Texture2D = load(bg_path) as Texture2D
 		var bg_img: Image = bg_tex.get_image()
+		# PNGs kommen als VRAM-komprimierte Texturen aus dem Import;
+		# resize/blend_rect brauchen unkomprimiertes RGBA8.
+		if bg_img.is_compressed():
+			bg_img.decompress()
+		bg_img.convert(Image.FORMAT_RGBA8)
 		bg_img.resize(W, H - HUD_TOP - HUD_BOTTOM, Image.INTERPOLATE_LANCZOS)
 		canvas.blend_rect(bg_img, Rect2i(0, 0, W, H - HUD_TOP - HUD_BOTTOM), Vector2i(0, HUD_TOP))
 	else:
 		_fill_rect(canvas, 0, HUD_TOP, W, H - HUD_TOP - HUD_BOTTOM, Color(0.12, 0.14, 0.13))
-
-	# Wall-Overlay (Mauer): nur im all_built-Preview, mirror der CityScreen-
-	# Logik die das Overlay zeigt wenn "mauer" in city.buildings ist.
-	var wall_path := "res://assets/city/menschen/wall_overlay.svg"
-	if all_built and ResourceLoader.exists(wall_path):
-		var wall_tex: Texture2D = load(wall_path) as Texture2D
-		var wall_img: Image = wall_tex.get_image()
-		wall_img.resize(W, H - HUD_TOP - HUD_BOTTOM, Image.INTERPOLATE_LANCZOS)
-		canvas.blend_rect(wall_img, Rect2i(0, 0, W, H - HUD_TOP - HUD_BOTTOM), Vector2i(0, HUD_TOP))
 
 	var layout: Dictionary = _load_layout()
 	var stage_x: float = 0.0
@@ -82,6 +87,9 @@ func _render(all_built: bool, out_path: String) -> void:
 			continue
 		var tex: Texture2D = load(tex_path) as Texture2D
 		var img: Image = tex.get_image()
+		if img.is_compressed():
+			img.decompress()
+		img.convert(Image.FORMAT_RGBA8)
 		# muss zu CityScreen.gd Sprite-Faktoren passen.
 		var sprite_w: int = int(hw * (2.0 if all_built else 1.5))
 		var sprite_h: int = int(sprite_w * (float(img.get_height()) / float(img.get_width())))
@@ -128,3 +136,10 @@ func _blend_clipped(dst: Image, src: Image, dst_x: int, dst_y: int) -> void:
 		return
 	dst.blend_rect(src, Rect2i(src_off_x, src_off_y, w, h),
 		Vector2i(dst_off_x, dst_off_y))
+
+
+func _first_existing(paths: Array) -> String:
+	for p in paths:
+		if ResourceLoader.exists(String(p)):
+			return String(p)
+	return ""

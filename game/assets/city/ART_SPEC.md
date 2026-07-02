@@ -36,7 +36,8 @@ Seed/Style-Reference wiederverwenden.
 
 ## Ablage (Drop-in — Dateinamen sind verbindlich)
 ```
-game/assets/city/menschen/bg.png          # Stadt-Hintergrund (Vollbild, opak)
+game/assets/city/menschen/bg.png          # Stadt-Hintergrund OHNE Mauer (Vollbild, opak)
+game/assets/city/menschen/bg_walled.png   # Stadt-Hintergrund MIT gebauter Mauer
 game/assets/city/menschen/kaserne.png
 game/assets/city/menschen/spaeher.png
 game/assets/city/menschen/markt.png
@@ -46,6 +47,13 @@ game/assets/city/menschen/wachturm.png
 game/assets/city/menschen/kapelle.png
 game/assets/city/_shared/construction.png # generische Baustelle (alle Fraktionen)
 ```
+Stand: bg.png und bg_walled.png der Menschen sind KI-generiert (Canva
+generate-design, 1080x1600, painterly top-down). Die Gebaeude sind noch
+handgebaute SVGs — passende gemalte Sprites mit Alpha waeren der
+naechste Konsistenz-Schritt (braucht ein Tool mit transparentem Export).
+Der Mauer-Zustand wird NICHT mehr als Overlay geloest: CityScreen nimmt
+bg_walled.png wenn "mauer" gebaut ist, sonst bg.png. wall_overlay.svg
+bleibt nur als Fallback-Pfad fuer Fraktionen ohne bg_walled.
 Die 7 Gebäude-IDs sind exakt die aus `BUILDINGS` (WorldMapScreen.gd). Andere
 Fraktionen analog unter `city/<fraktion>/` (waldvolk, totenreich, orks).
 
