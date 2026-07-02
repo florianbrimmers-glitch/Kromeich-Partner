@@ -20,6 +20,17 @@ als Round-Start-Modifikator.
   CI ist auf 4.6 gepinnt (`game-android-build.yml: GODOT_VERSION`),
   lokaler Editor sollte deshalb auch 4.6 sein.
 - Branch: `claude/heroes-mobile-game-yJ31W`
+- APK-Auslieferung: GitHub-Release-Tag `latest-mobile` (wird von
+  game-android-build.yml bei jedem Push ueberschrieben). Artifacts
+  waren wegen Storage-Quota (GitHub Free) unzuverlaessig.
+- Art-Pipeline: Stadt-Hintergruende (menschen/bg.png + bg_walled.png)
+  sind KI-generiert via Canva MCP (generate-design -> create-design-
+  from-candidate -> export-design als PNG -> curl -> Repo). Gebaeude-
+  Sprites sind handgebaute SVGs; gemalte Alpha-Sprites stehen aus.
+- Claude Design MCP ist als Projekt-Config eingetragen (.mcp.json im
+  Repo-Root, Endpoint api.anthropic.com/v1/design/mcp). Tools sollten
+  ab Session-Start als mcp__claude-design__* auftauchen - beim ersten
+  Mal pruefen, ggf. braucht es eine OAuth-Freigabe durch den Nutzer.
 
 ### Godot im Sandbox installieren
 
