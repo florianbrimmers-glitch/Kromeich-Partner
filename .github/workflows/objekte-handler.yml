@@ -1,9 +1,6 @@
 name: Objekte Handler
 
 on:
-  # TEMPORÄR für den ersten NO_WRITE-Testlauf – wird nach Verifikation entfernt
-  push:
-    branches: [claude/objekte-slack-propstack-handler-4vj23n]
   schedule:
     # Täglich nachts um 02:00 UTC (nach Email-Import 01:00 und Visitenkarten 01:30)
     - cron: "0 2 * * *"
@@ -68,9 +65,8 @@ jobs:
           PROPSTACK_KEY_TASKS: ${{ secrets.PROPSTACK_KEY_TASKS }}
           # Woche 1: DRY_RUN=true. Scharfschalten nach Team-Review am 22.07.
           DRY_RUN: ${{ github.event.inputs.dry_run || 'true' }}
-          # TEMPORÄR: push-Testlauf immer als NO_WRITE mit 7-Tage-Fenster
-          NO_WRITE: ${{ github.event.inputs.no_write || 'true' }}
-          SCAN_HOURS: ${{ github.event.inputs.scan_from_hours || '168' }}
+          NO_WRITE: ${{ github.event.inputs.no_write || 'false' }}
+          SCAN_HOURS: ${{ github.event.inputs.scan_from_hours || '26' }}
           SCAN_LATEST_HOURS: ${{ github.event.inputs.scan_to_hours || '0' }}
           THREAD_LOOKBACK_HOURS: ${{ github.event.inputs.thread_lookback_hours || '96' }}
           DECISION_LOG_PATH: objekte_decisions.jsonl
