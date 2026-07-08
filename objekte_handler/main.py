@@ -66,8 +66,11 @@ def _collect_candidates(bot_user_id: str) -> list[tuple[dict, str | None]]:
         else None
     )
 
+    # Discovery-Fenster muss das Scan-Fenster einschließen, sonst gehen bei
+    # SCAN_HOURS > THREAD_LOOKBACK_HOURS (z.B. Backfill) Parents verloren
+    discovery_hours = max(config.scan_hours(), config.thread_lookback_hours())
     parents = fetch_channel_messages(
-        hours=config.thread_lookback_hours(),
+        hours=discovery_hours,
         latest_hours=config.scan_latest_hours(),
     )
 
