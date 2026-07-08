@@ -54,8 +54,10 @@ def anthropic_api_key() -> str:
 
 
 def propstack_key_objekte() -> str:
-    return os.environ["PROPSTACK_KEY_OBJEKTE"]
+    """Standard: der bestehende PROPSTACK_API_KEY; PROPSTACK_KEY_OBJEKTE als optionaler Override."""
+    return os.environ.get("PROPSTACK_KEY_OBJEKTE") or os.environ["PROPSTACK_API_KEY"]
 
 
 def propstack_key_tasks() -> str:
-    return os.environ["PROPSTACK_KEY_TASKS"]
+    """Standard: der bestehende PROPSTACK_API_KEY; PROPSTACK_KEY_TASKS als optionaler Override."""
+    return os.environ.get("PROPSTACK_KEY_TASKS") or os.environ["PROPSTACK_API_KEY"]

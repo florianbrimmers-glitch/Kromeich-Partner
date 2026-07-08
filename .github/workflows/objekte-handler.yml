@@ -61,8 +61,7 @@ jobs:
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          PROPSTACK_KEY_OBJEKTE: ${{ secrets.PROPSTACK_KEY_OBJEKTE }}
-          PROPSTACK_KEY_TASKS: ${{ secrets.PROPSTACK_KEY_TASKS }}
+          PROPSTACK_API_KEY: ${{ secrets.PROPSTACK_API_KEY }}
           # Woche 1: DRY_RUN=true. Scharfschalten nach Team-Review am 22.07.
           DRY_RUN: ${{ github.event.inputs.dry_run || 'true' }}
           NO_WRITE: ${{ github.event.inputs.no_write || 'false' }}

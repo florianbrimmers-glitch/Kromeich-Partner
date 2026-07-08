@@ -30,8 +30,9 @@ Eigenständiges Paket – **kein Code-Sharing mit `src/`** (Visitenkarten-Pipeli
 |---|---|---|---|
 | `SLACK_BOT_TOKEN` | ja | – | Bot-Token (siehe Scopes unten) |
 | `ANTHROPIC_API_KEY` | ja | – | Claude-Klassifikation |
-| `PROPSTACK_KEY_OBJEKTE` | ja | – | Propstack-Key mit Objekte-Rechten (units, deals) |
-| `PROPSTACK_KEY_TASKS` | ja | – | Propstack-Key für Aktivitäten/Tasks ("Claude"-Key) |
+| `PROPSTACK_API_KEY` | ja | – | Propstack-v1-Key (units, deals, tasks) – dasselbe Secret wie die Kontakt-Pipelines |
+| `PROPSTACK_KEY_OBJEKTE` | nein | – | Optionaler Override: separater Key für units/deals |
+| `PROPSTACK_KEY_TASKS` | nein | – | Optionaler Override: separater Key für Aktivitäten/Tasks |
 | `DRY_RUN` | nein | `true` | Woche-1-Regel: alles als Stufe B |
 | `NO_WRITE` | nein | `false` | Reiner Lese-/Loglauf, überstimmt alles |
 | `SCAN_HOURS` | nein | `26` | Scan-Fenster (24h Tageslauf + 2h Überlappung) |
@@ -39,9 +40,11 @@ Eigenständiges Paket – **kein Code-Sharing mit `src/`** (Visitenkarten-Pipeli
 | `THREAD_LOOKBACK_HOURS` | nein | `96` | Wie weit zurück Threads nach neuen Replies durchsucht werden |
 | `DECISION_LOG_PATH` | nein | `objekte_decisions.jsonl` | Pfad des Entscheidungslogs |
 
-## Secrets-Setup (einmalig)
+## Secrets-Setup
 
-⚠️ **Propstack-Keys rotieren:** Die bisherigen Keys standen im Klartext in alten Skill-Dateien (`propstack-pipeline-report`, `propstack-expose-workflow`). In Propstack unter *Verwaltung → API-Schlüssel* neue Keys erzeugen und als GitHub Secrets `PROPSTACK_KEY_OBJEKTE` und `PROPSTACK_KEY_TASKS` hinterlegen. Keys niemals im Repo, in Logs oder in Skill-Dateien führen.
+Der Handler nutzt das bestehende GitHub Secret `PROPSTACK_API_KEY` (wie die Kontakt-Pipelines).
+
+⚠️ **Hinweis Key-Rotation:** Ältere Propstack-Keys standen im Klartext in alten Skill-Dateien (`propstack-pipeline-report`, `propstack-expose-workflow`). Falls diese Keys noch gültig sind, in Propstack unter *Verwaltung → API-Schlüssel* rotieren und das Secret `PROPSTACK_API_KEY` aktualisieren. Wer später getrennte Keys möchte, kann sie als `PROPSTACK_KEY_OBJEKTE`/`PROPSTACK_KEY_TASKS` hinterlegen – sie überstimmen dann `PROPSTACK_API_KEY`. Keys niemals im Repo, in Logs oder in Skill-Dateien führen.
 
 **Slack:** Der bestehende Bot wird mitgenutzt. Benötigte Scopes: `channels:history`, `channels:read`, `chat:write`, `reactions:read`, `reactions:write`. Der Bot muss Mitglied in #objekte sein (`/invite @Bot`).
 
