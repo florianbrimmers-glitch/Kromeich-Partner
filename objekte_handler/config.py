@@ -20,7 +20,7 @@ def _env_bool(name: str, default: str) -> bool:
 
 
 def dry_run() -> bool:
-    """Woche-1-Regel: Default true – alles läuft als Stufe B."""
+    """Default true (sicher für lokale Läufe) – der Cron setzt explizit false."""
     return _env_bool("DRY_RUN", "true")
 
 

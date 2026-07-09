@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Dry run (alles läuft als Stufe B – Woche-1-Regel)"
+        description: "Dry run (alles läuft als Stufe B)"
         required: false
         default: "true"
         type: choice
@@ -62,8 +62,8 @@ jobs:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           PROPSTACK_API_KEY: ${{ secrets.PROPSTACK_API_KEY }}
-          # Woche 1: DRY_RUN=true. Scharfschalten nach Team-Review am 22.07.
-          DRY_RUN: ${{ github.event.inputs.dry_run || 'true' }}
+          # Scharf geschaltet: Cron läuft mit Stufe A + B. Manuelle Läufe defaulten weiter auf Dry-Run.
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
           NO_WRITE: ${{ github.event.inputs.no_write || 'false' }}
           SCAN_HOURS: ${{ github.event.inputs.scan_from_hours || '26' }}
           SCAN_LATEST_HOURS: ${{ github.event.inputs.scan_to_hours || '0' }}
