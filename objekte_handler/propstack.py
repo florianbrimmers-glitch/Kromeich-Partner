@@ -71,20 +71,29 @@ def _request(method: str, path: str, *, key: str, params: dict | None = None, js
     raise last_error if last_error else RuntimeError(f"Propstack {method} {path} fehlgeschlagen")
 
 
+def _scalar(value):
+    """Propstack liefert manche Felder als Custom-Field-Objekt {"label":..., "value":...}.
+    Diese auf den reinen Wert reduzieren; Skalare unverändert durchreichen."""
+    if isinstance(value, dict) and "value" in value:
+        return value["value"]
+    return value
+
+
 def _to_unit(raw: dict) -> Unit:
     broker = raw.get("broker") or {}
+    house_number = _scalar(raw.get("house_number"))
     return Unit(
         id=raw["id"],
-        name=raw.get("name"),
-        title=raw.get("title"),
-        street=raw.get("street"),
-        house_number=str(raw["house_number"]) if raw.get("house_number") is not None else None,
-        zip_code=raw.get("zip_code"),
-        city=raw.get("city"),
-        property_space_value=raw.get("property_space_value"),
+        name=_scalar(raw.get("name")),
+        title=_scalar(raw.get("title")),
+        street=_scalar(raw.get("street")),
+        house_number=str(house_number) if house_number is not None else None,
+        zip_code=_scalar(raw.get("zip_code")),
+        city=_scalar(raw.get("city")),
+        property_space_value=_scalar(raw.get("property_space_value")),
         broker_id=broker.get("id") if isinstance(broker, dict) else None,
         broker_name=broker.get("name") if isinstance(broker, dict) else None,
-        rented=raw.get("rented"),
+        rented=_scalar(raw.get("rented")),
     )
 
 
