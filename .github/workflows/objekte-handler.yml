@@ -1,0 +1,81 @@
+name: Objekte Handler
+
+on:
+  schedule:
+    # Täglich nachts um 02:00 UTC (nach Email-Import 01:00 und Visitenkarten 01:30)
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (alles läuft als Stufe B – Woche-1-Regel)"
+        required: false
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+      no_write:
+        description: "Nur lesen/loggen – keine Reactions, keine Tasks, keine Writes"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+      scan_from_hours:
+        description: "Scan-Fenster: Stunden zurück (Standard 26)"
+        required: false
+        default: "26"
+      scan_to_hours:
+        description: "Bis Stunden zurück (0 = bis jetzt)"
+        required: false
+        default: "0"
+      thread_lookback_hours:
+        description: "Thread-Discovery-Fenster in Stunden"
+        required: false
+        default: "96"
+
+concurrency:
+  group: objekte-handler
+  cancel-in-progress: false
+
+jobs:
+  objekte-handler:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run objekte handler
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          PROPSTACK_API_KEY: ${{ secrets.PROPSTACK_API_KEY }}
+          # Woche 1: DRY_RUN=true. Scharfschalten nach Team-Review am 22.07.
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'true' }}
+          NO_WRITE: ${{ github.event.inputs.no_write || 'false' }}
+          SCAN_HOURS: ${{ github.event.inputs.scan_from_hours || '26' }}
+          SCAN_LATEST_HOURS: ${{ github.event.inputs.scan_to_hours || '0' }}
+          THREAD_LOOKBACK_HOURS: ${{ github.event.inputs.thread_lookback_hours || '96' }}
+          DECISION_LOG_PATH: objekte_decisions.jsonl
+        run: python -m objekte_handler.main
+
+      - name: Upload decision log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: objekte-decisions-${{ github.run_id }}
+          path: objekte_decisions.jsonl
+          if-no-files-found: ignore
+          retention-days: 30

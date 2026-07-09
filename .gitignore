@@ -12,3 +12,7 @@ env/
 
 # OS
 .DS_Store
+
+# Objekte-Handler Entscheidungslog (wird als Actions-Artefakt hochgeladen)
+objekte_decisions.jsonl
+.pytest_cache/
