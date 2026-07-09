@@ -19,10 +19,10 @@ Eigenständiges Paket – **kein Code-Sharing mit `src/`** (Visitenkarten-Pipeli
 | Modus | Propstack-Writes | ✅ + Thread-Reply | JSONL-Log | Zweck |
 |---|---|---|---|---|
 | `NO_WRITE=true` | keine | keine | ja | Testen mit echten Slack-Daten, beliebig wiederholbar |
-| `DRY_RUN=true` (**Default**) | nur Review-Tasks (Stufe B) | ja | ja | Woche 1 – alles läuft als Stufe B |
+| `DRY_RUN=true` | nur Review-Tasks (Stufe B) | ja | ja | Testbetrieb – alles läuft als Stufe B |
 | `DRY_RUN=false` | Stufe A + B | ja | ja | Normalbetrieb |
 
-**Woche-1-Regel:** Der Cron läuft mit `DRY_RUN=true`. Scharfschalten erst nach dem Team-Review am **22.07.2026** ("Asana vs. Propstack"-Termin) – dazu im Workflow das Default von `DRY_RUN` auf `false` ändern.
+**Scharf geschaltet seit 09.07.2026:** Der Cron läuft mit `DRY_RUN=false` (Stufe A + B). Manuelle Läufe via `workflow_dispatch` defaulten aus Sicherheitsgründen weiterhin auf Dry-Run; lokal ist `DRY_RUN=true` der Default.
 
 ## Umgebungsvariablen
 
@@ -33,7 +33,7 @@ Eigenständiges Paket – **kein Code-Sharing mit `src/`** (Visitenkarten-Pipeli
 | `PROPSTACK_API_KEY` | ja | – | Propstack-v1-Key (units, deals, tasks) – dasselbe Secret wie die Kontakt-Pipelines |
 | `PROPSTACK_KEY_OBJEKTE` | nein | – | Optionaler Override: separater Key für units/deals |
 | `PROPSTACK_KEY_TASKS` | nein | – | Optionaler Override: separater Key für Aktivitäten/Tasks |
-| `DRY_RUN` | nein | `true` | Woche-1-Regel: alles als Stufe B |
+| `DRY_RUN` | nein | `true` | Alles als Stufe B (Cron setzt explizit `false`) |
 | `NO_WRITE` | nein | `false` | Reiner Lese-/Loglauf, überstimmt alles |
 | `SCAN_HOURS` | nein | `26` | Scan-Fenster (24h Tageslauf + 2h Überlappung) |
 | `SCAN_LATEST_HOURS` | nein | `0` | Obere Fenstergrenze (0 = bis jetzt), für Backfill |
