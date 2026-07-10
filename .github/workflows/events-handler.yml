@@ -1,6 +1,9 @@
 name: Events Handler
 
 on:
+  push:
+    # TEMP: NO_WRITE-Testlauf auf dem Feature-Branch (wird nach Verifikation zurückgebaut)
+    branches: [claude/objekte-slack-propstack-handler-4vj23n]
   schedule:
     # Täglich um 03:30 UTC (nach objekte 02:00 und newsletter 03:00)
     - cron: "30 3 * * *"
@@ -65,8 +68,9 @@ jobs:
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           # Start im Dry-Run: Cron läuft vorerst mit DRY_RUN=true (keine Tabellen-Writes).
           DRY_RUN: ${{ github.event.inputs.dry_run || 'true' }}
-          NO_WRITE: ${{ github.event.inputs.no_write || 'false' }}
-          SCAN_HOURS: ${{ github.event.inputs.scan_from_hours || '27' }}
+          # TEMP: Push-Testlauf erzwingt reinen Lese-/Loglauf + breites Fenster (wird zurückgebaut)
+          NO_WRITE: ${{ github.event.inputs.no_write || 'true' }}
+          SCAN_HOURS: ${{ github.event.inputs.scan_from_hours || '336' }}
           SCAN_LATEST_HOURS: ${{ github.event.inputs.scan_to_hours || '0' }}
           DECISION_LOG_PATH: events_decisions.jsonl
         run: python -m events_handler.main
