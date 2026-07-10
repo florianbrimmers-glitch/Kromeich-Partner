@@ -70,16 +70,16 @@ def append_rows(rows: list[list[str]]) -> int:
         return 0
     if config.no_write():
         logger.info("[NO_WRITE] Würde %d Zeile(n) an Sheet %s anhängen: %s",
-                    len(rows), config.SHEET_ID, rows)
+                    len(rows), config.sheet_id(), rows)
         return 0
 
     service = _build_service()
     service.spreadsheets().values().append(
-        spreadsheetId=config.SHEET_ID,
+        spreadsheetId=config.sheet_id(),
         range=config.SHEET_TAB,
         valueInputOption="USER_ENTERED",
         insertDataOption="INSERT_ROWS",
         body={"values": rows},
     ).execute()
-    logger.info("%d Zeile(n) an Sheet %s angehängt", len(rows), config.SHEET_ID)
+    logger.info("%d Zeile(n) an Sheet %s angehängt", len(rows), config.sheet_id())
     return len(rows)

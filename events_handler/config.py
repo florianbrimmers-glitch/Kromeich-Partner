@@ -7,7 +7,7 @@ EVENTS_CHANNEL = "C07N95AQRB2"
 CLAUDE_MODEL = "claude-opus-4-8"
 
 # Ziel-Tabelle "Messen & Events" (Drive: 01. Allgemein / 02. Marketing / 04. Events)
-SHEET_ID = "1ppUJOOduq4Bdjw4mpxokfLlUHFuRWmRfCqf9xCHIbKw"
+DEFAULT_SHEET_ID = "1ppUJOOduq4Bdjw4mpxokfLlUHFuRWmRfCqf9xCHIbKw"
 SHEET_TAB = "Tabellenblatt1"
 
 CHECK_EMOJI = "white_check_mark"
@@ -39,6 +39,11 @@ def scan_hours() -> int:
 
 def scan_latest_hours() -> int:
     return int(os.environ.get("SCAN_LATEST_HOURS", "0"))
+
+
+def sheet_id() -> str:
+    """Ziel-Tabelle; per SHEET_ID-Env überschreibbar (z.B. für Test gegen eine Kopie)."""
+    return os.environ.get("SHEET_ID") or DEFAULT_SHEET_ID
 
 
 def decision_log_path() -> str:
