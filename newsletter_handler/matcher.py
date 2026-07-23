@@ -9,6 +9,78 @@ from .propstack import search_units
 logger = logging.getLogger(__name__)
 
 SEARCH_LIMIT = 100
+CANDIDATE_CAP = 60
+
+# Generische Tokens, die als eigenständige Propstack-Suche nichts taugen
+# (Städte/Länder/Rechtsformen/Gattungsbegriffe). Wird beim Zerlegen von
+# objekt_name/vermieter herausgefiltert.
+_STOPWORDS = {
+    "berlin", "hamburg", "münchen", "muenchen", "köln", "koeln", "frankfurt",
+    "düsseldorf", "duesseldorf", "stuttgart", "dortmund", "essen", "bremen",
+    "hannover", "leipzig", "dresden", "nürnberg", "nuernberg", "deutschland",
+    "gmbh", "co", "kg", "ag", "se", "mbh", "group", "gruppe", "real", "estate",
+    "logistik", "logistics", "immobilie", "immobilien", "park", "gewerbe",
+    "industrial", "logistikimmobilie", "der", "die", "das", "und", "bei", "am",
+    "im", "in", "neue", "neuer", "neues",
+}
+
+
+def significant_tokens(*texts: str | None) -> list[str]:
+    """Zerlegt Namen in bedeutungstragende Tokens (Stopwörter/Geo/Rechtsform raus)."""
+    tokens: list[str] = []
+    seen: set[str] = set()
+    for text in texts:
+        if not text:
+            continue
+        for raw in re.split(r"[\s/,.\-]+", text):
+            t = raw.strip()
+            if len(t) <= 2 or t.lower() in _STOPWORDS:
+                continue
+            key = t.lower()
+            if key not in seen:
+                seen.add(key)
+                tokens.append(t)
+    return tokens
+
+
+def gather_candidates(deal: Deal) -> list[Unit]:
+    """Breite Propstack-Kandidatensuche für die KI-Auswahl.
+
+    Sucht über Objekt-/Projektname, Entwickler (vermieter), Mieter, Ort und
+    einzelne signifikante Tokens; vereinigt und dedupliziert nach Unit-id.
+    BEWUSST ohne harten Stadt-Filter – die News-Stadt ist unzuverlässig
+    (z.B. 'Berlin' für ein Objekt in Ludwigsfelde)."""
+    queries: list[str] = []
+    for q in (deal.objekt_name, deal.vermieter, deal.mieter,
+              " ".join(t for t in (deal.strasse, deal.hausnummer, deal.stadt) if t),
+              deal.stadt):
+        if q and q.strip() and q not in queries:
+            queries.append(q.strip())
+    # zusätzlich einzelne aussagekräftige Tokens (z.B. "PremierPark", "Verdion")
+    for tok in significant_tokens(deal.objekt_name, deal.vermieter):
+        if tok not in queries:
+            queries.append(tok)
+
+    by_id: dict[int, Unit] = {}
+    for q in queries:
+        if len(by_id) >= CANDIDATE_CAP:
+            break
+        try:
+            hits = search_units(q)
+        except Exception as e:  # eine schlechte Query darf den Rest nicht killen
+            logger.warning("Kandidatensuche '%s' fehlgeschlagen: %s", q, e)
+            continue
+        if len(hits) >= SEARCH_LIMIT:
+            # zu unspezifisch (z.B. reine Stadt-Query) – nicht als Kandidaten aufnehmen
+            logger.info("Query '%s' zu unspezifisch (%d+ Treffer) – übersprungen", q, len(hits))
+            continue
+        for u in hits:
+            if u.id not in by_id:
+                by_id[u.id] = u
+
+    candidates = list(by_id.values())[:CANDIDATE_CAP]
+    logger.info("gather_candidates: %d Query(s), %d eindeutige Kandidaten", len(queries), len(candidates))
+    return candidates
 
 
 def normalize_street(s: str) -> str:
