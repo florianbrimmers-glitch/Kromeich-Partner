@@ -56,7 +56,7 @@ Antworte ausschließlich mit JSON:
 def propose_search_terms(deal: Deal) -> list[str]:
     """Lässt Claude sinnvolle Propstack-Suchbegriffe vorschlagen (inkl. wahrscheinlichem
     echten Ort per Weltwissen, z.B. 'Ludwigsfelde' hinter 'Berlin'). Leere Liste bei Fehler."""
-    prompt = QUERY_PROMPT.format(
+    prompt = config.DOMAIN_CONTEXT + "\n\n" + QUERY_PROMPT.format(
         objekt_name=deal.objekt_name or "-",
         ort=deal.stadt or "-",
         vermieter=deal.vermieter or "-",
@@ -111,7 +111,7 @@ def select_match(deal: Deal, candidates: list[Unit]) -> MatchResult:
         return MatchResult(status=MatchStatus.NONE, grund="Keine Kandidaten gefunden")
 
     by_id = {u.id: u for u in candidates}
-    prompt = SELECT_PROMPT.format(
+    prompt = config.DOMAIN_CONTEXT + "\n\n" + SELECT_PROMPT.format(
         objekt_name=deal.objekt_name or "-",
         ort=deal.stadt or "-",
         vermieter=deal.vermieter or "-",

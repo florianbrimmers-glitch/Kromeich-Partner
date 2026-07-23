@@ -71,7 +71,7 @@ def _get_client() -> anthropic.Anthropic:
 
 def extract_deals(text: str) -> NewsletterExtraction | None:
     """Extrahiert alle Deal-Items eines Digests. None bei API-/Parse-Fehler (Retry im nächsten Lauf)."""
-    prompt = EXTRACTION_PROMPT.format(text=text[:MAX_TEXT_CHARS])
+    prompt = config.DOMAIN_CONTEXT + "\n\n" + EXTRACTION_PROMPT.format(text=text[:MAX_TEXT_CHARS])
 
     try:
         response = _get_client().messages.create(
