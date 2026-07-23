@@ -1,9 +1,6 @@
 name: Newsletter Handler
 
 on:
-  push:
-    # TEMP: NO_WRITE-Reproduktion des Verdion-Falls (wird zurückgebaut)
-    branches: [claude/objekte-slack-propstack-handler-4vj23n]
   schedule:
     # Täglich um 03:00 UTC (nach dem ~22:18-CEST-Digest des Vortags und nach objekte 02:00)
     - cron: "0 3 * * *"
@@ -64,9 +61,8 @@ jobs:
           # Start im Dry-Run: Cron läuft vorerst mit DRY_RUN=true (nur Review-Aufgaben).
           # Scharfschalten nach Auswertung der ersten Läufe: 'true' -> 'false'.
           DRY_RUN: ${{ github.event.inputs.dry_run || 'true' }}
-          # TEMP: Push-Reproduktion erzwingt reinen Lese-/Loglauf + breites Fenster (wird zurückgebaut)
-          NO_WRITE: ${{ github.event.inputs.no_write || 'true' }}
-          SCAN_HOURS: ${{ github.event.inputs.scan_from_hours || '300' }}
+          NO_WRITE: ${{ github.event.inputs.no_write || 'false' }}
+          SCAN_HOURS: ${{ github.event.inputs.scan_from_hours || '27' }}
           SCAN_LATEST_HOURS: ${{ github.event.inputs.scan_to_hours || '0' }}
           DECISION_LOG_PATH: newsletter_decisions.jsonl
         run: python -m newsletter_handler.main
