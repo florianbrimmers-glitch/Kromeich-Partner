@@ -64,3 +64,17 @@ def test_gather_no_queryable_fields(monkeypatch):
     monkeypatch.setattr(matcher, "search_units", lambda q: [])
     cands = gather_candidates(Deal(deal_typ=DealTyp.VERMIETUNG, ist_vermietung=True, confidence=0.5))
     assert cands == []
+
+
+def test_extra_queries_surface_object_via_real_town(monkeypatch):
+    """KI-Suchbegriff 'Ludwigsfelde' (echter Ort) findet das Objekt, das über die
+    News-Stadt 'Berlin' oder den Entwickler nicht auffindbar wäre."""
+    def fake_search(q: str):
+        return [LUDWIGSFELDE] if q.lower() == "ludwigsfelde" else []
+    monkeypatch.setattr(matcher, "search_units", fake_search)
+
+    # ohne extra_queries: kein Treffer
+    assert gather_candidates(_deal()) == []
+    # mit KI-Suchbegriff 'Ludwigsfelde': Objekt ist dabei
+    cands = gather_candidates(_deal(), extra_queries=["Ludwigsfelde", "Verdion"])
+    assert {u.id for u in cands} == {9001}

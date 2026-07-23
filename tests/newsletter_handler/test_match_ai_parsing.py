@@ -61,3 +61,15 @@ def test_fenced_json_is_parsed(monkeypatch):
     _patch(monkeypatch, '```json\n{"unit_id": 9001, "confidence": 0.9, "begruendung": "ok"}\n```')
     res = match_ai.select_match(_deal(), CANDIDATES)
     assert res.status == MatchStatus.UNIQUE
+
+
+def test_propose_search_terms_parses_and_dedups(monkeypatch):
+    _patch(monkeypatch, '{"queries": ["Verdion", "PremierPark", "Ludwigsfelde", "Ludwigsfelde"]}')
+    terms = match_ai.propose_search_terms(_deal())
+    assert "Ludwigsfelde" in terms          # echter Ort per Weltwissen, nicht in der Meldung
+    assert terms.count("Ludwigsfelde") == 1  # dedup
+
+
+def test_propose_search_terms_error_returns_empty(monkeypatch):
+    _patch(monkeypatch, "kein json")
+    assert match_ai.propose_search_terms(_deal()) == []

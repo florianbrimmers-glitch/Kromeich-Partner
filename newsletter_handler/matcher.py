@@ -43,18 +43,22 @@ def significant_tokens(*texts: str | None) -> list[str]:
     return tokens
 
 
-def gather_candidates(deal: Deal) -> list[Unit]:
+def gather_candidates(deal: Deal, extra_queries: list[str] | None = None) -> list[Unit]:
     """Breite Propstack-Kandidatensuche für die KI-Auswahl.
 
-    Sucht über Objekt-/Projektname, Entwickler (vermieter), Mieter, Ort und
+    Sucht über KI-vorgeschlagene Begriffe (extra_queries, inkl. wahrscheinlichem
+    echten Ort) sowie Objekt-/Projektname, Entwickler (vermieter), Mieter, Ort und
     einzelne signifikante Tokens; vereinigt und dedupliziert nach Unit-id.
     BEWUSST ohne harten Stadt-Filter – die News-Stadt ist unzuverlässig
     (z.B. 'Berlin' für ein Objekt in Ludwigsfelde)."""
     queries: list[str] = []
+    for q in (extra_queries or []):
+        if q and q.strip() and q.strip() not in queries:
+            queries.append(q.strip())
     for q in (deal.objekt_name, deal.vermieter, deal.mieter,
               " ".join(t for t in (deal.strasse, deal.hausnummer, deal.stadt) if t),
               deal.stadt):
-        if q and q.strip() and q not in queries:
+        if q and q.strip() and q.strip() not in queries:
             queries.append(q.strip())
     # zusätzlich einzelne aussagekräftige Tokens (z.B. "PremierPark", "Verdion")
     for tok in significant_tokens(deal.objekt_name, deal.vermieter):

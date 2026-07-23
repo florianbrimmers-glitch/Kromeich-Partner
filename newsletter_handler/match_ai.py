@@ -36,6 +36,52 @@ Antworte ausschließlich mit JSON:
 """
 
 
+QUERY_PROMPT = """Du sollst ein Objekt aus einer Logistik-Marktmeldung im Immobilien-CRM (Propstack) eines Maklers wiederfinden.
+
+DEAL:
+- Projekt/Objekt: {objekt_name}
+- Ort laut Meldung: {ort}
+- Entwickler/Eigentümer: {vermieter}
+- Mieter: {mieter}
+
+Nenne 3-6 kurze Suchbegriffe, mit denen man das Objekt in einem CRM findet. Nutze Entwickler- und Projektnamen sowie – WICHTIG – den WAHRSCHEINLICHEN tatsächlichen Standort/die Gemeinde. Marktmeldungen nennen oft nur die grobe Region (z.B. "Berlin" für ein Objekt in Ludwigsfelde). Wenn du das Projekt kennst, gib den echten Ort an. Einzelne Begriffe, keine ganzen Sätze.
+
+Antworte ausschließlich mit JSON:
+{{"queries": ["...", "..."]}}
+"""
+
+
+def propose_search_terms(deal: Deal) -> list[str]:
+    """Lässt Claude sinnvolle Propstack-Suchbegriffe vorschlagen (inkl. wahrscheinlichem
+    echten Ort per Weltwissen, z.B. 'Ludwigsfelde' hinter 'Berlin'). Leere Liste bei Fehler."""
+    prompt = QUERY_PROMPT.format(
+        objekt_name=deal.objekt_name or "-",
+        ort=deal.stadt or "-",
+        vermieter=deal.vermieter or "-",
+        mieter=deal.mieter or "-",
+    )
+    try:
+        response = _get_client().messages.create(
+            model=config.CLAUDE_MODEL,
+            max_tokens=256,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = _parse_extraction_json(response.content[0].text)
+    except anthropic.APIError as e:
+        logger.error("Claude API error bei Query-Vorschlag: %s", e)
+        return []
+    except (json.JSONDecodeError, KeyError, IndexError) as e:
+        logger.error("Query-Vorschlag nicht parsebar: %s", e)
+        return []
+
+    terms: list[str] = []
+    for q in raw.get("queries") or []:
+        if isinstance(q, str) and q.strip() and q.strip() not in terms:
+            terms.append(q.strip())
+    logger.info("KI-Suchbegriffe: %s", terms)
+    return terms
+
+
 def _candidate_line(u: Unit) -> dict:
     return {
         "id": u.id,

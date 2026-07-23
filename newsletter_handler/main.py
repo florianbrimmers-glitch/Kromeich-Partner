@@ -11,7 +11,7 @@ from .classifier import extract_deals
 from .decision import decide, due_date_plus_business_days
 from .logbuch import append_record
 from .matcher import gather_candidates
-from .match_ai import select_match
+from .match_ai import propose_search_terms, select_match
 from .models import (
     Deal,
     Decision,
@@ -192,7 +192,8 @@ def _process_message(msg: dict, run_id: str, report: RunReport) -> None:
             match: MatchResult | None = None
             if deal.ist_vermietung:
                 report.vermietungen += 1
-                candidates = gather_candidates(deal)
+                terms = propose_search_terms(deal)
+                candidates = gather_candidates(deal, extra_queries=terms)
                 if candidates:
                     match = select_match(deal, candidates)
                 else:

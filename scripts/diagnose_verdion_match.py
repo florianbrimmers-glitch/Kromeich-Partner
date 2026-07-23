@@ -7,7 +7,7 @@ Propstack + Claude. Reiner Lese-Lauf (nur search_units + Claude), keine Writes.
 from __future__ import annotations
 
 from newsletter_handler.matcher import gather_candidates
-from newsletter_handler.match_ai import select_match
+from newsletter_handler.match_ai import propose_search_terms, select_match
 from newsletter_handler.models import Deal, DealTyp
 
 DEAL = Deal(
@@ -27,7 +27,10 @@ def main() -> None:
     print("Deal:", DEAL.objekt_name, "| Ort(News):", DEAL.stadt, "| Vermieter:", DEAL.vermieter)
     print("=" * 70)
 
-    candidates = gather_candidates(DEAL)
+    terms = propose_search_terms(DEAL)
+    print("\nKI-Suchbegriffe:", terms)
+
+    candidates = gather_candidates(DEAL, extra_queries=terms)
     print(f"\n{len(candidates)} Kandidat(en):")
     for u in candidates:
         print(f"  - id={u.id} | name={u.name!r} | {u.street} {u.house_number}, {u.city} "
