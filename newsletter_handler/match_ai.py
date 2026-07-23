@@ -20,18 +20,20 @@ DEAL (aus einem Logistik-Newsletter):
 - Mieter: {mieter}
 - Größe: {groesse}
 
-WICHTIG: Der Ort aus der Meldung ist oft ungenau (z.B. "Berlin" für ein Objekt im Umland wie Ludwigsfelde). Verlasse dich stärker auf Projektname, Entwickler und Adresse als auf die Stadt.
-
 KANDIDATEN aus Propstack (mögliche Objekte):
 {candidates}
 
-Welcher Kandidat bezeichnet DASSELBE Objekt wie der Deal? Wenn kein Kandidat sicher passt, gib null zurück (lieber vorsichtig).
+So gehst du vor:
+1. Nutze dein WELTWISSEN, um den tatsächlichen Standort des Projekts zu bestimmen. Der Ort in der Meldung ist oft die grobe Region (z.B. "Berlin"), das Objekt liegt aber im Umland. Beispiel: "Verdion PremierPark Berlin" liegt in LUDWIGSFELDE.
+2. Objekte sind in Propstack häufig nach ihrer ADRESSE benannt (z.B. "Brandenburgische Straße 51 - Ludwigsfelde"), NICHT nach dem Projekt-/Entwicklernamen aus der Meldung. Verlange also NICHT, dass "Verdion" oder "PremierPark" im Kandidatennamen steht.
+3. Ein Kandidat, der in der tatsächlichen Gemeinde des Projekts liegt und zur Nutzungsart (Logistik/Gewerbe) passt, ist ein STARKER Treffer – auch ohne Projektname und ohne Flächenübereinstimmung.
+4. Wähle den plausibelsten Kandidaten und drücke die Sicherheit über confidence aus (hoch = sehr sicher, mittel = plausibel/prüfen). Gib nur dann null zurück, wenn wirklich KEIN Kandidat zur tatsächlichen Lage des Projekts passt.
 
 Antworte ausschließlich mit JSON:
 {{
   "unit_id": <id des passenden Kandidaten> | null,
   "confidence": 0.0-1.0,
-  "begruendung": "1 kurzer Satz"
+  "begruendung": "1 kurzer Satz (nenne den erkannten tatsächlichen Ort)"
 }}
 """
 
