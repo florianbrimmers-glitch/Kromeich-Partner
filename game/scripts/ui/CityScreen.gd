@@ -17,6 +17,7 @@ extends Control
 signal build_requested(building_id: String)
 signal recruit_requested(unit_id: String)
 signal plaza_tapped(stats: String)
+signal market_trade_requested(res: String, buy: bool)
 signal closed()
 
 const LAYOUT_PATH := "res://data/city_layout.json"
@@ -55,6 +56,8 @@ var _tex_cache: Dictionary = {}
 
 var _title: Label
 var _gold: Label
+var _trade_panel: Panel
+var _trade_labels: Dictionary = {}
 var _cal: Label
 var _status: Label
 var _font: Font
@@ -149,12 +152,14 @@ func open(ctx: Dictionary) -> void:
 	_ctx = ctx
 	visible = true
 	_update_hud()
+	_refresh_trade_labels()
 	queue_redraw()
 
 
 func refresh(ctx: Dictionary) -> void:
 	_ctx = ctx
 	_update_hud()
+	_refresh_trade_labels()
 	queue_redraw()
 
 
@@ -410,11 +415,11 @@ func _plot_subline(def: Dictionary, is_built: bool, fid: int) -> String:
 	var bid: String = String(def["id"])
 	var uid: String = UnitType.unit_for_building(fid, bid)
 	if not is_built:
-		var cost: int = int(def.get("cost", 0))
+		var cost: Dictionary = def.get("cost", {})
 		var req: String = String(def.get("requires", ""))
 		if req != "" and not _city_has(req):
 			return "braucht " + req.capitalize()
-		return str(cost) + " G bauen"
+		return Wallet.cost_text(cost) + " bauen"
 	# Gebaut: Militaergebaeude zeigen Rekrut-Vorrat, Rest "fertig".
 	if uid != "":
 		var pools: Dictionary = _city_pools()
@@ -432,7 +437,7 @@ func _plot_sub_color(def: Dictionary, is_built: bool, fid: int) -> Color:
 		if req != "" and not _city_has(req):
 			return Color(0.9, 0.5, 0.5)
 		var hero: Object = _ctx.get("hero", null)
-		if hero != null and int(hero.gold) >= int(def.get("cost", 0)):
+		if hero != null and (hero.wallet as Wallet).can_afford(def.get("cost", {})):
 			return Color(0.6, 0.95, 0.6)
 		return Color(0.95, 0.85, 0.5)
 	if UnitType.unit_for_building(fid, bid) != "":
@@ -534,6 +539,8 @@ func _act_on_plot(p: Dictionary) -> void:
 	var uid: String = UnitType.unit_for_building(fid, bid)
 	if uid != "":
 		recruit_requested.emit(uid)
+	elif bid == "markt":
+		_open_trade_panel()
 	else:
 		# Kein Militaergebaeude -> Effekt aus dem Plot-Dict zeigen, damit
 		# der Tap zumindest die Wirkung in der Statuszeile spiegelt.
@@ -605,3 +612,102 @@ func _texture_with_ext(path_no_ext: String) -> Texture2D:
 		if t != null:
 			return t
 	return null
+
+
+# --- Markt-Tausch-Panel (M3 Teil 2) ---
+# Reine Anzeige: Kurse und Bestaende kommen aus _ctx, jede Aktion geht
+# als market_trade_requested-Signal an den WorldMapScreen (Oekonomie).
+
+func _open_trade_panel() -> void:
+	if _trade_panel == null:
+		_build_trade_panel()
+	_refresh_trade_labels()
+	_trade_panel.visible = true
+
+
+func _build_trade_panel() -> void:
+	var panel := Panel.new()
+	panel.visible = false
+	panel.anchor_left = 0.5
+	panel.anchor_top = 0.5
+	panel.anchor_right = 0.5
+	panel.anchor_bottom = 0.5
+	panel.offset_left = -440
+	panel.offset_top = -560
+	panel.offset_right = 440
+	panel.offset_bottom = 560
+	add_child(panel)
+	_trade_panel = panel
+
+	var bg := ColorRect.new()
+	bg.color = Color(0.08, 0.09, 0.12, 1.0)
+	bg.anchor_right = 1.0
+	bg.anchor_bottom = 1.0
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(bg)
+
+	var vb := VBoxContainer.new()
+	vb.anchor_right = 1.0
+	vb.anchor_bottom = 1.0
+	vb.offset_left = 32
+	vb.offset_top = 32
+	vb.offset_right = -32
+	vb.offset_bottom = -32
+	vb.add_theme_constant_override("separation", 18)
+	panel.add_child(vb)
+
+	var title := Label.new()
+	title.text = "Markt - Tauschhandel"
+	title.add_theme_font_size_override("font_size", 40)
+	vb.add_child(title)
+
+	var buy_rates: Dictionary = _ctx.get("market_buy", {})
+	var sell_rates: Dictionary = _ctx.get("market_sell", {})
+	for rid in Wallet.RESOURCE_IDS:
+		if rid == "gold" or not buy_rates.has(rid):
+			continue
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 14)
+		vb.add_child(row)
+
+		var lbl := Label.new()
+		lbl.custom_minimum_size = Vector2(280, 0)
+		lbl.add_theme_font_size_override("font_size", 28)
+		row.add_child(lbl)
+		_trade_labels[rid] = lbl
+
+		var buy_btn := Button.new()
+		buy_btn.text = "Kauf %dG" % int(buy_rates.get(rid, 0))
+		buy_btn.custom_minimum_size = Vector2(220, 90)
+		buy_btn.add_theme_font_size_override("font_size", 26)
+		buy_btn.pressed.connect(func() -> void: market_trade_requested.emit(rid, true))
+		row.add_child(buy_btn)
+
+		var sell_btn := Button.new()
+		sell_btn.text = "Verkauf +%dG" % int(sell_rates.get(rid, 0))
+		sell_btn.custom_minimum_size = Vector2(240, 90)
+		sell_btn.add_theme_font_size_override("font_size", 26)
+		sell_btn.pressed.connect(func() -> void: market_trade_requested.emit(rid, false))
+		row.add_child(sell_btn)
+
+	var spacer := Control.new()
+	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vb.add_child(spacer)
+
+	var close_btn := Button.new()
+	close_btn.text = "Schliessen"
+	close_btn.custom_minimum_size = Vector2(0, 96)
+	close_btn.add_theme_font_size_override("font_size", 30)
+	close_btn.pressed.connect(func() -> void: _trade_panel.visible = false)
+	vb.add_child(close_btn)
+
+
+func _refresh_trade_labels() -> void:
+	if _trade_panel == null or not _trade_panel.visible and _trade_labels.is_empty():
+		return
+	var hero: Object = _ctx.get("hero", null)
+	if hero == null:
+		return
+	for rid in _trade_labels.keys():
+		var amt: int = (hero.wallet as Wallet).get_amount(String(rid))
+		(_trade_labels[rid] as Label).text = "%s: %d" % [Wallet.display_name(String(rid)), amt]

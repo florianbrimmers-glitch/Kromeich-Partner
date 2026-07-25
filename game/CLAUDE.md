@@ -11,8 +11,8 @@ wie HoMM3, 7 Einheiten-Tiers (units.json migrieren!), CC0-Sound.
 |---|---|
 | M1 Save/Load + Autosave + CI-Gate | FERTIG (Iteration 1) |
 | M2 Hauptmenue (Fortsetzen, Fraktionswahl, Seed-Eingabe) | FERTIG (Iteration 2) |
-| M3 Ressourcen-System | Teil 1 FERTIG (It. 3): Wallet, Minen-Typen, Haufen, Topbar. Teil 2 NAECHSTES: Markt-Tausch, Gebaeude-Mehrkosten, CityScreen-Anzeige, KI-Bewertung |
-| M4 Einheiten-Migration 7 Tiers (UnitType-Fassade ueber units.json) | offen |
+| M3 Ressourcen-System (Wallet, Minen, Haufen, Markt-Tausch, Mehrkosten) | FERTIG (It. 3+4) |
+| M4 Einheiten-Migration | NAECHSTES: Teil 1 = UnitType-Fassade ueber units.json + LEGACY_ALIASES (ohne Gebaeude-Umbau) |
 | M5-M12 Parallel-Band (Objekte, Moral, Abilities, Belagerung, Sprites, Sound, Events) | offen |
 | M7/M8 Heldenstats/Skills, Zauber | offen (nach M4) |
 | M13 Mehrere Helden (vorher Struktur-Iteration!), M14 MP | zurueckgestellt |

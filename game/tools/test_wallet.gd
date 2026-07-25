@@ -18,6 +18,7 @@ func _init() -> void:
 	_test_hero_gold_property()
 	_test_save_roundtrip()
 	await _test_mine_income()
+	_test_market_and_building()
 
 	print("")
 	if _fails == 0:
@@ -55,6 +56,61 @@ func _test_wallet_math() -> void:
 	_check(w2.get_amount("gold") == 200 and w2.get_amount("wood") == 5, "Wallet JSON-Roundtrip")
 	_check(Wallet.display_name("gems") == "Edelsteine", "display_name deutsch")
 	_check(Wallet.short_name("wood") == "H", "short_name Kuerzel")
+	_check(Wallet.cost_text({"gold": 800, "wood": 5, "ore": 2}) == "800G 5H 2E",
+		"cost_text kompakt + stabile Reihenfolge")
+	_check(Wallet.cost_text({}) == "", "cost_text leer")
+
+
+func _test_market_and_building() -> void:
+	print("== Markt + Gebaeude-Mehrkosten (im Spiel) ==")
+	# Direkt gegen die Konstanten/Pfade im WorldMapScreen testen.
+	var scene := load("res://scenes/WorldMap.tscn") as PackedScene
+	var wm := scene.instantiate()
+	root.add_child(wm)
+	# _ready laeuft asynchron - _start wird unten explizit gerufen, die
+	# Werte danach sind deterministisch.
+	wm.call("_start", 555, 1)
+	var hero: Hero = wm.get("_hero")
+	# Startvorrat da?
+	_check(hero.wallet.get_amount("wood") == 20 and hero.wallet.get_amount("ore") == 10,
+		"Startvorrat 20H/10E gesetzt")
+	# Bauen zieht Mehr-Ressourcen ab: Kaserne in der Startstadt.
+	var start_city: int = -1
+	var owner_hero: int = wm.get("OWNER_HERO")
+	var cities: Array = wm.get("_cities")
+	for i in range(cities.size()):
+		if int(cities[i]["owner"]) == owner_hero:
+			start_city = i
+			break
+	hero.gold = 10000
+	var wood_before: int = hero.wallet.get_amount("wood")
+	wm.call("_buy_building", start_city, 0)  # Index 0 = kaserne (500g+5H)
+	_check((cities[start_city]["buildings"] as Array).has("kaserne"), "Kaserne gebaut")
+	_check(hero.wallet.get_amount("wood") == wood_before - 5, "Bau zog 5 Holz ab")
+	# Zu teuer-Fall: alles Holz wegnehmen, Reiterei-Vorbedingungen simulieren.
+	hero.wallet.set_amount("wood", 0)
+	var gold_before: int = hero.gold
+	wm.call("_buy_building", start_city, 1)  # spaeher braucht 2H
+	_check(not (cities[start_city]["buildings"] as Array).has("spaeher"),
+		"Bau ohne Holz verweigert")
+	_check(hero.gold == gold_before, "verweigerter Bau kostet kein Gold")
+	# Markt-Tausch: kaufen und verkaufen.
+	wm.set("_selected_city", start_city)
+	hero.gold = 1000
+	hero.wallet.set_amount("wood", 0)
+	wm.call("_on_market_trade", "wood", true)
+	_check(hero.wallet.get_amount("wood") == 1 and hero.gold == 800,
+		"Markt-Kauf: +1 Holz fuer 200G")
+	wm.call("_on_market_trade", "wood", false)
+	_check(hero.wallet.get_amount("wood") == 0 and hero.gold == 850,
+		"Markt-Verkauf: -1 Holz fuer +50G")
+	wm.call("_on_market_trade", "wood", false)
+	_check(hero.gold == 850, "Verkauf ohne Bestand aendert nichts")
+	hero.gold = 100
+	wm.call("_on_market_trade", "gems", true)
+	_check(hero.wallet.get_amount("gems") == 0 and hero.gold == 100,
+		"Kauf ohne Gold aendert nichts")
+	wm.queue_free()
 
 
 func _test_hero_gold_property() -> void:

@@ -31,6 +31,16 @@ static func short_name(id: String) -> String:
 	return String(SHORT_NAMES.get(id, id.substr(0, 1).to_upper()))
 
 
+# Kompakte Kosten-Anzeige fuer UIs: {"gold":500,"wood":5} -> "500G 5H".
+# Reihenfolge folgt RESOURCE_IDS, damit die Anzeige stabil ist.
+static func cost_text(cost: Dictionary) -> String:
+	var parts: Array = []
+	for rid in RESOURCE_IDS:
+		if cost.has(rid) and int(cost[rid]) > 0:
+			parts.append("%d%s" % [int(cost[rid]), short_name(rid)])
+	return " ".join(parts)
+
+
 func get_amount(id: String) -> int:
 	return int(res.get(id, 0))
 

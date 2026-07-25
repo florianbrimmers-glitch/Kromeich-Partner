@@ -172,16 +172,25 @@ const FACTION_COLORS := [
 # anderen Gebaeudes, das vorher gebaut sein muss (selbe Stadt). Schmiede
 # z.B. braucht Kaserne, sonst war es zu leicht, ohne Kaserne zu spielen.
 # Pro Stadt als Liste von ids in city["buildings"].
+# Gebaeude-Kosten als Ressourcen-Dictionaries (M3 Teil 2). HoMM3-angelehnt,
+# mild fuer Mobile: Holz/Erz fuer Basis-Bauten, 1 Kristall fuer die Kapelle.
 const BUILDINGS := [
-	{"id": "kaserne",  "name": "Kaserne",  "cost": 500, "effect": "Nahkampf +8/Woche"},
-	{"id": "spaeher",  "name": "Spaeher",  "cost": 300, "effect": "+2 max Schritte/Tag"},
-	{"id": "markt",    "name": "Markt",    "cost": 800, "effect": "+200 Gold/Tag"},
-	{"id": "schmiede", "name": "Schmiede", "cost": 700, "effect": "Fernkampf +4/Woche", "requires": "kaserne"},
-	{"id": "reiterei", "name": "Reiterei", "cost": 1000, "effect": "Schwer +2/Woche", "requires": "schmiede"},
-	{"id": "wachturm", "name": "Wachturm", "cost": 400, "effect": "+1 Kampfkraft (dauerhaft)"},
-	{"id": "kapelle",  "name": "Kapelle",  "cost": 500, "effect": "+10 XP/Tag"},
-	{"id": "mauer",    "name": "Stadtmauer", "cost": 1200, "effect": "Stadtverteidigung (Kampf-Bonus folgt)"},
+	{"id": "kaserne",  "name": "Kaserne",  "cost": {"gold": 500, "wood": 5}, "effect": "Nahkampf +8/Woche"},
+	{"id": "spaeher",  "name": "Spaeher",  "cost": {"gold": 300, "wood": 2}, "effect": "+2 max Schritte/Tag"},
+	{"id": "markt",    "name": "Markt",    "cost": {"gold": 800, "wood": 5, "ore": 2}, "effect": "+200 Gold/Tag, Markt-Tausch"},
+	{"id": "schmiede", "name": "Schmiede", "cost": {"gold": 700, "ore": 5}, "effect": "Fernkampf +4/Woche", "requires": "kaserne"},
+	{"id": "reiterei", "name": "Reiterei", "cost": {"gold": 1000, "wood": 5, "ore": 5}, "effect": "Schwer +2/Woche", "requires": "schmiede"},
+	{"id": "wachturm", "name": "Wachturm", "cost": {"gold": 400, "ore": 5}, "effect": "+1 Kampfkraft (dauerhaft)"},
+	{"id": "kapelle",  "name": "Kapelle",  "cost": {"gold": 500, "wood": 2, "ore": 2, "crystal": 1}, "effect": "+10 XP/Tag"},
+	{"id": "mauer",    "name": "Stadtmauer", "cost": {"gold": 1200, "ore": 10, "wood": 5}, "effect": "Stadtverteidigung (Kampf-Bonus folgt)"},
 ]
+# Startvorrat (Spieler UND KI), damit Tag-1-Bauten nicht an fehlendem
+# Holz scheitern, bevor die erste Mine erobert ist.
+const STARTING_RESOURCES := {"wood": 20, "ore": 10}
+# Markt-Tauschkurse (M3 Teil 2): Kaufpreis in Gold je 1 Ressource und
+# Verkaufserloes. Bewusst ungleich (Spread), wie beim HoMM3-Marktplatz.
+const MARKET_BUY := {"wood": 200, "ore": 200, "mercury": 600, "sulfur": 600, "crystal": 600, "gems": 600}
+const MARKET_SELL := {"wood": 50, "ore": 50, "mercury": 150, "sulfur": 150, "crystal": 150, "gems": 150}
 
 @export var status_label_path: NodePath    = ^"TopBar/StatusLabel"
 @export var mp_label_path: NodePath        = ^"TopBar/MPLabel"
@@ -483,6 +492,7 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 	_set_status("STEP 4: MapGen fertig, spawn %s" % str(spawn))
 	_hero = Hero.new(spawn, BASE_MAX_MP)
 	_hero.gold = STARTING_GOLD
+	_hero.wallet.add_all(STARTING_RESOURCES)
 	# Start-Einheiten haengen an der Fraktion - die ergibt sich erst,
 	# wenn die Start-Stadt gewaehlt ist. Siehe player_start_idx unten.
 	_set_status("STEP 5: Hero erstellt")
@@ -588,6 +598,7 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 			var ai_starter: String = UnitType.starter_id_for_faction(ai_faction)
 			var ai_hero := Hero.new(_cities[best_idx]["pos"], ENEMY_BASE_MP)
 			ai_hero.gold = STARTING_GOLD
+			ai_hero.wallet.add_all(STARTING_RESOURCES)
 			ai_hero.add_units(ai_starter, STARTING_UNIT_COUNT)
 			_enemies.append({
 				"hero": ai_hero,
@@ -2197,6 +2208,7 @@ func _build_city_screen() -> void:
 	cs.build_requested.connect(_on_city_build)
 	cs.recruit_requested.connect(_on_city_recruit)
 	cs.plaza_tapped.connect(_set_status)
+	cs.market_trade_requested.connect(_on_market_trade)
 	cs.closed.connect(_on_city_closed)
 	_city_screen = cs
 
@@ -2213,6 +2225,8 @@ func _city_ctx(city_idx: int) -> Dictionary:
 		"faction_names": FACTION_NAMES,
 		"faction_colors": FACTION_COLORS,
 		"weekly_growth": WEEKLY_GROWTH,
+		"market_buy": MARKET_BUY,
+		"market_sell": MARKET_SELL,
 		"calendar": _calendar_text(),
 		"hero_here": _hero != null and _hero.position == Vector2i(city["pos"]),
 	}
@@ -2242,6 +2256,30 @@ func _on_city_recruit(unit_id: String) -> void:
 	_recruit_unit(_selected_city, unit_id)
 
 
+func _on_market_trade(res: String, buy: bool) -> void:
+	# Markt-Tausch (nur Spieler; die KI tauscht nicht). Kurse siehe
+	# MARKET_BUY/MARKET_SELL. Der CityScreen zeigt nur an - Mathe hier.
+	if _selected_city < 0:
+		return
+	if buy:
+		var price: int = int(MARKET_BUY.get(res, 0))
+		if price <= 0 or not _hero.wallet.pay({"gold": price}):
+			_set_status("Zu wenig Gold (%d G noetig)" % price)
+			return
+		_hero.wallet.add(res, 1)
+		_set_status("Gekauft: +1 %s fuer %d G" % [Wallet.display_name(res), price])
+	else:
+		var gain: int = int(MARKET_SELL.get(res, 0))
+		if gain <= 0 or _hero.wallet.get_amount(res) < 1:
+			_set_status("Kein %s zum Verkaufen" % Wallet.display_name(res))
+			return
+		_hero.wallet.add(res, -1)
+		_hero.wallet.add("gold", gain)
+		_set_status("Verkauft: 1 %s fuer %d G" % [Wallet.display_name(res), gain])
+	_update_labels()
+	_show_city(_selected_city)
+
+
 func _on_city_closed() -> void:
 	_hide_city()
 
@@ -2255,8 +2293,9 @@ func _hide_city() -> void:
 func _buy_building(city_idx: int, bld_idx: int) -> void:
 	var b: Dictionary = BUILDINGS[bld_idx]
 	var bid: String = b["id"]
-	var cost: int = int(b["cost"])
-	if _hero.gold < cost:
+	var cost: Dictionary = b["cost"]
+	if not _hero.wallet.can_afford(cost):
+		_set_status("Zu teuer: braucht %s" % Wallet.cost_text(cost))
 		return
 	var city: Dictionary = _cities[city_idx]
 	var built: Array = city["buildings"]
@@ -2267,7 +2306,7 @@ func _buy_building(city_idx: int, bld_idx: int) -> void:
 		return
 	built.append(bid)
 	_prime_pool_for_building(city, bid)
-	_hero.gold -= cost
+	_hero.wallet.pay(cost)
 	_update_labels()
 	_set_status("Gebaut: " + str(b["name"]))
 	_show_city(city_idx)
@@ -2374,8 +2413,8 @@ func _enemy_economy_for(idx: int) -> void:
 			var bdef: Dictionary = _building_by_id(bid)
 			if bdef.is_empty():
 				continue
-			var bcost: int = int(bdef["cost"])
-			if eh.gold < bcost:
+			var bcost: Dictionary = bdef["cost"]
+			if not eh.wallet.can_afford(bcost):
 				continue
 			var req: String = String(bdef["requires"]) if bdef.has("requires") else ""
 			for c in _cities:
@@ -2388,7 +2427,7 @@ func _enemy_economy_for(idx: int) -> void:
 					continue
 				bl.append(bid)
 				_prime_pool_for_building(c, bid)
-				eh.gold -= bcost
+				eh.wallet.pay(bcost)
 				spent = true
 				break
 			if spent:
