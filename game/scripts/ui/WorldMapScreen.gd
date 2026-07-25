@@ -299,10 +299,16 @@ func _ready() -> void:
 			return
 		# Korruptes Save: normal starten statt crashen.
 		_set_status("Laden fehlgeschlagen - neues Spiel")
+	# Neues Spiel mit Wunsch-Fraktion/-Seed aus dem Hauptmenue (M2)?
+	if sm != null and not (sm.pending_new_game as Dictionary).is_empty():
+		var ng: Dictionary = sm.pending_new_game
+		sm.pending_new_game = {}
+		_start(int(ng.get("seed", _seed)), int(ng.get("faction", -1)))
+		return
 	_start(_seed)
 
 
-func _start(seed_value: int) -> void:
+func _start(seed_value: int, requested_faction: int = -1) -> void:
 	_set_status("STEP 3: generiere seed=%d" % seed_value)
 	_seed = seed_value
 	_game_won = false
@@ -501,7 +507,24 @@ func _start(seed_value: int) -> void:
 	var player_start_idx: int = -1
 	_player_faction = 1
 	if _cities.size() > 0:
-		player_start_idx = rng.next_int(0, _cities.size() - 1)
+		# Fraktionswahl (M2): requested_faction 0..3 bevorzugt eine Stadt
+		# dieser Fraktion (Staedte rotieren i % 4, es gibt also immer
+		# welche). -1 = Zufall (bisheriges Verhalten). Der RNG wird in
+		# beiden Zweigen konsumiert, damit der Rest der Generierung
+		# fuer denselben Seed deterministisch bleibt, egal ob/was
+		# gewaehlt wurde.
+		var roll: int = rng.next_int(0, _cities.size() - 1)
+		if requested_faction >= 0:
+			var candidates: Array = []
+			for ci in range(_cities.size()):
+				if int(_cities[ci]["faction"]) == requested_faction:
+					candidates.append(ci)
+			if candidates.is_empty():
+				player_start_idx = roll
+			else:
+				player_start_idx = candidates[roll % candidates.size()]
+		else:
+			player_start_idx = roll
 		_cities[player_start_idx]["owner"] = OWNER_HERO
 		_cities[player_start_idx]["garrison"] = 0
 		spawn = _cities[player_start_idx]["pos"]
@@ -2094,7 +2117,7 @@ func _build_victory_panel() -> void:
 func _on_victory_new_map() -> void:
 	_victory_panel.visible = false
 	_game_won = false
-	_start(_seed + 1)
+	_start(_seed + 1, _player_faction)
 
 
 func _build_city_screen() -> void:
@@ -2821,7 +2844,7 @@ func _on_ai_attack_result(result: Dictionary, ai_idx: int, next_idx: int) -> voi
 
 
 func _on_reroll() -> void:
-	_start(_seed + 1)
+	_start(_seed + 1, _player_faction)
 
 
 func _on_back() -> void:

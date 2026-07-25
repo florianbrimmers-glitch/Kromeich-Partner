@@ -10,7 +10,7 @@ wie HoMM3, 7 Einheiten-Tiers (units.json migrieren!), CC0-Sound.
 | Meilenstein | Status |
 |---|---|
 | M1 Save/Load + Autosave + CI-Gate | FERTIG (Iteration 1) |
-| M2 Hauptmenue (Fortsetzen ist da; Fraktionswahl+Seed fehlen) | teilweise |
+| M2 Hauptmenue (Fortsetzen, Fraktionswahl, Seed-Eingabe) | FERTIG (Iteration 2) |
 | M3 Ressourcen-System (Wallet, Minen-Typen, Haufen, Markt-Tausch) | offen - NAECHSTES |
 | M4 Einheiten-Migration 7 Tiers (UnitType-Fassade ueber units.json) | offen |
 | M5-M12 Parallel-Band (Objekte, Moral, Abilities, Belagerung, Sprites, Sound, Events) | offen |

@@ -17,6 +17,8 @@ const SAVE_VERSION := 1
 
 # Vom Hauptmenue gesetzt, von WorldMapScreen._ready konsumiert.
 var pending_load: Dictionary = {}
+# Neues Spiel: {seed: int, faction: int 0..3 oder -1 fuer Zufall}.
+var pending_new_game: Dictionary = {}
 
 
 static func write_save(state: Dictionary, path: String = AUTOSAVE_PATH) -> Error:

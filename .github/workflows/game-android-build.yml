@@ -64,6 +64,7 @@ jobs:
           $GODOT --headless --path game/ --script tools/test_core_logic.gd
           $GODOT --headless --path game/ --script tools/test_city_screen.gd
           $GODOT --headless --path game/ --script tools/test_save_load.gd
+          $GODOT --headless --path game/ --script tools/test_new_game.gd
 
   android-apk:
     name: Godot -> APK (arm64-v8a)
