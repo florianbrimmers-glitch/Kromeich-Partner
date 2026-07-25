@@ -1,0 +1,78 @@
+name: Events Handler
+
+on:
+  schedule:
+    # Täglich um 03:30 UTC (nach objekte 02:00 und newsletter 03:00)
+    - cron: "30 3 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (Events erkennen/loggen, aber NICHT in Asana anlegen)"
+        required: false
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+      no_write:
+        description: "Nur lesen/loggen – keine Reactions, keine Asana-Writes"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+      scan_from_hours:
+        description: "Scan-Fenster: Stunden zurück (Standard 27)"
+        required: false
+        default: "27"
+      scan_to_hours:
+        description: "Bis Stunden zurück (0 = bis jetzt)"
+        required: false
+        default: "0"
+
+concurrency:
+  group: events-handler
+  cancel-in-progress: false
+
+jobs:
+  events-handler:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run events handler
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Asana-Schreibzugriff (Personal Access Token).
+          # Für DRY_RUN/NO_WRITE nicht nötig (dann keine Asana-Writes).
+          ASANA_ACCESS_TOKEN: ${{ secrets.ASANA_ACCESS_TOKEN }}
+          # Start im Dry-Run: Cron läuft vorerst mit DRY_RUN=true (keine Asana-Writes).
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'true' }}
+          NO_WRITE: ${{ github.event.inputs.no_write || 'false' }}
+          SCAN_HOURS: ${{ github.event.inputs.scan_from_hours || '27' }}
+          SCAN_LATEST_HOURS: ${{ github.event.inputs.scan_to_hours || '0' }}
+          DECISION_LOG_PATH: events_decisions.jsonl
+        run: python -m events_handler.main
+
+      - name: Upload decision log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: events-decisions-${{ github.run_id }}
+          path: events_decisions.jsonl
+          if-no-files-found: ignore
+          retention-days: 30
