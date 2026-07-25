@@ -24,8 +24,9 @@ TEST_EVENT = Event(
 
 def main() -> None:
     print("=" * 70)
-    print("Projekt :", config.project_id())
+    print("Projekt  :", config.project_id())
     print("Abschnitt:", config.section_id())
+    print("Token aus:", config.asana_token_env_name() or "!! KEIN Secret gefüllt !!")
     print("=" * 70)
 
     name, notes = build_task(TEST_EVENT, "https://slack.example/p123")

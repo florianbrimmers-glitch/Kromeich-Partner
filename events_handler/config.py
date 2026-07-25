@@ -50,8 +50,37 @@ def anthropic_api_key() -> str:
 
 
 # --- Asana-Ziel: Token als GitHub-Actions-Secret, Projekt/Abschnitt per Env überschreibbar ---
+# Der Token kann unter verschiedenen Secret-Namen hinterlegt sein – der erste
+# gefüllte gewinnt. Fehlende Secrets kommen in GitHub Actions als LEERER String
+# an, deshalb wird auf Inhalt und nicht auf Existenz geprüft.
+ASANA_TOKEN_ENV_NAMES = (
+    "ASANA_ACCESS_TOKEN",
+    "ASANA_TOKEN",
+    "ASANA_PAT",
+    "ASANA_API_KEY",
+    "ASANA_API_TOKEN",
+    "ASANA_PERSONAL_ACCESS_TOKEN",
+)
+
+
+def asana_token_env_name() -> str | None:
+    """Name der Env-Variable, die den Token liefert (für Logging/Diagnose)."""
+    for name in ASANA_TOKEN_ENV_NAMES:
+        if os.environ.get(name, "").strip():
+            return name
+    return None
+
+
 def asana_token() -> str:
-    return os.environ["ASANA_ACCESS_TOKEN"]
+    """Asana Personal Access Token aus dem erstbesten gefüllten Secret."""
+    name = asana_token_env_name()
+    if not name:
+        raise RuntimeError(
+            "Kein Asana-Token gefunden. Eines dieser Repository-Secrets füllen "
+            f"({', '.join(ASANA_TOKEN_ENV_NAMES)}) – "
+            "Settings -> Secrets and variables -> Actions."
+        )
+    return os.environ[name].strip()
 
 
 def project_id() -> str:
