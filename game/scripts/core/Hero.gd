@@ -16,7 +16,15 @@ const MAX_ARMY_SLOTS: int = 6
 var position: Vector2i
 var max_mp: int
 var mp: int
-var gold: int = 0
+# Mehr-Ressourcen-Boerse (M3). "gold" bleibt als Property erhalten,
+# damit die ~24 bestehenden .gold-Zugriffe im Code unveraendert
+# weiterlaufen - sie lesen/schreiben transparent ins Wallet.
+var wallet: Wallet = Wallet.new()
+var gold: int:
+	get:
+		return wallet.get_amount("gold")
+	set(value):
+		wallet.set_amount("gold", value)
 var army: Dictionary = {}
 # Progression: Level startet bei 1; XP sammelt sich monoton. Der
 # WorldMapScreen bestimmt per LEVEL_THRESHOLDS, wann ein Level-Up faellt.
@@ -120,7 +128,7 @@ func to_dict() -> Dictionary:
 		"position": SaveCodec.v2i(position),
 		"mp": mp,
 		"max_mp": max_mp,
-		"gold": gold,
+		"wallet": wallet.to_dict(),
 		"army": army.duplicate(),
 		"xp": xp,
 		"level": level,
@@ -130,7 +138,12 @@ static func from_dict(d: Dictionary) -> Hero:
 	var h := Hero.new(SaveCodec.to_v2i(d.get("position"), Vector2i.ZERO),
 		int(d.get("max_mp", 12)))
 	h.mp = int(d.get("mp", h.max_mp))
-	h.gold = int(d.get("gold", 0))
+	if d.has("wallet"):
+		h.wallet = Wallet.from_dict(d["wallet"])
+	else:
+		# v1-Saves (vor M3) kannten nur "gold" - tolerant mappen,
+		# kein SAVE_VERSION-Bump noetig.
+		h.gold = int(d.get("gold", 0))
 	h.army = SaveCodec.int_dict(d.get("army", {}))
 	h.xp = int(d.get("xp", 0))
 	h.level = int(d.get("level", 1))

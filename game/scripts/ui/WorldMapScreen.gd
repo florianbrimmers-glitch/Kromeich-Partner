@@ -69,14 +69,32 @@ const MONSTER_VICTORY_GOLD := 120
 # werden muss (selbe Formel wie Stadt-Wache/Monster).
 const OBJECT_MINE := 0
 const OBJECT_TREASURE := 1
-const MINE_COUNT := 4
+# Ressourcen-Haufen (M3): unbewachtes/leicht bewachtes Einmal-Pickup
+# einer einzelnen Ressource.
+const OBJECT_PILE := 2
+const MINE_COUNT := 6
 const TREASURE_COUNT := 4
+const PILE_COUNT := 6
 const MINE_GOLD_PER_TURN := 150
 const TREASURE_GOLD_MIN := 300
 const TREASURE_GOLD_MAX := 700
 const OBJECT_GUARD_MIN := 2
 const OBJECT_GUARD_MAX := 5
 const OBJECT_MIN_DIST := 3
+# Minen-Verteilung (M3): Index in dieser Liste = wievielte platzierte
+# Mine. 2x Gold, je 1x Holz/Erz, 2 zufaellige Edel-Minen (Slot "rare").
+const MINE_KINDS := ["gold", "gold", "wood", "ore", "rare", "rare"]
+const RARE_RESOURCES := ["mercury", "sulfur", "crystal", "gems"]
+# Tagesertrag je Minen-Ressource.
+const MINE_YIELD := {"gold": MINE_GOLD_PER_TURN, "wood": 2, "ore": 2,
+	"mercury": 1, "sulfur": 1, "crystal": 1, "gems": 1}
+# Tint-Farben fuer Haufen-Sprites und UI-Akzente je Ressource.
+const RESOURCE_COLORS := {
+	"gold": Color(1.0, 0.85, 0.3), "wood": Color(0.65, 0.45, 0.25),
+	"ore": Color(0.62, 0.62, 0.66), "mercury": Color(0.75, 0.85, 0.95),
+	"sulfur": Color(0.9, 0.85, 0.4), "crystal": Color(0.6, 0.85, 0.95),
+	"gems": Color(0.85, 0.5, 0.85),
+}
 
 # Belohnung fuer Sieg ueber den Gegner-Helden (Auto-Resolve auf der Karte).
 # Bewusst hoeher als ein Monster, weil er sich bewegt und zurueckschlaegt.
@@ -621,7 +639,7 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 	_set_status("STEP 5c: Objekte platzieren")
 	_objects.clear()
 	var o_attempts: int = 0
-	var o_target: int = MINE_COUNT + TREASURE_COUNT
+	var o_target: int = MINE_COUNT + TREASURE_COUNT + PILE_COUNT
 	while _objects.size() < o_target and o_attempts < 800:
 		o_attempts += 1
 		var ox: int = rng.next_int(0, MAP_WIDTH - 1)
@@ -652,16 +670,39 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 				break
 		if oblocked:
 			continue
-		var kind: int = OBJECT_MINE if _objects.size() < MINE_COUNT else OBJECT_TREASURE
+		var idx: int = _objects.size()
+		var kind: int = OBJECT_MINE
+		if idx >= MINE_COUNT + TREASURE_COUNT:
+			kind = OBJECT_PILE
+		elif idx >= MINE_COUNT:
+			kind = OBJECT_TREASURE
+		var resource: String = "gold"
 		var gold_amt: int = MINE_GOLD_PER_TURN
-		if kind == OBJECT_TREASURE:
+		var guard_amt: int = rng.next_int(OBJECT_GUARD_MIN, OBJECT_GUARD_MAX)
+		if kind == OBJECT_MINE:
+			resource = String(MINE_KINDS[idx % MINE_KINDS.size()])
+			if resource == "rare":
+				resource = String(RARE_RESOURCES[rng.next_int(0, RARE_RESOURCES.size() - 1)])
+			gold_amt = int(MINE_YIELD.get(resource, 1))
+		elif kind == OBJECT_TREASURE:
 			gold_amt = rng.next_int(TREASURE_GOLD_MIN, TREASURE_GOLD_MAX)
+		else:
+			# Ressourcen-Haufen: Rotation Holz/Erz/Edel, kleine Mengen,
+			# hoechstens Mini-Wache (0-1) - fruehes "Einsammel-Futter".
+			var pile_cycle: int = (idx - MINE_COUNT - TREASURE_COUNT) % 3
+			match pile_cycle:
+				0: resource = "wood"
+				1: resource = "ore"
+				_: resource = String(RARE_RESOURCES[rng.next_int(0, RARE_RESOURCES.size() - 1)])
+			gold_amt = rng.next_int(5, 10) if pile_cycle < 2 else rng.next_int(2, 4)
+			guard_amt = rng.next_int(0, 1)
 		_objects.append({
 			"pos": opos,
 			"kind": kind,
 			"owner": OWNER_NEUTRAL,
-			"guard": rng.next_int(OBJECT_GUARD_MIN, OBJECT_GUARD_MAX),
+			"guard": guard_amt,
 			"gold": gold_amt,
+			"resource": resource,
 		})
 
 	_turn_number = 0
@@ -940,8 +981,17 @@ func _update_labels() -> void:
 		var xp: int = int(_hero.xp)
 		var bonus: int = _combat_bonus()
 		var bonus_str: String = " (+" + str(bonus) + ")" if bonus > 0 else ""
-		ml.text = "%s  L%d  %d/%d  G%d  %s%s  XP%d" % [
-			_calendar_text(), lvl, mp, mmax, gold, _hero.army_summary(), bonus_str, xp]
+		# Kompakte Ressourcenzeile (M3): nur Bestaende != 0 anzeigen,
+		# damit die Topbar auf schmalen Displays lesbar bleibt.
+		var res_str: String = ""
+		for rid in Wallet.RESOURCE_IDS:
+			if rid == "gold":
+				continue
+			var amt: int = _hero.wallet.get_amount(rid)
+			if amt > 0:
+				res_str += "  %s%d" % [Wallet.short_name(rid), amt]
+		ml.text = "%s  L%d  %d/%d  G%d%s  %s%s  XP%d" % [
+			_calendar_text(), lvl, mp, mmax, gold, res_str, _hero.army_summary(), bonus_str, xp]
 
 
 # --- Kalender-Helper: duenne Delegates auf GameCalendar (core/), wo die
@@ -1189,12 +1239,19 @@ func _draw_map() -> void:
 			opos + Vector2(oinset, oinset),
 			Vector2(_tile_size - 1.0 - 2.0 * oinset, _tile_size - 1.0 - 2.0 * oinset)
 		)
-		# Sprite-basiert: Mine oder Truhe als SVG. Fallback auf alte Strich-
-		# Symbole wenn das Asset fehlt.
-		var obj_sprite: String = "objects/mine.svg" if okind == OBJECT_MINE else "objects/chest.svg"
+		# Sprite-basiert: Mine/Truhe/Haufen als SVG. Fallback auf alte
+		# Strich-Symbole wenn das Asset fehlt. Haufen werden per Modulate
+		# in der Ressourcen-Farbe getoent.
+		var obj_sprite: String = "objects/chest.svg"
+		var obj_tint: Color = Color.WHITE
+		if okind == OBJECT_MINE:
+			obj_sprite = "objects/mine.svg"
+		elif okind == OBJECT_PILE:
+			obj_sprite = "objects/pile.svg"
+			obj_tint = RESOURCE_COLORS.get(String(obj.get("resource", "gold")), Color.WHITE)
 		var obj_tex: Texture2D = _world_texture(obj_sprite)
 		if obj_tex != null:
-			_map_area.draw_texture_rect(obj_tex, orect, false)
+			_map_area.draw_texture_rect(obj_tex, orect, false, obj_tint)
 			if ofog == FOG_EXPLORED:
 				_map_area.draw_rect(orect, Color(0, 0, 0, 0.55), true)
 		else:
@@ -1678,6 +1735,12 @@ func _handle_tap(pos: Vector2) -> void:
 			_hero.gold += reward
 			_objects.remove_at(obj_idx)
 			_set_combat("Schatz gefunden: +%d G" % reward)
+		elif okind2 == OBJECT_PILE:
+			var pres: String = String(obj2.get("resource", "gold"))
+			var pamt: int = int(obj2["gold"])
+			_hero.wallet.add(pres, pamt)
+			_objects.remove_at(obj_idx)
+			_set_combat("Gefunden: +%d %s" % [pamt, Wallet.display_name(pres)])
 
 	_hero.mp -= cost
 	_hero.position = target
@@ -1951,6 +2014,12 @@ func _on_object_result(result: Dictionary, obj_pos: Vector2i, target: Vector2i, 
 		_hero.gold += reward
 		_objects.remove_at(obj_idx)
 		_set_combat("Schatz gefunden: +%d G (Wache -%d A)" % [reward, cas])
+	elif okind == OBJECT_PILE:
+		var pres: String = String(obj.get("resource", "gold"))
+		var pamt: int = int(obj["gold"])
+		_hero.wallet.add(pres, pamt)
+		_objects.remove_at(obj_idx)
+		_set_combat("Gefunden: +%d %s (Wache -%d A)" % [pamt, Wallet.display_name(pres), cas])
 	_finish_move_to(target, cost)
 
 
@@ -2277,7 +2346,11 @@ func _enemy_economy_for(idx: int) -> void:
 	var e_mine_income: int = 0
 	for obj in _objects:
 		if int(obj["kind"]) == OBJECT_MINE and int(obj.get("owner", OWNER_NEUTRAL)) == oid:
-			e_mine_income += int(obj["gold"])
+			var eres: String = String(obj.get("resource", "gold"))
+			if eres == "gold":
+				e_mine_income += int(obj["gold"])
+			else:
+				eh.wallet.add(eres, int(obj["gold"]))
 	eh.gold += owned * CITY_INCOME + markt * INCOME_MARKT + e_mine_income
 	# Symmetrie zum Spieler: Gebaeude bauen und Rekruten kaufen nur,
 	# wenn der KI-Held aktuell auf einer eigenen Stadt steht. Sonst
@@ -2686,13 +2759,19 @@ func _run_enemy_turn_for(idx: int) -> bool:
 				obj["guard"] = 0
 			obj["owner"] = oid
 		elif target_kind == "treasure":
+			# Deckt Schatzkisten UND Ressourcen-Haufen ab (target_kind ist
+			# fuer alles ausser Minen "treasure").
 			var obj2: Dictionary = _objects[target_idx]
 			var g2: int = int(obj2.get("guard", 0))
 			if g2 > 0:
 				if eh.total_count() < g2:
 					return true
 				eh.apply_proportional_losses(g2)
-			eh.gold += int(obj2["gold"])
+			var tres: String = String(obj2.get("resource", "gold"))
+			if int(obj2["kind"]) == OBJECT_PILE and tres != "gold":
+				eh.wallet.add(tres, int(obj2["gold"]))
+			else:
+				eh.gold += int(obj2["gold"])
 			_objects.remove_at(target_idx)
 	return true
 
@@ -2762,7 +2841,12 @@ func _on_end_turn() -> void:
 	var mine_income: int = 0
 	for obj in _objects:
 		if int(obj["kind"]) == OBJECT_MINE and int(obj.get("owner", OWNER_NEUTRAL)) == OWNER_HERO:
-			mine_income += int(obj["gold"])
+			var mres: String = String(obj.get("resource", "gold"))
+			if mres == "gold":
+				mine_income += int(obj["gold"])
+			else:
+				# Nicht-Gold-Minen zahlen ihre Ressource direkt ins Wallet.
+				_hero.wallet.add(mres, int(obj["gold"]))
 	var income: int = owned * CITY_INCOME + markt_count * INCOME_MARKT + mine_income
 	_hero.gold += income
 	var xp_gain: int = kapelle_count * KAPELLE_XP_PER_TURN
