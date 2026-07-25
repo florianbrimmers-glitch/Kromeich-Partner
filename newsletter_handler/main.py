@@ -10,12 +10,14 @@ from . import config
 from .classifier import extract_deals
 from .decision import decide, due_date_plus_business_days
 from .logbuch import append_record
-from .matcher import find_unit
+from .matcher import gather_candidates
+from .match_ai import propose_search_terms, select_match
 from .models import (
     Deal,
     Decision,
     DecisionRecord,
     MatchResult,
+    MatchStatus,
     RunReport,
     Tier,
 )
@@ -114,14 +116,13 @@ def _stufe_b(msg: dict, deal: Deal, match: MatchResult | None, decision: Decisio
     """Review-Aufgabe statt Ausführung."""
     slack_datum = datetime.fromtimestamp(float(msg["ts"]), tz=timezone.utc).date().isoformat()
 
-    broker_id = config.BROKER_OGUZHAN
-    broker_name = "Oguzhan"
+    # Newsletter-Review-Aufgaben gehen zentral an Marek (Marktbeobachtung),
+    # unabhängig vom Objekt-Makler.
+    broker_id = config.BROKER_MAREK
+    broker_name = "Marek"
     unit = match.units[0] if match and match.units else None
     if unit is None and match and match.kandidaten:
         unit = match.kandidaten[0]
-    if unit and unit.broker_id:
-        broker_id = unit.broker_id
-        broker_name = unit.broker_name or str(unit.broker_id)
 
     objekt = deal.objekt_name or (unit.adresse() if unit else None)
     titel = f"Newsletter-Vermietung prüfen: {objekt or msg.get('text', '')[:60]}"
@@ -191,7 +192,12 @@ def _process_message(msg: dict, run_id: str, report: RunReport) -> None:
             match: MatchResult | None = None
             if deal.ist_vermietung:
                 report.vermietungen += 1
-                match = find_unit(deal)
+                terms = propose_search_terms(deal)
+                candidates = gather_candidates(deal, extra_queries=terms)
+                if candidates:
+                    match = select_match(deal, candidates)
+                else:
+                    match = MatchResult(status=MatchStatus.NONE, grund="Keine Kandidaten gefunden")
                 record.match = match
 
             decision = decide(deal, match)
