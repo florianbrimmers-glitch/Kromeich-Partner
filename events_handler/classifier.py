@@ -14,12 +14,26 @@ logger = logging.getLogger(__name__)
 
 EXTRACTION_PROMPT = """Du wertest einen Beitrag aus dem internen Slack-Kanal #events eines Gewerbeimmobilien-Maklers (Kromeich & Partner) aus. Dort werden weitergeleitete Veranstaltungs-Einladungen, Messe-Hinweise und Newsletter gepostet – meist als E-Mail-Inhalt.
 
-Extrahiere ALLE konkreten Veranstaltungen (Messen, Kongresse, Netzwerk-Events, Webinare, Kundenevents) mit einem erkennbaren Termin. Gib sie als JSON-Liste zurück.
+Extrahiere die konkreten Veranstaltungen mit erkennbarem Termin und gib sie als JSON-Liste zurück.
 
-Setze ist_event=false, wenn es sich um reine Werbung, einen allgemeinen Newsletter ohne konkreten Termin, eine Grußnachricht o.Ä. handelt (dann trotzdem ein Listeneintrag mit ist_event=false).
+RELEVANZ – die Zielliste ist eine kuratierte Messe-/Event-Liste (Beispiele daraus: LogiMat, Expo Real, Hannovermesse, Handelsblatt „Die Logistikimmobilie", Real Estate Arena, Kupferglanz Woman Event). Wie streng du siebst, hängt davon ab, WIE der Beitrag in den Kanal kam:
+
+FALL 1 – EINZELNE weitergeleitete Einladung (der Beitrag dreht sich um EINE Veranstaltung):
+Sei GROSSZÜGIG. Jemand aus dem Team hat sie bewusst in #events geteilt – das ist bereits ein Relevanzsignal, erst recht wenn ein Kommentar dabeisteht („gehe ich hin", „interessant", jemand wurde weitergeleitet). Setze ist_event=true, sofern ein Termin erkennbar und ein fachlicher Bezug zu Immobilien, Logistik, Bau, Industrie, Wirtschaft oder Netzwerken der Branche besteht – auch bei Netzwerktreffen, Fachveranstaltungsreihen, Frauennetzwerken oder virtuellen Formaten.
+
+FALL 2 – SAMMEL-Beitrag (Verbands-Newsletter o.Ä. mit einer LANGEN TERMINLISTE):
+Hier SIEBE HART, sonst überschwemmen Routinetermine die Liste. Nur die herausragenden Termine mit Messe-/Fachkongress-Charakter aufnehmen. ist_event=false für Regionalgruppen-Treffen, Mitgliederversammlungen, reine Webinare/Online-Infoveranstaltungen, Sommerfeste/Partys/Stammtische, Bürgerfeste, produktbezogene Firmen-Events.
+
+Setze ist_event=false in beiden Fällen bei reiner Werbung, einem Beitrag ohne konkreten Termin oder einer Grußnachricht. Auch aussortierte Einträge gibst du als Listeneintrag mit ist_event=false und kurzer begruendung zurück (sie werden protokolliert, aber nicht in die Liste übernommen).
 
 Extrahiere je Event (null wenn nicht vorhanden):
-- datum: exakt wie im Text, z.B. "04.10.2026", "14. Juli", "16./17.06" (keine Umformatierung)
+- datum: exakt wie im Text, z.B. "04.10.2026", "14. Juli", "16./17.06" (keine Umformatierung).
+  AUSNAHME – unbrauchbare relative Angaben: Steht statt eines Termins nur etwas
+  Relatives wie "heute", "morgen", "diese Woche", "demnächst" (typisch in
+  Newsletter-Rubriken), dann NICHT übernehmen. Verwende stattdessen den ERSTEN
+  DES MONATS, auf den sich der Beitrag bezieht, im Format "01.MM.JJJJ"
+  (z.B. Newsletter-Ausgabe "07/26" mit "heute" -> "01.07.2026"). Ein konkret
+  genannter Termin hat immer Vorrang.
 - event_name: Name der Veranstaltung
 - branche: thematische Einordnung, z.B. "Logistik", "Immobilien", "Einkauf", "Fashion" (kurz)
 - ort: Stadt/Ort bzw. "virtuell"/"digital"
