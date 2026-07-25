@@ -1,5 +1,11 @@
 extends Control
 
+# Save/Load: statische Funktionen ueber preload statt Autoload-Identifier,
+# damit headless Tools-Skripte (starten ohne Autoloads) die Szene laden
+# koennen. Das Autoload /root/SaveManager wird nur fuer pending_load
+# (Menue-Uebergabe) per get_node_or_null angesprochen.
+const SaveLib := preload("res://scripts/core/SaveManager.gd")
+
 # Weltkarten-Screen. Rendert eine deterministische Zufallskarte per
 # _draw() und erlaubt den Helden per Tap zu bewegen. Dijkstra berechnet
 # die Kosten aller erreichbaren Felder; unerreichbare werden abgedunkelt.
@@ -282,6 +288,17 @@ func _ready() -> void:
 	(get_node(back_button_path) as Button).pressed.connect(_on_back)
 	_set_status("STEP 2: Buttons verdrahtet")
 
+	# Vom Hauptmenue angefordertes Laden? Das Autoload-Singleton traegt
+	# den Save-Inhalt (get_node_or_null, damit headless Tools-Skripte ohne
+	# Autoloads nicht crashen).
+	var sm := get_node_or_null(^"/root/SaveManager")
+	if sm != null and not (sm.pending_load as Dictionary).is_empty():
+		var save: Dictionary = sm.pending_load
+		sm.pending_load = {}
+		if _restore_state(save):
+			return
+		# Korruptes Save: normal starten statt crashen.
+		_set_status("Laden fehlgeschlagen - neues Spiel")
 	_start(_seed)
 
 
@@ -1803,6 +1820,7 @@ func _ensure_hero_in_view() -> void:
 
 func _on_battle_defeat() -> void:
 	_game_lost = true
+	SaveLib.delete_autosave()
 	_set_status("NIEDERLAGE")
 	_set_combat("NIEDERLAGE: Held gefallen")
 	_show_defeat_panel()
@@ -1969,6 +1987,7 @@ func _check_victory() -> void:
 		if eh != null:
 			return
 	_game_won = true
+	SaveLib.delete_autosave()
 	_show_victory_panel()
 
 
@@ -2671,6 +2690,7 @@ func _check_defeat() -> void:
 			ai_cities += 1
 	if player_cities == 0 and ai_cities > 0:
 		_game_lost = true
+		SaveLib.delete_autosave()
 		_show_defeat_panel()
 
 
@@ -2773,6 +2793,10 @@ func _finalize_turn() -> void:
 	# diesen Aufruf wird der Sieg nur getriggert, wenn der Spieler selbst
 	# eine Stadt einnimmt oder einen KI-Held besiegt.
 	_check_victory()
+	# Autosave am Tagesende - der wichtigste Persistenz-Punkt. Nach Sieg/
+	# Niederlage nicht mehr speichern (das Autosave wurde dort geloescht).
+	if not _game_won and not _game_lost:
+		SaveLib.write_save(_capture_state())
 
 
 func _on_ai_attack_result(result: Dictionary, ai_idx: int, next_idx: int) -> void:
@@ -2802,3 +2826,147 @@ func _on_reroll() -> void:
 
 func _on_back() -> void:
 	get_tree().change_scene_to_file("res://scenes/Main.tscn")
+
+
+# ====================== Save/Load (M1) ======================
+# Snapshot-Pattern: die Karte selbst wird NICHT gespeichert - sie ist
+# deterministische Funktion von _seed (MapGen). Save = Seed + Deltas.
+# _restore_state nutzt _start(seed) als "Konstruktor" (baut Karte, UI,
+# Fog-Arrays) und ueberschreibt danach die Zustands-Variablen.
+
+func _capture_state() -> Dictionary:
+	var cities_out: Array = []
+	for c in _cities:
+		var cd: Dictionary = c.duplicate(true)
+		cd["pos"] = SaveCodec.v2i(c["pos"])
+		cities_out.append(cd)
+	var objects_out: Array = []
+	for o in _objects:
+		var od: Dictionary = o.duplicate(true)
+		od["pos"] = SaveCodec.v2i(o["pos"])
+		objects_out.append(od)
+	var monsters_out: Array = []
+	for m in _monsters:
+		var md: Dictionary = m.duplicate(true)
+		md["pos"] = SaveCodec.v2i(m["pos"])
+		monsters_out.append(md)
+	var enemies_out: Array = []
+	for e in _enemies:
+		var eh: Hero = e["hero"] as Hero
+		var rivals_out: Dictionary = {}
+		for rid in (e.get("rivals_seen", {}) as Dictionary).keys():
+			var rv: Dictionary = e["rivals_seen"][rid]
+			rivals_out[str(rid)] = {
+				"pos": SaveCodec.v2i(rv["pos"]),
+				"turn": int(rv["turn"]),
+			}
+		enemies_out.append({
+			"hero": eh.to_dict() if eh != null else null,
+			"owner_id": int(e["owner_id"]),
+			"primary_faction": int(e.get("primary_faction", 1)),
+			"recruit_idx": int(e.get("recruit_idx", 0)),
+			"fog": (e["fog"] as Array).duplicate(),
+			"player_last_seen_pos": SaveCodec.v2i(e["player_last_seen_pos"]),
+			"player_last_seen_turn": int(e["player_last_seen_turn"]),
+			"rivals_seen": rivals_out,
+		})
+	var seen_out: Array = []
+	for s in _ai_seen_by_player:
+		seen_out.append({"pos": SaveCodec.v2i(s["pos"]), "turn": int(s["turn"])})
+	return {
+		"seed": _seed,
+		"turn_number": _turn_number,
+		"player_faction": _player_faction,
+		"hero": _hero.to_dict(),
+		"cities": cities_out,
+		"objects": objects_out,
+		"monsters": monsters_out,
+		"enemies": enemies_out,
+		"ai_seen_by_player": seen_out,
+		"fog_player": _fog_player.duplicate(),
+		"rng_state": _rng.get_state_string(),
+	}
+
+
+func _restore_state(d: Dictionary) -> bool:
+	if d.is_empty() or not d.has("seed") or not d.has("hero"):
+		return false
+	# 1) Welt deterministisch neu bauen - danach stimmen Karte/UI/Arrays.
+	_start(int(d["seed"]))
+	# 2) Zustand ueberschreiben.
+	_turn_number = int(d.get("turn_number", 0))
+	_player_faction = int(d.get("player_faction", 1))
+	_hero = Hero.from_dict(d["hero"])
+	_cities.clear()
+	for cd in d.get("cities", []):
+		var c: Dictionary = (cd as Dictionary).duplicate(true)
+		c["pos"] = SaveCodec.to_v2i(c["pos"])
+		# JSON-Floats -> ints fuer bekannte Zahlfelder.
+		c["faction"] = int(c.get("faction", 0))
+		c["owner"] = int(c.get("owner", -1))
+		c["garrison"] = int(c.get("garrison", 0))
+		c["pools"] = SaveCodec.int_dict(c.get("pools", {}))
+		_cities.append(c)
+	_objects.clear()
+	for od in d.get("objects", []):
+		var o: Dictionary = (od as Dictionary).duplicate(true)
+		o["pos"] = SaveCodec.to_v2i(o["pos"])
+		o["kind"] = int(o.get("kind", 0))
+		o["owner"] = int(o.get("owner", -1))
+		o["guard"] = int(o.get("guard", 0))
+		o["gold"] = int(o.get("gold", 0))
+		_objects.append(o)
+	_monsters.clear()
+	for md in d.get("monsters", []):
+		var m: Dictionary = (md as Dictionary).duplicate(true)
+		m["pos"] = SaveCodec.to_v2i(m["pos"])
+		m["strength"] = int(m.get("strength", 1))
+		_monsters.append(m)
+	_enemies.clear()
+	for ed in d.get("enemies", []):
+		var e: Dictionary = ed as Dictionary
+		var rivals_in: Dictionary = {}
+		for rk in (e.get("rivals_seen", {}) as Dictionary).keys():
+			var rv: Dictionary = e["rivals_seen"][rk]
+			rivals_in[int(rk)] = {
+				"pos": SaveCodec.to_v2i(rv["pos"]),
+				"turn": int(rv["turn"]),
+			}
+		_enemies.append({
+			"hero": Hero.from_dict(e["hero"]) if e.get("hero") != null else null,
+			"owner_id": int(e["owner_id"]),
+			"primary_faction": int(e.get("primary_faction", 1)),
+			"recruit_idx": int(e.get("recruit_idx", 0)),
+			"fog": SaveCodec.int_array(e.get("fog", [])),
+			"player_last_seen_pos": SaveCodec.to_v2i(e.get("player_last_seen_pos")),
+			"player_last_seen_turn": int(e.get("player_last_seen_turn", -1)),
+			"rivals_seen": rivals_in,
+		})
+	_ai_seen_by_player.clear()
+	for sd in d.get("ai_seen_by_player", []):
+		_ai_seen_by_player.append({
+			"pos": SaveCodec.to_v2i((sd as Dictionary).get("pos")),
+			"turn": int((sd as Dictionary).get("turn", -1)),
+		})
+	_fog_player = SaveCodec.int_array(d.get("fog_player", []))
+	_rng.set_state_string(String(d.get("rng_state", "")))
+	_game_won = false
+	_game_lost = false
+	# 3) Abgeleitetes neu berechnen + zeichnen.
+	_recompute_fog_player()
+	for i in range(_enemies.size()):
+		_recompute_fog_ai(i)
+	_recompute_costs()
+	_update_labels()
+	_request_redraw()
+	_set_status("Spielstand geladen - Tag %d" % _day_num())
+	return true
+
+
+# Android/iOS: App wird pausiert oder geschlossen -> sofort sichern.
+# NOTIFICATION_APPLICATION_PAUSED kommt beim Backgrounding (Home-Button),
+# WM_CLOSE_REQUEST beim regulaeren Beenden.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_WM_CLOSE_REQUEST:
+		if _hero != null and not _game_won and not _game_lost:
+			SaveLib.write_save(_capture_state())

@@ -111,3 +111,27 @@ func army_summary() -> String:
 		for k in army.keys():
 			parts.append("%d %s" % [int(army[k]), String(k).substr(0, 2)])
 	return " / ".join(parts)
+
+# --- Save/Load (M1) ---
+# to_dict/from_dict sind bewusst tolerant: fehlende Keys -> Defaults,
+# damit aeltere Saves nach Feld-Ergaenzungen ohne Migration laden.
+func to_dict() -> Dictionary:
+	return {
+		"position": SaveCodec.v2i(position),
+		"mp": mp,
+		"max_mp": max_mp,
+		"gold": gold,
+		"army": army.duplicate(),
+		"xp": xp,
+		"level": level,
+	}
+
+static func from_dict(d: Dictionary) -> Hero:
+	var h := Hero.new(SaveCodec.to_v2i(d.get("position"), Vector2i.ZERO),
+		int(d.get("max_mp", 12)))
+	h.mp = int(d.get("mp", h.max_mp))
+	h.gold = int(d.get("gold", 0))
+	h.army = SaveCodec.int_dict(d.get("army", {}))
+	h.xp = int(d.get("xp", 0))
+	h.level = int(d.get("level", 1))
+	return h

@@ -1,5 +1,29 @@
 # Kromeich Heroes - Arbeits-Notizen
 
+## Roadmap-Status (autonome /loop-Schleife "HoMM3-Endausbau")
+
+Vollstaendige Roadmap + Architektur-Entscheidungen: Plan-Datei der
+Session bzw. Git-History. Scope-Entscheidungen des Nutzers:
+Singleplayer zuerst (kein MP in dieser Schleife), MEHR-Ressourcen-System
+wie HoMM3, 7 Einheiten-Tiers (units.json migrieren!), CC0-Sound.
+
+| Meilenstein | Status |
+|---|---|
+| M1 Save/Load + Autosave + CI-Gate | FERTIG (Iteration 1) |
+| M2 Hauptmenue (Fortsetzen ist da; Fraktionswahl+Seed fehlen) | teilweise |
+| M3 Ressourcen-System (Wallet, Minen-Typen, Haufen, Markt-Tausch) | offen - NAECHSTES |
+| M4 Einheiten-Migration 7 Tiers (UnitType-Fassade ueber units.json) | offen |
+| M5-M12 Parallel-Band (Objekte, Moral, Abilities, Belagerung, Sprites, Sound, Events) | offen |
+| M7/M8 Heldenstats/Skills, Zauber | offen (nach M4) |
+| M13 Mehrere Helden (vorher Struktur-Iteration!), M14 MP | zurueckgestellt |
+
+Pro-Iteration-Vertrag: (1) git fetch+reset auf origin-Branch (Sandbox
+resettet, Tracking-Ref luegt - ls-remote glauben, nicht git log!),
+(2) EIN Meilenstein-Teil, (3) Logik nach core/ statt in den Monolithen,
+(4) Test in tools/ + game-ci.yml, (5) Save-Fixture-Kompatibilitaet
+(tools/fixtures/save_v*.json) pruefen, (6) nur gruen pushen (CI shippt
+APK auf latest-mobile!), (7) diese Tabelle aktualisieren.
+
 ## Offene Design-Entscheidungen (noch nicht implementiert)
 
 ### Fraktions-Misch-Malus in Armeen
