@@ -6,13 +6,22 @@ import os
 NEWSLETTER_CHANNEL = "C07NL0KET40"
 CLAUDE_MODEL = "claude-opus-4-8"
 
-BROKER_OGUZHAN = 254958  # Default-Empfänger für Review-Aufgaben (Stufe B)
+BROKER_MAREK = 387451    # Empfänger der Newsletter-Review-Aufgaben (Stufe B)
+BROKER_OGUZHAN = 254958
 
 # Absagegrund "Fläche nicht mehr verfügbar" (Standard für Fremdvermietung)
 RESERVATION_REASON_ABSAGE = 256998
 
 CHECK_EMOJI = "white_check_mark"
 CONFIDENCE_THRESHOLD = 0.8
+
+# Domänenwissen für alle KI-Schritte (Extraktion, Query-Vorschlag, Objekt-Auswahl).
+# Kromeich & Partner ist Makler für Gewerbe-/Logistikimmobilien in Deutschland.
+DOMAIN_CONTEXT = """Domänen-Kontext: Kromeich & Partner ist ein Makler für Gewerbe- und Logistikimmobilien in Deutschland. In Logistik-Marktmeldungen genannte Firmen haben typische Rollen – nutze dein Branchenwissen, um sie richtig einzuordnen:
+- EIGENTÜMER / ENTWICKLER / INVESTOREN der Immobilien (sie besitzen/bauen/vermieten die Flächen): u.a. Verdion, Garbe (Garbe Industrial), Panattoni, Prologis, Logicor, VGP, SEGRO, GLP, P3, Four Parx, Realterm, Hillwood, Nuveen, CTP, Aurelis, Frasers, Mileway, Dietz, Ixocon, Feldberg, Sunrise Real Estate.
+- MIETER / NUTZER (mieten Fläche an): das jeweils genannte Unternehmen, z.B. Brabus, DHL, Alstom, Metro/GVS.
+- MAKLER / BERATER: z.B. CBRE, BNP Paribas Real Estate, JLL, Colliers, Logivest, Realogis.
+Ein Projekt-/Parkname trägt meist den Eigentümer/Entwickler (z.B. „Verdion PremierPark" → Eigentümer/Entwickler Verdion). Objekte im eigenen CRM sind oft nach ihrer Adresse benannt, nicht nach dem Projektnamen."""
 
 
 def _env_bool(name: str, default: str) -> bool:
