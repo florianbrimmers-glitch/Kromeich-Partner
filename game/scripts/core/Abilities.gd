@@ -23,7 +23,7 @@ extends RefCounted
 #   jousting_bonus_light      +2,5 % Schaden je gelaufenem Feld
 #   polearm_bonus_vs_cavalry  +50 % gegen Kavallerie (= Jousting-Traeger)
 #   life_drain_50pct          heilt 50 % des zugefuegten Schadens
-#   regeneration_per_turn     Rundenstart: oberste Einheit heilt voll
+#   regeneration_per_turn     Rundenstart: heilt REGEN_FRACTION der max-HP
 #   regeneration_if_half_hp   dito, aber nur unter 50 % Rest-HP
 #
 # Noch NICHT hier (Whitelist im Kampf-Screen loggt sie):
@@ -45,6 +45,14 @@ const HATE_TARGETS := {
 	"necro_tier7": {"faction": 2, "tier": 7},
 }
 const HATE_BONUS_PCT: int = 50
+
+# Regeneration heilt einen ANTEIL der maximalen HP pro Runde, nicht die
+# vorderste Einheit voll (Pass 10b). Vollheilung machte den Baumvater
+# (158 HP) gegen Dauerschaden praktisch unsterblich - im Simulator blieb
+# das Waldvolk-Endgame bei konstanter HP stehen und gewann dadurch fast
+# jedes Matchup. Leitprinzip 2 der balance_notes: harte Immunitaeten
+# abschwaechen statt sie stehen zu lassen.
+const REGEN_FRACTION: float = 0.25
 
 
 static func ignores_obstacles(uid: String) -> bool:
@@ -126,10 +134,11 @@ static func drain_fraction(uid: String) -> float:
 static func regen_hp(uid: String, hp_now: int, hp_max: int) -> int:
 	if hp_now >= hp_max or hp_max <= 0:
 		return 0
+	var heal: int = maxi(1, int(ceil(float(hp_max) * REGEN_FRACTION)))
 	if UnitType.has_ability(uid, "regeneration_per_turn"):
-		return hp_max - hp_now
+		return mini(heal, hp_max - hp_now)
 	if UnitType.has_ability(uid, "regeneration_if_half_hp"):
 		# Nur der schwer angeschlagene Stack regeneriert (Gespenst).
 		if hp_now * 2 < hp_max:
-			return hp_max - hp_now
+			return mini(heal, hp_max - hp_now)
 	return 0

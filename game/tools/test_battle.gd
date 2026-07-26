@@ -116,10 +116,14 @@ func _test_ability_rules() -> void:
 	# Lebensentzug + Regeneration
 	_check(Abil.drain_fraction("nec_vampire") > 0.0, "Vampir hat Lebensentzug")
 	_check(Abil.drain_fraction("nec_lich") == 0.0, "Lich hat keinen Lebensentzug")
-	_check(Abil.regen_hp("elf_treefather", 100, 158) == 58, "Baumvater heilt immer voll auf")
+	# Pass 10b: Regeneration heilt 25 % der max-HP, nicht mehr voll.
+	_check(Abil.regen_hp("elf_treefather", 100, 158) == 40,
+		"Baumvater heilt 25 %% der max-HP (40 von 158)")
+	_check(Abil.regen_hp("elf_treefather", 150, 158) == 8,
+		"Regeneration heilt nie ueber das Maximum hinaus")
 	_check(Abil.regen_hp("elf_treefather", 158, 158) == 0, "voller Stack regeneriert nicht")
 	_check(Abil.regen_hp("nec_wight", 20, 25) == 0, "Gespenst ueber 50 %: keine Regeneration")
-	_check(Abil.regen_hp("nec_wight", 10, 25) == 15, "Gespenst unter 50 %: heilt voll auf")
+	_check(Abil.regen_hp("nec_wight", 10, 25) == 7, "Gespenst unter 50 %: heilt 7 von 25")
 	_check(Abil.regen_hp("men_spearman", 1, 10) == 0, "ohne Flag keine Regeneration")
 	# Flug
 	_check(Abil.ignores_obstacles("men_angel") and Abil.ignores_obstacles("nec_bonedragon"),
@@ -217,8 +221,11 @@ func _test_morale_rules() -> void:
 	_check(Mor.morale_for(dead_mix) == 1, "gefallene Stacks zaehlen nicht mehr mit")
 
 	# Immunitaet + Wahrscheinlichkeiten
-	_check(Mor.is_immune("nec_skeleton") and not Mor.is_immune("men_spearman"),
-		"undead-Flag = moral-immun")
+	# Pass 10: Untote sind nur gegen SCHLECHTE Moral immun (sonst verlieren
+	# sie dauerhaft die Extrazuege, die jede reine Armee bekommt).
+	_check(Mor.immune_to_bad_morale("nec_skeleton")
+		and not Mor.immune_to_bad_morale("men_spearman"),
+		"undead-Flag schuetzt vor schlechter Moral")
 	_check(abs(Mor.extra_turn_chance(2) - 0.20) < 0.001, "Moral +2: 20 % Extrazug")
 	_check(Mor.extra_turn_chance(-2) == 0.0, "negative Moral gibt keinen Extrazug")
 	_check(abs(Mor.freeze_chance(-1) - 0.10) < 0.001, "Moral -1: 10 % Zugverlust")
@@ -321,16 +328,18 @@ func _test_morale_combat() -> void:
 		if bs._last_luck > 1.0:
 			crits += 1
 	_check(crits > 0, "Glueck 3 erzeugt Volltreffer (%d von 60)" % crits)
-	# Untote kennen kein Glueck.
+	# Pass 10: Untote wuerfeln Glueck wie alle anderen - ihre Immunitaet
+	# gilt nur gegen schlechte Moral.
 	bs._p_stacks[0] = {"type": "nec_skeleton", "count": 20, "count_start": 20,
 		"top_hp": UnitType.hp_of("nec_skeleton"), "side": 0, "pos": Vector2i(1, 1),
 		"status": {}, "tiles_moved": 0, "retaliations": 0}
 	var undead_crits: int = 0
 	for i in range(60):
 		bs._dmg(bs._p_stacks[0], def_stack, false)
-		if bs._last_luck != 1.0:
+		if bs._last_luck > 1.0:
 			undead_crits += 1
-	_check(undead_crits == 0, "untoter Stack wuerfelt kein Glueck (%d)" % undead_crits)
+	_check(undead_crits > 0,
+		"untoter Stack profitiert von Glueck (%d Volltreffer von 60)" % undead_crits)
 
 	bs.queue_free()
 	await process_frame

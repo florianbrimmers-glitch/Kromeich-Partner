@@ -317,7 +317,7 @@ func _step() -> void:
 		_advance()
 		return
 	# Schlechte Moral kann den Zug kosten (M6). Untote sind immun.
-	if not st.is_empty() and not Mor.is_immune(String(st["type"])):
+	if not st.is_empty() and not Mor.immune_to_bad_morale(String(st["type"])):
 		var mor: int = _p_morale if int(slot["side"]) == 0 else _e_morale
 		if Mor.rolls_freeze(mor, _rng):
 			var who2: String = "Held" if int(slot["side"]) == 0 else "Feind"
@@ -816,7 +816,8 @@ func _claim_morale_extra(side: int, idx: int) -> bool:
 	var s: Dictionary = arr[idx]
 	if int(s["count"]) <= 0 or bool(s.get("morale_extra_used", false)):
 		return false
-	if Mor.is_immune(String(s["type"])) or Fx.blocks_turn(s):
+	# Gute Moral gilt auch fuer Untote (siehe Morale.gd-Kopf).
+	if Fx.blocks_turn(s):
 		return false
 	var mor: int = _p_morale if side == 0 else _e_morale
 	if not Mor.rolls_extra_turn(mor, _rng):
@@ -1056,10 +1057,9 @@ func _dmg(attacker: Dictionary, defender: Dictionary, melee_penalty: bool) -> in
 	var opts: Dictionary = {"tiles_moved": int(attacker.get("tiles_moved", 0))}
 	var dmg: int = CombatMath.damage(attacker, defender, melee_penalty, a_bonus, d_bonus, _rng, opts)
 	# Glueck wirkt auf den einzelnen Schlag (M6): Volltreffer x2, Pech x0.5.
-	# Untote kennen kein Glueck, genau wie keine Moral.
 	var luck: int = _p_luck if int(attacker["side"]) == 0 else _e_luck
 	_last_luck = 1.0
-	if luck != 0 and not Mor.is_immune(String(attacker["type"])):
+	if luck != 0:
 		_last_luck = Mor.luck_factor(luck, _rng)
 		if _last_luck != 1.0:
 			dmg = max(1, int(float(dmg) * _last_luck))

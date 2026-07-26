@@ -213,11 +213,11 @@
       "cost": {
         "gold": 120
       },
-      "weekly_growth": 14,
+      "weekly_growth": 12,
       "abilities": [
         "magic_resistance_20"
       ],
-      "balance_source": "Battle Dwarf. 20 Prozent MR statt 40 (Equilibris-Prinzip: passive %-Resistenzen gefaehrlich fuer Balance).",
+      "balance_source": "Battle Dwarf. 20 Prozent MR statt 40 (Equilibris-Prinzip: passive %-Resistenzen gefaehrlich fuer Balance). Pass 10: Growth 14->12 - 280 HP aus T1 war der zaeheste Unterbau aller Fraktionen.",
       "name": "Zwerg",
       "short": "Zw"
     },
@@ -226,7 +226,7 @@
       "faction": "waldvolk",
       "tier": 2,
       "stats": {
-        "att": 9,
+        "att": 8,
         "def": 3,
         "hp": 15,
         "dmg": [
@@ -234,17 +234,17 @@
           5
         ],
         "speed": 5,
-        "shots": 16
+        "shots": 12
       },
       "cost": {
         "gold": 200
       },
-      "weekly_growth": 9,
+      "weekly_growth": 7,
       "abilities": [
         "ranged",
         "double_shot"
       ],
-      "balance_source": "Grand Elf mit Double-Shot auf T2; shots 16 statt 24. HotA-Tests zeigten T2-Fernkaempfer oft OP.",
+      "balance_source": "Grand Elf mit Double-Shot auf T2; shots 16 statt 24. HotA-Tests zeigten T2-Fernkaempfer oft OP. Pass 10: Growth 9->7, shots 16->13. War mit Doppelschuss die staerkste Schadensquelle im Spiel (72 Dmg/Runde). Pass 10b: att 9->8, shots 13->12.",
       "name": "Elfenbogen",
       "short": "Eb"
     },
@@ -310,8 +310,8 @@
         "def": 14,
         "hp": 90,
         "dmg": [
-          18,
-          22
+          15,
+          20
         ],
         "speed": 7,
         "shots": 0
@@ -324,7 +324,7 @@
         "blind_enemy_on_hit_15pct",
         "magic_damper_20"
       ],
-      "balance_source": "War Unicorn. Blind-Chance 15 Prozent (HoMM3 hatte 20); Magic-Damper-Aura 20 Prozent statt 40.",
+      "balance_source": "War Unicorn. Blind-Chance 15 Prozent (HoMM3 hatte 20); Magic-Damper-Aura 20 Prozent statt 40. Pass 10b: dmg 18-22 -> 15-20. War der staerkste T5 im Spiel (90 HP, att15/def14, Blind).",
       "name": "Einhorn",
       "short": "Eh"
     },
@@ -360,12 +360,12 @@
       "faction": "waldvolk",
       "tier": 7,
       "stats": {
-        "att": 24,
+        "att": 22,
         "def": 22,
         "hp": 205,
         "dmg": [
-          34,
-          48
+          32,
+          46
         ],
         "speed": 9,
         "shots": 0
@@ -379,7 +379,7 @@
         "flying",
         "spell_immune_1_to_3"
       ],
-      "balance_source": "Gold Dragon. Pass 8e: HP 200->205, att 23->24, dmg 33-47->34-48 (W6 Ork dominiert zu stark bei 8d).",
+      "balance_source": "Gold Dragon. Pass 8e: HP 200->205, att 23->24, dmg 33-47->34-48 (W6 Ork dominiert zu stark bei 8d). Pass 10b: att 24->22, dmg 34-48 -> 32-46 (Gleichstand mit Engel/Knochendrache auf T7).",
       "name": "Goldwyrm",
       "short": "Gw"
     },
@@ -390,7 +390,7 @@
       "stats": {
         "att": 5,
         "def": 4,
-        "hp": 6,
+        "hp": 7,
         "dmg": [
           1,
           3
@@ -405,7 +405,7 @@
       "abilities": [
         "undead"
       ],
-      "balance_source": "Skeleton. Growth 18 statt 22 (HotA-Community sieht Skelett-Flut als Hauptproblem).",
+      "balance_source": "Skeleton. Growth 18 statt 22 (HotA-Community sieht Skelett-Flut als Hauptproblem). Pass 10: HP 6->7 - bei 6 HP war jeder Treffer ein Kill. Growth bleibt 18 (Anti-Flut-Entscheidung aus Pass 1 gilt weiter).",
       "name": "Skelett",
       "short": "Sk"
     },
@@ -418,21 +418,21 @@
         "def": 5,
         "hp": 20,
         "dmg": [
-          2,
-          3
+          3,
+          4
         ],
         "speed": 3,
         "shots": 0
       },
       "cost": {
-        "gold": 120
+        "gold": 100
       },
-      "weekly_growth": 10,
+      "weekly_growth": 12,
       "abilities": [
         "undead",
         "disease_on_hit"
       ],
-      "balance_source": "Walking Dead. Disease-Debuff (-2 att/def fuer 3 Runden) als Kompensation fuer low speed.",
+      "balance_source": "Walking Dead. Disease-Debuff (-2 att/def fuer 3 Runden) als Kompensation fuer low speed. Pass 10: Growth 10->14, dmg 2-3 -> 3-5. War der schwaechste T2 im Spiel; speed 3 bleibt der Nachteil. Pass 10b: auf Growth 12 / dmg 3-4 zurueck, nachdem der Moral-Fehler behoben war. Pass 10c: Kosten 120->100 Gold.",
       "name": "Zombie",
       "short": "Zo"
     },
@@ -452,15 +452,15 @@
         "shots": 0
       },
       "cost": {
-        "gold": 200
+        "gold": 170
       },
-      "weekly_growth": 6,
+      "weekly_growth": 8,
       "abilities": [
         "undead",
         "flying",
         "regeneration_if_half_hp"
       ],
-      "balance_source": "Wight/Wraith. Regen nur wenn <50 Prozent HP (HoMM3: immer voll); Equilibris-Einschraenkung.",
+      "balance_source": "Wight/Wraith. Regen nur wenn <50 Prozent HP (HoMM3: immer voll); Equilibris-Einschraenkung. Pass 10: Growth 6->9 (Mittelfeld-Defizit Totenreich). Pass 10b: Growth 9->8. Pass 10c: Kosten 200->170 Gold.",
       "name": "Gespenst",
       "short": "Ge"
     },
@@ -480,15 +480,15 @@
         "shots": 0
       },
       "cost": {
-        "gold": 500
+        "gold": 420
       },
-      "weekly_growth": 3,
+      "weekly_growth": 4,
       "abilities": [
         "undead",
         "life_drain_50pct",
         "no_retaliation"
       ],
-      "balance_source": "Vampire Lord. Life-Drain halbiert (50 Prozent statt 100); kritischster Nerf (HoMM3-Vampire war Balance-Breaker).",
+      "balance_source": "Vampire Lord. Life-Drain halbiert (50 Prozent statt 100); kritischster Nerf (HoMM3-Vampire war Balance-Breaker). Pass 10: Growth 3->5. Life-Drain skaliert mit der Stackgroesse; der 50-Prozent-Nerf bleibt. Pass 10b: Growth 5->4. Pass 10c: Kosten 500->420 Gold.",
       "name": "Vampir",
       "short": "Va"
     },
@@ -508,15 +508,15 @@
         "shots": 12
       },
       "cost": {
-        "gold": 600
+        "gold": 520
       },
-      "weekly_growth": 2,
+      "weekly_growth": 3,
       "abilities": [
         "undead",
         "ranged",
         "death_cloud_aoe_small"
       ],
-      "balance_source": "Power Lich. AoE-Cloud nur 3 Hexe Radius (HoMM3: 5). Shots 12 statt 24.",
+      "balance_source": "Power Lich. AoE-Cloud nur 3 Hexe Radius (HoMM3: 5). Shots 12 statt 24. Pass 10: Growth 2->3 - einziger Fernkaempfer der Fraktion. Pass 10c: Kosten 600->520 Gold.",
       "name": "Lich",
       "short": "Li"
     },
@@ -536,14 +536,14 @@
         "shots": 0
       },
       "cost": {
-        "gold": 1800
+        "gold": 1500
       },
-      "weekly_growth": 1,
+      "weekly_growth": 2,
       "abilities": [
         "undead",
         "curse_on_hit_10pct"
       ],
-      "balance_source": "Dread Knight. Pass 7: HP 128, dmg 21-32 (zwischen Pass5 130/22-32 und Pass6 125/21-31).",
+      "balance_source": "Dread Knight. Pass 7: HP 128, dmg 21-32 (zwischen Pass5 130/22-32 und Pass6 125/21-31). Pass 10: Growth 1->2. Ein T6 pro Woche war praktisch wirkungslos; 3600 Gold/Woche bremst genug. Pass 10c: Kosten 1800->1500 Gold (Gold-Paritaet, siehe balance_notes Pass 10).",
       "name": "Schwarzritter",
       "short": "Sr"
     },
@@ -583,7 +583,7 @@
       "stats": {
         "att": 4,
         "def": 2,
-        "hp": 5,
+        "hp": 6,
         "dmg": [
           1,
           2
@@ -596,7 +596,7 @@
       },
       "weekly_growth": 28,
       "abilities": [],
-      "balance_source": "Goblin; cheapest. Growth 28 (HoMM3: 22) weil Stats bewusst schwach.",
+      "balance_source": "Goblin; cheapest. Growth 28 (HoMM3: 22) weil Stats bewusst schwach. Pass 10b: HP 5->6 - T1 verdampfte vor dem ersten Schlag.",
       "name": "Goblin",
       "short": "Go"
     },
@@ -607,7 +607,7 @@
       "stats": {
         "att": 7,
         "def": 5,
-        "hp": 10,
+        "hp": 14,
         "dmg": [
           2,
           4
@@ -622,7 +622,7 @@
       "abilities": [
         "jousting_bonus_light"
       ],
-      "balance_source": "Wolf Raider. Light-Jousting (+2 Prozent pro Hex) als Markenzeichen.",
+      "balance_source": "Wolf Raider. Light-Jousting (+2 Prozent pro Hex) als Markenzeichen. Pass 10: HP 10->14 - T2 mit 10 HP starb vor dem ersten Jousting-Angriff.",
       "name": "Wolfsreiter",
       "short": "Wr"
     },
@@ -644,11 +644,11 @@
       "cost": {
         "gold": 140
       },
-      "weekly_growth": 8,
+      "weekly_growth": 9,
       "abilities": [
         "ranged"
       ],
-      "balance_source": "Orc Chieftain. Shots 10 (HoMM3: 24). Equilibris-Prinzip: nur eine Fraktion darf Fernkampf-Dominanz haben.",
+      "balance_source": "Orc Chieftain. Shots 10 (HoMM3: 24). Equilibris-Prinzip: nur eine Fraktion darf Fernkampf-Dominanz haben. Pass 10: Growth 8->9 (Orks lagen nach dem Waldvolk-Trim hinten).",
       "name": "Orkschuetze",
       "short": "Os"
     },
@@ -670,11 +670,11 @@
       "cost": {
         "gold": 400
       },
-      "weekly_growth": 3,
+      "weekly_growth": 4,
       "abilities": [
         "bash_stun_10pct"
       ],
-      "balance_source": "Ogre Magi, aber ohne Magi-Spells (werden dem Helden zugeschlagen, HoMM4-Equilibris-Stil).",
+      "balance_source": "Ogre Magi, aber ohne Magi-Spells (werden dem Helden zugeschlagen, HoMM4-Equilibris-Stil). Pass 10b: Growth 3->4. Pass 10c: Growth zurueck auf 3 - der Buff machte Orks zur dominanten Fraktion. Pass 10d: Growth doch 4 - mit 3 waren die Orks Schlusslicht (0.79-0.91 gegen sie), mit 4 UND Zyklop-Growth 3 waren sie dominant. Nur der Oger bekommt den Buff.",
       "name": "Oger",
       "short": "Og"
     },
@@ -696,11 +696,11 @@
       "cost": {
         "gold": 750
       },
-      "weekly_growth": 2,
+      "weekly_growth": 3,
       "abilities": [
         "flying"
       ],
-      "balance_source": "Thunderbird. Chain-Lightning entfernt (HoMM3-OP-Ability); stattdessen solide Flieger-Stats.",
+      "balance_source": "Thunderbird. Chain-Lightning entfernt (HoMM3-OP-Ability); stattdessen solide Flieger-Stats. Pass 10: Growth 2->3 (dito).",
       "name": "Rok",
       "short": "Ro"
     },
@@ -728,7 +728,7 @@
         "ranged",
         "attack_wall"
       ],
-      "balance_source": "Cyclops King. Pass 5: HP 85->88, dmg 16-24->17-25 (Minimalbuff gegen Menschen-Dominanz).",
+      "balance_source": "Cyclops King. Pass 5: HP 85->88, dmg 16-24->17-25 (Minimalbuff gegen Menschen-Dominanz). Pass 10b: Growth 2->3 (Fernkampf-Praesenz der Orks). Pass 10c: Growth zurueck auf 2 (dito).",
       "name": "Zyklop",
       "short": "Zy"
     },

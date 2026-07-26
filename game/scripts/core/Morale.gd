@@ -19,7 +19,16 @@ extends RefCounted
 # Wirkung pro Zug (HoMM3-Muster, 10 % je Moralpunkt):
 #   Moral > 0  Chance auf eine zweite Aktion ("Moral!")
 #   Moral < 0  Chance den Zug zu verlieren ("keine Moral")
-#   undead-Stacks sind immun - weder Bonus noch Malus.
+#
+# UNTOTE (undead-Flag) sind nur gegen SCHLECHTE Moral immun: sie frieren
+# nie ein, profitieren aber von guter Moral wie alle anderen. Gruende:
+# (1) Waeren sie auch gegen positive Moral immun, verlieren sie gegen
+#     jede reine Armee dauerhaft rund 10 Prozent Aktionen - der Sim zeigte
+#     Totenreich dadurch bei 0 Prozent Siegen, obwohl die Stats passten
+#     (Pass 10; die balance_notes hatten das als offenen Punkt notiert).
+# (2) So bleibt ein echter Untoten-Vorteil: eine gemischte Untoten-Armee
+#     verliert nie Zuege - Skelette streiten sich nicht mit Zombies.
+# Glueck gilt fuer Untote normal (HoMM3 macht dort auch keine Ausnahme).
 #
 # GLUECK wirkt auf den einzelnen Schlag: Volltreffer x2, Pechschlag x0.5,
 # ebenfalls 10 % je Punkt. Quelle im Spiel ist die Kapelle
@@ -37,8 +46,8 @@ const UNLUCKY_FACTOR: float = 0.5
 const LUCK_LIMIT: int = 3
 
 
-# Untote ignorieren Moral komplett (kein Extrazug, kein Zugverlust).
-static func is_immune(uid: String) -> bool:
+# Untote koennen nicht einfrieren (schlechte Moral wirkt nicht auf sie).
+static func immune_to_bad_morale(uid: String) -> bool:
 	return UnitType.has_ability(uid, "undead")
 
 
@@ -54,7 +63,7 @@ static func morale_for(stacks: Array) -> int:
 			continue
 		var uid: String = String((s as Dictionary)["type"])
 		factions[UnitType.faction_of(uid)] = true
-		if is_immune(uid):
+		if UnitType.has_ability(uid, "undead"):
 			has_undead = true
 		else:
 			has_living = true
