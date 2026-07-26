@@ -112,7 +112,7 @@ func army_summary() -> String:
 	if army.is_empty():
 		return "0"
 	var parts: Array = []
-	for uid in UnitType.ORDER:
+	for uid in UnitType.all_ids():
 		if army.has(uid) and int(army[uid]) > 0:
 			parts.append("%d %s" % [int(army[uid]), UnitType.short_of(uid)])
 	if parts.is_empty():
@@ -144,7 +144,11 @@ static func from_dict(d: Dictionary) -> Hero:
 		# v1-Saves (vor M3) kannten nur "gold" - tolerant mappen,
 		# kein SAVE_VERSION-Bump noetig.
 		h.gold = int(d.get("gold", 0))
-	h.army = SaveCodec.int_dict(d.get("army", {}))
+	var raw_army: Dictionary = SaveCodec.int_dict(d.get("army", {}))
+	h.army = {}
+	for k in raw_army.keys():
+		var cid: String = UnitType.canonical(String(k))
+		h.army[cid] = int(h.army.get(cid, 0)) + int(raw_army[k])
 	h.xp = int(d.get("xp", 0))
 	h.level = int(d.get("level", 1))
 	return h

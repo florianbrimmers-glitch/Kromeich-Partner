@@ -12,7 +12,7 @@ wie HoMM3, 7 Einheiten-Tiers (units.json migrieren!), CC0-Sound.
 | M1 Save/Load + Autosave + CI-Gate | FERTIG (Iteration 1) |
 | M2 Hauptmenue (Fortsetzen, Fraktionswahl, Seed-Eingabe) | FERTIG (Iteration 2) |
 | M3 Ressourcen-System (Wallet, Minen, Haufen, Markt-Tausch, Mehrkosten) | FERTIG (It. 3+4) |
-| M4 Einheiten-Migration | NAECHSTES: Teil 1 = UnitType-Fassade ueber units.json + LEGACY_ALIASES (ohne Gebaeude-Umbau) |
+| M4 Einheiten-Migration | Teil 1 FERTIG (It. 5): UnitType-Fassade ueber units.json (28 Einheiten, deutsche Namen), LEGACY_ALIASES+canonical() (Saves kanonisieren army-/pool-Keys), Wachstum aus weekly_growth, T1-3 rekrutierbar. NAECHSTES: Teil 2 = 4-Gebaeude-Struktur (kaserne T1+2, schmiede T3+4, reiterei T5+6, zitadelle T7) + Rekrut-Panel 2er-Liste + volle Ressourcen-Rekrutkosten + balance_sim 4x4-Matrix |
 | M5-M12 Parallel-Band (Objekte, Moral, Abilities, Belagerung, Sprites, Sound, Events) | offen |
 | M7/M8 Heldenstats/Skills, Zauber | offen (nach M4) |
 | M13 Mehrere Helden (vorher Struktur-Iteration!), M14 MP | zurueckgestellt |
@@ -74,6 +74,9 @@ Damit gehen:
   `--headless --path game/ --quit 2>&1 | grep -iE "error|warning"`.
 - **Balance-Sim**:
   `--headless --path game/ --script tools/balance_sim.gd -- --runs=500`.
+  Seit M4 Teil 1 nur informativ: BASELINE_IDS sind Alt-Aliase, die auf
+  Einheiten verschiedener Tiers aufloesen - Werte verzerrt, Umbau auf
+  4x4-Fraktions-Matrix kommt in M4 Teil 2/3.
 - Allgemein laeuft jedes `extends SceneTree`-Script in `tools/` headless.
 
 Was nicht geht: WorldMapScreen rendern, Touch/Input testen, irgendwas

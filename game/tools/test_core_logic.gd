@@ -110,17 +110,37 @@ func _test_hero_losses() -> void:
 # --- UnitType: Lookups ---
 
 func _test_unit_type() -> void:
-	print("== UnitType ==")
+	print("== UnitType (units.json-Fassade, M4) ==")
+	_check(UnitType.all_ids().size() == 28, "28 Einheiten geladen (%d)" % UnitType.all_ids().size())
 	for fid in range(4):
 		var ids: Array = UnitType.ids_for_faction(fid)
-		_check(ids.size() == 3, "Fraktion %d hat 3 Einheiten" % fid)
+		_check(ids.size() == 7, "Fraktion %d hat 7 Tiers (%d)" % [fid, ids.size()])
+		var rec: Array = UnitType.recruitable_ids_for_faction(fid)
+		_check(rec.size() == 3, "Fraktion %d: 3 rekrutierbare Tiers in Teil 1" % fid)
+		# Tiers aufsteigend sortiert + Invarianten je Einheit
+		var last_tier: int = 0
 		for uid in ids:
+			var t: Dictionary = UnitType.get_type(String(uid))
+			_check(int(t["tier"]) >= last_tier, "%s: Tiers sortiert" % uid) if int(t["tier"]) < last_tier else null
+			last_tier = int(t["tier"])
+			if int(t["dmg_min"]) > int(t["dmg_max"]):
+				_check(false, "%s: dmg_min <= dmg_max verletzt" % uid)
+			if UnitType.growth_of(String(uid)) <= 0:
+				_check(false, "%s: weekly_growth <= 0" % uid)
+		# Gebaeude-Roundtrip nur fuer rekrutierbare Tiers
+		for uid in rec:
 			var bid: String = UnitType.building_for(String(uid))
 			var back: String = UnitType.unit_for_building(fid, bid)
 			_check(back == String(uid),
 				"Fraktion %d: %s <-> %s Roundtrip" % [fid, uid, bid])
+	# Legacy-Aliase loesen auf dieselben Stats auf
+	_check(UnitType.canonical("sword") == "men_spearman", "Alias sword -> men_spearman")
+	_check(UnitType.get_type("sword")["id"] == "men_spearman", "get_type folgt Alias")
+	_check(UnitType.hp_of("vampir") == UnitType.hp_of("nec_wight"), "Alias-Stats identisch")
 	_check(UnitType.unit_for_building(1, "markt") == "", "Markt produziert keine Einheit")
-	_check(UnitType.starter_id_for_faction(2) == "skelett", "Totenreich-Starter = Skelett")
+	_check(UnitType.starter_id_for_faction(2) == "nec_skeleton", "Totenreich-Starter = nec_skeleton")
+	_check(UnitType.tier_of("men_angel") == 7, "Engel ist Tier 7")
+	_check(UnitType.building_for("men_angel") == "", "Tier 7 hat noch kein Gebaeude (Teil 2)")
 
 
 # Static-Calls auf weitere Module zwingen Godot, deren Scripts wirklich

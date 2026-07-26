@@ -38,7 +38,7 @@ func _init() -> void:
 	hero.gold = 1000
 	var city: Dictionary = {
 		"faction": 1, "pos": Vector2i(0, 0),
-		"buildings": ["kaserne"], "pools": {"sword": 3},
+		"buildings": ["kaserne"], "pools": {"men_spearman": 3},
 	}
 	var ctx: Dictionary = {
 		"city": city, "hero": hero, "buildings": buildings,
@@ -63,8 +63,8 @@ func _init() -> void:
 	ok = _check(not kaserne.is_empty(), "Kaserne-Plot existiert") and ok
 	if not kaserne.is_empty():
 		cs._handle_tap(kaserne["center"])
-		ok = _check(_got_recruit == "sword",
-			"Tap Kaserne -> recruit 'sword' (war '%s')" % _got_recruit) and ok
+		ok = _check(_got_recruit == "men_spearman",
+			"Tap Kaserne -> recruit 'men_spearman' (war '%s')" % _got_recruit) and ok
 
 	# 4) Tap auf ungebauten Markt -> build "markt"
 	var markt: Dictionary = _find(plots, "markt")

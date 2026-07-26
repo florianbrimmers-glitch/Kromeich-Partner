@@ -424,8 +424,7 @@ func _plot_subline(def: Dictionary, is_built: bool, fid: int) -> String:
 	if uid != "":
 		var pools: Dictionary = _city_pools()
 		var have: int = int(pools.get(uid, 0))
-		var wg: Dictionary = _ctx.get("weekly_growth", {})
-		var rate: int = int(wg.get(bid, 0))
+		var rate: int = UnitType.growth_of(uid)
 		return "%s: %d (+%d/Wo)" % [UnitType.short_of(uid), have, rate]
 	return "fertig"
 

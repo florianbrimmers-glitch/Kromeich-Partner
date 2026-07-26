@@ -43,15 +43,6 @@ const DAYS_PER_WEEK := 7
 const WEEKS_PER_MONTH := 4
 const MONTHS_PER_YEAR := 12
 
-# Wochen-Wachstumsrate pro Gebaeude. Jede Stadt mit Kaserne/Schmiede/
-# Reiterei sammelt den entsprechenden Fraktions-Einheiten-Pool. Der Pool
-# tickt _taeglich_ (Bresenham ueber 7 Tage), stapelt sich unendlich und
-# verfaellt nie - wer nicht rekrutiert, baut Reserven auf.
-const WEEKLY_GROWTH := {
-	"kaserne":  8,
-	"schmiede": 4,
-	"reiterei": 2,
-}
 
 # Startgold: Spieler und Gegner beginnen mit diesem Betrag, damit der
 # erste Zug nicht zwangslaeufig "Enter druecken und warten" ist - reicht
@@ -1023,7 +1014,9 @@ func _calendar_text() -> String:
 # Pools stapeln sich - nichts verfaellt. Cap ist nur der Wochen-Durchsatz,
 # kein Vorrats-Deckel.
 func _pool_cap_for(uid: String) -> int:
-	return int(WEEKLY_GROWTH.get(UnitType.building_for(uid), 0))
+	# M4: Wochenrate kommt aus units.json (designte Balance, z.B. 22
+	# Speertraeger/Woche), nicht mehr pauschal pro Gebaeude.
+	return UnitType.growth_of(uid)
 
 
 func _day_delta(cap: int, dow: int) -> int:
@@ -1862,7 +1855,7 @@ func _build_enemy_stacks(opp_name: String, total: int) -> Array:
 
 func _army_to_stacks(army: Dictionary) -> Array:
 	var out: Array = []
-	for uid in UnitType.ORDER:
+	for uid in UnitType.all_ids():
 		var cnt: int = int(army.get(uid, 0))
 		if cnt > 0:
 			out.append({"type": uid, "count": cnt})
@@ -2224,7 +2217,6 @@ func _city_ctx(city_idx: int) -> Dictionary:
 		"buildings": BUILDINGS,
 		"faction_names": FACTION_NAMES,
 		"faction_colors": FACTION_COLORS,
-		"weekly_growth": WEEKLY_GROWTH,
 		"market_buy": MARKET_BUY,
 		"market_sell": MARKET_SELL,
 		"calendar": _calendar_text(),
@@ -2442,7 +2434,7 @@ func _enemy_economy_for(idx: int) -> void:
 		# diese Runde nichts - so holt sie den Slot automatisch nach, sobald
 		# das fehlende Gebaeude steht oder die neue Woche den Pool auffuellt.
 		var pfid: int = int(e.get("primary_faction", 1))
-		var f_order: Array = UnitType.ids_for_faction(pfid)
+		var f_order: Array = UnitType.recruitable_ids_for_faction(pfid)
 		if f_order.is_empty():
 			continue
 		var ri: int = int(e["recruit_idx"])
@@ -3051,7 +3043,12 @@ func _restore_state(d: Dictionary) -> bool:
 		c["faction"] = int(c.get("faction", 0))
 		c["owner"] = int(c.get("owner", -1))
 		c["garrison"] = int(c.get("garrison", 0))
-		c["pools"] = SaveCodec.int_dict(c.get("pools", {}))
+		var raw_pools: Dictionary = SaveCodec.int_dict(c.get("pools", {}))
+		var pools: Dictionary = {}
+		for pk in raw_pools.keys():
+			var cpk: String = UnitType.canonical(String(pk))
+			pools[cpk] = int(pools.get(cpk, 0)) + int(raw_pools[pk])
+		c["pools"] = pools
 		_cities.append(c)
 	_objects.clear()
 	for od in d.get("objects", []):

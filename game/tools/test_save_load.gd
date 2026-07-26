@@ -53,8 +53,8 @@ func _test_codec() -> void:
 	print("== Hero to_dict/from_dict ==")
 	var h := Hero.new(Vector2i(4, 9), 14)
 	h.gold = 321
-	h.add_units("sword", 5)
-	h.add_units("bow", 2)
+	h.add_units("men_spearman", 5)
+	h.add_units("men_archer", 2)
 	h.xp = 77
 	h.level = 3
 	h.mp = 6
@@ -66,6 +66,10 @@ func _test_codec() -> void:
 		"Hero-Roundtrip ueber JSON identisch")
 	var h3 := Hero.from_dict({})
 	_check(h3.level == 1 and h3.gold == 0, "Hero.from_dict({}) -> Defaults")
+	# M4: alte army-Keys werden beim Laden kanonisiert.
+	var h4 := Hero.from_dict({"army": {"sword": 3, "men_spearman": 2}})
+	_check(h4.count_of("men_spearman") == 5 and not h4.army.has("sword"),
+		"from_dict kanonisiert und merged Alt-IDs (sword -> men_spearman)")
 
 	print("== DeterministicRng State ==")
 	var r := DeterministicRng.new(42)
