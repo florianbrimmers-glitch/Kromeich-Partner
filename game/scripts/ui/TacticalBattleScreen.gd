@@ -543,9 +543,10 @@ func _draw_grid() -> void:
 		if int(s["count"]) <= 0: continue
 		var sp: Vector2i = Vector2i(s["pos"])
 		var ctr := o + Vector2((float(sp.x)+0.5)*c, (float(sp.y)+0.5)*c)
+		# Seiten-Ring bleibt auch mit Sprite: er sagt auf einen Blick, wem
+		# der Stack gehoert - die Silhouette allein tut das nicht.
 		var col_fill := Color(0.95, 0.80, 0.25) if sp != active_pos else Color(1.0, 0.95, 0.4)
-		_grid_area.draw_circle(ctr, r_active, col_fill)
-		_grid_area.draw_arc(ctr, r_active, 0, TAU, 32, Color(0.5, 0.35, 0.05), 3.0)
+		_draw_token(ctr, c, r_active, s, col_fill, Color(0.5, 0.35, 0.05))
 		if sp == active_pos:
 			_grid_area.draw_arc(ctr, r_active + 4, 0, TAU, 32, Color(1,1,0.5,0.7), 2.5)
 		_draw_lbl(ctr, UnitType.short_of(String(s["type"])) + str(int(s["count"])), c)
@@ -559,13 +560,54 @@ func _draw_grid() -> void:
 		if int(s["count"]) <= 0: continue
 		var sp: Vector2i = Vector2i(s["pos"])
 		var ctr := o + Vector2((float(sp.x)+0.5)*c, (float(sp.y)+0.5)*c)
-		_grid_area.draw_circle(ctr, r_active, Color(0.5, 0.5, 0.55))
-		_grid_area.draw_arc(ctr, r_active, 0, TAU, 32, Color(0.85, 0.25, 0.25), 3.0)
+		_draw_token(ctr, c, r_active, s, Color(0.5, 0.5, 0.55), Color(0.85, 0.25, 0.25))
 		_draw_lbl(ctr, UnitType.short_of(String(s["type"])) + str(int(s["count"])), c)
 		_draw_hp_bar(ctr, c, int(s["top_hp"]), UnitType.hp_of(String(s["type"])))
 		_draw_status_marker(ctr, c, s)
 		if bool(s.get("waited", false)):
 			_draw_wait_marker(ctr, r_active)
+
+
+# Ein Stack-Token: Seiten-Scheibe + Ring, darauf das Einheiten-Sprite
+# (M10). Fehlt eine SVG, bleibt die alte Kreis-Darstellung uebrig - das
+# Spiel ist also nie von den Assets abhaengig.
+func _draw_token(ctr: Vector2, cell: float, r: float, s: Dictionary,
+		fill: Color, ring: Color) -> void:
+	var tex: Texture2D = _unit_texture(String(s["type"]))
+	if tex == null:
+		# Kein Sprite: alte Darstellung (helle Scheibe, Kuerzel darauf).
+		_grid_area.draw_circle(ctr, r, fill)
+		_grid_area.draw_arc(ctr, r, 0, TAU, 32, ring, 3.0)
+		return
+	# Mit Sprite MUSS die Scheibe dunkel sein: die Token tragen die
+	# Fraktionsfarbe, und Menschen-Gold auf goldener Scheibe war praktisch
+	# unsichtbar. Seite steckt jetzt im Ring, nicht in der Flaeche.
+	_grid_area.draw_circle(ctr, r, fill.darkened(0.72))
+	var size: float = cell * 0.92
+	_grid_area.draw_texture_rect(tex,
+		Rect2(ctr - Vector2(size, size) * 0.5, Vector2(size, size)), false)
+	_grid_area.draw_arc(ctr, r, 0, TAU, 32, ring, 3.0)
+
+
+# Sprite-Lookup mit Cache. Konvention: assets/units/<fraktion>/<id>.svg,
+# Fraktions-Verzeichnis wie in CityScreen.FACTION_DIRS. Nicht gefundene
+# Pfade werden als null gecacht, damit der Render-Loop nicht jeden Frame
+# erneut sucht.
+const UNIT_FACTION_DIRS := ["waldvolk", "menschen", "totenreich", "orks"]
+var _unit_tex_cache: Dictionary = {}
+
+
+func _unit_texture(uid: String) -> Texture2D:
+	if _unit_tex_cache.has(uid):
+		return _unit_tex_cache[uid] as Texture2D
+	var fid: int = UnitType.faction_of(uid)
+	var tex: Texture2D = null
+	if fid >= 0 and fid < UNIT_FACTION_DIRS.size():
+		var path: String = "res://assets/units/%s/%s.svg" % [UNIT_FACTION_DIRS[fid], uid]
+		if ResourceLoader.exists(path):
+			tex = load(path) as Texture2D
+	_unit_tex_cache[uid] = tex
+	return tex
 
 
 # Zeichnet die Obstacle-Formen auf dem Grid: Stein als graue Raute,
@@ -659,8 +701,15 @@ func _draw_lbl(ctr: Vector2, txt: String, cell: float) -> void:
 	if font == null: return
 	var fs: int = int(max(16.0, cell * 0.38))
 	var sz: Vector2 = font.get_string_size(txt, HORIZONTAL_ALIGNMENT_CENTER, -1.0, fs)
-	_grid_area.draw_string(font, Vector2(ctr.x - sz.x*0.5, ctr.y + sz.y*0.3),
-		txt, HORIZONTAL_ALIGNMENT_CENTER, -1.0, fs, Color(0.05, 0.05, 0.05))
+	# Seit die Token-Scheibe dunkel ist (M10), braucht die Beschriftung
+	# helle Schrift mit dunklem Schlagschatten - sonst verschwindet sie
+	# auf der Scheibe. Sie sitzt leicht unterhalb der Mitte, damit Kopf
+	# und Hoerner der Silhouette frei bleiben.
+	var pos := Vector2(ctr.x - sz.x * 0.5, ctr.y + cell * 0.22)
+	_grid_area.draw_string(font, pos + Vector2(1.5, 1.5),
+		txt, HORIZONTAL_ALIGNMENT_CENTER, -1.0, fs, Color(0, 0, 0, 0.85))
+	_grid_area.draw_string(font, pos,
+		txt, HORIZONTAL_ALIGNMENT_CENTER, -1.0, fs, Color(0.98, 0.96, 0.90))
 
 
 func _refresh() -> void:

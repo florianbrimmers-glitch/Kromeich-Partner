@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Kampf-Token Orkschuetze (ork_orc), Tier 3, Rolle Fernkampf.
+     Generiert von tools/gen_unit_sprites.py - nicht per Hand editieren,
+     sondern den Generator anpassen und neu laufen lassen. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <ellipse cx="32" cy="57" rx="15" ry="4" fill="#000" opacity="0.40"/>
+  <g transform="translate(32,56) scale(0.84) translate(-32,-56)">
+  <!-- Bogen -->
+  <path d="M44,18 Q54,32 44,46" fill="none" stroke="#551f1b" stroke-width="2.5"/>
+  <line x1="44" y1="18" x2="44" y2="46" stroke="#f7938b" stroke-width="1"/>
+  <!-- Koerper -->
+  <ellipse cx="28" cy="34" rx="9" ry="13" fill="#ce4c41" stroke="#551f1b" stroke-width="1.5"/>
+  <circle cx="28" cy="17" r="7" fill="#f7938b" stroke="#551f1b" stroke-width="1.5"/>
+  <!-- Arm zum Bogen -->
+  <line x1="30" y1="28" x2="44" y2="30" stroke="#551f1b" stroke-width="3"/>
+  <!-- Pfeil -->
+  <line x1="30" y1="30" x2="50" y2="30" stroke="#f7938b" stroke-width="1.2"/>
+  <polygon points="50,30 46,27.5 46,32.5" fill="#f7938b"/>
+  <!-- Beine -->
+  <line x1="25" y1="45" x2="22" y2="54" stroke="#551f1b" stroke-width="3"/>
+  <line x1="31" y1="45" x2="34" y2="54" stroke="#551f1b" stroke-width="3"/>
+  </g>
+  <g stroke="#551f1b" stroke-width="0.6">
+    <circle cx="25.0" cy="60" r="2.2" fill="#f4f0e4"/>
+    <circle cx="32.0" cy="60" r="2.2" fill="#f4f0e4"/>
+    <circle cx="39.0" cy="60" r="2.2" fill="#f4f0e4"/>
+  </g>
+</svg>

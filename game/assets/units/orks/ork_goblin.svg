@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Kampf-Token Goblin (ork_goblin), Tier 1, Rolle Nahkampf.
+     Generiert von tools/gen_unit_sprites.py - nicht per Hand editieren,
+     sondern den Generator anpassen und neu laufen lassen. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <ellipse cx="32" cy="57" rx="12" ry="4" fill="#000" opacity="0.40"/>
+  <g transform="translate(32,56) scale(0.74) translate(-32,-56)">
+  <!-- Koerper -->
+  <ellipse cx="30" cy="34" rx="9" ry="13" fill="#ce4c41" stroke="#551f1b" stroke-width="1.5"/>
+  <circle cx="30" cy="17" r="7" fill="#f7938b" stroke="#551f1b" stroke-width="1.5"/>
+  <!-- Schild -->
+  <path d="M18,26 L24,24 L24,40 Q21,44 18,40 Z"
+        fill="#f7938b" stroke="#551f1b" stroke-width="1.4"/>
+  <!-- Klinge -->
+  <line x1="38" y1="42" x2="48" y2="14" stroke="#f7938b" stroke-width="3"/>
+  <line x1="34" y1="40" x2="44" y2="44" stroke="#551f1b" stroke-width="2.5"/>
+  <!-- Beine -->
+  <line x1="27" y1="45" x2="24" y2="54" stroke="#551f1b" stroke-width="3"/>
+  <line x1="33" y1="45" x2="36" y2="54" stroke="#551f1b" stroke-width="3"/>
+  </g>
+  <g stroke="#551f1b" stroke-width="0.6">
+    <circle cx="32.0" cy="60" r="2.2" fill="#f4f0e4"/>
+  </g>
+</svg>

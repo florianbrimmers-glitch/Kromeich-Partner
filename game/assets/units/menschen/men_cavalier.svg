@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Kampf-Token Kavalier (men_cavalier), Tier 6, Rolle Reiter.
+     Generiert von tools/gen_unit_sprites.py - nicht per Hand editieren,
+     sondern den Generator anpassen und neu laufen lassen. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <ellipse cx="32" cy="57" rx="20" ry="4" fill="#000" opacity="0.40"/>
+  <g transform="translate(32,56) scale(0.99) translate(-32,-56)">
+  <!-- Reittier -->
+  <ellipse cx="32" cy="40" rx="18" ry="9" fill="#ceb84c" stroke="#554c1f" stroke-width="1.5"/>
+  <path d="M46,36 L54,28 L52,38 Z" fill="#ceb84c" stroke="#554c1f" stroke-width="1.2"/>
+  <line x1="20" y1="47" x2="18" y2="56" stroke="#554c1f" stroke-width="3"/>
+  <line x1="28" y1="48" x2="27" y2="56" stroke="#554c1f" stroke-width="3"/>
+  <line x1="38" y1="48" x2="39" y2="56" stroke="#554c1f" stroke-width="3"/>
+  <line x1="44" y1="47" x2="46" y2="56" stroke="#554c1f" stroke-width="3"/>
+  <!-- Reiter -->
+  <ellipse cx="30" cy="24" rx="6" ry="9" fill="#f7e693" stroke="#554c1f" stroke-width="1.5"/>
+  <circle cx="30" cy="12" r="5" fill="#f7e693" stroke="#554c1f" stroke-width="1.5"/>
+  <!-- Lanze -->
+  <line x1="22" y1="30" x2="58" y2="18" stroke="#554c1f" stroke-width="2"/>
+  <polygon points="58,18 52,17 53,22" fill="#f7e693"/>
+  <polygon points="25,11 23,5 29,9" fill="#f7e693" stroke="#554c1f" stroke-width="1"/>
+  <polygon points="39,11 41,5 35,9" fill="#f7e693" stroke="#554c1f" stroke-width="1"/>
+  </g>
+  <g stroke="#554c1f" stroke-width="0.6">
+    <circle cx="14.5" cy="60" r="2.2" fill="#f4f0e4"/>
+    <circle cx="21.5" cy="60" r="2.2" fill="#f4f0e4"/>
+    <circle cx="28.5" cy="60" r="2.2" fill="#f4f0e4"/>
+    <circle cx="35.5" cy="60" r="2.2" fill="#f4f0e4"/>
+    <circle cx="42.5" cy="60" r="2.2" fill="#f4f0e4"/>
+    <circle cx="49.5" cy="60" r="2.2" fill="#f4f0e4"/>
+  </g>
+</svg>

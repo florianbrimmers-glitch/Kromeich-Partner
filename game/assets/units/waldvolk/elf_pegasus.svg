@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Kampf-Token Pegasus (elf_pegasus), Tier 3, Rolle Flieger.
+     Generiert von tools/gen_unit_sprites.py - nicht per Hand editieren,
+     sondern den Generator anpassen und neu laufen lassen. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <ellipse cx="32" cy="57" rx="15" ry="4" fill="#000" opacity="0.40"/>
+  <g transform="translate(32,56) scale(0.84) translate(-32,-56)">
+  <!-- Fluegel -->
+  <path d="M30,26 C16,12 8,20 10,32 C14,28 22,28 30,32 Z"
+        fill="#a4e6a4" stroke="#284c28" stroke-width="1.5" opacity="0.95"/>
+  <path d="M34,26 C48,12 56,20 54,32 C50,28 42,28 34,32 Z"
+        fill="#a4e6a4" stroke="#284c28" stroke-width="1.5" opacity="0.95"/>
+  <!-- Koerper -->
+  <ellipse cx="32" cy="36" rx="8" ry="14" fill="#62b862" stroke="#284c28" stroke-width="1.5"/>
+  <circle cx="32" cy="18" r="6.5" fill="#62b862" stroke="#284c28" stroke-width="1.5"/>
+  <!-- Klauen -->
+  <line x1="29" y1="49" x2="26" y2="55" stroke="#284c28" stroke-width="2.5"/>
+  <line x1="35" y1="49" x2="38" y2="55" stroke="#284c28" stroke-width="2.5"/>
+  <polygon points="52,34 56,40 52,46 48,40" fill="#a4e6a4" stroke="#284c28" stroke-width="1"/>
+  </g>
+  <g stroke="#284c28" stroke-width="0.6">
+    <circle cx="25.0" cy="60" r="2.2" fill="#f4f0e4"/>
+    <circle cx="32.0" cy="60" r="2.2" fill="#f4f0e4"/>
+    <circle cx="39.0" cy="60" r="2.2" fill="#f4f0e4"/>
+  </g>
+</svg>

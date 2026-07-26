@@ -27,6 +27,7 @@ var _fails: int = 0
 
 
 func _init() -> void:
+	_test_sprite_coverage()
 	_test_getters()
 	_test_melee_penalty_flags()
 	_test_ability_rules()
@@ -51,6 +52,30 @@ func _check(cond: bool, msg: String) -> void:
 	if not cond:
 		_fails += 1
 	print(("[OK]   " if cond else "[FAIL] ") + msg)
+
+
+func _test_sprite_coverage() -> void:
+	print("== Kampf-Sprites: Abdeckung (M10) ==")
+	# Jede Einheit braucht ihr Token, sonst faellt sie im Kampf auf den
+	# alten Kreis zurueck. Bricht dieser Check, fehlt ein Lauf von
+	# tools/gen_unit_sprites.py (z.B. nach einer neuen Einheit).
+	var dirs: Array = ["waldvolk", "menschen", "totenreich", "orks"]
+	var missing: Array = []
+	for uid in UnitType.all_ids():
+		var fid: int = UnitType.faction_of(String(uid))
+		var path: String = "res://assets/units/%s/%s.svg" % [dirs[fid], String(uid)]
+		if not ResourceLoader.exists(path):
+			missing.append(String(uid))
+	_check(missing.is_empty(), "alle 28 Token vorhanden (fehlen: %s)" % str(missing))
+	# Und der Screen findet sie auch ueber seinen Cache-Pfad.
+	var bs = TBS.new()
+	root.add_child(bs)
+	var no_tex: Array = []
+	for uid in UnitType.all_ids():
+		if bs._unit_texture(String(uid)) == null:
+			no_tex.append(String(uid))
+	_check(no_tex.is_empty(), "Screen laedt alle Token (ohne: %s)" % str(no_tex))
+	bs.queue_free()
 
 
 func _test_getters() -> void:
