@@ -12,7 +12,7 @@ wie HoMM3, 7 Einheiten-Tiers (units.json migrieren!), CC0-Sound.
 | M1 Save/Load + Autosave + CI-Gate | FERTIG (Iteration 1) |
 | M2 Hauptmenue (Fortsetzen, Fraktionswahl, Seed-Eingabe) | FERTIG (Iteration 2) |
 | M3 Ressourcen-System (Wallet, Minen, Haufen, Markt-Tausch, Mehrkosten) | FERTIG (It. 3+4) |
-| M4 Einheiten-Migration | Teil 1 FERTIG (It. 5): UnitType-Fassade ueber units.json (28 Einheiten, deutsche Namen), LEGACY_ALIASES+canonical() (Saves kanonisieren army-/pool-Keys), Wachstum aus weekly_growth, T1-3 rekrutierbar. NAECHSTES: Teil 2 = 4-Gebaeude-Struktur (kaserne T1+2, schmiede T3+4, reiterei T5+6, zitadelle T7) + Rekrut-Panel 2er-Liste + volle Ressourcen-Rekrutkosten + balance_sim 4x4-Matrix |
+| M4 Einheiten-Migration | Teil 1 FERTIG (It. 5): Fassade+Aliase. Teil 2 FERTIG (It. 6): 4-Gebaeude-Struktur (kaserne T1+2, schmiede T3+4, reiterei T5+6, zitadelle T7 requires reiterei+mauer), units_for_building, Rekrut-Panel 2er-Liste, volle Ressourcen-Rekrutkosten (wallet), KI-Rotation deadlock-frei, balance_sim = 4x4-Fraktions-Matrix (informativ). NAECHSTES: Teil 3 = Abilities-Minimalset (ranged-Malus-Flags, begrenzte Schuesse), danach Alias-Entfernung |
 | M5-M12 Parallel-Band (Objekte, Moral, Abilities, Belagerung, Sprites, Sound, Events) | offen |
 | M7/M8 Heldenstats/Skills, Zauber | offen (nach M4) |
 | M13 Mehrere Helden (vorher Struktur-Iteration!), M14 MP | zurueckgestellt |

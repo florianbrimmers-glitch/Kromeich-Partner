@@ -1,7 +1,8 @@
 {
 	"_comment": "Iteration 5 (gemalte Canva-Hintergruende): Hotspots in den Innenhof der gemalten Ringmauer (bg_walled.png) gelegt - Band y 0.48..0.74, x 0.22..0.78. Plaza/Brunnen liegt bei (0.50, 0.60) und bleibt frei. Mauer-Hotspot am Tor unten. Positionen passen auch fuer das offene Dorf (bg.png), da beide Bilder dieselbe Plaza-Komposition haben.",
 	"buildings": {
-		"kapelle":  { "x": 0.50, "y": 0.475, "z": 0 },
+		"kapelle":  { "x": 0.42, "y": 0.475, "z": 0 },
+		"zitadelle": { "x": 0.58, "y": 0.475, "z": 0 },
 		"schmiede": { "x": 0.29, "y": 0.535, "z": 0 },
 		"reiterei": { "x": 0.71, "y": 0.535, "z": 0 },
 		"markt":    { "x": 0.23, "y": 0.645, "z": 0 },

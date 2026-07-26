@@ -14,10 +14,9 @@ extends RefCounted
 # mit alten army-/pool-Keys laden dadurch ohne Migrationsschritt.
 # Die Aliase werden eine spaetere Iteration wieder entfernt.
 #
-# Gebaeude-Zuordnung (Teil 1, bewusst konservativ): kaserne schaltet
-# Tier 1 frei, schmiede Tier 2, reiterei Tier 3. Tiers 4-7 haben noch
-# KEIN Gebaeude und sind nicht rekrutierbar, bis M4 Teil 2 die
-# Dwelling-Struktur baut.
+# Gebaeude-Zuordnung (Teil 2): 4 Rekrut-Gebaeude decken alle 7 Tiers -
+# kaserne T1+2, schmiede T3+4, reiterei T5+6, zitadelle T7. Ein Gebaeude
+# schaltet also bis zu 2 Einheiten frei (units_for_building).
 
 const SLOT_MELEE := "melee"
 const SLOT_RANGED := "ranged"
@@ -29,8 +28,13 @@ const FACTION_STR_TO_ID := {
 	"waldvolk": 0, "menschen": 1, "totenreich": 2, "orkstaemme": 3,
 }
 
-# Tier -> Rekrutierungs-Gebaeude (Teil 1: nur T1-T3).
-const TIER_BUILDING := {1: "kaserne", 2: "schmiede", 3: "reiterei"}
+# Tier -> Rekrutierungs-Gebaeude (Teil 2: alle 7 Tiers).
+const TIER_BUILDING := {
+	1: "kaserne", 2: "kaserne",
+	3: "schmiede", 4: "schmiede",
+	5: "reiterei", 6: "reiterei",
+	7: "zitadelle",
+}
 
 # Alte 3-Tier-IDs -> JSON-IDs, gemappt nach TIER (nicht nach Rolle -
 # die Fraktionen sind bewusst asymmetrisch, z.B. hat Totenreich erst
@@ -123,13 +127,12 @@ static func ids_for_faction(fid: int) -> Array:
 	return _faction_order.get(1, [])
 
 
-# Nur die Tiers, die schon ein Rekrutierungs-Gebaeude haben (T1-T3 in
-# Teil 1). CityScreen/KI arbeiten hierueber, damit T4-7 erst mit den
-# Dwellings aus Teil 2 auftauchen.
+# Nur die Tiers, die ein Rekrutierungs-Gebaeude haben - seit Teil 2
+# sind das alle 7. CityScreen/KI arbeiten hierueber.
 static func recruitable_ids_for_faction(fid: int) -> Array:
 	var out: Array = []
 	for uid in ids_for_faction(fid):
-		if int(get_type(String(uid))["tier"]) <= 3:
+		if TIER_BUILDING.has(int(get_type(String(uid))["tier"])):
 			out.append(uid)
 	return out
 
@@ -154,13 +157,20 @@ static func building_for(uid: String) -> String:
 	return String(TIER_BUILDING.get(tier_of(uid), ""))
 
 
-# Umgekehrter Lookup: welche Einheit der Fraktion schaltet das Gebaeude
-# frei? (Teil 1: 1 Einheit je Gebaeude; Teil 2 macht daraus Listen.)
-static func unit_for_building(fid: int, bid: String) -> String:
+# Umgekehrter Lookup: alle Einheiten der Fraktion, die dieses Gebaeude
+# freischaltet (1-2 Stueck, tier-sortiert weil ids_for_faction sortiert).
+static func units_for_building(fid: int, bid: String) -> Array:
+	var out: Array = []
 	for uid in ids_for_faction(fid):
 		if building_for(String(uid)) == bid:
-			return String(uid)
-	return ""
+			out.append(uid)
+	return out
+
+
+# Kompat-Wrapper: erste Einheit des Gebaeudes ("" wenn keins).
+static func unit_for_building(fid: int, bid: String) -> String:
+	var lst: Array = units_for_building(fid, bid)
+	return String(lst[0]) if not lst.is_empty() else ""
 
 
 static func starter_id_for_faction(fid: int) -> String:

@@ -159,21 +159,23 @@ const FACTION_COLORS := [
 	Color(0.95, 0.35, 0.30),   # Orks - rot
 ]
 
-# Gebaeude: id/Name/Kosten/effect-Text. Optional "requires" = id eines
-# anderen Gebaeudes, das vorher gebaut sein muss (selbe Stadt). Schmiede
-# z.B. braucht Kaserne, sonst war es zu leicht, ohne Kaserne zu spielen.
-# Pro Stadt als Liste von ids in city["buildings"].
+# Gebaeude: id/Name/Kosten/effect-Text. Optional "requires" = id ODER
+# Liste von ids anderer Gebaeude, die vorher gebaut sein muessen (selbe
+# Stadt, siehe _requires_list). Pro Stadt als Liste von ids in
+# city["buildings"].
 # Gebaeude-Kosten als Ressourcen-Dictionaries (M3 Teil 2). HoMM3-angelehnt,
-# mild fuer Mobile: Holz/Erz fuer Basis-Bauten, 1 Kristall fuer die Kapelle.
+# mild fuer Mobile. Die 4 Militaergebaeude decken die 7 Einheiten-Tiers
+# ab (M4 Teil 2): kaserne T1+2, schmiede T3+4, reiterei T5+6, zitadelle T7.
 const BUILDINGS := [
-	{"id": "kaserne",  "name": "Kaserne",  "cost": {"gold": 500, "wood": 5}, "effect": "Nahkampf +8/Woche"},
+	{"id": "kaserne",  "name": "Kaserne",  "cost": {"gold": 500, "wood": 5}, "effect": "Rekruten Tier 1-2"},
 	{"id": "spaeher",  "name": "Spaeher",  "cost": {"gold": 300, "wood": 2}, "effect": "+2 max Schritte/Tag"},
 	{"id": "markt",    "name": "Markt",    "cost": {"gold": 800, "wood": 5, "ore": 2}, "effect": "+200 Gold/Tag, Markt-Tausch"},
-	{"id": "schmiede", "name": "Schmiede", "cost": {"gold": 700, "ore": 5}, "effect": "Fernkampf +4/Woche", "requires": "kaserne"},
-	{"id": "reiterei", "name": "Reiterei", "cost": {"gold": 1000, "wood": 5, "ore": 5}, "effect": "Schwer +2/Woche", "requires": "schmiede"},
+	{"id": "schmiede", "name": "Schmiede", "cost": {"gold": 700, "ore": 5}, "effect": "Rekruten Tier 3-4", "requires": "kaserne"},
+	{"id": "reiterei", "name": "Reiterei", "cost": {"gold": 1000, "wood": 5, "ore": 5}, "effect": "Rekruten Tier 5-6", "requires": "schmiede"},
 	{"id": "wachturm", "name": "Wachturm", "cost": {"gold": 400, "ore": 5}, "effect": "+1 Kampfkraft (dauerhaft)"},
 	{"id": "kapelle",  "name": "Kapelle",  "cost": {"gold": 500, "wood": 2, "ore": 2, "crystal": 1}, "effect": "+10 XP/Tag"},
 	{"id": "mauer",    "name": "Stadtmauer", "cost": {"gold": 1200, "ore": 10, "wood": 5}, "effect": "Stadtverteidigung (Kampf-Bonus folgt)"},
+	{"id": "zitadelle", "name": "Zitadelle", "cost": {"gold": 2500, "wood": 10, "ore": 10, "crystal": 1}, "effect": "Rekruten Tier 7", "requires": ["reiterei", "mauer"]},
 ]
 # Startvorrat (Spieler UND KI), damit Tag-1-Bauten nicht an fehlendem
 # Holz scheitern, bevor die erste Mine erobert ist.
@@ -242,8 +244,8 @@ var _game_lost: bool = false
 #   "hero": Hero (null wenn im Kampf gefallen)
 #   "owner_id": int (1..3) - wird in city/object["owner"] gespiegelt
 #   "primary_faction": int (0..3) - Heimat-Fraktion der Start-Stadt
-#   "recruit_idx": int - Rotations-Index (0=Melee, 1=Ranged, 2=Heavy in
-#       der Reihenfolge UnitType.ids_for_faction(primary_faction))
+#   "recruit_idx": int - Rotations-Index ueber
+#       UnitType.recruitable_ids_for_faction(primary_faction), T1..T7
 #   "fog": Array (MAP_WIDTH*MAP_HEIGHT) - eigene Sichtbarkeit
 #   "player_last_seen_pos": Vector2i - wo diese KI den Spieler-Held
 #       zuletzt gesehen hat (-1,-1 wenn nie)
@@ -1031,12 +1033,10 @@ func _daily_pool_tick(dow: int) -> void:
 		var pools: Dictionary = c.get("pools", {}) as Dictionary
 		var fid: int = int(c["faction"])
 		for bid in c["buildings"]:
-			var uid: String = UnitType.unit_for_building(fid, String(bid))
-			if uid == "":
-				continue
-			var delta: int = _day_delta(_pool_cap_for(uid), dow)
-			if delta > 0:
-				pools[uid] = int(pools.get(uid, 0)) + delta
+			for uid in UnitType.units_for_building(fid, String(bid)):
+				var delta: int = _day_delta(_pool_cap_for(String(uid)), dow)
+				if delta > 0:
+					pools[uid] = int(pools.get(uid, 0)) + delta
 		c["pools"] = pools
 
 
@@ -1046,16 +1046,12 @@ func _daily_pool_tick(dow: int) -> void:
 # laufende Woche, ohne dass Tage nachtraeglich doppelt zaehlen.
 func _prime_pool_for_building(city: Dictionary, bid: String) -> void:
 	var fid: int = int(city["faction"])
-	var uid: String = UnitType.unit_for_building(fid, bid)
-	if uid == "":
-		return
-	var cap: int = _pool_cap_for(uid)
 	var dow: int = _day_of_week()
-	var catch_up: int = GameCalendar.catch_up(cap, dow)
-	if catch_up <= 0:
-		return
 	var pools: Dictionary = city.get("pools", {}) as Dictionary
-	pools[uid] = int(pools.get(uid, 0)) + catch_up
+	for uid in UnitType.units_for_building(fid, bid):
+		var catch_up: int = GameCalendar.catch_up(_pool_cap_for(String(uid)), dow)
+		if catch_up > 0:
+			pools[uid] = int(pools.get(uid, 0)) + catch_up
 	city["pools"] = pools
 
 
@@ -2293,9 +2289,10 @@ func _buy_building(city_idx: int, bld_idx: int) -> void:
 	var built: Array = city["buildings"]
 	if built.has(bid):
 		return
-	# Voraussetzung pruefen (z.B. Schmiede benoetigt Kaserne).
-	if b.has("requires") and not built.has(String(b["requires"])):
-		return
+	# Voraussetzungen pruefen (z.B. Zitadelle braucht Reiterei UND Mauer).
+	for req in _requires_list(b):
+		if not built.has(req):
+			return
 	built.append(bid)
 	_prime_pool_for_building(city, bid)
 	_hero.wallet.pay(cost)
@@ -2304,9 +2301,26 @@ func _buy_building(city_idx: int, bld_idx: int) -> void:
 	_show_city(city_idx)
 
 
+# "requires" eines Gebaeude-Eintrags tolerant lesen: String ODER Array
+# von Gebaeude-ids (z.B. Zitadelle braucht Reiterei UND Mauer).
+func _requires_list(def: Dictionary) -> Array:
+	var raw: Variant = def.get("requires", null)
+	if raw == null:
+		return []
+	if raw is Array:
+		var out: Array = []
+		for r in raw:
+			out.append(String(r))
+		return out
+	return [String(raw)]
+
+
 func _recruit_unit(city_idx: int, unit_id: String) -> void:
-	var cost: int = UnitType.cost_of(unit_id)
-	if _hero.gold < cost:
+	# Voller Ressourcen-Preis aus units.json (M4 Teil 2): T6/T7 kosten
+	# neben Gold auch Edel-Ressourcen (z.B. Engel 3500G + 1 Edelstein).
+	var cost: Dictionary = UnitType.cost_dict_of(unit_id)
+	if not _hero.wallet.can_afford(cost):
+		_set_status("Zu teuer: braucht %s" % Wallet.cost_text(cost))
 		return
 	var city: Dictionary = _cities[city_idx]
 	# Sicherheit: nur Einheiten der Stadt-Fraktion erlaubt. Falls ein
@@ -2331,7 +2345,7 @@ func _recruit_unit(city_idx: int, unit_id: String) -> void:
 	if not _hero.can_add_unit(unit_id):
 		_set_status("Armee voll - max %d Stacks" % Hero.MAX_ARMY_SLOTS)
 		return
-	_hero.gold -= cost
+	_hero.wallet.pay(cost)
 	_hero.add_units(unit_id, 1)
 	pools[unit_id] = int(pools[unit_id]) - 1
 	city["pools"] = pools
@@ -2350,7 +2364,7 @@ func _building_by_id(bid: String) -> Dictionary:
 func _enemy_economy_for(idx: int) -> void:
 	# Gegner spielt nach den gleichen Regeln wie der Spieler: Einkommen pro
 	# eigener Stadt (+Markt), max_mp mit Spaeher. Danach Ausgaben nach
-	# Prioritaet: Kaserne -> Schmiede -> Reiterei -> Markt -> Spaeher.
+	# Prioritaet: Militaergebaeude -> Markt/Spaeher -> Mauer -> Zitadelle.
 	# Sobald keine Prioritaets-Gebaeude mehr affordable sind, wird Ueberschuss
 	# in Rekruten gesteckt - aus dem Pool der Stadt, auf der die KI steht.
 	# Wachturm/Kapelle bringen dem Gegner (noch) nichts, daher ignoriert.
@@ -2395,7 +2409,7 @@ func _enemy_economy_for(idx: int) -> void:
 			break
 	if current_city.is_empty():
 		return
-	var priority: Array = ["kaserne", "schmiede", "reiterei", "markt", "spaeher"]
+	var priority: Array = ["kaserne", "schmiede", "reiterei", "markt", "spaeher", "mauer", "zitadelle"]
 	var guard: int = 0
 	var spent: bool = true
 	while spent and guard < 24:
@@ -2408,14 +2422,19 @@ func _enemy_economy_for(idx: int) -> void:
 			var bcost: Dictionary = bdef["cost"]
 			if not eh.wallet.can_afford(bcost):
 				continue
-			var req: String = String(bdef["requires"]) if bdef.has("requires") else ""
+			var reqs: Array = _requires_list(bdef)
 			for c in _cities:
 				if int(c["owner"]) != oid:
 					continue
 				var bl: Array = c["buildings"]
 				if bl.has(bid):
 					continue
-				if req != "" and not bl.has(req):
+				var reqs_ok: bool = true
+				for req in reqs:
+					if not bl.has(req):
+						reqs_ok = false
+						break
+				if not reqs_ok:
 					continue
 				bl.append(bid)
 				_prime_pool_for_building(c, bid)
@@ -2427,37 +2446,40 @@ func _enemy_economy_for(idx: int) -> void:
 		if spent:
 			continue
 		# Keine Prioritaets-Gebaeude mehr affordable: Ueberschuss in Rekruten
-		# stecken. Rotations-Slot Melee -> Ranged -> Heavy (Primaer-Fraktion
-		# der KI) muss _gleichzeitig_ Gold, das noetige Gebaeude und Wochen-
-		# Nachschub (current_city["pools"][uid] > 0) haben. Ist der aktuelle
-		# Slot blockiert, bleibt der Rotations-Index stehen und die KI kauft
-		# diese Runde nichts - so holt sie den Slot automatisch nach, sobald
-		# das fehlende Gebaeude steht oder die neue Woche den Pool auffuellt.
+		# stecken. Ab recruit_idx wird vorwaerts der ERSTE kaufbare Slot
+		# gesucht (Gebaeude gebaut, Pool > 0, Ressourcen im Wallet, Slot in
+		# der Armee frei) - Index wandert hinter den Kauf. Frueher blieb die
+		# Rotation auf einem blockierten Slot stehen; seit T6/T7 Edel-
+		# Ressourcen kosten (die die KI mangels Markt-Tausch evtl. nie
+		# bekommt), waere das ein dauerhafter Rekrutierungs-Stopp.
 		var pfid: int = int(e.get("primary_faction", 1))
 		var f_order: Array = UnitType.recruitable_ids_for_faction(pfid)
 		if f_order.is_empty():
 			continue
-		var ri: int = int(e["recruit_idx"])
-		var next_uid: String = String(f_order[ri % f_order.size()])
-		var next_cost: int = UnitType.cost_of(next_uid)
-		var next_req: String = UnitType.building_for(next_uid)
-		if eh.gold < next_cost:
-			continue
 		if int(current_city["faction"]) != pfid:
 			continue
-		if not (current_city["buildings"] as Array).has(next_req):
-			continue
+		var ri: int = int(e["recruit_idx"])
+		var bl_here: Array = current_city["buildings"]
 		var cpools: Dictionary = current_city.get("pools", {}) as Dictionary
-		if int(cpools.get(next_uid, 0)) <= 0:
-			continue
-		if not eh.can_add_unit(next_uid):
-			continue
-		eh.gold -= next_cost
-		eh.add_units(next_uid, 1)
-		cpools[next_uid] = int(cpools[next_uid]) - 1
-		current_city["pools"] = cpools
-		e["recruit_idx"] = (ri + 1) % f_order.size()
-		spent = true
+		for off in range(f_order.size()):
+			var slot: int = (ri + off) % f_order.size()
+			var next_uid: String = String(f_order[slot])
+			if not bl_here.has(UnitType.building_for(next_uid)):
+				continue
+			if int(cpools.get(next_uid, 0)) <= 0:
+				continue
+			var next_cost: Dictionary = UnitType.cost_dict_of(next_uid)
+			if not eh.wallet.can_afford(next_cost):
+				continue
+			if not eh.can_add_unit(next_uid):
+				continue
+			eh.wallet.pay(next_cost)
+			eh.add_units(next_uid, 1)
+			cpools[next_uid] = int(cpools[next_uid]) - 1
+			current_city["pools"] = cpools
+			e["recruit_idx"] = (slot + 1) % f_order.size()
+			spent = true
+			break
 
 
 func _run_enemy_turn_for(idx: int) -> bool:

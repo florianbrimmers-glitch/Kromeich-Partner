@@ -116,7 +116,7 @@ func _test_unit_type() -> void:
 		var ids: Array = UnitType.ids_for_faction(fid)
 		_check(ids.size() == 7, "Fraktion %d hat 7 Tiers (%d)" % [fid, ids.size()])
 		var rec: Array = UnitType.recruitable_ids_for_faction(fid)
-		_check(rec.size() == 3, "Fraktion %d: 3 rekrutierbare Tiers in Teil 1" % fid)
+		_check(rec.size() == 7, "Fraktion %d: alle 7 Tiers rekrutierbar (Teil 2)" % fid)
 		# Tiers aufsteigend sortiert + Invarianten je Einheit
 		var last_tier: int = 0
 		for uid in ids:
@@ -127,12 +127,13 @@ func _test_unit_type() -> void:
 				_check(false, "%s: dmg_min <= dmg_max verletzt" % uid)
 			if UnitType.growth_of(String(uid)) <= 0:
 				_check(false, "%s: weekly_growth <= 0" % uid)
-		# Gebaeude-Roundtrip nur fuer rekrutierbare Tiers
+		# Gebaeude-Roundtrip: jede Einheit taucht in der units_for_building-
+		# Liste ihres Gebaeudes auf.
 		for uid in rec:
 			var bid: String = UnitType.building_for(String(uid))
-			var back: String = UnitType.unit_for_building(fid, bid)
-			_check(back == String(uid),
-				"Fraktion %d: %s <-> %s Roundtrip" % [fid, uid, bid])
+			var lst: Array = UnitType.units_for_building(fid, bid)
+			_check(lst.has(String(uid)),
+				"Fraktion %d: %s in units_for_building(%s)" % [fid, uid, bid])
 	# Legacy-Aliase loesen auf dieselben Stats auf
 	_check(UnitType.canonical("sword") == "men_spearman", "Alias sword -> men_spearman")
 	_check(UnitType.get_type("sword")["id"] == "men_spearman", "get_type folgt Alias")
@@ -140,7 +141,14 @@ func _test_unit_type() -> void:
 	_check(UnitType.unit_for_building(1, "markt") == "", "Markt produziert keine Einheit")
 	_check(UnitType.starter_id_for_faction(2) == "nec_skeleton", "Totenreich-Starter = nec_skeleton")
 	_check(UnitType.tier_of("men_angel") == 7, "Engel ist Tier 7")
-	_check(UnitType.building_for("men_angel") == "", "Tier 7 hat noch kein Gebaeude (Teil 2)")
+	# M4 Teil 2: 4 Gebaeude decken die 7 Tiers ab.
+	_check(UnitType.building_for("men_angel") == "zitadelle", "Tier 7 kommt aus der Zitadelle")
+	_check(UnitType.units_for_building(1, "kaserne") == ["men_spearman", "men_archer"],
+		"Kaserne (Menschen) = Speertraeger + Armbruster")
+	_check(UnitType.units_for_building(1, "zitadelle") == ["men_angel"],
+		"Zitadelle (Menschen) = nur Engel")
+	_check(UnitType.unit_for_building(1, "kaserne") == "men_spearman",
+		"unit_for_building liefert erste Einheit (Kompat)")
 
 
 # Static-Calls auf weitere Module zwingen Godot, deren Scripts wirklich

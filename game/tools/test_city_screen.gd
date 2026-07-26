@@ -25,14 +25,17 @@ func _init() -> void:
 	cs.build_requested.connect(func(bid: String) -> void: _got_build = bid)
 	cs.plaza_tapped.connect(func(stats: String) -> void: _got_plaza = stats)
 
+	# Kosten als Dictionaries wie in den echten BUILDINGS (int-Kosten
+	# lassen _plot_subline/_plot_sub_color am Typ-Check scheitern).
 	var buildings: Array = [
-		{"id": "kaserne",  "name": "Kaserne",  "cost": 500, "effect": "x"},
-		{"id": "spaeher",  "name": "Spaeher",  "cost": 300, "effect": "x"},
-		{"id": "markt",    "name": "Markt",    "cost": 800, "effect": "x"},
-		{"id": "schmiede", "name": "Schmiede", "cost": 700, "effect": "x", "requires": "kaserne"},
-		{"id": "reiterei", "name": "Reiterei", "cost": 1000, "effect": "x", "requires": "schmiede"},
-		{"id": "wachturm", "name": "Wachturm", "cost": 400, "effect": "x"},
-		{"id": "kapelle",  "name": "Kapelle",  "cost": 500, "effect": "x"},
+		{"id": "kaserne",  "name": "Kaserne",  "cost": {"gold": 500}, "effect": "x"},
+		{"id": "spaeher",  "name": "Spaeher",  "cost": {"gold": 300}, "effect": "x"},
+		{"id": "markt",    "name": "Markt",    "cost": {"gold": 800}, "effect": "x"},
+		{"id": "schmiede", "name": "Schmiede", "cost": {"gold": 700}, "effect": "x", "requires": "kaserne"},
+		{"id": "reiterei", "name": "Reiterei", "cost": {"gold": 1000}, "effect": "x", "requires": "schmiede"},
+		{"id": "wachturm", "name": "Wachturm", "cost": {"gold": 400}, "effect": "x"},
+		{"id": "kapelle",  "name": "Kapelle",  "cost": {"gold": 500}, "effect": "x"},
+		{"id": "zitadelle", "name": "Zitadelle", "cost": {"gold": 2500}, "effect": "x", "requires": ["reiterei", "mauer"]},
 	]
 	var hero := Hero.new(Vector2i(0, 0))
 	hero.gold = 1000
@@ -44,27 +47,49 @@ func _init() -> void:
 		"city": city, "hero": hero, "buildings": buildings,
 		"faction_names": ["Waldvolk", "Menschen", "Totenreich", "Orks"],
 		"faction_colors": [Color.GREEN, Color.GOLD, Color.PURPLE, Color.RED],
-		"weekly_growth": {"kaserne": 8, "schmiede": 4, "reiterei": 2},
 		"calendar": "T1 W1 M1 J1", "hero_here": true,
 	}
 	cs.open(ctx)
 
 	# 1) Layout geladen?
-	# Layout enthaelt alle Gebaeude-Hotspots inkl. mauer -> aktuell 8.
-	ok = _check(cs._layout.size() == 8, "Layout hat 8 Eintraege (ist %d)" % cs._layout.size()) and ok
+	# Layout enthaelt alle Gebaeude-Hotspots inkl. mauer+zitadelle -> 9.
+	ok = _check(cs._layout.size() == 9, "Layout hat 9 Eintraege (ist %d)" % cs._layout.size()) and ok
 
 	# 2) Hotspots berechnet?
 	var plots: Array = cs._compute_plots(cs._stage_rect())
 	cs._plots = plots
-	ok = _check(plots.size() == 7, "7 Hotspots berechnet (ist %d)" % plots.size()) and ok
+	ok = _check(plots.size() == 8, "8 Hotspots berechnet (ist %d)" % plots.size()) and ok
 
-	# 3) Tap auf gebaute Kaserne -> recruit "sword"
+	# 3) Tap auf gebaute Kaserne -> Rekrut-Panel mit T1+T2 der Menschen,
+	#    Zeilen-Button emittiert recruit_requested.
 	var kaserne: Dictionary = _find(plots, "kaserne")
 	ok = _check(not kaserne.is_empty(), "Kaserne-Plot existiert") and ok
 	if not kaserne.is_empty():
 		cs._handle_tap(kaserne["center"])
-		ok = _check(_got_recruit == "men_spearman",
-			"Tap Kaserne -> recruit 'men_spearman' (war '%s')" % _got_recruit) and ok
+		ok = _check(cs._recruit_panel != null and cs._recruit_panel.visible,
+			"Tap Kaserne oeffnet Rekrut-Panel") and ok
+		ok = _check(cs._recruit_buttons.size() == 2
+			and cs._recruit_buttons.has("men_spearman")
+			and cs._recruit_buttons.has("men_archer"),
+			"Panel zeigt 2 Einheiten (Speertraeger+Armbruster)") and ok
+		if cs._recruit_buttons.has("men_spearman"):
+			(cs._recruit_buttons["men_spearman"] as Button).pressed.emit()
+			ok = _check(_got_recruit == "men_spearman",
+				"Panel-Button -> recruit 'men_spearman' (war '%s')" % _got_recruit) and ok
+		if cs._recruit_panel != null:
+			cs._recruit_panel.visible = false
+
+	# 3b) Zitadelle: ungebaut -> build_requested; Subline nennt BEIDE
+	#     fehlenden Voraussetzungen (requires darf Array sein).
+	var zit: Dictionary = _find(plots, "zitadelle")
+	ok = _check(not zit.is_empty(), "Zitadelle-Plot existiert") and ok
+	if not zit.is_empty():
+		cs._handle_tap(zit["center"])
+		ok = _check(_got_build == "zitadelle",
+			"Tap Zitadelle -> build 'zitadelle' (war '%s')" % _got_build) and ok
+	var zit_sub: String = cs._plot_subline(buildings[7], false, 1)
+	ok = _check(zit_sub.contains("Reiterei") and zit_sub.contains("Mauer"),
+		"Zitadelle-Subline nennt Reiterei+Mauer (war '%s')" % zit_sub) and ok
 
 	# 4) Tap auf ungebauten Markt -> build "markt"
 	var markt: Dictionary = _find(plots, "markt")

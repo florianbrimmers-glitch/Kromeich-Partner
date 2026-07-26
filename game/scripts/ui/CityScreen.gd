@@ -58,6 +58,13 @@ var _title: Label
 var _gold: Label
 var _trade_panel: Panel
 var _trade_labels: Dictionary = {}
+# Rekrut-Panel (M4 Teil 2): ein Panel, Zeilen werden je Gebaeude neu
+# aufgebaut (1-2 Einheiten). Labels/Buttons pro uid fuer Refresh.
+var _recruit_panel: Panel
+var _recruit_title: Label
+var _recruit_rows_box: VBoxContainer
+var _recruit_labels: Dictionary = {}
+var _recruit_buttons: Dictionary = {}
 var _cal: Label
 var _status: Label
 var _font: Font
@@ -153,6 +160,7 @@ func open(ctx: Dictionary) -> void:
 	visible = true
 	_update_hud()
 	_refresh_trade_labels()
+	_refresh_recruit_labels()
 	queue_redraw()
 
 
@@ -160,6 +168,7 @@ func refresh(ctx: Dictionary) -> void:
 	_ctx = ctx
 	_update_hud()
 	_refresh_trade_labels()
+	_refresh_recruit_labels()
 	queue_redraw()
 
 
@@ -413,33 +422,47 @@ func _compute_plots(stage: Rect2) -> Array:
 
 func _plot_subline(def: Dictionary, is_built: bool, fid: int) -> String:
 	var bid: String = String(def["id"])
-	var uid: String = UnitType.unit_for_building(fid, bid)
 	if not is_built:
 		var cost: Dictionary = def.get("cost", {})
-		var req: String = String(def.get("requires", ""))
-		if req != "" and not _city_has(req):
-			return "braucht " + req.capitalize()
+		var missing: Array = _missing_requires(def)
+		if not missing.is_empty():
+			return "braucht " + " + ".join(missing)
 		return Wallet.cost_text(cost) + " bauen"
-	# Gebaut: Militaergebaeude zeigen Rekrut-Vorrat, Rest "fertig".
-	if uid != "":
+	# Gebaut: Militaergebaeude zeigen Rekrut-Vorrat je Einheit, Rest "fertig".
+	var units: Array = UnitType.units_for_building(fid, bid)
+	if not units.is_empty():
 		var pools: Dictionary = _city_pools()
-		var have: int = int(pools.get(uid, 0))
-		var rate: int = UnitType.growth_of(uid)
-		return "%s: %d (+%d/Wo)" % [UnitType.short_of(uid), have, rate]
+		var parts: Array = []
+		for u in units:
+			parts.append("%s:%d" % [UnitType.short_of(String(u)), int(pools.get(u, 0))])
+		return " ".join(parts)
 	return "fertig"
+
+
+# "requires" tolerant lesen (String ODER Array, z.B. Zitadelle braucht
+# Reiterei UND Mauer) und die noch fehlenden als Anzeige-Namen liefern.
+func _missing_requires(def: Dictionary) -> Array:
+	var raw: Variant = def.get("requires", null)
+	if raw == null:
+		return []
+	var reqs: Array = (raw as Array) if raw is Array else [raw]
+	var missing: Array = []
+	for r in reqs:
+		if not _city_has(String(r)):
+			missing.append(String(r).capitalize())
+	return missing
 
 
 func _plot_sub_color(def: Dictionary, is_built: bool, fid: int) -> Color:
 	var bid: String = String(def["id"])
 	if not is_built:
-		var req: String = String(def.get("requires", ""))
-		if req != "" and not _city_has(req):
+		if not _missing_requires(def).is_empty():
 			return Color(0.9, 0.5, 0.5)
 		var hero: Object = _ctx.get("hero", null)
 		if hero != null and (hero.wallet as Wallet).can_afford(def.get("cost", {})):
 			return Color(0.6, 0.95, 0.6)
 		return Color(0.95, 0.85, 0.5)
-	if UnitType.unit_for_building(fid, bid) != "":
+	if not UnitType.units_for_building(fid, bid).is_empty():
 		return Color(0.7, 0.9, 1.0)
 	return Color(0.7, 0.7, 0.75)
 
@@ -501,18 +524,18 @@ func _show_plaza_stats() -> void:
 	var defs: Array = _ctx.get("buildings", [])
 	var built_count: int = built.size()
 	var total: int = defs.size()
-	# Wochenrate aufaddieren: pro Militaergebaeude die fraktionsspezifische
-	# WEEKLY_GROWTH-Rate, fuer nicht-militaerische Gebaeude den Effekt-Text.
+	# Wochenrate aufaddieren: pro Militaergebaeude das weekly_growth aller
+	# freigeschalteten Einheiten, fuer andere Gebaeude den Effekt-Text.
 	var growth: int = 0
 	var effects: Array = []
-	var weekly: Dictionary = _ctx.get("weekly_growth", {})
 	for def in defs:
 		var bid: String = String(def["id"])
 		if not built.has(bid):
 			continue
-		var uid: String = UnitType.unit_for_building(fid, bid)
-		if uid != "":
-			growth += int(weekly.get(bid, 0))
+		var units: Array = UnitType.units_for_building(fid, bid)
+		if not units.is_empty():
+			for u in units:
+				growth += UnitType.growth_of(String(u))
 		else:
 			var eff: String = String(def.get("effect", ""))
 			if eff != "":
@@ -535,9 +558,8 @@ func _act_on_plot(p: Dictionary) -> void:
 	if not bool(p["built"]):
 		build_requested.emit(bid)
 		return
-	var uid: String = UnitType.unit_for_building(fid, bid)
-	if uid != "":
-		recruit_requested.emit(uid)
+	if not UnitType.units_for_building(fid, bid).is_empty():
+		_open_recruit_panel(bid)
 	elif bid == "markt":
 		_open_trade_panel()
 	else:
@@ -710,3 +732,115 @@ func _refresh_trade_labels() -> void:
 	for rid in _trade_labels.keys():
 		var amt: int = (hero.wallet as Wallet).get_amount(String(rid))
 		(_trade_labels[rid] as Label).text = "%s: %d" % [Wallet.display_name(String(rid)), amt]
+
+
+# --- Rekrut-Panel (M4 Teil 2) ---
+# Ein Militaergebaeude schaltet 1-2 Einheiten frei. Tap oeffnet dieses
+# Panel; jede Zeile zeigt Vorrat/Wochenrate/Preis und emittiert beim
+# Kauf recruit_requested(uid) - die Oekonomie bleibt im WorldMapScreen,
+# der danach ueber open() refresht (Labels ziehen aus _ctx nach).
+
+func _open_recruit_panel(bid: String) -> void:
+	if _recruit_panel == null:
+		_build_recruit_panel()
+	# Titel + Zeilen fuer genau dieses Gebaeude neu aufbauen.
+	var bname: String = bid.capitalize()
+	for def in _ctx.get("buildings", []):
+		if String(def["id"]) == bid:
+			bname = String(def["name"])
+			break
+	_recruit_title.text = "%s - Rekrutierung" % bname
+	for c in _recruit_rows_box.get_children():
+		c.queue_free()
+	_recruit_labels.clear()
+	_recruit_buttons.clear()
+	var fid: int = _faction_id()
+	for uid in UnitType.units_for_building(fid, bid):
+		var u: String = String(uid)
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 14)
+		_recruit_rows_box.add_child(row)
+
+		var lbl := Label.new()
+		lbl.custom_minimum_size = Vector2(420, 0)
+		lbl.add_theme_font_size_override("font_size", 26)
+		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(lbl)
+		_recruit_labels[u] = lbl
+
+		var btn := Button.new()
+		btn.text = "+1  (%s)" % Wallet.cost_text(UnitType.cost_dict_of(u))
+		btn.custom_minimum_size = Vector2(300, 90)
+		btn.add_theme_font_size_override("font_size", 26)
+		btn.pressed.connect(func() -> void: recruit_requested.emit(u))
+		row.add_child(btn)
+		_recruit_buttons[u] = btn
+	_recruit_panel.visible = true
+	_refresh_recruit_labels()
+
+
+func _build_recruit_panel() -> void:
+	var panel := Panel.new()
+	panel.visible = false
+	panel.anchor_left = 0.5
+	panel.anchor_top = 0.5
+	panel.anchor_right = 0.5
+	panel.anchor_bottom = 0.5
+	panel.offset_left = -440
+	panel.offset_top = -320
+	panel.offset_right = 440
+	panel.offset_bottom = 320
+	add_child(panel)
+	_recruit_panel = panel
+
+	var bg := ColorRect.new()
+	bg.color = Color(0.08, 0.09, 0.12, 1.0)
+	bg.anchor_right = 1.0
+	bg.anchor_bottom = 1.0
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(bg)
+
+	var vb := VBoxContainer.new()
+	vb.anchor_right = 1.0
+	vb.anchor_bottom = 1.0
+	vb.offset_left = 32
+	vb.offset_top = 32
+	vb.offset_right = -32
+	vb.offset_bottom = -32
+	vb.add_theme_constant_override("separation", 18)
+	panel.add_child(vb)
+
+	_recruit_title = Label.new()
+	_recruit_title.add_theme_font_size_override("font_size", 36)
+	vb.add_child(_recruit_title)
+
+	_recruit_rows_box = VBoxContainer.new()
+	_recruit_rows_box.add_theme_constant_override("separation", 14)
+	vb.add_child(_recruit_rows_box)
+
+	var spacer := Control.new()
+	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vb.add_child(spacer)
+
+	var close_btn := Button.new()
+	close_btn.text = "Schliessen"
+	close_btn.custom_minimum_size = Vector2(0, 96)
+	close_btn.add_theme_font_size_override("font_size", 30)
+	close_btn.pressed.connect(func() -> void: _recruit_panel.visible = false)
+	vb.add_child(close_btn)
+
+
+func _refresh_recruit_labels() -> void:
+	if _recruit_panel == null or not _recruit_panel.visible:
+		return
+	var pools: Dictionary = _city_pools()
+	var hero: Object = _ctx.get("hero", null)
+	var here: bool = bool(_ctx.get("hero_here", false))
+	for uid in _recruit_labels.keys():
+		var u: String = String(uid)
+		var have: int = int(pools.get(u, 0))
+		(_recruit_labels[u] as Label).text = "%s (T%d): %d da, +%d/Wo" % [
+			UnitType.name_of(u), UnitType.tier_of(u), have, UnitType.growth_of(u)]
+		var afford: bool = hero != null \
+			and (hero.wallet as Wallet).can_afford(UnitType.cost_dict_of(u))
+		(_recruit_buttons[u] as Button).disabled = have <= 0 or not afford or not here
