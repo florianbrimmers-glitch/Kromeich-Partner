@@ -32,6 +32,7 @@ const ENGAGE_DISTANCE: float = 7.0
 # Ability-Regeln kommen aus derselben Quelle wie der Live-Kampf, sonst
 # luegt die Matrix (M6b Teil 1).
 const Abil := preload("res://scripts/core/Abilities.gd")
+const Fx := preload("res://scripts/core/StatusFx.gd")
 
 
 func _init() -> void:
@@ -55,8 +56,9 @@ func _init() -> void:
 	print("")
 	print("Modell-Grenze: Fernkaempfer werden im abstrakten Kampf NIE physisch")
 	print("blockiert und feuern ab Runde 1 - schuetzenlastige Fraktionen sehen")
-	print("hier darum besser aus als auf dem echten 10x8-Gitter. Erst mit den")
-	print("Status-Effekten (M6b Teil 2) und Moral (M6) lohnt das Zahlen-Tuning.")
+	print("hier darum besser aus als auf dem echten 10x8-Gitter. Vor dem")
+	print("Zahlen-Tuning fehlt noch Moral/Glueck (M6); danach ist ein eigener")
+	print("Tuning-Pass in balance_notes.md dran.")
 	print("")
 	if warnings == 0:
 		print("Urteil: Alle Matchups im Warn-Korridor.")
@@ -199,6 +201,9 @@ func _take_turn(stack: Dictionary, enemy: Array, round_num: int, rng: RandomNumb
 	if target.is_empty():
 		return
 	var uid: String = String(stack["type"])
+	# Betaeubt/geblendet: Zug verloren (M6b Teil 2).
+	if Fx.blocks_turn(stack):
+		return
 	var is_ranged_unit: bool = UnitType.is_ranged(uid)
 	var can_shoot: bool = is_ranged_unit and int(stack.get("shots_left", 0)) > 0
 	if not is_ranged_unit and round_num < _engage_round(uid):
@@ -233,16 +238,40 @@ func _take_turn(stack: Dictionary, enemy: Array, round_num: int, rng: RandomNumb
 			stack["shots_left"] = int(stack["shots_left"]) - 1
 		var dmg: int = CombatMath.damage(stack, target, melee_penalty, 0, 0, rng, opts)
 		CombatMath.apply(target, dmg)
+		if not can_shoot:
+			Fx.wake_on_melee(target)
 		if drain > 0.0:
 			CombatMath.heal(stack, int(float(dmg) * drain))
+		# Status-Effekte + Todeswolke wie im Live-Kampf.
+		Fx.apply_on_hit(uid, target, rng)
+		_apply_aoe(uid, target, dmg, enemy)
 		# Gegenschlag nur bei Nahkampf-Angriff; Konter-Regeln wie live.
-		if not can_shoot and int(target["count"]) > 0 and Abil.retaliation_allowed(
+		# Betaeubte/geblendete Verteidiger kontern nicht.
+		if not can_shoot and int(target["count"]) > 0 and not Fx.blocks_turn(target) \
+				and Abil.retaliation_allowed(
 				t_uid, uid, int(target.get("retaliations", 0))):
 			target["retaliations"] = int(target.get("retaliations", 0)) + 1
 			target["retaliated"] = true
 			var rdmg: int = max(1, CombatMath.damage(
 				target, stack, UnitType.is_ranged(t_uid), 0, 0, rng) / 2)
 			CombatMath.apply(stack, rdmg)
+
+
+# Todeswolke im abstrakten Modell: das Gitter fehlt, also trifft die
+# Wolke EINEN weiteren lebenden Stack der Gegenseite mit halbem Schaden
+# (live sind es die 1-2 Nachbarn des Ziels).
+func _apply_aoe(attacker_uid: String, target: Dictionary, dmg: int, enemy: Array) -> void:
+	var frac: float = Fx.aoe_fraction(attacker_uid)
+	if frac <= 0.0 or dmg <= 0:
+		return
+	var splash: int = int(float(dmg) * frac)
+	if splash <= 0:
+		return
+	for s in enemy:
+		if s == target or int(s["count"]) <= 0:
+			continue
+		CombatMath.apply(s, splash)
+		return
 
 
 func _enemy_melee_engaged(enemy: Array, round_num: int) -> bool:
@@ -270,7 +299,7 @@ func _init_stacks(list: Array, side: int) -> Array:
 			"type": uid, "count": cnt, "count_start": cnt, "side": side,
 			"top_hp": UnitType.hp_of(uid), "retaliated": false,
 			"shots_left": UnitType.shots_of(uid),
-			"retaliations": 0, "engaged": false,
+			"retaliations": 0, "engaged": false, "status": {},
 		})
 	return out
 
@@ -279,6 +308,7 @@ func _reset_round(stacks: Array) -> void:
 	for s in stacks:
 		s["retaliated"] = false
 		s["retaliations"] = 0
+		Fx.tick(s)
 		# Rundenstart-Regeneration wie im Live-Kampf.
 		if int(s["count"]) > 0:
 			var hp_max: int = UnitType.hp_of(String(s["type"]))

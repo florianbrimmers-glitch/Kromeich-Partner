@@ -10,6 +10,8 @@ signal battle_finished(result: Dictionary)
 const Obstacles := preload("res://scripts/core/BattleObstacles.gd")
 # Kampf-Faehigkeiten (M6b) - gleiche preload-Begruendung wie oben.
 const Abil := preload("res://scripts/core/Abilities.gd")
+# Status-Effekte mit Dauer (M6b Teil 2).
+const Fx := preload("res://scripts/core/StatusFx.gd")
 
 const GRID_COLS := 10
 const GRID_ROWS := 8
@@ -86,9 +88,9 @@ func _make_stacks(list: Array, side: int) -> Array:
 			"side": side, "pos": Vector2i(0, 0),
 			"retaliated": false, "waited": false,
 			"shots_left": UnitType.shots_of(uid),
-			# M6b: Konter-Zaehler (unlimited_retaliations) und gelaufene
-			# Felder dieses Zuges (Jousting-Bonus).
-			"retaliations": 0, "tiles_moved": 0,
+			# M6b: Konter-Zaehler (unlimited_retaliations), gelaufene
+			# Felder dieses Zuges (Jousting) und Status-Effekte mit Dauer.
+			"retaliations": 0, "tiles_moved": 0, "status": {},
 		})
 	return out
 
@@ -111,7 +113,44 @@ const HANDLED_ABILITIES: Array = [
 	"no_retaliation", "defense_ignore_25pct", "jousting_bonus",
 	"jousting_bonus_light", "polearm_bonus_vs_cavalry", "life_drain_50pct",
 	"regeneration_per_turn", "regeneration_if_half_hp",
+	# M6b Teil 2 (Status-Effekte + Todeswolke)
+	"root_enemy_on_hit_20pct", "blind_enemy_on_hit_15pct", "bash_stun_10pct",
+	"disease_on_hit", "curse_on_hit_10pct", "aging_on_hit_10pct",
+	"death_cloud_aoe_small",
 ]
+
+
+# Status-Effekte des Angreifers auf das Ziel wuerfeln; liefert das
+# Log-Fragment (leer, wenn nichts gegriffen hat).
+func _roll_status(attacker_uid: String, target: Dictionary) -> String:
+	var applied: Array = Fx.apply_on_hit(attacker_uid, target, _rng)
+	if applied.is_empty():
+		return ""
+	return "  [%s]" % Fx.names_text(applied)
+
+
+# Kleine Todeswolke (Lich): Nachbar-Stacks des Ziels nehmen halben
+# Schaden mit. Trifft nur die Seite des Ziels, nicht die eigene.
+func _apply_aoe(attacker_uid: String, target: Dictionary, dmg: int) -> String:
+	var frac: float = Fx.aoe_fraction(attacker_uid)
+	if frac <= 0.0 or dmg <= 0:
+		return ""
+	var splash: int = int(float(dmg) * frac)
+	if splash <= 0:
+		return ""
+	var side_arr: Array = _p_stacks if int(target["side"]) == 0 else _e_stacks
+	var tpos: Vector2i = Vector2i(target["pos"])
+	var hit: int = 0
+	var killed: int = 0
+	for s in side_arr:
+		if s == target or int(s["count"]) <= 0:
+			continue
+		if _adj(Vector2i(s["pos"]), tpos):
+			killed += _apply_dmg(s, splash)
+			hit += 1
+	if hit == 0:
+		return ""
+	return "  Wolke: %d Nachbar(n) je %d Sch., -%d" % [hit, splash, killed]
 
 
 # Ein Nahkampf-Angriff inkl. Konter und Lebensentzug. Rueckgabe: Text-
@@ -129,6 +168,8 @@ func _melee_exchange(attacker: Dictionary, target: Dictionary) -> String:
 	var drain: float = Abil.drain_fraction(a_uid)
 	var counter_dmg: int = 0
 	var counter_kill: int = 0
+	var status_txt: String = ""
+	var woke: bool = false
 	for _i in range(hits):
 		if int(target["count"]) <= 0 or int(attacker["count"]) <= 0:
 			break
@@ -136,13 +177,20 @@ func _melee_exchange(attacker: Dictionary, target: Dictionary) -> String:
 		dmg_sum += dmg
 		killed += _apply_dmg(target, dmg)
 		struck += 1
+		# Nahkampf-Treffer weckt geblendete Ziele (vor dem Konter-Check,
+		# damit ein geweckter Stack sofort zurueckschlagen darf).
+		if Fx.wake_on_melee(target):
+			woke = true
 		# Lebensentzug heilt anteilig am zugefuegten Schaden (Vampir).
 		if drain > 0.0:
 			CombatMath.heal(attacker, int(float(dmg) * drain))
+		status_txt += _roll_status(a_uid, target)
 		# Konter nach jedem Treffer pruefen: unlimited_retaliations laesst
 		# den Verteidiger jedes Mal zurueckschlagen, no_retaliation des
-		# Angreifers unterdrueckt den Konter komplett.
-		if int(target["count"]) > 0 and Abil.retaliation_allowed(
+		# Angreifers unterdrueckt den Konter komplett. Betaeubte/geblendete
+		# Verteidiger kontern nicht.
+		if int(target["count"]) > 0 and not Fx.blocks_turn(target) \
+				and Abil.retaliation_allowed(
 				t_uid, a_uid, int(target.get("retaliations", 0))):
 			target["retaliations"] = int(target.get("retaliations", 0)) + 1
 			target["retaliated"] = true
@@ -152,6 +200,9 @@ func _melee_exchange(attacker: Dictionary, target: Dictionary) -> String:
 	var msg: String = "%d Sch., -%d" % [dmg_sum, killed]
 	if struck > 1:
 		msg = "%dx (%s)" % [struck, msg]
+	msg += status_txt
+	if woke:
+		msg += "  (geweckt)"
 	if counter_dmg > 0:
 		msg += "  Konter: %d Sch., -%d" % [counter_dmg, counter_kill]
 	return msg
@@ -233,6 +284,15 @@ func _step() -> void:
 		_next_round()
 		return
 	var slot: Dictionary = _turn_order[_active_slot]
+	# Betaeubte/geblendete Stacks verlieren ihren Zug (M6b Teil 2) -
+	# gilt fuer beide Seiten, damit die Regel symmetrisch bleibt.
+	var st: Dictionary = _active_stack()
+	if not st.is_empty() and Fx.blocks_turn(st):
+		var who: String = "Held" if int(slot["side"]) == 0 else "Feind"
+		_set_action("%s %s ist %s - Zug verloren." % [
+			who, UnitType.short_of(String(st["type"])), Fx.marker_name(st)])
+		_advance()
+		return
 	if int(slot["side"]) == 0:
 		_build_reachable()
 		_refresh()
@@ -247,6 +307,7 @@ func _next_round() -> void:
 		s["waited"] = false
 		s["retaliations"] = 0
 		s["tiles_moved"] = 0
+		Fx.tick(s)
 		_regenerate(s)
 	_rebuild_order()
 	_active_slot = 0
@@ -283,6 +344,11 @@ func _build_reachable() -> void:
 	if st.is_empty():
 		return
 	var start: Vector2i = st["pos"]
+	# Verwurzelt (Treant-Treffer): der Stack bleibt stehen, darf aber
+	# weiter angreifen, wenn ein Gegner neben ihm steht.
+	if Fx.blocks_move(st):
+		_reachable[start] = 0
+		return
 	var spd: int = UnitType.speed_of(String(st["type"]))
 	var blocked: Array = []
 	for s in _p_stacks:
@@ -451,6 +517,7 @@ func _draw_grid() -> void:
 			_grid_area.draw_arc(ctr, r_active + 4, 0, TAU, 32, Color(1,1,0.5,0.7), 2.5)
 		_draw_lbl(ctr, UnitType.short_of(String(s["type"])) + str(int(s["count"])), c)
 		_draw_hp_bar(ctr, c, int(s["top_hp"]), UnitType.hp_of(String(s["type"])))
+		_draw_status_marker(ctr, c, s)
 		if bool(s.get("waited", false)):
 			_draw_wait_marker(ctr, r_active)
 
@@ -463,6 +530,7 @@ func _draw_grid() -> void:
 		_grid_area.draw_arc(ctr, r_active, 0, TAU, 32, Color(0.85, 0.25, 0.25), 3.0)
 		_draw_lbl(ctr, UnitType.short_of(String(s["type"])) + str(int(s["count"])), c)
 		_draw_hp_bar(ctr, c, int(s["top_hp"]), UnitType.hp_of(String(s["type"])))
+		_draw_status_marker(ctr, c, s)
 		if bool(s.get("waited", false)):
 			_draw_wait_marker(ctr, r_active)
 
@@ -513,6 +581,21 @@ func _draw_obstacles(o: Vector2, c: float) -> void:
 
 # Kleiner Cyan-Ring auf der Oberseite eines Stacks, der gewartet hat:
 # signalisiert, dass er in dieser Runde spaeter noch einmal dran kommt.
+# Status-Kuerzel ueber dem Stack (W=verwurzelt, B=geblendet, S=betaeubt,
+# K=krank, F=verflucht, A=gealtert). Violett, damit es sich von HP-Balken
+# und Warte-Marker abhebt.
+func _draw_status_marker(ctr: Vector2, cell: float, s: Dictionary) -> void:
+	var txt: String = Fx.marker_text(s)
+	if txt == "":
+		return
+	var font: Font = ThemeDB.fallback_font
+	var fs: int = int(cell * 0.26)
+	var sz: Vector2 = font.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs)
+	_grid_area.draw_string(font,
+		Vector2(ctr.x - sz.x * 0.5, ctr.y - cell * 0.34),
+		txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, Color(0.85, 0.55, 1.0))
+
+
 func _draw_wait_marker(ctr: Vector2, r: float) -> void:
 	var p := Vector2(ctr.x, ctr.y - r)
 	_grid_area.draw_circle(p, max(4.0, r * 0.22), Color(0.25, 0.75, 0.95))
@@ -618,6 +701,7 @@ func _try_attack_enemy(e_idx: int) -> void:
 		var dmg: int = 0
 		var killed: int = 0
 		var fired: int = 0
+		var extra: String = ""
 		for _v in range(volleys):
 			if int(estack["count"]) <= 0 or int(active["shots_left"]) <= 0:
 				break
@@ -628,12 +712,14 @@ func _try_attack_enemy(e_idx: int) -> void:
 			killed += _apply_dmg(estack, d1)
 			active["shots_left"] = int(active["shots_left"]) - 1
 			fired += 1
+			extra += _roll_status(uid, estack)
+			extra += _apply_aoe(uid, estack, d1)
 		var suffix: String = "  (halb: Baumstamm)" if bool(mod["halve"]) else ""
 		var shot_txt: String = "%d Sch., -%d" % [dmg, killed]
 		if fired > 1:
 			shot_txt = "%dx (%s)" % [fired, shot_txt]
-		_set_action("Held %s -> %s: %s%s  [%d Schuss]" % [
-			atk_s, def_s, shot_txt, suffix, int(active["shots_left"])])
+		_set_action("Held %s -> %s: %s%s%s  [%d Schuss]" % [
+			atk_s, def_s, shot_txt, suffix, extra, int(active["shots_left"])])
 		_end_player_turn()
 		return
 
@@ -712,6 +798,7 @@ func _ai_turn() -> void:
 			var dmg: int = 0
 			var killed: int = 0
 			var fired: int = 0
+			var extra: String = ""
 			for _v in range(volleys):
 				if int(best_target["count"]) <= 0 or int(estack["shots_left"]) <= 0:
 					break
@@ -722,11 +809,13 @@ func _ai_turn() -> void:
 				killed += _apply_dmg(best_target, d1)
 				estack["shots_left"] = int(estack["shots_left"]) - 1
 				fired += 1
+				extra += _roll_status(uid, best_target)
+				extra += _apply_aoe(uid, best_target, d1)
 			var suffix: String = "  (halb: Baumstamm)" if bool(mod["halve"]) else ""
 			var shot_txt: String = "%d Sch., -%d" % [dmg, killed]
 			if fired > 1:
 				shot_txt = "%dx (%s)" % [fired, shot_txt]
-			_set_action("Feind %s -> %s: %s%s" % [atk_s, def_s, shot_txt, suffix])
+			_set_action("Feind %s -> %s: %s%s%s" % [atk_s, def_s, shot_txt, suffix, extra])
 			_rebuild_order()
 			if _check_end(): return
 			_advance()
@@ -734,6 +823,9 @@ func _ai_turn() -> void:
 		# LOS blockiert (Stein) -> faellt durch auf Melee-Pathing unten.
 
 	var spd: int = UnitType.speed_of(uid)
+	# Verwurzelte KI-Stacks bleiben stehen und greifen nur Nachbarn an.
+	if Fx.blocks_move(estack):
+		spd = 0
 	# Hindernisliste: alle anderen lebenden Stacks blockieren Felder.
 	var blocked: Array = []
 	for s in _p_stacks:

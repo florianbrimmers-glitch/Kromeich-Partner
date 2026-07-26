@@ -28,6 +28,7 @@ extends RefCounted
 
 
 const Abil := preload("res://scripts/core/Abilities.gd")
+const Fx := preload("res://scripts/core/StatusFx.gd")
 
 
 static func damage(attacker: Dictionary, defender: Dictionary,
@@ -35,10 +36,13 @@ static func damage(attacker: Dictionary, defender: Dictionary,
 		rng: RandomNumberGenerator, opts: Dictionary = {}) -> int:
 	var uid: String = String(attacker["type"])
 	var ut: Dictionary = UnitType.get_type(uid)
-	var att: int = int(ut.get("att", 4)) + att_bonus
+	# Status-Effekte (M6b Teil 2) sitzen im Stack selbst - Krankheit
+	# senkt Angriff und Verteidigung.
+	var att: int = int(ut.get("att", 4)) + att_bonus + Fx.att_mod(attacker)
 	var did: String = String(defender["type"])
 	var dut: Dictionary = UnitType.get_type(did)
-	var def_val: int = Abil.def_after_ignore(uid, int(dut.get("def", 4)) + def_bonus)
+	var def_val: int = Abil.def_after_ignore(uid,
+		int(dut.get("def", 4)) + def_bonus + Fx.def_mod(defender))
 	var base: int = rng.randi_range(int(ut.get("dmg_min", 1)), int(ut.get("dmg_max", 3)))
 	var total: float = float(base * int(attacker["count"]))
 	var diff: int = att - def_val
@@ -46,6 +50,9 @@ static func damage(attacker: Dictionary, defender: Dictionary,
 	var bonus_pct: int = Abil.melee_bonus_pct(uid, did, int(opts.get("tiles_moved", 0)))
 	if bonus_pct != 0:
 		mod *= 1.0 + float(bonus_pct) / 100.0
+	# Fluch schwaecht den Angreifer, Alterung macht das Ziel anfaelliger.
+	mod *= Fx.dealt_factor(attacker)
+	mod *= Fx.taken_factor(defender)
 	if melee_penalty:
 		var abilities: Array = ut.get("abilities", []) as Array
 		if abilities.has("no_melee_penalty"):

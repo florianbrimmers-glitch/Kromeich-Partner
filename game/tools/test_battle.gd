@@ -20,6 +20,7 @@ extends SceneTree
 # dort) -> preload wie im Spiel selbst.
 const TBS := preload("res://scripts/ui/TacticalBattleScreen.gd")
 const Abil := preload("res://scripts/core/Abilities.gd")
+const Fx := preload("res://scripts/core/StatusFx.gd")
 
 var _fails: int = 0
 
@@ -29,8 +30,10 @@ func _init() -> void:
 	_test_melee_penalty_flags()
 	_test_ability_rules()
 	_test_heal()
+	_test_status_rules()
 	await _test_limited_shots()
 	await _test_ability_combat()
+	await _test_status_combat()
 
 	print("")
 	if _fails == 0:
@@ -136,6 +139,133 @@ func _test_heal() -> void:
 	var dead: Dictionary = {"type": "men_spearman", "count": 0, "count_start": 5, "top_hp": 0}
 	_check(CombatMath.heal(dead, 50) == 0 and int(dead["count"]) == 0,
 		"vernichteter Stack bleibt tot")
+
+
+func _test_status_rules() -> void:
+	print("== StatusFx: Regeln + Dauer ==")
+	var s: Dictionary = {"type": "men_spearman", "count": 5, "top_hp": 10, "status": {}}
+	Fx.add(s, Fx.DISEASED, 3)
+	_check(Fx.has(s, Fx.DISEASED), "Status wird gesetzt")
+	_check(Fx.att_mod(s) == -2 and Fx.def_mod(s) == -2, "Krankheit: -2 Angriff/-2 Verteidigung")
+	Fx.add(s, Fx.DISEASED, 1)
+	_check(int(s["status"][Fx.DISEASED]) == 3, "neuer Treffer verkuerzt die Dauer nicht")
+	for i in range(3):
+		Fx.tick(s)
+	_check(not Fx.has(s, Fx.DISEASED), "Status laeuft nach 3 Runden ab")
+
+	var c: Dictionary = {"type": "men_spearman", "count": 5, "top_hp": 10, "status": {}}
+	Fx.add(c, Fx.CURSED, 2)
+	_check(abs(Fx.dealt_factor(c) - 0.75) < 0.001, "Fluch: 25 % weniger Schaden")
+	_check(abs(Fx.taken_factor(c) - 1.0) < 0.001, "Fluch aendert erlittenen Schaden nicht")
+	Fx.add(c, Fx.AGED, 2)
+	_check(abs(Fx.taken_factor(c) - 1.25) < 0.001, "Alterung: 25 % mehr erlittener Schaden")
+
+	var b: Dictionary = {"type": "men_spearman", "count": 5, "top_hp": 10, "status": {}}
+	Fx.add(b, Fx.BLINDED, 1)
+	_check(Fx.blocks_turn(b) and Fx.blocks_move(b), "Blendung nimmt Zug und Bewegung")
+	_check(Fx.wake_on_melee(b), "Nahkampf-Treffer weckt den geblendeten Stack")
+	_check(not Fx.blocks_turn(b), "geweckt = wieder handlungsfaehig")
+	Fx.add(b, Fx.ROOTED, 1)
+	_check(Fx.blocks_move(b) and not Fx.blocks_turn(b),
+		"Verwurzelt blockt nur Bewegung, nicht den Angriff")
+	_check(Fx.marker_text(b) == "W", "Marker fuer verwurzelt ist W")
+
+	# Wuerfel-Regeln: Krankheit trifft immer, Fluch nur manchmal.
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 3
+	var t1: Dictionary = {"type": "men_spearman", "count": 5, "top_hp": 10, "status": {}}
+	_check(Fx.apply_on_hit("nec_zombie", t1, rng).has(Fx.DISEASED),
+		"Zombie steckt immer an (disease_on_hit)")
+	var hits: int = 0
+	for i in range(400):
+		var t2: Dictionary = {"type": "men_spearman", "count": 5, "top_hp": 10, "status": {}}
+		if not Fx.apply_on_hit("nec_blackknight", t2, rng).is_empty():
+			hits += 1
+	_check(hits > 10 and hits < 100,
+		"Schwarzritter verflucht in ~10 %% der Treffer (%d von 400)" % hits)
+	var dead: Dictionary = {"type": "men_spearman", "count": 0, "top_hp": 0, "status": {}}
+	_check(Fx.apply_on_hit("nec_zombie", dead, rng).is_empty(),
+		"vernichteter Stack bekommt keinen Status")
+	_check(Fx.aoe_fraction("nec_lich") > 0.0 and Fx.aoe_fraction("men_archer") == 0.0,
+		"nur der Lich hat eine Todeswolke")
+
+
+func _test_status_combat() -> void:
+	print("== Kampf-Screen: Status-Effekte in Aktion ==")
+	var bs = TBS.new()
+	bs.size = Vector2(1080, 1920)
+	root.add_child(bs)
+	await process_frame
+	# Zombie (disease_on_hit, 100 %) trifft Speertraeger -> krank.
+	bs.set_battle({
+		"player_stacks": [{"type": "nec_zombie", "count": 10}],
+		"enemy_stacks": [{"type": "men_spearman", "count": 10}],
+		"seed": 21, "allow_flee": true,
+	})
+	bs._obstacles = []
+	bs._ob_map = {}
+	var zombie: Dictionary = bs._p_stacks[0]
+	var spears: Dictionary = bs._e_stacks[0]
+	zombie["pos"] = Vector2i(4, 4)
+	spears["pos"] = Vector2i(5, 4)
+	_activate_player_slot(bs)
+	bs._build_reachable()
+	bs._try_attack_enemy(0)
+	_check(Fx.has(spears, Fx.DISEASED), "Zombie-Treffer macht die Speertraeger krank")
+	await create_timer(0.6).timeout
+
+	# Betaeubter Stack verliert seinen Zug. Geprueft wird die Meldung im
+	# Kampf-Log, nicht der Slot-Index: nach dem Ueberspringen laeuft die
+	# Zug-Kette weiter (KI-Zug, Rundenwechsel) und der Index kann
+	# zufaellig wieder auf dem alten Wert landen.
+	Fx.add(zombie, Fx.STUNNED, 1)
+	_activate_player_slot(bs)
+	bs._log.clear()
+	bs._step()
+	var skipped: bool = false
+	for line in bs._log:
+		if String(line).contains("Zug verloren") and String(line).contains(Fx.STUNNED):
+			skipped = true
+	_check(skipped, "betaeubter Stack wird uebersprungen (Log: %s)" % str(bs._log))
+	Fx.clear(zombie, Fx.STUNNED)
+	Fx.add(zombie, Fx.ROOTED, 1)
+	_activate_player_slot(bs)
+	bs._build_reachable()
+	_check(bs._reachable.size() == 1 and bs._reachable.has(Vector2i(zombie["pos"])),
+		"verwurzelt: nur das eigene Feld erreichbar (%d Felder)" % bs._reachable.size())
+	Fx.clear(zombie, Fx.ROOTED)
+	# Dauer laeuft mit dem Rundenwechsel ab.
+	Fx.add(zombie, Fx.CURSED, 1)
+	bs._next_round()
+	_check(not Fx.has(zombie, Fx.CURSED), "Rundenwechsel laesst Status ablaufen")
+	await create_timer(0.6).timeout
+
+	# Lich-Todeswolke: Nachbar des Ziels nimmt halben Schaden mit.
+	bs.set_battle({
+		"player_stacks": [{"type": "nec_lich", "count": 8}],
+		"enemy_stacks": [
+			{"type": "men_spearman", "count": 20},
+			{"type": "men_archer", "count": 20},
+		],
+		"seed": 33, "allow_flee": true,
+	})
+	bs._obstacles = []
+	bs._ob_map = {}
+	var lich: Dictionary = bs._p_stacks[0]
+	var t_main: Dictionary = bs._e_stacks[0]
+	var t_neigh: Dictionary = bs._e_stacks[1]
+	lich["pos"] = Vector2i(1, 4)
+	t_main["pos"] = Vector2i(6, 4)
+	t_neigh["pos"] = Vector2i(6, 5)   # direkt neben dem Ziel
+	var neigh_hp: int = _stack_hp(t_neigh)
+	_activate_player_slot(bs)
+	bs._build_reachable()
+	bs._try_attack_enemy(0)
+	_check(_stack_hp(t_neigh) < neigh_hp,
+		"Todeswolke trifft den Nachbar-Stack mit (%d -> %d)" % [neigh_hp, _stack_hp(t_neigh)])
+
+	bs.queue_free()
+	await process_frame
 
 
 func _test_limited_shots() -> void:
