@@ -13,7 +13,18 @@ extends Node
 
 const SAVE_DIR := "user://saves"
 const AUTOSAVE_PATH := "user://saves/autosave.json"
-const SAVE_VERSION := 1
+const SAVE_VERSION := 2
+
+# v1 -> v2: Einheiten-IDs der 3-Tier-Aera (M4-Migration). Das Mapping
+# lebte als LEGACY_ALIASES in UnitType und wurde bei jedem Lookup
+# angewendet; seit v2 wird stattdessen genau EINMAL beim Laden migriert.
+# Gemappt nach TIER (nicht Rolle - Fraktionen sind bewusst asymmetrisch).
+const LEGACY_UNIT_IDS := {
+	"dryade": "elf_dwarf", "elfbogen": "elf_archer", "einhorn": "elf_pegasus",
+	"sword": "men_spearman", "bow": "men_archer", "rider": "men_griffin",
+	"skelett": "nec_skeleton", "knochen": "nec_zombie", "vampir": "nec_wight",
+	"goblin": "ork_goblin", "orkbogen": "ork_wolfrider", "oger": "ork_orc",
+}
 
 # Vom Hauptmenue gesetzt, von WorldMapScreen._ready konsumiert.
 var pending_load: Dictionary = {}
@@ -69,6 +80,42 @@ static func migrate(d: Dictionary) -> Dictionary:
 	if v <= 0:
 		# Version 0 existiert nicht in freier Wildbahn; behandle wie 1.
 		d["save_version"] = 1
-	# while int(d["save_version"]) < SAVE_VERSION:
-	#     d = _migrate_1_to_2(d)  # kommt, wenn noetig
+	while int(d["save_version"]) < SAVE_VERSION:
+		match int(d["save_version"]):
+			1:
+				d = _migrate_1_to_2(d)
+			_:
+				# Unbekannte Zwischenversion: nicht endlos schleifen.
+				d["save_version"] = SAVE_VERSION
 	return d
+
+
+# v1 -> v2: alte Einheiten-Schluessel in Held-Armee, KI-Armeen und
+# Stadt-Pools umbenennen (LEGACY_UNIT_IDS). Werte werden gemerged,
+# falls ein Save alte UND neue Keys enthaelt.
+static func _migrate_1_to_2(d: Dictionary) -> Dictionary:
+	_map_army_in(d.get("hero"))
+	for e in d.get("enemies", []) as Array:
+		if e is Dictionary:
+			# KI-Held kann null sein (im Kampf gefallen).
+			_map_army_in((e as Dictionary).get("hero"))
+	for c in d.get("cities", []) as Array:
+		if c is Dictionary and (c as Dictionary).has("pools"):
+			var cd: Dictionary = c as Dictionary
+			cd["pools"] = _map_unit_keys(cd["pools"] as Dictionary)
+	d["save_version"] = 2
+	return d
+
+
+static func _map_army_in(hero: Variant) -> void:
+	if hero is Dictionary and (hero as Dictionary).has("army"):
+		var hd: Dictionary = hero as Dictionary
+		hd["army"] = _map_unit_keys(hd["army"] as Dictionary)
+
+
+static func _map_unit_keys(src: Dictionary) -> Dictionary:
+	var out: Dictionary = {}
+	for k in src.keys():
+		var nk: String = String(LEGACY_UNIT_IDS.get(String(k), String(k)))
+		out[nk] = int(out.get(nk, 0)) + int(src[k])
+	return out

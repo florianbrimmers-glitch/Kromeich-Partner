@@ -95,16 +95,16 @@ func _test_hero_army() -> void:
 func _test_hero_losses() -> void:
 	print("== Hero: Verluste ==")
 	var h := Hero.new(Vector2i(0, 0))
-	h.add_units("sword", 10)
-	h.add_units("bow", 5)
+	h.add_units("men_spearman", 10)
+	h.add_units("men_archer", 5)
 	h.apply_proportional_losses(6)
 	_check(h.total_count() == 9, "proportionale Verluste erhalten Gesamtzahl (15-6=9, ist %d)" % h.total_count())
 	h.apply_proportional_losses(100)
 	_check(h.army.is_empty(), "Ueberschuss-Verlust leert die Armee")
 	var h2 := Hero.new(Vector2i(0, 0))
-	h2.add_units("sword", 4)
-	h2.apply_casualties({"sword": 2, "bow": 9})
-	_check(h2.count_of("sword") == 2, "apply_casualties zieht nur Vorhandenes ab")
+	h2.add_units("men_spearman", 4)
+	h2.apply_casualties({"men_spearman": 2, "men_archer": 9})
+	_check(h2.count_of("men_spearman") == 2, "apply_casualties zieht nur Vorhandenes ab")
 
 
 # --- UnitType: Lookups ---
@@ -134,10 +134,12 @@ func _test_unit_type() -> void:
 			var lst: Array = UnitType.units_for_building(fid, bid)
 			_check(lst.has(String(uid)),
 				"Fraktion %d: %s in units_for_building(%s)" % [fid, uid, bid])
-	# Legacy-Aliase loesen auf dieselben Stats auf
-	_check(UnitType.canonical("sword") == "men_spearman", "Alias sword -> men_spearman")
-	_check(UnitType.get_type("sword")["id"] == "men_spearman", "get_type folgt Alias")
-	_check(UnitType.hp_of("vampir") == UnitType.hp_of("nec_wight"), "Alias-Stats identisch")
+	# Seit Save-v2 sind die Alt-IDs komplett aus dem Live-Pfad verschwunden
+	# (Migration passiert einmalig in SaveManager, siehe test_save_load).
+	for legacy in ["sword", "bow", "rider", "skelett", "vampir", "dryade"]:
+		if UnitType.all_ids().has(legacy):
+			_check(false, "Alt-ID %s lebt noch in all_ids()" % legacy)
+	_check(not UnitType.all_ids().has("sword"), "keine Alt-IDs im Live-Pfad")
 	_check(UnitType.unit_for_building(1, "markt") == "", "Markt produziert keine Einheit")
 	_check(UnitType.starter_id_for_faction(2) == "nec_skeleton", "Totenreich-Starter = nec_skeleton")
 	_check(UnitType.tier_of("men_angel") == 7, "Engel ist Tier 7")

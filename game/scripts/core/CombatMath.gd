@@ -6,7 +6,7 @@ extends RefCounted
 # Aendert sich hier etwas, bleibt das automatisch konsistent.
 #
 # Stack-Dict-Konvention:
-#   { "type": "sword"|"bow"|"rider", "count": int, "top_hp": int, ... }
+#   { "type": "<units.json-id>", "count": int, "top_hp": int, ... }
 #
 # Schadensformel (angelehnt an HoMM3):
 #   base      = rand(dmg_min..dmg_max) * count

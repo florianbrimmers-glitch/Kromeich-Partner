@@ -45,7 +45,7 @@ func _test_getters() -> void:
 	_check(UnitType.has_ability("men_monk", "no_melee_penalty"), "Moench: no_melee_penalty")
 	_check(UnitType.has_ability("men_archer", "melee_penalty_half"), "Armbruster: melee_penalty_half")
 	_check(not UnitType.has_ability("ork_orc", "no_melee_penalty"), "Orkschuetze: Standard-Malus")
-	_check(UnitType.has_ability("bow", "melee_penalty_half"), "Getter folgt Alias (bow -> men_archer)")
+	_check(not UnitType.has_ability("elf_treant", "ranged"), "Treant ist kein Schuetze")
 
 
 func _test_melee_penalty_flags() -> void:

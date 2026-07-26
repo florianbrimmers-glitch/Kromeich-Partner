@@ -12,7 +12,7 @@ wie HoMM3, 7 Einheiten-Tiers (units.json migrieren!), CC0-Sound.
 | M1 Save/Load + Autosave + CI-Gate | FERTIG (Iteration 1) |
 | M2 Hauptmenue (Fortsetzen, Fraktionswahl, Seed-Eingabe) | FERTIG (Iteration 2) |
 | M3 Ressourcen-System (Wallet, Minen, Haufen, Markt-Tausch, Mehrkosten) | FERTIG (It. 3+4) |
-| M4 Einheiten-Migration | KOMPLETT (It. 5-7). Teil 3 (It. 7): begrenzte Schuesse (shots_left pro Stack, leerer Koecher -> Nahkampf), Nahkampf-Malus ability-abhaengig in CombatMath (Standard x0.5, melee_penalty_half x0.75, no_melee_penalty x1.0 - dokumentierte Interpretation, units.json definiert die Flags nicht), Konter nutzen Fernkaempfer-Malus, KI priorisiert nur schussfaehige Schuetzen, unbekannte Abilities werden beim Kampfstart geloggt (M6b-Inventur), tools/test_battle.gd als 7. Suite. NAECHSTES (It. 8): LEGACY_ALIASES aus dem Live-Pfad entfernen (Mapping in SaveManager.migrate), Fixture bleibt Pflicht |
+| M4 Einheiten-Migration | KOMPLETT (It. 5-8). It. 7: begrenzte Schuesse + Nahkampf-Malus-Flags (Standard x0.5, melee_penalty_half x0.75, no_melee_penalty x1.0 - dokumentierte Interpretation). It. 8: Alt-IDs komplett raus - SAVE_VERSION=2, Mapping einmalig in SaveManager._migrate_1_to_2 (hero.army, KI-Armeen, Stadt-Pools; LEGACY_UNIT_IDS dort), UnitType.canonical() geloescht, Fixture v1 beweist die migrate-Kette. NAECHSTES (It. 9): M6b Battle-Abilities Rest (flying, double_attack, unlimited_retaliations, ...) - erst damit gilt die units.json-Balance |
 | M5-M12 Parallel-Band (Objekte, Moral, Abilities, Belagerung, Sprites, Sound, Events) | offen |
 | M7/M8 Heldenstats/Skills, Zauber | offen (nach M4) |
 | M13 Mehrere Helden (vorher Struktur-Iteration!), M14 MP | zurueckgestellt |

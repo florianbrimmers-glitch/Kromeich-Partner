@@ -74,7 +74,7 @@ func _make_stacks(list: Array, side: int) -> Array:
 	var out: Array = []
 	for entry in list:
 		var d: Dictionary = entry
-		var uid: String = String(d.get("type", "sword"))
+		var uid: String = String(d.get("type", "men_spearman"))
 		var cnt: int = int(d.get("count", 0))
 		if cnt <= 0:
 			continue

@@ -1819,7 +1819,7 @@ func _open_battle(opp_name: String, opp_army: int, allow_flee: bool, terrain_id:
 # sehen.
 func _build_enemy_stacks(opp_name: String, total: int) -> Array:
 	if total <= 0:
-		return [{"type": "sword", "count": 1}]
+		return [{"type": "men_spearman", "count": 1}]
 	# Der Feind-Held erbt seine tatsaechliche Rekrutierung direkt aus der
 	# KI-Stadt. Alle anderen Gegner (Monster, Stadt-/Objektwachen) werden
 	# nach Groesse gemischt - klein reine Schwert-Truppe, ab mittlerer
@@ -1834,18 +1834,18 @@ func _build_enemy_stacks(opp_name: String, total: int) -> Array:
 			if he != null and he.total_count() == total:
 				return _army_to_stacks(he.army)
 	if total <= 2:
-		return [{"type": "sword", "count": total}]
+		return [{"type": "men_spearman", "count": total}]
 	if total <= 5:
 		var bows: int = max(1, int(round(float(total) * 0.4)))
 		var swords: int = total - bows
-		return [{"type": "sword", "count": swords}, {"type": "bow", "count": bows}]
+		return [{"type": "men_spearman", "count": swords}, {"type": "men_archer", "count": bows}]
 	var riders: int = max(1, int(round(float(total) * 0.2)))
 	var bows2: int = max(1, int(round(float(total) * 0.3)))
 	var swords2: int = max(1, total - bows2 - riders)
 	return [
-		{"type": "sword", "count": swords2},
-		{"type": "bow", "count": bows2},
-		{"type": "rider", "count": riders},
+		{"type": "men_spearman", "count": swords2},
+		{"type": "men_archer", "count": bows2},
+		{"type": "men_griffin", "count": riders},
 	]
 
 
@@ -1856,7 +1856,7 @@ func _army_to_stacks(army: Dictionary) -> Array:
 		if cnt > 0:
 			out.append({"type": uid, "count": cnt})
 	if out.is_empty():
-		out.append({"type": "sword", "count": 1})
+		out.append({"type": "men_spearman", "count": 1})
 	return out
 
 
@@ -3065,12 +3065,7 @@ func _restore_state(d: Dictionary) -> bool:
 		c["faction"] = int(c.get("faction", 0))
 		c["owner"] = int(c.get("owner", -1))
 		c["garrison"] = int(c.get("garrison", 0))
-		var raw_pools: Dictionary = SaveCodec.int_dict(c.get("pools", {}))
-		var pools: Dictionary = {}
-		for pk in raw_pools.keys():
-			var cpk: String = UnitType.canonical(String(pk))
-			pools[cpk] = int(pools.get(cpk, 0)) + int(raw_pools[pk])
-		c["pools"] = pools
+		c["pools"] = SaveCodec.int_dict(c.get("pools", {}))
 		_cities.append(c)
 	_objects.clear()
 	for od in d.get("objects", []):

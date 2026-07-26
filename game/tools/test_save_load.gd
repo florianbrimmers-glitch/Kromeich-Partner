@@ -66,10 +66,28 @@ func _test_codec() -> void:
 		"Hero-Roundtrip ueber JSON identisch")
 	var h3 := Hero.from_dict({})
 	_check(h3.level == 1 and h3.gold == 0, "Hero.from_dict({}) -> Defaults")
-	# M4: alte army-Keys werden beim Laden kanonisiert.
-	var h4 := Hero.from_dict({"army": {"sword": 3, "men_spearman": 2}})
-	_check(h4.count_of("men_spearman") == 5 and not h4.army.has("sword"),
-		"from_dict kanonisiert und merged Alt-IDs (sword -> men_spearman)")
+
+	# Save-v2: Alt-Unit-IDs werden nicht mehr pro Lookup kanonisiert,
+	# sondern EINMAL beim Laden migriert (v1 -> v2).
+	print("== SaveManager migrate v1 -> v2 ==")
+	var old_save: Dictionary = {
+		"save_version": 1, "seed": 1,
+		"hero": {"army": {"sword": 3, "men_spearman": 2}},
+		"cities": [{"pools": {"skelett": 4}}],
+		"enemies": [{"hero": null}, {"hero": {"army": {"oger": 2}}}],
+	}
+	var mig: Dictionary = SaveLib.migrate(old_save)
+	_check(int(mig["save_version"]) == SaveLib.SAVE_VERSION,
+		"migrate hebt auf v%d" % SaveLib.SAVE_VERSION)
+	var ma: Dictionary = (mig["hero"] as Dictionary)["army"]
+	_check(int(ma.get("men_spearman", 0)) == 5 and not ma.has("sword"),
+		"migrate merged Alt- und Neu-Keys (sword -> men_spearman)")
+	var mpools: Dictionary = ((mig["cities"] as Array)[0] as Dictionary)["pools"]
+	_check(int(mpools.get("nec_skeleton", 0)) == 4,
+		"migrate mappt Stadt-Pools (skelett -> nec_skeleton)")
+	var meh: Dictionary = ((mig["enemies"] as Array)[1] as Dictionary)["hero"]
+	_check(int((meh["army"] as Dictionary).get("ork_orc", 0)) == 2,
+		"migrate mappt KI-Armeen (oger -> ork_orc), null-Held toleriert")
 
 	print("== DeterministicRng State ==")
 	var r := DeterministicRng.new(42)

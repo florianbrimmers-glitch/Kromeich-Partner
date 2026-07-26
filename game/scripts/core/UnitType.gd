@@ -9,10 +9,9 @@ extends RefCounted
 # CityScreen, TacticalBattleScreen, CombatMath und balance_sim
 # unveraendert weiterlaufen.
 #
-# Legacy: die 12 alten IDs (sword/bow/... aus der 3-Tier-Aera) leben als
-# Aliase weiter - canonical() mappt sie auf die JSON-IDs. Save-Dateien
-# mit alten army-/pool-Keys laden dadurch ohne Migrationsschritt.
-# Die Aliase werden eine spaetere Iteration wieder entfernt.
+# Die 12 Alt-IDs der 3-Tier-Aera (sword/bow/...) sind seit Save-Version 2
+# Geschichte: alte Saves werden EINMAL beim Laden migriert
+# (SaveManager.LEGACY_UNIT_IDS), der Live-Pfad kennt nur noch JSON-IDs.
 #
 # Gebaeude-Zuordnung (Teil 2): 4 Rekrut-Gebaeude decken alle 7 Tiers -
 # kaserne T1+2, schmiede T3+4, reiterei T5+6, zitadelle T7. Ein Gebaeude
@@ -36,23 +35,9 @@ const TIER_BUILDING := {
 	7: "zitadelle",
 }
 
-# Alte 3-Tier-IDs -> JSON-IDs, gemappt nach TIER (nicht nach Rolle -
-# die Fraktionen sind bewusst asymmetrisch, z.B. hat Totenreich erst
-# auf T5 Fernkampf). Fuer Save-Kompatibilitaet.
-const LEGACY_ALIASES := {
-	"dryade": "elf_dwarf", "elfbogen": "elf_archer", "einhorn": "elf_pegasus",
-	"sword": "men_spearman", "bow": "men_archer", "rider": "men_griffin",
-	"skelett": "nec_skeleton", "knochen": "nec_zombie", "vampir": "nec_wight",
-	"goblin": "ork_goblin", "orkbogen": "ork_wolfrider", "oger": "ork_orc",
-}
-
 static var _types: Dictionary = {}
 static var _faction_order: Dictionary = {}
 static var _order: Array = []
-
-
-static func canonical(id: String) -> String:
-	return String(LEGACY_ALIASES.get(id, id))
 
 
 static func _ensure_loaded() -> void:
@@ -109,9 +94,8 @@ static func _normalize(u: Dictionary) -> Dictionary:
 
 static func get_type(id: String) -> Dictionary:
 	_ensure_loaded()
-	var cid := canonical(id)
-	if _types.has(cid):
-		return _types[cid]
+	if _types.has(id):
+		return _types[id]
 	return _types.get("men_spearman", {})
 
 
