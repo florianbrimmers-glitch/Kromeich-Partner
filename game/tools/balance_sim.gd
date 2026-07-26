@@ -33,6 +33,7 @@ const ENGAGE_DISTANCE: float = 7.0
 # luegt die Matrix (M6b Teil 1).
 const Abil := preload("res://scripts/core/Abilities.gd")
 const Fx := preload("res://scripts/core/StatusFx.gd")
+const Mor := preload("res://scripts/core/Morale.gd")
 
 
 func _init() -> void:
@@ -160,6 +161,10 @@ func _run_matchup(a_list: Array, b_list: Array, runs: int, seed_val: int) -> Dic
 func _simulate(a_list: Array, b_list: Array, rng: RandomNumberGenerator) -> Dictionary:
 	var a: Array = _init_stacks(a_list, 0)
 	var b: Array = _init_stacks(b_list, 1)
+	# Moral aus der Armee-Zusammenstellung (M6). Die Sim-Armeen sind rein,
+	# also stehen beide Seiten bei +1 - der Effekt ist symmetrisch, der
+	# Code laeuft aber mit und wuerde eine gemischte Aufstellung strafen.
+	var morale: Array = [Mor.morale_for(a), Mor.morale_for(b)]
 	var round_num: int = 1
 	while _any_alive(a) and _any_alive(b) and round_num <= MAX_ROUNDS:
 		_reset_round(a)
@@ -174,7 +179,19 @@ func _simulate(a_list: Array, b_list: Array, rng: RandomNumberGenerator) -> Dict
 			var enemy: Array = b if side == 0 else a
 			if idx >= mine.size() or int(mine[idx]["count"]) <= 0:
 				continue
-			_take_turn(mine[idx], enemy, round_num, rng)
+			var st: Dictionary = mine[idx]
+			var mor: int = int(morale[side])
+			var immune: bool = Mor.is_immune(String(st["type"]))
+			# Schlechte Moral kostet den Zug, gute schenkt einen zweiten
+			# (max einen pro Runde) - genau wie im Live-Kampf.
+			if not immune and Mor.rolls_freeze(mor, rng):
+				continue
+			_take_turn(st, enemy, round_num, rng)
+			if not immune and not bool(st.get("morale_extra_used", false)) \
+					and Mor.rolls_extra_turn(mor, rng):
+				st["morale_extra_used"] = true
+				if _any_alive(a) and _any_alive(b) and int(st["count"]) > 0:
+					_take_turn(st, enemy, round_num, rng)
 		round_num += 1
 
 	var a_live: bool = _any_alive(a)
@@ -300,6 +317,7 @@ func _init_stacks(list: Array, side: int) -> Array:
 			"top_hp": UnitType.hp_of(uid), "retaliated": false,
 			"shots_left": UnitType.shots_of(uid),
 			"retaliations": 0, "engaged": false, "status": {},
+			"morale_extra_used": false,
 		})
 	return out
 
@@ -308,6 +326,7 @@ func _reset_round(stacks: Array) -> void:
 	for s in stacks:
 		s["retaliated"] = false
 		s["retaliations"] = 0
+		s["morale_extra_used"] = false
 		Fx.tick(s)
 		# Rundenstart-Regeneration wie im Live-Kampf.
 		if int(s["count"]) > 0:

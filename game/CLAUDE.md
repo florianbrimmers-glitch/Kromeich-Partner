@@ -15,7 +15,8 @@ wie HoMM3, 7 Einheiten-Tiers (units.json migrieren!), CC0-Sound.
 | M4 Einheiten-Migration | KOMPLETT (It. 5-8). It. 7: begrenzte Schuesse + Nahkampf-Malus-Flags (Standard x0.5, melee_penalty_half x0.75, no_melee_penalty x1.0 - dokumentierte Interpretation). It. 8: Alt-IDs komplett raus - SAVE_VERSION=2, Mapping einmalig in SaveManager._migrate_1_to_2 (hero.army, KI-Armeen, Stadt-Pools; LEGACY_UNIT_IDS dort), UnitType.canonical() geloescht, Fixture v1 beweist die migrate-Kette. NAECHSTES (It. 9): M6b Battle-Abilities Rest (flying, double_attack, unlimited_retaliations, ...) - erst damit gilt die units.json-Balance |
 | M6b Battle-Abilities | KOMPLETT (It. 9+10). Teil 2 (It. 10): neu `core/StatusFx.gd` - Status mit Dauer im Stack-Dict (`status: {name: runden}`): verwurzelt (1 Rd, keine Bewegung), geblendet/betaeubt (1 Rd, Zug + Konter verloren; Nahkampf-Treffer weckt Blendung), krank (3 Rd, -2 Att/-2 Def), verflucht (2 Rd, -25 % Schaden), gealtert (2 Rd, +25 % erlittener Schaden); Lich-Todeswolke trifft Nachbar-Stacks mit halbem Schaden; Marker (W/B/S/K/F/A) im Kampf-Gitter. CombatMath liest die Status direkt aus den Stacks. Nur noch `undead` offen -> gehoert zu M6 Moral. |
 | M6b Teil 1 (It. 9, Details) | neu `core/Abilities.gd` (reine statische Regeln ueber den units.json-Flags, per preload eingebunden). Umgesetzt: flying (Dijkstra ignoriert Stein/Baum+Gelaende), double_attack/double_shot, unlimited_retaliations/no_retaliation (Konter-Zaehler statt Bool), defense_ignore_25pct, jousting_bonus(_light) ueber `tiles_moved`, polearm_bonus_vs_cavalry (Kavallerie = Jousting-Traeger), life_drain_50pct + regeneration (neu `CombatMath.heal`, Cap bei count_start). CombatMath.damage hat einen optionalen 7. `opts`-Parameter. balance_sim spiegelt alle Regeln und weist Unentschieden getrennt aus (Elfen-Spiegelduell endet durch Baumvater-Regeneration remis). |
-| M5-M12 Parallel-Band (Objekte, Moral, Belagerung, Sprites, Sound, Events) | offen |
+| M6 Moral + Glueck + Fraktions-Mix | FERTIG (It. 11): neu `core/Morale.gd`. Moral je Seite aus der Armee (HoMM3-streng, Nutzer-Entscheidung): 1 Fraktion +1, 2 = 0, 3 = -1, 4 = -2, Lebende+Untote zusaetzlich -1, Engel-Aura +1, Clamp +-3. Wirkung 10 % je Punkt: negativ = Zugverlust, positiv = zweite Aktion (max 1/Runde/Stack, `morale_extra_used`). `undead` = immun gegen Moral UND Glueck. Glueck (x2/x0.5, 10 % je Punkt) kommt aus Kapellen: +1 je Kapelle, max +3 (`WorldMapScreen._player_luck`, ueber `player_luck` im Battle-Kontext). Erzfeind-Bonus `hates:necro_tier7` = +50 % (Engel vs. Knochendrache) in `Abilities.hate_bonus_pct`. Kopfzeile zeigt "Moral +1 Glueck +2". Damit sind ALLE kampfrelevanten units.json-Flags ausgewertet; offen nur die 4 Magie-Flags (M8) und `attack_wall` (M9). |
+| M5-M12 Parallel-Band (Objekte, Belagerung, Sprites, Sound, Events) | offen |
 | M7/M8 Heldenstats/Skills, Zauber | offen (nach M4) |
 | M13 Mehrere Helden (vorher Struktur-Iteration!), M14 MP | zurueckgestellt |
 
@@ -26,19 +27,27 @@ resettet, Tracking-Ref luegt - ls-remote glauben, nicht git log!),
 (tools/fixtures/save_v*.json) pruefen, (6) nur gruen pushen (CI shippt
 APK auf latest-mobile!), (7) diese Tabelle aktualisieren.
 
-## Offene Design-Entscheidungen (noch nicht implementiert)
+## Entschiedene Design-Fragen (implementiert)
 
-### Fraktions-Misch-Malus in Armeen
-Gemischte Armeen sollen Nachteile haben, abhaengig davon welche
-Fraktionen in einem Stack zusammenstehen:
+### Fraktions-Misch-Malus in Armeen (It. 11, `core/Morale.gd`)
+Nutzer-Entscheidung: **HoMM3-streng**, jede zusaetzliche Fraktion kostet.
 
-- **Menschen + Totenreich**: Malus (klassischer "Lebende mit Untoten"-
-  Konflikt, z.B. -Moral oder -Kampfkraft).
-- Andere Kombinationen folgen noch; Grundprinzip ist aehnlich dem
-  HoMM3-Morale-System (gleiche Fraktion = Bonus, Feind-Fraktion = Malus).
+| Armee | Moral |
+|---|---|
+| 1 Fraktion (rein) | +1 |
+| 2 Fraktionen | 0 |
+| 3 Fraktionen | -1 |
+| 4 Fraktionen | -2 |
+| Lebende + Untote zusammen | zusaetzlich -1 |
+| Engel dabei (`morale_aura`) | +1 |
 
-Implementiert wird das vermutlich in `CombatMath.gd`/`TacticalBattleScreen`
-als Round-Start-Modifikator.
+Ergebnis auf +-3 begrenzt; Untote (`undead`) sind komplett immun. Der
+klassische Fall "Menschen + Totenreich" landet damit bei -1.
+
+### Glueck (It. 11)
+Quelle ist die Kapelle: +1 je Kapelle in eigenen Staedten, max +3.
+Wirkung 10 % je Punkt auf den einzelnen Schlag (Volltreffer x2,
+Pechschlag x0.5). Helden-Skills als weitere Quelle kommen mit M7.
 
 ## Technisches Gedaechtnis
 

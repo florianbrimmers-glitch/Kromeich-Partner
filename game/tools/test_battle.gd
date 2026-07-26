@@ -21,6 +21,7 @@ extends SceneTree
 const TBS := preload("res://scripts/ui/TacticalBattleScreen.gd")
 const Abil := preload("res://scripts/core/Abilities.gd")
 const Fx := preload("res://scripts/core/StatusFx.gd")
+const Mor := preload("res://scripts/core/Morale.gd")
 
 var _fails: int = 0
 
@@ -31,9 +32,11 @@ func _init() -> void:
 	_test_ability_rules()
 	_test_heal()
 	_test_status_rules()
+	_test_morale_rules()
 	await _test_limited_shots()
 	await _test_ability_combat()
 	await _test_status_combat()
+	await _test_morale_combat()
 
 	print("")
 	if _fails == 0:
@@ -188,6 +191,149 @@ func _test_status_rules() -> void:
 		"vernichteter Stack bekommt keinen Status")
 	_check(Fx.aoe_fraction("nec_lich") > 0.0 and Fx.aoe_fraction("men_archer") == 0.0,
 		"nur der Lich hat eine Todeswolke")
+
+
+func _test_morale_rules() -> void:
+	print("== Moral + Glueck: Regeln ==")
+	# Fraktions-Mix (Nutzer-Entscheidung: HoMM3-streng)
+	_check(Mor.morale_for([_st("men_spearman"), _st("men_archer")]) == 1,
+		"reine Menschen-Armee: +1")
+	_check(Mor.morale_for([_st("men_spearman"), _st("elf_dwarf")]) == 0,
+		"zwei Fraktionen: 0")
+	_check(Mor.morale_for([_st("men_spearman"), _st("elf_dwarf"), _st("ork_goblin")]) == -1,
+		"drei Fraktionen: -1")
+	_check(Mor.morale_for([_st("men_spearman"), _st("elf_dwarf"),
+		_st("ork_goblin"), _st("nec_skeleton")]) == -3,
+		"vier Fraktionen inkl. Untote: -2 und -1 fuer den Untoten-Bruch")
+	_check(Mor.morale_for([_st("men_spearman"), _st("nec_skeleton")]) == -1,
+		"Menschen + Totenreich: -1 (zwei Fraktionen 0, Untoten-Malus -1)")
+	_check(Mor.morale_for([_st("nec_skeleton"), _st("nec_zombie")]) == 1,
+		"reine Untoten-Armee: +1, kein Mix-Malus")
+	_check(Mor.morale_for([_st("men_angel"), _st("men_spearman")]) == 2,
+		"Engel-Aura hebt die reine Armee auf +2")
+	_check(Mor.morale_for([]) == 0, "leere Armee: 0")
+	# Tote Stacks zaehlen nicht mehr mit.
+	var dead_mix: Array = [_st("men_spearman"), _st("elf_dwarf", 0)]
+	_check(Mor.morale_for(dead_mix) == 1, "gefallene Stacks zaehlen nicht mehr mit")
+
+	# Immunitaet + Wahrscheinlichkeiten
+	_check(Mor.is_immune("nec_skeleton") and not Mor.is_immune("men_spearman"),
+		"undead-Flag = moral-immun")
+	_check(abs(Mor.extra_turn_chance(2) - 0.20) < 0.001, "Moral +2: 20 % Extrazug")
+	_check(Mor.extra_turn_chance(-2) == 0.0, "negative Moral gibt keinen Extrazug")
+	_check(abs(Mor.freeze_chance(-1) - 0.10) < 0.001, "Moral -1: 10 % Zugverlust")
+	_check(Mor.freeze_chance(1) == 0.0, "positive Moral verliert keinen Zug")
+
+	# Glueck: Verteilung ueber viele Wuerfe (10 % je Punkt).
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 17
+	_check(Mor.luck_factor(0, rng) == 1.0, "ohne Glueck immer Faktor 1")
+	var lucky: int = 0
+	for i in range(400):
+		if Mor.luck_factor(3, rng) > 1.0:
+			lucky += 1
+	_check(lucky > 60 and lucky < 180,
+		"Glueck 3: ~30 %% Volltreffer (%d von 400)" % lucky)
+	var unlucky: int = 0
+	for i in range(400):
+		if Mor.luck_factor(-2, rng) < 1.0:
+			unlucky += 1
+	_check(unlucky > 30 and unlucky < 130,
+		"Pech -2: ~20 %% Pechschlaege (%d von 400)" % unlucky)
+
+	# Erzfeind-Bonus (hates:necro_tier7)
+	_check(Abil.hate_bonus_pct("men_angel", "nec_bonedragon") == 50,
+		"Engel gegen Knochendrache: +50 %")
+	_check(Abil.hate_bonus_pct("men_angel", "nec_skeleton") == 0,
+		"Engel gegen Skelett: kein Hass-Bonus")
+	_check(Abil.hate_bonus_pct("men_spearman", "nec_bonedragon") == 0,
+		"ohne hates-Flag kein Bonus")
+	_check(Abil.melee_bonus_pct("men_angel", "nec_bonedragon", 0) == 50,
+		"Hass-Bonus fliesst in melee_bonus_pct")
+
+
+# Kleiner Stack-Helfer fuer die Moral-Tests.
+func _st(uid: String, count: int = 5) -> Dictionary:
+	return {"type": uid, "count": count, "top_hp": UnitType.hp_of(uid)}
+
+
+func _test_morale_combat() -> void:
+	print("== Kampf-Screen: Moral + Glueck in Aktion ==")
+	var bs = TBS.new()
+	bs.size = Vector2(1080, 1920)
+	root.add_child(bs)
+	await process_frame
+	# Gemischte Spieler-Armee (Menschen + Totenreich) -> Moral -1.
+	bs.set_battle({
+		"player_stacks": [
+			{"type": "men_spearman", "count": 10},
+			{"type": "nec_skeleton", "count": 10},
+		],
+		"enemy_stacks": [{"type": "ork_goblin", "count": 10}],
+		"seed": 4, "allow_flee": true, "player_luck": 3,
+	})
+	bs._obstacles = []
+	bs._ob_map = {}
+	_check(bs._p_morale == -1, "gemischte Armee: Moral -1 (ist %d)" % bs._p_morale)
+	_check(bs._e_morale == 1, "reine Ork-Armee: Moral +1 (ist %d)" % bs._e_morale)
+	_check(bs._p_luck == 3, "Glueck aus dem Kontext uebernommen")
+
+	# Moral -3 erzwingen: der lebende Stack muss Zuege verlieren, der
+	# untote nie. Ueber viele _step-Versuche pruefen.
+	bs._p_morale = -3
+	var living: Dictionary = bs._p_stacks[0]
+	var undead: Dictionary = bs._p_stacks[1]
+	var lost_living: int = 0
+	var lost_undead: int = 0
+	for i in range(60):
+		for target in [living, undead]:
+			var idx: int = 0 if target == living else 1
+			bs._log.clear()
+			# Slot des gewuenschten Stacks aktivieren.
+			bs._rebuild_order()
+			for k in range(bs._turn_order.size()):
+				if int(bs._turn_order[k]["side"]) == 0 and int(bs._turn_order[k]["idx"]) == idx:
+					bs._active_slot = k
+					break
+			bs._step()
+			for line in bs._log:
+				if String(line).contains("keine Moral"):
+					if idx == 0:
+						lost_living += 1
+					else:
+						lost_undead += 1
+	_check(lost_living > 0, "lebender Stack verliert bei Moral -3 Zuege (%d)" % lost_living)
+	_check(lost_undead == 0, "untoter Stack verliert nie den Zug (%d)" % lost_undead)
+
+	# Glueck 3: unter vielen Schlaegen muss ein Volltreffer auftauchen.
+	bs.set_battle({
+		"player_stacks": [{"type": "men_spearman", "count": 20}],
+		"enemy_stacks": [{"type": "elf_treant", "count": 20}],
+		"seed": 9, "allow_flee": true, "player_luck": 3,
+	})
+	bs._obstacles = []
+	bs._ob_map = {}
+	var atk: Dictionary = bs._p_stacks[0]
+	var def_stack: Dictionary = bs._e_stacks[0]
+	var crits: int = 0
+	for i in range(60):
+		bs._dmg(atk, def_stack, false)
+		if bs._last_luck > 1.0:
+			crits += 1
+	_check(crits > 0, "Glueck 3 erzeugt Volltreffer (%d von 60)" % crits)
+	# Untote kennen kein Glueck.
+	bs._p_stacks[0] = {"type": "nec_skeleton", "count": 20, "count_start": 20,
+		"top_hp": UnitType.hp_of("nec_skeleton"), "side": 0, "pos": Vector2i(1, 1),
+		"status": {}, "tiles_moved": 0, "retaliations": 0}
+	var undead_crits: int = 0
+	for i in range(60):
+		bs._dmg(bs._p_stacks[0], def_stack, false)
+		if bs._last_luck != 1.0:
+			undead_crits += 1
+	_check(undead_crits == 0, "untoter Stack wuerfelt kein Glueck (%d)" % undead_crits)
+
+	bs.queue_free()
+	await process_frame
 
 
 func _test_status_combat() -> void:

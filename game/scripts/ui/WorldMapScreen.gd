@@ -114,6 +114,9 @@ const LEVEL_COMBAT_BONUS := 1
 const WACHTURM_COMBAT_BONUS := 1
 # Kapelle: +XP pro Tag pro Stadt mit Kapelle.
 const KAPELLE_XP_PER_TURN := 10
+# Glueck im Kampf pro Kapelle (M6), gedeckelt wie in Morale.LUCK_LIMIT.
+const LUCK_PER_KAPELLE := 1
+const LUCK_MAX := 3
 
 # Monster-Aufklaerung: exakte Staerke nur sichtbar, wenn der Held in
 # Manhattan-Reichweite ist. Weiter weg erscheint "?" (Info-Vorteil fuer
@@ -173,7 +176,7 @@ const BUILDINGS := [
 	{"id": "schmiede", "name": "Schmiede", "cost": {"gold": 700, "ore": 5}, "effect": "Rekruten Tier 3-4", "requires": "kaserne"},
 	{"id": "reiterei", "name": "Reiterei", "cost": {"gold": 1000, "wood": 5, "ore": 5}, "effect": "Rekruten Tier 5-6", "requires": "schmiede"},
 	{"id": "wachturm", "name": "Wachturm", "cost": {"gold": 400, "ore": 5}, "effect": "+1 Kampfkraft (dauerhaft)"},
-	{"id": "kapelle",  "name": "Kapelle",  "cost": {"gold": 500, "wood": 2, "ore": 2, "crystal": 1}, "effect": "+10 XP/Tag"},
+	{"id": "kapelle",  "name": "Kapelle",  "cost": {"gold": 500, "wood": 2, "ore": 2, "crystal": 1}, "effect": "+10 XP/Tag, +1 Glueck im Kampf"},
 	{"id": "mauer",    "name": "Stadtmauer", "cost": {"gold": 1200, "ore": 10, "wood": 5}, "effect": "Stadtverteidigung (Kampf-Bonus folgt)"},
 	{"id": "zitadelle", "name": "Zitadelle", "cost": {"gold": 2500, "wood": 10, "ore": 10, "crystal": 1}, "effect": "Rekruten Tier 7", "requires": ["reiterei", "mauer"]},
 ]
@@ -1803,6 +1806,7 @@ func _open_battle(opp_name: String, opp_army: int, allow_flee: bool, terrain_id:
 			"allow_flee": allow_flee,
 			"seed": _seed,
 			"terrain_id": terrain_id,
+			"player_luck": _player_luck(),
 		})
 	overlay.connect("battle_finished", func(result: Dictionary) -> void:
 		on_result.call(result)
@@ -2100,10 +2104,23 @@ func _show_victory_panel() -> void:
 func _combat_bonus() -> int:
 	# Kampfkraft-Bonus: Level-Bonus plus Wachturm-Bonus pro eigener Stadt.
 	var b: int = LEVEL_COMBAT_BONUS * max(0, _hero.level - 1)
-	for c in _cities:
-		if int(c["owner"]) == OWNER_HERO and (c["buildings"] as Array).has("wachturm"):
-			b += WACHTURM_COMBAT_BONUS
+	b += WACHTURM_COMBAT_BONUS * _count_own_buildings("wachturm")
 	return b
+
+
+# Wie viele eigene Staedte haben dieses Gebaeude? (Einkommen, Boni.)
+func _count_own_buildings(bid: String) -> int:
+	var n: int = 0
+	for c in _cities:
+		if int(c["owner"]) == OWNER_HERO and (c["buildings"] as Array).has(bid):
+			n += 1
+	return n
+
+
+# Glueck im Kampf (M6): +1 je Kapelle in eigenen Staedten, max +3.
+# Damit hat die Kapelle neben den XP endlich eine Kampfwirkung.
+func _player_luck() -> int:
+	return min(LUCK_MAX, LUCK_PER_KAPELLE * _count_own_buildings("kapelle"))
 
 
 func _check_level_up() -> bool:

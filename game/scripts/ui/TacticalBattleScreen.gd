@@ -12,6 +12,8 @@ const Obstacles := preload("res://scripts/core/BattleObstacles.gd")
 const Abil := preload("res://scripts/core/Abilities.gd")
 # Status-Effekte mit Dauer (M6b Teil 2).
 const Fx := preload("res://scripts/core/StatusFx.gd")
+# Moral + Glueck (M6).
+const Mor := preload("res://scripts/core/Morale.gd")
 
 const GRID_COLS := 10
 const GRID_ROWS := 8
@@ -23,6 +25,15 @@ var _allow_flee: bool = true
 var _rng: RandomNumberGenerator
 var _finished: bool = false
 var _round: int = 1
+# Moral/Glueck gelten je Seite fuer die ganze Schlacht (HoMM3-Verhalten:
+# kein Neuberechnen, wenn Stacks fallen). Moral kommt aus der Armee-
+# Zusammenstellung, Glueck von aussen (Kapellen, siehe WorldMapScreen).
+var _p_morale: int = 0
+var _e_morale: int = 0
+var _p_luck: int = 0
+var _e_luck: int = 0
+# Ergebnis des letzten Glueckswurfs fuer das Kampf-Log.
+var _last_luck: float = 1.0
 
 var _p_stacks: Array = []
 var _e_stacks: Array = []
@@ -64,6 +75,11 @@ func set_battle(ctx: Dictionary) -> void:
 		_ob_map[Vector2i(o["pos"])] = int(o["kind"])
 	_p_stacks = _make_stacks(ctx.get("player_stacks", []), 0)
 	_e_stacks = _make_stacks(ctx.get("enemy_stacks", []), 1)
+	_p_morale = Mor.morale_for(_p_stacks)
+	_e_morale = Mor.morale_for(_e_stacks)
+	_p_luck = int(ctx.get("player_luck", 0))
+	_e_luck = int(ctx.get("enemy_luck", 0))
+	_last_luck = 1.0
 	_log_unhandled_abilities()
 	_place_stacks()
 	_rebuild_order()
@@ -91,6 +107,8 @@ func _make_stacks(list: Array, side: int) -> Array:
 			# M6b: Konter-Zaehler (unlimited_retaliations), gelaufene
 			# Felder dieses Zuges (Jousting) und Status-Effekte mit Dauer.
 			"retaliations": 0, "tiles_moved": 0, "status": {},
+			# M6: max ein Extrazug aus Moral pro Runde und Stack.
+			"morale_extra_used": false,
 		})
 	return out
 
@@ -117,6 +135,8 @@ const HANDLED_ABILITIES: Array = [
 	"root_enemy_on_hit_20pct", "blind_enemy_on_hit_15pct", "bash_stun_10pct",
 	"disease_on_hit", "curse_on_hit_10pct", "aging_on_hit_10pct",
 	"death_cloud_aoe_small",
+	# M6 (Moral/Glueck/Erzfeind)
+	"undead", "morale_aura", "hates:necro_tier7",
 ]
 
 
@@ -174,6 +194,9 @@ func _melee_exchange(attacker: Dictionary, target: Dictionary) -> String:
 		if int(target["count"]) <= 0 or int(attacker["count"]) <= 0:
 			break
 		var dmg: int = _dmg(attacker, target, a_ranged)
+		var luck_txt: String = _luck_suffix()
+		if luck_txt != "" and not status_txt.contains(luck_txt):
+			status_txt += luck_txt
 		dmg_sum += dmg
 		killed += _apply_dmg(target, dmg)
 		struck += 1
@@ -293,6 +316,15 @@ func _step() -> void:
 			who, UnitType.short_of(String(st["type"])), Fx.marker_name(st)])
 		_advance()
 		return
+	# Schlechte Moral kann den Zug kosten (M6). Untote sind immun.
+	if not st.is_empty() and not Mor.is_immune(String(st["type"])):
+		var mor: int = _p_morale if int(slot["side"]) == 0 else _e_morale
+		if Mor.rolls_freeze(mor, _rng):
+			var who2: String = "Held" if int(slot["side"]) == 0 else "Feind"
+			_set_action("%s %s: keine Moral - Zug verloren." % [
+				who2, UnitType.short_of(String(st["type"]))])
+			_advance()
+			return
 	if int(slot["side"]) == 0:
 		_build_reachable()
 		_refresh()
@@ -307,6 +339,7 @@ func _next_round() -> void:
 		s["waited"] = false
 		s["retaliations"] = 0
 		s["tiles_moved"] = 0
+		s["morale_extra_used"] = false
 		Fx.tick(s)
 		_regenerate(s)
 	_rebuild_order()
@@ -636,8 +669,11 @@ func _refresh() -> void:
 	for s in _p_stacks: p_sum += int(s["count"])
 	var e_sum := 0
 	for s in _e_stacks: e_sum += int(s["count"])
-	_info_lbl.text = "%s %d  vs  %s %d   Runde %d" % [
-		_player_name, p_sum, _enemy_name, e_sum, _round]
+	# Moral/Glueck der Spielerseite mit anzeigen - die Armee-Mischung ist
+	# damit direkt im Kampf ablesbar (M6).
+	_info_lbl.text = "%s %d (%s)  vs  %s %d   Runde %d" % [
+		_player_name, p_sum, Mor.status_text(_p_morale, _p_luck),
+		_enemy_name, e_sum, _round]
 	if _grid_area != null:
 		_grid_area.queue_redraw()
 
@@ -712,6 +748,7 @@ func _try_attack_enemy(e_idx: int) -> void:
 			killed += _apply_dmg(estack, d1)
 			active["shots_left"] = int(active["shots_left"]) - 1
 			fired += 1
+			extra += _luck_suffix()
 			extra += _roll_status(uid, estack)
 			extra += _apply_aoe(uid, estack, d1)
 		var suffix: String = "  (halb: Baumstamm)" if bool(mod["halve"]) else ""
@@ -748,9 +785,51 @@ func _try_attack_enemy(e_idx: int) -> void:
 
 
 func _end_player_turn() -> void:
+	var side: int = 0
+	var idx: int = _acting_idx()
 	_rebuild_order()
 	if _check_end(): return
+	# Gute Moral kann eine zweite Aktion schenken (M6).
+	if _claim_morale_extra(side, idx):
+		_build_reachable()
+		_refresh()
+		return
 	_advance()
+
+
+# Array-Index des gerade ziehenden Stacks (stabil, weil Stacks nie aus
+# _p_stacks/_e_stacks entfernt werden - sie fallen nur auf count 0).
+func _acting_idx() -> int:
+	if _active_slot >= _turn_order.size():
+		return -1
+	return int(_turn_order[_active_slot]["idx"])
+
+
+# Prueft den Extrazug und setzt _active_slot wieder auf denselben Stack.
+# Rueckgabe true = der Stack darf nochmal ziehen.
+func _claim_morale_extra(side: int, idx: int) -> bool:
+	if idx < 0:
+		return false
+	var arr: Array = _p_stacks if side == 0 else _e_stacks
+	if idx >= arr.size():
+		return false
+	var s: Dictionary = arr[idx]
+	if int(s["count"]) <= 0 or bool(s.get("morale_extra_used", false)):
+		return false
+	if Mor.is_immune(String(s["type"])) or Fx.blocks_turn(s):
+		return false
+	var mor: int = _p_morale if side == 0 else _e_morale
+	if not Mor.rolls_extra_turn(mor, _rng):
+		return false
+	# Slot des Stacks in der neu gebauten Reihenfolge finden.
+	for i in range(_turn_order.size()):
+		if int(_turn_order[i]["side"]) == side and int(_turn_order[i]["idx"]) == idx:
+			s["morale_extra_used"] = true
+			_active_slot = i
+			_set_action("Moral! %s %s zieht nochmal." % [
+				"Held" if side == 0 else "Feind", UnitType.short_of(String(s["type"]))])
+			return true
+	return false
 
 
 func _ai_turn() -> void:
@@ -809,6 +888,7 @@ func _ai_turn() -> void:
 				killed += _apply_dmg(best_target, d1)
 				estack["shots_left"] = int(estack["shots_left"]) - 1
 				fired += 1
+				extra += _luck_suffix()
 				extra += _roll_status(uid, best_target)
 				extra += _apply_aoe(uid, best_target, d1)
 			var suffix: String = "  (halb: Baumstamm)" if bool(mod["halve"]) else ""
@@ -890,8 +970,14 @@ func _ai_turn() -> void:
 		else:
 			_set_action("Feind %s wartet." % atk_s)
 
+	var acted_idx: int = _acting_idx()
 	_rebuild_order()
 	if _check_end(): return
+	# Extrazug aus guter Moral: derselbe Stack zieht direkt nochmal.
+	# Mehr als eine Wiederholung ist unmoeglich (morale_extra_used).
+	if _claim_morale_extra(1, acted_idx):
+		_ai_turn()
+		return
 	_advance()
 
 
@@ -968,7 +1054,25 @@ func _dmg(attacker: Dictionary, defender: Dictionary, melee_penalty: bool) -> in
 	var d_bonus: int = _player_bonus if int(defender["side"]) == 0 else 0
 	# tiles_moved speist den Jousting-Bonus (Kavalier/Wolfsreiter).
 	var opts: Dictionary = {"tiles_moved": int(attacker.get("tiles_moved", 0))}
-	return CombatMath.damage(attacker, defender, melee_penalty, a_bonus, d_bonus, _rng, opts)
+	var dmg: int = CombatMath.damage(attacker, defender, melee_penalty, a_bonus, d_bonus, _rng, opts)
+	# Glueck wirkt auf den einzelnen Schlag (M6): Volltreffer x2, Pech x0.5.
+	# Untote kennen kein Glueck, genau wie keine Moral.
+	var luck: int = _p_luck if int(attacker["side"]) == 0 else _e_luck
+	_last_luck = 1.0
+	if luck != 0 and not Mor.is_immune(String(attacker["type"])):
+		_last_luck = Mor.luck_factor(luck, _rng)
+		if _last_luck != 1.0:
+			dmg = max(1, int(float(dmg) * _last_luck))
+	return dmg
+
+
+# Log-Zusatz zum letzten Glueckswurf ("" wenn normal).
+func _luck_suffix() -> String:
+	if _last_luck > 1.0:
+		return "  Volltreffer!"
+	if _last_luck < 1.0:
+		return "  Pech"
+	return ""
 
 
 func _apply_dmg(stack: Dictionary, dmg: int) -> int:

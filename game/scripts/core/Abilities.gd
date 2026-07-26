@@ -37,6 +37,15 @@ const POLEARM_BONUS_PCT: int = 50
 const DEFENSE_IGNORE_FACTOR: float = 0.75
 const LIFE_DRAIN_FRACTION: float = 0.5
 
+# Erzfeind-Bonus (M6): "hates:<ziel>" gibt Extraschaden gegen eine
+# bestimmte Gruppe. Ziel-Kuerzel -> {Fraktion, Tier}; bisher nur der
+# Engel, der den Knochendrachen hasst.
+const HATE_PREFIX := "hates:"
+const HATE_TARGETS := {
+	"necro_tier7": {"faction": 2, "tier": 7},
+}
+const HATE_BONUS_PCT: int = 50
+
 
 static func ignores_obstacles(uid: String) -> bool:
 	return UnitType.has_ability(uid, "flying")
@@ -87,7 +96,25 @@ static func melee_bonus_pct(attacker_uid: String, defender_uid: String,
 	if UnitType.has_ability(attacker_uid, "polearm_bonus_vs_cavalry") \
 			and is_cavalry(defender_uid):
 		pct += POLEARM_BONUS_PCT
+	pct += hate_bonus_pct(attacker_uid, defender_uid)
 	return pct
+
+
+# Hasst der Angreifer sein Ziel? Liest die "hates:<ziel>"-Flags und
+# vergleicht Fraktion + Tier des Verteidigers.
+static func hate_bonus_pct(attacker_uid: String, defender_uid: String) -> int:
+	for a in UnitType.abilities_of(attacker_uid):
+		var flag: String = String(a)
+		if not flag.begins_with(HATE_PREFIX):
+			continue
+		var key: String = flag.substr(HATE_PREFIX.length())
+		if not HATE_TARGETS.has(key):
+			continue
+		var t: Dictionary = HATE_TARGETS[key]
+		if UnitType.faction_of(defender_uid) == int(t["faction"]) \
+				and UnitType.tier_of(defender_uid) == int(t["tier"]):
+			return HATE_BONUS_PCT
+	return 0
 
 
 static func drain_fraction(uid: String) -> float:
