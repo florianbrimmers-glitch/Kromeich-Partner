@@ -87,6 +87,11 @@ jobs:
           ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
             --headless --path game/ --script tools/test_wallet.gd
 
+      - name: Kampf-Tests (Abilities, Schuss-Limit)
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/test_battle.gd
+
       - name: KI-Smoke (30 Tage)
         run: |
           ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \

@@ -168,17 +168,26 @@ func _take_turn(stack: Dictionary, enemy: Array, round_num: int, rng: RandomNumb
 	if target.is_empty():
 		return
 	var uid: String = String(stack["type"])
-	if round_num < _engage_round(uid):
-		# Noch im Anmarsch, kein Angriff in dieser Runde.
+	var is_ranged_unit: bool = UnitType.is_ranged(uid)
+	var can_shoot: bool = is_ranged_unit and int(stack.get("shots_left", 0)) > 0
+	if not is_ranged_unit and round_num < _engage_round(uid):
+		# Noch im Anmarsch, kein Angriff in dieser Runde. Leergeschossene
+		# Schuetzen gelten als bereits im Getuemmel (kein neuer Anmarsch).
 		return
-	var is_ranged: bool = UnitType.is_ranged(uid)
-	# Nahkampfmalus: Wenn feindliche Nahkaempfer bereits engagiert haben,
-	# steht der Fernkaempfer unter Druck und schiesst mit Malus.
-	var melee_penalty: bool = is_ranged and _enemy_melee_engaged(enemy, round_num)
+	var melee_penalty: bool
+	if can_shoot:
+		# Nahkampfmalus: Wenn feindliche Nahkaempfer bereits engagiert
+		# haben, steht der Fernkaempfer unter Druck und schiesst mit Malus.
+		melee_penalty = _enemy_melee_engaged(enemy, round_num)
+		stack["shots_left"] = int(stack["shots_left"]) - 1
+	else:
+		# Nahkampf; Fernkaempfer ohne Munition kassieren den Malus
+		# (ability-abhaengig, siehe CombatMath).
+		melee_penalty = is_ranged_unit
 	var dmg: int = CombatMath.damage(stack, target, melee_penalty, 0, 0, rng)
 	CombatMath.apply(target, dmg)
 	# Gegenschlag nur bei Nahkampf-Angriff; einmal pro Runde pro Ziel.
-	if not is_ranged and int(target["count"]) > 0 and not bool(target.get("retaliated", false)):
+	if not can_shoot and int(target["count"]) > 0 and not bool(target.get("retaliated", false)):
 		target["retaliated"] = true
 		var t_ranged: bool = UnitType.is_ranged(String(target["type"]))
 		var rdmg: int = max(1, CombatMath.damage(target, stack, t_ranged, 0, 0, rng) / 2)
@@ -209,6 +218,7 @@ func _init_stacks(list: Array, side: int) -> Array:
 		out.append({
 			"type": uid, "count": cnt, "side": side,
 			"top_hp": UnitType.hp_of(uid), "retaliated": false,
+			"shots_left": UnitType.shots_of(uid),
 		})
 	return out
 

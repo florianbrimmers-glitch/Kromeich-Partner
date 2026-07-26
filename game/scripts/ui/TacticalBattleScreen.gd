@@ -60,6 +60,7 @@ func set_battle(ctx: Dictionary) -> void:
 		_ob_map[Vector2i(o["pos"])] = int(o["kind"])
 	_p_stacks = _make_stacks(ctx.get("player_stacks", []), 0)
 	_e_stacks = _make_stacks(ctx.get("enemy_stacks", []), 1)
+	_log_unhandled_abilities()
 	_place_stacks()
 	_rebuild_order()
 	_active_slot = 0
@@ -82,8 +83,34 @@ func _make_stacks(list: Array, side: int) -> Array:
 			"top_hp": UnitType.hp_of(uid),
 			"side": side, "pos": Vector2i(0, 0),
 			"retaliated": false, "waited": false,
+			"shots_left": UnitType.shots_of(uid),
 		})
 	return out
+
+
+# Nur wer Munition hat, darf schiessen (M4 Teil 3). Leergeschossene
+# Schuetzen kaempfen im Nahkampf weiter - mit ability-abhaengigem Malus
+# (CombatMath).
+func _can_shoot(stack: Dictionary) -> bool:
+	return UnitType.is_ranged(String(stack["type"])) \
+		and int(stack.get("shots_left", 0)) > 0
+
+
+# Abilities, die der Kampf bereits auswertet. Alles andere wird beim
+# Kampfstart einmal geloggt (Inventur fuer M6b), aber ignoriert.
+const HANDLED_ABILITIES: Array = [
+	"ranged", "melee_penalty_half", "no_melee_penalty",
+]
+
+
+func _log_unhandled_abilities() -> void:
+	var seen: Dictionary = {}
+	for s in _p_stacks + _e_stacks:
+		for a in UnitType.abilities_of(String(s["type"])):
+			if not HANDLED_ABILITIES.has(String(a)):
+				seen[String(a)] = true
+	if not seen.is_empty():
+		print("TacticalBattle: ignorierte Abilities (M6b): ", ", ".join(seen.keys()))
 
 
 func _place_stacks() -> void:
@@ -511,7 +538,9 @@ func _try_attack_enemy(e_idx: int) -> void:
 
 	var atk_s: String = UnitType.short_of(uid)
 	var def_s: String = UnitType.short_of(String(estack["type"]))
-	if is_ranged:
+	# Schiessen nur mit Munition - leergeschossene Schuetzen fallen in
+	# die Nahkampf-Zweige unten (dort mit Fernkaempfer-Malus).
+	if _can_shoot(active):
 		var mod: Dictionary = Obstacles.line_modifier(_obstacles, apos, epos)
 		if bool(mod["blocked"]):
 			_set_action("Held %s: keine Schusslinie (Stein im Weg)." % atk_s)
@@ -521,18 +550,21 @@ func _try_attack_enemy(e_idx: int) -> void:
 		if bool(mod["halve"]):
 			dmg = max(1, dmg / 2)
 		var killed: int = _apply_dmg(estack, dmg)
+		active["shots_left"] = int(active["shots_left"]) - 1
 		var suffix: String = "  (halb: Baumstamm)" if bool(mod["halve"]) else ""
-		_set_action("Held %s -> %s: %d Sch., -%d%s" % [atk_s, def_s, dmg, killed, suffix])
+		_set_action("Held %s -> %s: %d Sch., -%d%s  [%d Schuss]" % [
+			atk_s, def_s, dmg, killed, suffix, int(active["shots_left"])])
 		_end_player_turn()
 		return
 
 	if _adj(apos, epos):
-		var dmg: int = _dmg(active, estack, false)
+		var dmg: int = _dmg(active, estack, is_ranged)
 		var killed: int = _apply_dmg(estack, dmg)
 		var msg: String = "Held %s -> %s: %d Sch., -%d" % [atk_s, def_s, dmg, killed]
 		if int(estack["count"]) > 0 and not bool(estack["retaliated"]):
 			estack["retaliated"] = true
-			var rdmg: int = max(1, _dmg(estack, active, false) / 2)
+			var e_ranged: bool = UnitType.is_ranged(String(estack["type"]))
+			var rdmg: int = max(1, _dmg(estack, active, e_ranged) / 2)
 			var rkill: int = _apply_dmg(active, rdmg)
 			msg += "  Konter: %d Sch., -%d" % [rdmg, rkill]
 		_set_action(msg)
@@ -552,12 +584,13 @@ func _try_attack_enemy(e_idx: int) -> void:
 		_set_action("Ausser Reichweite.")
 		return
 	active["pos"] = best
-	var dmg2: int = _dmg(active, estack, false)
+	var dmg2: int = _dmg(active, estack, is_ranged)
 	var killed2: int = _apply_dmg(estack, dmg2)
 	var msg2: String = "Held %s vor -> %s: %d Sch., -%d" % [atk_s, def_s, dmg2, killed2]
 	if int(estack["count"]) > 0 and not bool(estack["retaliated"]):
 		estack["retaliated"] = true
-		var rdmg2: int = max(1, _dmg(estack, active, false) / 2)
+		var e_ranged2: bool = UnitType.is_ranged(String(estack["type"]))
+		var rdmg2: int = max(1, _dmg(estack, active, e_ranged2) / 2)
 		var rkill2: int = _apply_dmg(active, rdmg2)
 		msg2 += "  Konter: %d Sch., -%d" % [rdmg2, rkill2]
 	_set_action(msg2)
@@ -586,12 +619,12 @@ func _ai_turn() -> void:
 	# staerksten Nahkaempfer-Stack zurueck.
 	var has_ranged: bool = false
 	for ps in _p_stacks:
-		if int(ps["count"]) > 0 and UnitType.is_ranged(String(ps["type"])):
+		if int(ps["count"]) > 0 and _can_shoot(ps):
 			has_ranged = true
 			break
 	for ps in _p_stacks:
 		if int(ps["count"]) <= 0: continue
-		if has_ranged and not UnitType.is_ranged(String(ps["type"])):
+		if has_ranged and not _can_shoot(ps):
 			continue
 		var th: float = float(int(ps["count"])) / float(max(1, int(estack["count"])))
 		if th > best_threat:
@@ -608,7 +641,7 @@ func _ai_turn() -> void:
 
 	var atk_s: String = UnitType.short_of(uid)
 	var def_s: String = UnitType.short_of(String(best_target["type"]))
-	if is_ranged:
+	if _can_shoot(estack):
 		var mod: Dictionary = Obstacles.line_modifier(_obstacles, epos, tpos)
 		if not bool(mod["blocked"]):
 			var adjacent: bool = _adj(epos, tpos)
@@ -616,6 +649,7 @@ func _ai_turn() -> void:
 			if bool(mod["halve"]):
 				dmg = max(1, dmg / 2)
 			var killed: int = _apply_dmg(best_target, dmg)
+			estack["shots_left"] = int(estack["shots_left"]) - 1
 			var suffix: String = "  (halb: Baumstamm)" if bool(mod["halve"]) else ""
 			_set_action("Feind %s -> %s: %d Sch., -%d%s" % [atk_s, def_s, dmg, killed, suffix])
 			_rebuild_order()
@@ -664,14 +698,15 @@ func _ai_turn() -> void:
 			estack["pos"] = atk_cell
 			epos = atk_cell
 		var def_s2: String = UnitType.short_of(String(atk_target["type"]))
-		# Fernkaempfer mit blockierter Schusslinie gleiten hier hinein und
-		# kassieren dann den korrekten Nahkampfabzug.
+		# Fernkaempfer mit blockierter Schusslinie oder leerem Koecher
+		# gleiten hier hinein und kassieren den korrekten Nahkampfabzug.
 		var dmg: int = _dmg(estack, atk_target, is_ranged)
 		var killed: int = _apply_dmg(atk_target, dmg)
 		var msg: String = "Feind %s -> %s: %d Sch., -%d" % [atk_s, def_s2, dmg, killed]
 		if int(atk_target["count"]) > 0 and not bool(atk_target["retaliated"]):
 			atk_target["retaliated"] = true
-			var rdmg: int = max(1, _dmg(atk_target, estack, false) / 2)
+			var t_ranged: bool = UnitType.is_ranged(String(atk_target["type"]))
+			var rdmg: int = max(1, _dmg(atk_target, estack, t_ranged) / 2)
 			var rkill: int = _apply_dmg(estack, rdmg)
 			msg += "  Konter: %d Sch., -%d" % [rdmg, rkill]
 		_set_action(msg)

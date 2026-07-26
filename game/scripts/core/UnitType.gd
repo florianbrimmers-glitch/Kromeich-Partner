@@ -184,6 +184,20 @@ static func is_ranged(id: String) -> bool:
 	return int(get_type(id).get("shots", 0)) > 0
 
 
+# Munitionsvorrat pro Kampf (0 = reiner Nahkaempfer). M4 Teil 3:
+# der Kampf zaehlt shots_left pro Stack herunter.
+static func shots_of(id: String) -> int:
+	return int(get_type(id).get("shots", 0))
+
+
+static func abilities_of(id: String) -> Array:
+	return get_type(id).get("abilities", []) as Array
+
+
+static func has_ability(id: String, ability: String) -> bool:
+	return abilities_of(id).has(ability)
+
+
 static func speed_of(id: String) -> int:
 	return int(get_type(id).get("speed", 4))
 

@@ -11,7 +11,11 @@ extends RefCounted
 # Schadensformel (angelehnt an HoMM3):
 #   base      = rand(dmg_min..dmg_max) * count
 #   mod       = 1 + clamp((att - def) * 0.05, -0.7, 1.5)
-#   melee_pen = mod * 0.5, falls Fernkaempfer im Nahkampf steht
+#   melee_pen = Malus fuer Fernkaempfer im Nahkampf, ability-abhaengig
+#               (M4 Teil 3): Standard x0.5, melee_penalty_half x0.75,
+#               no_melee_penalty x1.0. units.json definiert die Flags
+#               nicht formal - das hier ist die dokumentierte
+#               Interpretation (HoMM3-analog: Moench ohne Malus).
 #   damage    = max(1, base * mod)
 
 
@@ -28,7 +32,13 @@ static func damage(attacker: Dictionary, defender: Dictionary,
 	var diff: int = att - def_val
 	var mod: float = 1.0 + clampf(float(diff) * 0.05, -0.7, 1.5)
 	if melee_penalty:
-		mod *= 0.5
+		var abilities: Array = ut.get("abilities", []) as Array
+		if abilities.has("no_melee_penalty"):
+			pass
+		elif abilities.has("melee_penalty_half"):
+			mod *= 0.75
+		else:
+			mod *= 0.5
 	return int(max(1.0, total * mod))
 
 

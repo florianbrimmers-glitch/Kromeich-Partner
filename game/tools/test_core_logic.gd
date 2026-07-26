@@ -149,6 +149,9 @@ func _test_unit_type() -> void:
 		"Zitadelle (Menschen) = nur Engel")
 	_check(UnitType.unit_for_building(1, "kaserne") == "men_spearman",
 		"unit_for_building liefert erste Einheit (Kompat)")
+	# M4 Teil 3: Ability-Getter (Details in tools/test_battle.gd)
+	_check(UnitType.shots_of("ork_orc") == 10, "shots_of aus den Daten")
+	_check(UnitType.abilities_of("men_monk").has("ranged"), "abilities_of liefert Flags")
 
 
 # Static-Calls auf weitere Module zwingen Godot, deren Scripts wirklich
