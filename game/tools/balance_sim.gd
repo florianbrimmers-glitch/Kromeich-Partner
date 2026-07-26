@@ -29,6 +29,10 @@ const MAX_ROUNDS: int = 30
 # Abstrakte Schlachtfeld-Distanz in Feldern fuer das Anmarsch-Modell.
 const ENGAGE_DISTANCE: float = 7.0
 
+# Ability-Regeln kommen aus derselben Quelle wie der Live-Kampf, sonst
+# luegt die Matrix (M6b Teil 1).
+const Abil := preload("res://scripts/core/Abilities.gd")
+
 
 func _init() -> void:
 	var runs: int = DEFAULT_RUNS
@@ -49,10 +53,15 @@ func _init() -> void:
 	var warnings: int = _run_faction_matrix(runs, seed_val)
 
 	print("")
+	print("Modell-Grenze: Fernkaempfer werden im abstrakten Kampf NIE physisch")
+	print("blockiert und feuern ab Runde 1 - schuetzenlastige Fraktionen sehen")
+	print("hier darum besser aus als auf dem echten 10x8-Gitter. Erst mit den")
+	print("Status-Effekten (M6b Teil 2) und Moral (M6) lohnt das Zahlen-Tuning.")
+	print("")
 	if warnings == 0:
 		print("Urteil: Alle Matchups im Warn-Korridor.")
 	else:
-		print("Urteil: %d Matchup(s) ausserhalb %.2f-%.2f - Abilities (M6b) abwarten, dann tunen." % [warnings, WARN_MIN, WARN_MAX])
+		print("Urteil: %d Matchup(s) ausserhalb %.2f-%.2f (informativ)." % [warnings, WARN_MIN, WARN_MAX])
 	# Informativ: Exit 0 auch mit Warnungen (siehe Kopf-Kommentar).
 	quit(0)
 
@@ -74,22 +83,35 @@ func _run_faction_matrix(runs: int, seed_val: int) -> int:
 		sep += "---|"
 	print(sep)
 	var warnings: int = 0
+	var draw_pairs: int = 0
 	var csv: Array = []
 	for fa in range(4):
 		var row: String = "| %s " % FACTION_LABELS[fa]
 		for fb in range(4):
 			var r: Dictionary = _run_matchup(armies[fa], armies[fb], runs, seed_val)
 			var wr: float = float(r["wins_a"]) / float(runs)
+			var dr: float = float(r["draws"]) / float(runs)
 			var mark: String = ""
-			if wr < WARN_MIN or wr > WARN_MAX:
+			if dr >= 0.5:
+				# Ueberwiegend Unentschieden -> Winrate sagt hier nichts aus.
+				mark = "="
+				draw_pairs += 1
+			elif wr < WARN_MIN or wr > WARN_MAX:
 				warnings += 1
 				mark = "!"
 			row += "| %.2f%s " % [wr, mark]
-			csv.append("%s_vs_%s,%.4f,%.2f" % [FACTION_LABELS[fa], FACTION_LABELS[fb], wr, r["avg_rounds"]])
+			csv.append("%s_vs_%s,%.4f,%.4f,%.2f" % [
+				FACTION_LABELS[fa], FACTION_LABELS[fb], wr, dr, r["avg_rounds"]])
 		row += "|"
 		print(row)
 	print("")
-	print("CSV (pair,winrate_A,avg_rounds):")
+	print("Legende: `!` ausserhalb des Korridors, `=` mehrheitlich unentschieden")
+	print("(beide Armeen leben nach %d Runden - z.B. Regeneration heilt schneller" % MAX_ROUNDS)
+	print("als der Gegner Schaden macht; dort ist die Winrate bedeutungslos).")
+	if draw_pairs > 0:
+		print("Unentschieden-Matchups: %d" % draw_pairs)
+	print("")
+	print("CSV (pair,winrate_A,draw_rate,avg_rounds):")
 	for line in csv:
 		print(line)
 	return warnings
@@ -109,16 +131,24 @@ func _week_army(fid: int) -> Array:
 
 func _run_matchup(a_list: Array, b_list: Array, runs: int, seed_val: int) -> Dictionary:
 	var wins_a: int = 0
+	var draws: int = 0
 	var rounds_sum: int = 0
 	var rng: RandomNumberGenerator = RandomNumberGenerator.new()
 	rng.seed = seed_val
 	for i in range(runs):
 		var res: Dictionary = _simulate(a_list, b_list, rng)
-		if int(res["winner"]) == 0:
+		var w: int = int(res["winner"])
+		if w == 0:
 			wins_a += 1
+		elif w < 0:
+			# Beide Seiten leben nach MAX_ROUNDS - z.B. wenn Regeneration
+			# schneller heilt als der Gegner Schaden macht. Das ist KEINE
+			# Niederlage von A und wird darum getrennt gezaehlt.
+			draws += 1
 		rounds_sum += int(res["rounds"])
 	return {
 		"wins_a": wins_a,
+		"draws": draws,
 		"avg_rounds": float(rounds_sum) / float(max(1, runs)),
 	}
 
@@ -155,10 +185,11 @@ func _simulate(a_list: Array, b_list: Array, rng: RandomNumberGenerator) -> Dict
 	return {"winner": winner, "rounds": round_num - 1}
 
 
-# Ab welcher Runde ein Stack angreifen kann: Fernkampf sofort, Nahkampf
-# nach dem Anmarsch ueber ENGAGE_DISTANCE Felder mit seiner Speed.
+# Ab welcher Runde ein Stack angreifen kann: Fernkampf sofort, Flieger
+# ebenfalls (sie ueberqueren das Feld ungehindert), Nahkampf nach dem
+# Anmarsch ueber ENGAGE_DISTANCE Felder mit seiner Speed.
 func _engage_round(uid: String) -> int:
-	if UnitType.is_ranged(uid):
+	if UnitType.is_ranged(uid) or Abil.ignores_obstacles(uid):
 		return 1
 	return int(ceil(ENGAGE_DISTANCE / float(max(1, UnitType.speed_of(uid)))))
 
@@ -179,19 +210,39 @@ func _take_turn(stack: Dictionary, enemy: Array, round_num: int, rng: RandomNumb
 		# Nahkampfmalus: Wenn feindliche Nahkaempfer bereits engagiert
 		# haben, steht der Fernkaempfer unter Druck und schiesst mit Malus.
 		melee_penalty = _enemy_melee_engaged(enemy, round_num)
-		stack["shots_left"] = int(stack["shots_left"]) - 1
 	else:
 		# Nahkampf; Fernkaempfer ohne Munition kassieren den Malus
 		# (ability-abhaengig, siehe CombatMath).
 		melee_penalty = is_ranged_unit
-	var dmg: int = CombatMath.damage(stack, target, melee_penalty, 0, 0, rng)
-	CombatMath.apply(target, dmg)
-	# Gegenschlag nur bei Nahkampf-Angriff; einmal pro Runde pro Ziel.
-	if not can_shoot and int(target["count"]) > 0 and not bool(target.get("retaliated", false)):
-		target["retaliated"] = true
-		var t_ranged: bool = UnitType.is_ranged(String(target["type"]))
-		var rdmg: int = max(1, CombatMath.damage(target, stack, t_ranged, 0, 0, rng) / 2)
-		CombatMath.apply(stack, rdmg)
+	# Jousting: beim ersten Nahkampf-Angriff hat der Stack die ganze
+	# Anmarschstrecke hinter sich, danach steht er beim Gegner.
+	var opts: Dictionary = {}
+	if not can_shoot:
+		if not bool(stack.get("engaged", false)):
+			opts["tiles_moved"] = int(ENGAGE_DISTANCE)
+			stack["engaged"] = true
+	var hits: int = Abil.attacks_per_turn(uid, can_shoot)
+	var t_uid: String = String(target["type"])
+	var drain: float = Abil.drain_fraction(uid)
+	for _i in range(hits):
+		if int(target["count"]) <= 0 or int(stack["count"]) <= 0:
+			break
+		if can_shoot:
+			if int(stack["shots_left"]) <= 0:
+				break
+			stack["shots_left"] = int(stack["shots_left"]) - 1
+		var dmg: int = CombatMath.damage(stack, target, melee_penalty, 0, 0, rng, opts)
+		CombatMath.apply(target, dmg)
+		if drain > 0.0:
+			CombatMath.heal(stack, int(float(dmg) * drain))
+		# Gegenschlag nur bei Nahkampf-Angriff; Konter-Regeln wie live.
+		if not can_shoot and int(target["count"]) > 0 and Abil.retaliation_allowed(
+				t_uid, uid, int(target.get("retaliations", 0))):
+			target["retaliations"] = int(target.get("retaliations", 0)) + 1
+			target["retaliated"] = true
+			var rdmg: int = max(1, CombatMath.damage(
+				target, stack, UnitType.is_ranged(t_uid), 0, 0, rng) / 2)
+			CombatMath.apply(stack, rdmg)
 
 
 func _enemy_melee_engaged(enemy: Array, round_num: int) -> bool:
@@ -216,9 +267,10 @@ func _init_stacks(list: Array, side: int) -> Array:
 		if cnt <= 0:
 			continue
 		out.append({
-			"type": uid, "count": cnt, "side": side,
+			"type": uid, "count": cnt, "count_start": cnt, "side": side,
 			"top_hp": UnitType.hp_of(uid), "retaliated": false,
 			"shots_left": UnitType.shots_of(uid),
+			"retaliations": 0, "engaged": false,
 		})
 	return out
 
@@ -226,6 +278,13 @@ func _init_stacks(list: Array, side: int) -> Array:
 func _reset_round(stacks: Array) -> void:
 	for s in stacks:
 		s["retaliated"] = false
+		s["retaliations"] = 0
+		# Rundenstart-Regeneration wie im Live-Kampf.
+		if int(s["count"]) > 0:
+			var hp_max: int = UnitType.hp_of(String(s["type"]))
+			var gain: int = Abil.regen_hp(String(s["type"]), int(s["top_hp"]), hp_max)
+			if gain > 0:
+				s["top_hp"] = min(hp_max, int(s["top_hp"]) + gain)
 
 
 func _build_order(a: Array, b: Array) -> Array:

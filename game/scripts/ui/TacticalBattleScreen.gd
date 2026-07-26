@@ -8,6 +8,8 @@ signal battle_finished(result: Dictionary)
 # realen Werte. Preload umgeht das, weil es direkt die Script-Datei
 # referenziert, nicht den globalen Klassen-Cache.
 const Obstacles := preload("res://scripts/core/BattleObstacles.gd")
+# Kampf-Faehigkeiten (M6b) - gleiche preload-Begruendung wie oben.
+const Abil := preload("res://scripts/core/Abilities.gd")
 
 const GRID_COLS := 10
 const GRID_ROWS := 8
@@ -84,6 +86,9 @@ func _make_stacks(list: Array, side: int) -> Array:
 			"side": side, "pos": Vector2i(0, 0),
 			"retaliated": false, "waited": false,
 			"shots_left": UnitType.shots_of(uid),
+			# M6b: Konter-Zaehler (unlimited_retaliations) und gelaufene
+			# Felder dieses Zuges (Jousting-Bonus).
+			"retaliations": 0, "tiles_moved": 0,
 		})
 	return out
 
@@ -99,8 +104,57 @@ func _can_shoot(stack: Dictionary) -> bool:
 # Abilities, die der Kampf bereits auswertet. Alles andere wird beim
 # Kampfstart einmal geloggt (Inventur fuer M6b), aber ignoriert.
 const HANDLED_ABILITIES: Array = [
+	# M4 Teil 3
 	"ranged", "melee_penalty_half", "no_melee_penalty",
+	# M6b Teil 1
+	"flying", "double_attack", "double_shot", "unlimited_retaliations",
+	"no_retaliation", "defense_ignore_25pct", "jousting_bonus",
+	"jousting_bonus_light", "polearm_bonus_vs_cavalry", "life_drain_50pct",
+	"regeneration_per_turn", "regeneration_if_half_hp",
 ]
+
+
+# Ein Nahkampf-Angriff inkl. Konter und Lebensentzug. Rueckgabe: Text-
+# Fragment fuer das Kampf-Log. Wird von Spieler- und KI-Pfad benutzt,
+# damit beide Seiten exakt dieselben Ability-Regeln sehen.
+func _melee_exchange(attacker: Dictionary, target: Dictionary) -> String:
+	var a_uid: String = String(attacker["type"])
+	var t_uid: String = String(target["type"])
+	# Leergeschossene Fernkaempfer schlagen mit Malus zu (M4 Teil 3).
+	var a_ranged: bool = UnitType.is_ranged(a_uid)
+	var hits: int = Abil.attacks_per_turn(a_uid, false)
+	var dmg_sum: int = 0
+	var killed: int = 0
+	var struck: int = 0
+	var drain: float = Abil.drain_fraction(a_uid)
+	var counter_dmg: int = 0
+	var counter_kill: int = 0
+	for _i in range(hits):
+		if int(target["count"]) <= 0 or int(attacker["count"]) <= 0:
+			break
+		var dmg: int = _dmg(attacker, target, a_ranged)
+		dmg_sum += dmg
+		killed += _apply_dmg(target, dmg)
+		struck += 1
+		# Lebensentzug heilt anteilig am zugefuegten Schaden (Vampir).
+		if drain > 0.0:
+			CombatMath.heal(attacker, int(float(dmg) * drain))
+		# Konter nach jedem Treffer pruefen: unlimited_retaliations laesst
+		# den Verteidiger jedes Mal zurueckschlagen, no_retaliation des
+		# Angreifers unterdrueckt den Konter komplett.
+		if int(target["count"]) > 0 and Abil.retaliation_allowed(
+				t_uid, a_uid, int(target.get("retaliations", 0))):
+			target["retaliations"] = int(target.get("retaliations", 0)) + 1
+			target["retaliated"] = true
+			var rdmg: int = max(1, _dmg(target, attacker, UnitType.is_ranged(t_uid)) / 2)
+			counter_dmg += rdmg
+			counter_kill += _apply_dmg(attacker, rdmg)
+	var msg: String = "%d Sch., -%d" % [dmg_sum, killed]
+	if struck > 1:
+		msg = "%dx (%s)" % [struck, msg]
+	if counter_dmg > 0:
+		msg += "  Konter: %d Sch., -%d" % [counter_dmg, counter_kill]
+	return msg
 
 
 func _log_unhandled_abilities() -> void:
@@ -188,15 +242,27 @@ func _step() -> void:
 
 func _next_round() -> void:
 	_round += 1
-	for s in _p_stacks:
+	for s in _p_stacks + _e_stacks:
 		s["retaliated"] = false
 		s["waited"] = false
-	for s in _e_stacks:
-		s["retaliated"] = false
-		s["waited"] = false
+		s["retaliations"] = 0
+		s["tiles_moved"] = 0
+		_regenerate(s)
 	_rebuild_order()
 	_active_slot = 0
 	_step()
+
+
+# Rundenstart-Regeneration (Baumvater heilt immer, Gespenst nur
+# angeschlagen). Heilt die vorderste Einheit, keine Wiederbelebung.
+func _regenerate(stack: Dictionary) -> void:
+	if int(stack["count"]) <= 0:
+		return
+	var uid: String = String(stack["type"])
+	var hp_max: int = UnitType.hp_of(uid)
+	var gain: int = Abil.regen_hp(uid, int(stack["top_hp"]), hp_max)
+	if gain > 0:
+		stack["top_hp"] = min(hp_max, int(stack["top_hp"]) + gain)
 
 
 func _advance() -> void:
@@ -225,7 +291,8 @@ func _build_reachable() -> void:
 	for s in _e_stacks:
 		if int(s["count"]) > 0:
 			blocked.append(Vector2i(s["pos"]))
-	var dist: Dictionary = _dijkstra_for(start, blocked)
+	var dist: Dictionary = _dijkstra_for(start, blocked,
+		Abil.ignores_obstacles(String(st["type"])))
 	for k in dist.keys():
 		if int(dist[k]) <= spd:
 			_reachable[k] = int(dist[k])
@@ -522,6 +589,7 @@ func _on_grid_input(event: InputEvent) -> void:
 			return
 
 	if _reachable.has(cell) and cell != Vector2i(active["pos"]):
+		active["tiles_moved"] = int(_reachable.get(cell, 0))
 		active["pos"] = cell
 		_set_action("Held %s bewegt sich." % UnitType.short_of(String(active["type"])))
 		_build_reachable()
@@ -534,7 +602,6 @@ func _try_attack_enemy(e_idx: int) -> void:
 	var epos: Vector2i = Vector2i(estack["pos"])
 	var apos: Vector2i = Vector2i(active["pos"])
 	var uid: String = String(active["type"])
-	var is_ranged: bool = UnitType.is_ranged(uid)
 
 	var atk_s: String = UnitType.short_of(uid)
 	var def_s: String = UnitType.short_of(String(estack["type"]))
@@ -546,28 +613,32 @@ func _try_attack_enemy(e_idx: int) -> void:
 			_set_action("Held %s: keine Schusslinie (Stein im Weg)." % atk_s)
 			return
 		var adjacent: bool = _adj(apos, epos)
-		var dmg: int = _dmg(active, estack, adjacent)
-		if bool(mod["halve"]):
-			dmg = max(1, dmg / 2)
-		var killed: int = _apply_dmg(estack, dmg)
-		active["shots_left"] = int(active["shots_left"]) - 1
+		# Doppelschuss (Erz-Elfen) feuert zweimal - kostet 2 Munition.
+		var volleys: int = Abil.attacks_per_turn(uid, true)
+		var dmg: int = 0
+		var killed: int = 0
+		var fired: int = 0
+		for _v in range(volleys):
+			if int(estack["count"]) <= 0 or int(active["shots_left"]) <= 0:
+				break
+			var d1: int = _dmg(active, estack, adjacent)
+			if bool(mod["halve"]):
+				d1 = max(1, d1 / 2)
+			dmg += d1
+			killed += _apply_dmg(estack, d1)
+			active["shots_left"] = int(active["shots_left"]) - 1
+			fired += 1
 		var suffix: String = "  (halb: Baumstamm)" if bool(mod["halve"]) else ""
-		_set_action("Held %s -> %s: %d Sch., -%d%s  [%d Schuss]" % [
-			atk_s, def_s, dmg, killed, suffix, int(active["shots_left"])])
+		var shot_txt: String = "%d Sch., -%d" % [dmg, killed]
+		if fired > 1:
+			shot_txt = "%dx (%s)" % [fired, shot_txt]
+		_set_action("Held %s -> %s: %s%s  [%d Schuss]" % [
+			atk_s, def_s, shot_txt, suffix, int(active["shots_left"])])
 		_end_player_turn()
 		return
 
 	if _adj(apos, epos):
-		var dmg: int = _dmg(active, estack, is_ranged)
-		var killed: int = _apply_dmg(estack, dmg)
-		var msg: String = "Held %s -> %s: %d Sch., -%d" % [atk_s, def_s, dmg, killed]
-		if int(estack["count"]) > 0 and not bool(estack["retaliated"]):
-			estack["retaliated"] = true
-			var e_ranged: bool = UnitType.is_ranged(String(estack["type"]))
-			var rdmg: int = max(1, _dmg(estack, active, e_ranged) / 2)
-			var rkill: int = _apply_dmg(active, rdmg)
-			msg += "  Konter: %d Sch., -%d" % [rdmg, rkill]
-		_set_action(msg)
+		_set_action("Held %s -> %s: %s" % [atk_s, def_s, _melee_exchange(active, estack)])
 		_end_player_turn()
 		return
 
@@ -583,17 +654,10 @@ func _try_attack_enemy(e_idx: int) -> void:
 	if best.x < 0:
 		_set_action("Ausser Reichweite.")
 		return
+	# Anmarsch zaehlt fuer den Jousting-Bonus.
+	active["tiles_moved"] = best_d
 	active["pos"] = best
-	var dmg2: int = _dmg(active, estack, is_ranged)
-	var killed2: int = _apply_dmg(estack, dmg2)
-	var msg2: String = "Held %s vor -> %s: %d Sch., -%d" % [atk_s, def_s, dmg2, killed2]
-	if int(estack["count"]) > 0 and not bool(estack["retaliated"]):
-		estack["retaliated"] = true
-		var e_ranged2: bool = UnitType.is_ranged(String(estack["type"]))
-		var rdmg2: int = max(1, _dmg(estack, active, e_ranged2) / 2)
-		var rkill2: int = _apply_dmg(active, rdmg2)
-		msg2 += "  Konter: %d Sch., -%d" % [rdmg2, rkill2]
-	_set_action(msg2)
+	_set_action("Held %s vor -> %s: %s" % [atk_s, def_s, _melee_exchange(active, estack)])
 	_end_player_turn()
 
 
@@ -637,7 +701,6 @@ func _ai_turn() -> void:
 	var epos: Vector2i = Vector2i(estack["pos"])
 	var tpos: Vector2i = Vector2i(best_target["pos"])
 	var uid: String = String(estack["type"])
-	var is_ranged: bool = UnitType.is_ranged(uid)
 
 	var atk_s: String = UnitType.short_of(uid)
 	var def_s: String = UnitType.short_of(String(best_target["type"]))
@@ -645,13 +708,25 @@ func _ai_turn() -> void:
 		var mod: Dictionary = Obstacles.line_modifier(_obstacles, epos, tpos)
 		if not bool(mod["blocked"]):
 			var adjacent: bool = _adj(epos, tpos)
-			var dmg: int = _dmg(estack, best_target, adjacent)
-			if bool(mod["halve"]):
-				dmg = max(1, dmg / 2)
-			var killed: int = _apply_dmg(best_target, dmg)
-			estack["shots_left"] = int(estack["shots_left"]) - 1
+			var volleys: int = Abil.attacks_per_turn(uid, true)
+			var dmg: int = 0
+			var killed: int = 0
+			var fired: int = 0
+			for _v in range(volleys):
+				if int(best_target["count"]) <= 0 or int(estack["shots_left"]) <= 0:
+					break
+				var d1: int = _dmg(estack, best_target, adjacent)
+				if bool(mod["halve"]):
+					d1 = max(1, d1 / 2)
+				dmg += d1
+				killed += _apply_dmg(best_target, d1)
+				estack["shots_left"] = int(estack["shots_left"]) - 1
+				fired += 1
 			var suffix: String = "  (halb: Baumstamm)" if bool(mod["halve"]) else ""
-			_set_action("Feind %s -> %s: %d Sch., -%d%s" % [atk_s, def_s, dmg, killed, suffix])
+			var shot_txt: String = "%d Sch., -%d" % [dmg, killed]
+			if fired > 1:
+				shot_txt = "%dx (%s)" % [fired, shot_txt]
+			_set_action("Feind %s -> %s: %s%s" % [atk_s, def_s, shot_txt, suffix])
 			_rebuild_order()
 			if _check_end(): return
 			_advance()
@@ -669,7 +744,7 @@ func _ai_turn() -> void:
 			var pp2: Vector2i = Vector2i(s["pos"])
 			if pp2 != epos:
 				blocked.append(pp2)
-	var dist_map := _bfs_for(epos, blocked)
+	var dist_map := _bfs_for(epos, blocked, Abil.ignores_obstacles(uid))
 
 	# Primaerziel zuerst pruefen, dann alle anderen lebenden Gegner als
 	# Opportunity-Targets: wenn das Primaerziel diese Runde nicht
@@ -695,21 +770,14 @@ func _ai_turn() -> void:
 
 	if not atk_target.is_empty():
 		if atk_cell != epos:
+			# Anmarsch-Distanz merken (Jousting-Bonus).
+			estack["tiles_moved"] = int(dist_map.get(atk_cell, 0))
 			estack["pos"] = atk_cell
 			epos = atk_cell
 		var def_s2: String = UnitType.short_of(String(atk_target["type"]))
 		# Fernkaempfer mit blockierter Schusslinie oder leerem Koecher
 		# gleiten hier hinein und kassieren den korrekten Nahkampfabzug.
-		var dmg: int = _dmg(estack, atk_target, is_ranged)
-		var killed: int = _apply_dmg(atk_target, dmg)
-		var msg: String = "Feind %s -> %s: %d Sch., -%d" % [atk_s, def_s2, dmg, killed]
-		if int(atk_target["count"]) > 0 and not bool(atk_target["retaliated"]):
-			atk_target["retaliated"] = true
-			var t_ranged: bool = UnitType.is_ranged(String(atk_target["type"]))
-			var rdmg: int = max(1, _dmg(atk_target, estack, t_ranged) / 2)
-			var rkill: int = _apply_dmg(estack, rdmg)
-			msg += "  Konter: %d Sch., -%d" % [rdmg, rkill]
-		_set_action(msg)
+		_set_action("Feind %s -> %s: %s" % [atk_s, def_s2, _melee_exchange(estack, atk_target)])
 	else:
 		# Niemand diese Runde erreichbar -> marschiere Richtung Primaerziel.
 		var best_step: Vector2i = epos
@@ -724,6 +792,7 @@ func _ai_turn() -> void:
 				best_to_target = mt
 				best_step = cv
 		if best_step != epos:
+			estack["tiles_moved"] = int(dist_map.get(best_step, 0))
 			estack["pos"] = best_step
 			_set_action("Feind %s bewegt sich." % atk_s)
 		else:
@@ -734,7 +803,7 @@ func _ai_turn() -> void:
 	_advance()
 
 
-func _dijkstra_for(start: Vector2i, blocked: Array) -> Dictionary:
+func _dijkstra_for(start: Vector2i, blocked: Array, flying: bool = false) -> Dictionary:
 	# Kuerzeste-Pfad-Distanzen vom Startfeld, respektiert Feldkosten der
 	# Obstacles (Busch/Sumpf = 2) und blockierende Obstacles (Stein/Baum).
 	# Fuer 10x8 Felder genuegt ein simpler O(N^2)-Loop statt echter
@@ -764,7 +833,9 @@ func _dijkstra_for(start: Vector2i, blocked: Array) -> Dictionary:
 			if n in blocked:
 				continue
 			var step_cost: int = 1
-			if _ob_map.has(n):
+			# Flieger (M6b) ueberqueren Stein/Baum und ignorieren
+			# Gelaende-Aufschlaege - besetzte Felder bleiben tabu.
+			if _ob_map.has(n) and not flying:
 				var kind: int = int(_ob_map[n])
 				if kind == 0 or kind == 1:
 					continue
@@ -776,10 +847,10 @@ func _dijkstra_for(start: Vector2i, blocked: Array) -> Dictionary:
 	return dist
 
 
-func _bfs_for(start: Vector2i, blocked: Array) -> Dictionary:
+func _bfs_for(start: Vector2i, blocked: Array, flying: bool = false) -> Dictionary:
 	# Alter BFS-Alias -> delegiert jetzt auf Dijkstra, damit KI-
 	# Pfadsuche dieselben Obstacle-Regeln wie der Spieler sieht.
-	return _dijkstra_for(start, blocked)
+	return _dijkstra_for(start, blocked, flying)
 
 
 func _attack_cell_for(from: Vector2i, target_pos: Vector2i, dist_map: Dictionary, spd: int) -> Vector2i:
@@ -803,7 +874,9 @@ func _attack_cell_for(from: Vector2i, target_pos: Vector2i, dist_map: Dictionary
 func _dmg(attacker: Dictionary, defender: Dictionary, melee_penalty: bool) -> int:
 	var a_bonus: int = _player_bonus if int(attacker["side"]) == 0 else 0
 	var d_bonus: int = _player_bonus if int(defender["side"]) == 0 else 0
-	return CombatMath.damage(attacker, defender, melee_penalty, a_bonus, d_bonus, _rng)
+	# tiles_moved speist den Jousting-Bonus (Kavalier/Wolfsreiter).
+	var opts: Dictionary = {"tiles_moved": int(attacker.get("tiles_moved", 0))}
+	return CombatMath.damage(attacker, defender, melee_penalty, a_bonus, d_bonus, _rng, opts)
 
 
 func _apply_dmg(stack: Dictionary, dmg: int) -> int:

@@ -16,21 +16,36 @@ extends RefCounted
 #               no_melee_penalty x1.0. units.json definiert die Flags
 #               nicht formal - das hier ist die dokumentierte
 #               Interpretation (HoMM3-analog: Moench ohne Malus).
+#   ability   = Ziel-def x0.75 bei defense_ignore_25pct, + Jousting-/
+#               Speertraeger-Bonus aus Abilities.melee_bonus_pct
+#               (M6b Teil 1; opts["tiles_moved"] liefert die gelaufenen
+#               Felder). Alle Bonus-Traeger sind Nahkaempfer, deshalb
+#               braucht der Bonus keine Fernkampf-Sonderbehandlung.
 #   damage    = max(1, base * mod)
+#
+# Der 7. Parameter opts ist optional - bestehende Aufrufer bleiben
+# unveraendert gueltig.
+
+
+const Abil := preload("res://scripts/core/Abilities.gd")
 
 
 static func damage(attacker: Dictionary, defender: Dictionary,
 		melee_penalty: bool, att_bonus: int, def_bonus: int,
-		rng: RandomNumberGenerator) -> int:
+		rng: RandomNumberGenerator, opts: Dictionary = {}) -> int:
 	var uid: String = String(attacker["type"])
 	var ut: Dictionary = UnitType.get_type(uid)
 	var att: int = int(ut.get("att", 4)) + att_bonus
-	var dut: Dictionary = UnitType.get_type(String(defender["type"]))
-	var def_val: int = int(dut.get("def", 4)) + def_bonus
+	var did: String = String(defender["type"])
+	var dut: Dictionary = UnitType.get_type(did)
+	var def_val: int = Abil.def_after_ignore(uid, int(dut.get("def", 4)) + def_bonus)
 	var base: int = rng.randi_range(int(ut.get("dmg_min", 1)), int(ut.get("dmg_max", 3)))
 	var total: float = float(base * int(attacker["count"]))
 	var diff: int = att - def_val
 	var mod: float = 1.0 + clampf(float(diff) * 0.05, -0.7, 1.5)
+	var bonus_pct: int = Abil.melee_bonus_pct(uid, did, int(opts.get("tiles_moved", 0)))
+	if bonus_pct != 0:
+		mod *= 1.0 + float(bonus_pct) / 100.0
 	if melee_penalty:
 		var abilities: Array = ut.get("abilities", []) as Array
 		if abilities.has("no_melee_penalty"):
@@ -59,3 +74,25 @@ static func apply(stack: Dictionary, dmg: int) -> int:
 	var rem: int = total % hp_per
 	stack["top_hp"] = hp_per if rem == 0 else rem
 	return before - int(stack["count"])
+
+
+# Gegenstueck zu apply(): fuellt den HP-Pool wieder auf - erst die
+# angeschlagene vorderste Einheit, dann (Lebensentzug der Vampire)
+# gefallene Einheiten zurueck, aber nie ueber die Startstaerke hinaus.
+# Ein vernichteter Stack bleibt tot. Rueckgabe: tatsaechlich geheilte HP.
+static func heal(stack: Dictionary, hp: int) -> int:
+	if hp <= 0 or int(stack["count"]) <= 0:
+		return 0
+	var hp_per: int = UnitType.hp_of(String(stack["type"]))
+	if hp_per <= 0:
+		return 0
+	var cap_count: int = int(stack.get("count_start", stack["count"]))
+	var cur: int = (int(stack["count"]) - 1) * hp_per + int(stack["top_hp"])
+	var new_total: int = min(cap_count * hp_per, cur + hp)
+	var healed: int = new_total - cur
+	if healed <= 0:
+		return 0
+	stack["count"] = (new_total - 1) / hp_per + 1
+	var rem: int = new_total % hp_per
+	stack["top_hp"] = hp_per if rem == 0 else rem
+	return healed
