@@ -1,8 +1,11 @@
 # Drive-Migration: Unternehmensdaten aus dem Privatkonto lösen
 
-**Stand:** 27.07.2026 · **Anlass:** Zugriff des Gesellschafters Felix Kern auf die Unternehmensdaten
-im Google Drive soll beendet werden. Die Ordnerstruktur liegt aktuell auf seinem privaten
-Google-Konto.
+**Stand:** 27.07.2026 · **Anlass:** Der Zugriff des Gesellschafters Felix Kern auf die
+Unternehmensdaten im Google Drive soll beendet werden. Die Ordnerstruktur liegt auf seinem
+privaten Google-Konto.
+
+**Randbedingung:** Er wirkt nicht mit. Der Plan setzt durchgehend darauf, dass wir ohne seine
+Beteiligung, seine Zustimmung und ohne Administratorzugriff auf sein Konto auskommen müssen.
 
 ---
 
@@ -11,10 +14,7 @@ Google-Konto.
 ### 1.1 Eigentümerschaft
 
 Der Wurzelordner **„Kromeich & Partner"** (`1kriRg2pmh1H6J7XyfE_OtKQGs4M2HIH1`) gehört
-`felix.kern2014@gmail.com` – einem privaten Gmail-Konto außerhalb unseres Workspace.
-Damit hängt die komplette Ablage an einem Konto, auf das wir administrativ keinen Zugriff haben.
-
-Eigentümer der obersten Ebene:
+`felix.kern2014@gmail.com`. Eigentümer der obersten Ebene:
 
 | Ordner | Eigentümer |
 |---|---|
@@ -30,214 +30,255 @@ Eigentümer der obersten Ebene:
 
 In `01. Allgemein` gehören 10 von 15 Unterordnern demselben Privatkonto – darunter
 `01. Gesellschaft`, `02. Marketing`, `03. Finanzen, Steuern`, `04. Vorlagen`,
-`09. Knowledge Sharing`, `10. IT`. Die restlichen gehören `kern@kromeichpartner.de` (11. HR,
-12. Versicherungen, 13. Diverses, 14. Partner) bzw. `kromeich@` / `florian.brimmers@`.
-
-Auch inhaltlich liegt Substanz auf dem Privatkonto: Gesellschafts- und Anstellungsverträge
-(`Anstellungsvertrag_GesGF_DK.docx`, `Arbeitsvertrag OS.docx`), Kooperationsverträge (Derricks,
-Omnia Real Estate), Finanzamt-/Steuerkorrespondenz, Ausgangsrechnungen 2025, Mieter- und
-Investorenlisten, PPT-Master und Logo-Dateien, HR-Unterlagen mit Ausweisdokumenten.
+`09. Knowledge Sharing`, `10. IT`. Inhaltlich betrifft das Gesellschafts- und
+Anstellungsverträge, Kooperationsverträge, Finanzamtskorrespondenz, Ausgangsrechnungen 2025,
+Mieter- und Investorenlisten, PPT-Master und Logos, HR-Unterlagen mit Ausweisdokumenten.
 
 Nebenbefund: `Eigentümerliste_Updates.xlsx` gehört `kormeich@gmail.com` – ein **zweites**
-privates Gmail-Konto in der Ablage. Ebenfalls ablösen.
+privates Gmail-Konto. Ebenfalls ablösen.
 
-### 1.2 Akuter Zusatzbefund: die Ablage ist per Link öffentlich
+### 1.2 Die Ablage ist per Link öffentlich
 
-Der Wurzelordner trägt die Freigabe `{"role": "reader", "type": "anyone"}` – „Jeder, der den Link
-hat" **ohne Google-Login**. Diese Freigabe vererbt sich auf den gesamten Baum; stichprobenartig
-bestätigt für `01. Allgemein`, `01. Gesellschaft`, `03. Finanzen, Steuern` und `11. HR`.
+Der Wurzelordner trägt `{"role": "reader", "type": "anyone"}` – lesbar **ohne Google-Login**,
+vererbt auf den gesamten Baum (bestätigt für `01. Allgemein`, `01. Gesellschaft`,
+`03. Finanzen, Steuern`, `11. HR`). Betroffen sind damit auch Personalausweis-Scans, eine
+Heiratsurkunde, Arbeitsverträge und die Steuerkorrespondenz.
 
-Betroffen sind damit u. a. HR-Dokumente mit Personalausweis-Scans, Heiratsurkunde und
-Arbeitsverträgen sowie die komplette Steuer- und Finanzkorrespondenz. Das ist unabhängig von
-Felix Kern zu behandeln: Wer je einen Link erhalten oder weitergeleitet hat – Kandidat, Makler,
-Dienstleister – kann bis heute lesen. Datenschutzrechtlich (Art. 32 DSGVO, besondere Kategorien
-in den HR-Unterlagen) ist das der dringlichste Punkt des ganzen Vorgangs.
+Das ist unabhängig von Felix Kern zu behandeln und hat zwei unangenehme Seiten:
 
-> Hinweis zur Methode: Die Berechtigungsliste zeigt nur, was das abfragende Konto sehen darf.
-> Die vollständige Mitgliederliste je Ordner bitte zusätzlich in der Drive-UI prüfen.
+1. Wer je einen Link bekommen hat, liest bis heute mit (Art. 32 DSGVO, besondere Kategorien
+   personenbezogener Daten in den HR-Unterlagen).
+2. **Diese Freigabe ist gleichzeitig unser Zugangsweg.** Auf den Felix-eigenen Ordnern können
+   wir sie nicht entfernen – und er kann sie jederzeit widerrufen. Mit dem Widerruf verlieren
+   wir den Lesezugriff und damit die Möglichkeit, überhaupt noch zu migrieren.
 
-### 1.3 Warum „Felix einfach entfernen" nicht funktioniert
+Daraus folgt die zentrale Reihenfolge dieses Plans: **erst kopieren, dann kommunizieren.**
 
-In Google Drive kann dem **Eigentümer** einer Datei der Zugriff nicht entzogen werden. Solange
-`felix.kern2014@gmail.com` Eigentümer ist, gilt:
+### 1.3 Warum der Zugriff nicht einfach entzogen werden kann
 
-- Wir können ihn nicht aus den eigenen Ordnern entfernen.
-- Er kann jederzeit unsere Freigaben ändern, Inhalte löschen oder in den eigenen Papierkorb
-  verschieben.
-- Er könnte den öffentlichen Link jederzeit weiter streuen.
-- Wenn er sein Google-Konto löscht oder das Speicherlimit reißt, sind die Daten für uns weg.
+Dem **Eigentümer** einer Datei kann in Google Drive der Zugriff nicht genommen werden. Solange
+`felix.kern2014@gmail.com` Eigentümer ist, kann er unsere Freigaben ändern, Inhalte löschen, den
+öffentlichen Link weiter streuen – und mit seinem Konto verschwinden die Daten. Auf ein
+privates Google-Konto hat unsere Workspace-Administration keinen Hebel: keine Datenübertragung,
+keine Sperrung, keine Zwangsübertragung der Eigentümerschaft.
 
-Der Zugriff endet also erst, wenn die **Eigentümerschaft** bei der Kromeich & Partner
-Organisation liegt. Genau das leistet eine geteilte Ablage.
+Ohne seine Mitwirkung bleibt genau ein Weg: **kopieren**. Eine Kopie gehört dem Konto, das sie
+anlegt – bzw. direkt der geteilten Ablage, wenn dorthin kopiert wird.
+
+### 1.4 Machbarkeit verifiziert
+
+Am 27.07.2026 mit zwei Testkopien geprüft, weil der ganze Plan daran hängt: Hätte Felix
+„Betrachter dürfen nicht kopieren" gesetzt, wäre auch der Kopierweg versperrt.
+
+| Test | Quelle (Eigentümer felix.kern2014@gmail.com) | Ergebnis |
+|---|---|---|
+| Binärdatei | `Seriennummer Drucker.pdf` | Kopie angelegt, Eigentümer `florian.brimmers@kromeichpartner.de` |
+| Google-Doc | `Fee Structure Asset Management` | Kopie angelegt, Eigentümer `florian.brimmers@kromeichpartner.de`, Inhalt vollständig |
+
+**Der Kopierweg funktioniert.** Die beiden Testdateien liegen als
+`MIGRATIONSTEST_1_bitte_loeschen.pdf` und `MIGRATIONSTEST_2_bitte_loeschen` in Florians „Meine
+Ablage" und können gelöscht werden.
 
 ---
 
 ## 2. Zielbild: geteilte Ablage im bestehenden Workspace
 
-Wir bauen nichts Neues auf, sondern nutzen, was in Google Workspace `kromeichpartner.de`
-bereits enthalten ist:
+Kein neues Werkzeug – nur, was in Google Workspace `kromeichpartner.de` schon enthalten ist:
 
-- **Geteilte Ablage** (Shared Drive) statt „My Drive" einer Person. Eigentümer ist die
-  Organisation, nicht ein Nutzer. Konto weg ≠ Daten weg.
-- **Google-Gruppen** als Zugriffsschicht (`gf@`, `team@`, `finanzen@`, `hr@`). Zugriff wird über
-  Gruppenmitgliedschaft gesteuert, nicht per Einzelfreigabe – Onboarding/Offboarding ist danach
-  ein Klick.
-- **Admin-Konsole** für Datenübertragung und Konto-Sperrung bei internen Konten.
-- **Audit-Log** (Drive-Protokoll) für die Nachkontrolle, wer wann was geöffnet oder
-  heruntergeladen hat.
+- **Geteilte Ablage** (Shared Drive): Eigentümer ist die Organisation, nicht eine Person.
+  Konto weg ≠ Daten weg. Das ist die eigentliche Reparatur des Grundfehlers.
+- **Google-Gruppen** (`gf@`, `team@`, `finanzen@`, `hr@`) als Zugriffsschicht – Ein- und
+  Austritt ist danach eine Gruppenmitgliedschaft, keine Freigabe-Archäologie.
+- **Admin-Konsole** für das interne Konto `kern@kromeichpartner.de`.
+- **Audit-Log** (Drive-Protokoll) für die Nachkontrolle.
 
-**Vorab zu prüfen:** Geteilte Ablagen setzen mindestens *Business Standard* voraus. Läuft der
-Tenant auf *Business Starter*, ist ein Upgrade Voraussetzung (bringt zugleich 2 TB Pool-Speicher
-pro Nutzer, was für die Videoaufzeichnungen der Co-Working-Sessions ohnehin sinnvoll ist).
+**Vorab prüfen:** Geteilte Ablagen brauchen mindestens *Business Standard*. Auf *Business
+Starter* ist ein Upgrade Voraussetzung – bringt zugleich Pool-Speicher, den die Kopien belegen
+werden (Binärdateien zählen auf das Kontingent, Google-Docs nicht; die Meeting-Recordings mit
+~1 GB je Datei sind der Treiber).
 
-Zielstruktur – 1:1 wie heute, damit sich für das Team nichts ändert:
+Zielstruktur – bewusst zweigeteilt, das ist die Lehre aus Abschnitt 1.2:
 
 ```
-Geteilte Ablage „Kromeich & Partner"
-├── 01. Allgemein            → Gruppe team@       (Unterordner HR/Finanzen eingeschränkt)
-├── 02. Investment           → Gruppe team@
-├── 03. Leasing              → Gruppe team@
-├── 04. Asset Management     → Gruppe team@
-├── 05. Consulting           → Gruppe team@
-├── 06. Project Management   → Gruppe team@
-├── 07. Logistik             → Gruppe team@
-└── 08. Research             → Gruppe team@
+Geteilte Ablage „Kromeich & Partner"      → Gruppe team@
+├── 01. Allgemein  (ohne HR/Finanzen)
+├── 02. Investment
+├── 03. Leasing
+├── 04. Asset Management
+├── 05. Consulting
+├── 06. Project Management
+├── 07. Logistik
+└── 08. Research
 
-Geteilte Ablage „KP Vertraulich"   → nur gf@
-├── Gesellschaft / Beteiligungen
-├── Finanzen, Steuern
-└── HR / Personalakten
+Geteilte Ablage „KP Vertraulich"          → nur gf@
+├── 01. Gesellschaft
+├── 03. Finanzen, Steuern
+└── 11. HR
 ```
-
-Die Trennung in zwei Ablagen ist die eigentliche Lehre aus dem Befund: Personalakten und
-Gesellschaftsunterlagen haben in einem Baum, der breit geteilt wird, nichts zu suchen.
 
 ---
 
 ## 3. Umsetzung
 
-### Phase 0 — Sofortmaßnahmen (heute, ohne Felix)
+### Phase 0 — Vorbereitung, ohne Außenwirkung
 
-1. **Öffentliche Links kappen.** Bei jedem Ordner, auf dem wir Bearbeiter mit Freigaberecht sind,
-   „Jeder mit dem Link" → „Eingeschränkt" setzen. Auf den Felix-eigenen Ordnern geht das nur
-   durch ihn oder mit der Migration – umso mehr Grund, Phase 2 nicht liegen zu lassen.
-2. **Backup ziehen.** Vollständige Kopie des Baums über Google Drive für Desktop (oder `rclone
-   copy`) auf einen von uns kontrollierten Speicher. Vor jeder Verschiebeaktion. Nicht
-   verhandelbar.
-3. **Inventar sichern.** Datei-Liste inkl. Eigentümer als Nachweis des Ist-Zustands exportieren
-   (Basis: die hier erhobenen API-Daten).
-4. **Kein Ankündigungseffekt.** Solange Felix Eigentümer ist, hat er technisch die Oberhand.
-   Erst Backup, dann Kommunikation.
+1. **Nichts ankündigen.** Solange er Eigentümer ist und wir über seinen öffentlichen Link
+   lesen, hat er die Oberhand. Jede Vorwarnung kann den Zugang kosten.
+2. **Bestandsaufnahme sichern.** Datei-Liste mit Eigentümern als Nachweis des Ist-Zustands
+   exportieren (Basis: die hier erhobenen API-Daten). Dient später als Belegkette.
+3. **Öffentliche Freigaben dokumentieren**, wo wir sie nicht selbst schließen können. Das ist
+   die Grundlage für das Lösch- und Schließverlangen in Abschnitt 5.
+4. **Rechtliche Abstimmung anstoßen** (parallel, blockiert Phase 1–2 nicht).
 
 ### Phase 1 — Geteilte Ablagen aufsetzen (Admin, ~1 h)
 
-1. Workspace-Edition prüfen, ggf. auf Business Standard upgraden.
-2. Geteilte Ablagen „Kromeich & Partner" und „KP Vertraulich" anlegen.
-3. Google-Gruppen anlegen/befüllen, als Mitglieder der Ablagen hinzufügen.
-4. Ablage-Einstellungen härten: Freigabe außerhalb der Organisation **aus**, Download/Kopieren für
-   Betrachter **aus** (bei „KP Vertraulich"), nur Manager dürfen Struktur ändern.
-5. In der Admin-Konsole → Apps → Google Workspace → Drive und Docs vorübergehend freischalten:
-   - *Migrationseinstellungen:* „Nutzer dürfen Dateien in geteilte Ablagen verschieben" **ein**
-   - *Freigabeeinstellungen:* externe Mitglieder in geteilten Ablagen zulassen (nur temporär)
+1. Workspace-Edition prüfen, ggf. Upgrade.
+2. Beide geteilten Ablagen anlegen, Zielordner-IDs notieren.
+3. Google-Gruppen anlegen/befüllen und als Mitglieder eintragen.
+4. Ablagen härten: Freigabe außerhalb der Organisation **aus**, bei „KP Vertraulich"
+   Download/Kopieren für Betrachter **aus**, Strukturänderungen nur für Manager.
+5. Admin-Konsole → Apps → Google Workspace → Drive und Docs → *Migrationseinstellungen*:
+   „Nutzer dürfen Dateien in geteilte Ablagen verschieben" **ein** (nötig für den
+   Verschiebe-Anteil in Phase 2).
+6. Ausführendes Konto braucht mindestens *Inhaltsmanager* in der Zielablage.
 
-### Phase 2a — Migration **mit** Mitwirkung von Felix (empfohlener Weg)
+### Phase 2 — Migration (Werkzeug: `scripts/drive_migrate_copy.py`)
 
-Der technisch saubere Weg. Verschieben in eine geteilte Ablage überträgt die Eigentümerschaft an
-die Organisation – **inklusive** Versionshistorie, Kommentaren, Erstellungsdaten und bestehenden
-Links. Nichts bricht, keine Dubletten.
+Für die Migration liegt ein Skript im Repo, das auf denselben OAuth-Secrets läuft wie die
+Kontakt-Pipeline (`GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`). Der
+Token braucht zusätzlich den Scope `https://www.googleapis.com/auth/drive` – der vorhandene
+Gmail-Token reicht nicht, er ist auf `gmail.readonly` beschränkt.
 
-1. `felix.kern2014@gmail.com` **temporär** als *Inhaltsmanager* der Zielablage hinzufügen.
-2. Felix verschiebt die sechs ihm gehörenden Top-Ordner sowie die zehn Unterordner in
-   `01. Allgemein` in die geteilte Ablage (Drive-Web: Ordner markieren → „Verschieben nach" →
-   geteilte Ablage). In Chargen, nicht alles auf einmal – Ordnerverschiebungen mit vielen tausend
-   Dateien laufen sonst in Teilfehler.
-3. Nach jeder Charge prüfen: Eigentümer aller Objekte ist jetzt die geteilte Ablage.
-4. Wenn alles drin ist: Felix als Mitglied **entfernen**. Ab diesem Moment hat er keinen Zugriff
-   mehr – auf keine Datei, auch nicht auf die von ihm erstellten.
-5. Dasselbe für `kormeich@gmail.com` (Eigentümerliste).
-6. Admin-Toggles aus Phase 1.5 wieder zurückdrehen (externe Mitglieder aus).
+Es behandelt jedes Objekt nach Eigentümer, und das ist der Kern der Sache:
 
-Falls Felix nur zur *Herausgabe*, nicht zur Mitarbeit bereit ist: Er kann alternativ
-`admin@kromeichpartner.de` zum Eigentümer der Ordner machen (Freigabe → Rolle „Inhaber"). Danach
-verschieben wir selbst. Etwas mehr Handarbeit, gleiches Ergebnis.
+| Objekt | Aktion | Warum |
+|---|---|---|
+| Ordner | im Ziel neu angelegt | Ordner sind nicht kopierbar |
+| Datei des ausführenden Kontos | **verschoben** | Historie, Kommentare, Zeitstempel bleiben erhalten |
+| fremde Datei | **kopiert** | einziger Weg, das Eigentum zu lösen |
+| Verknüpfung | im zweiten Durchlauf neu angelegt | Ziel-IDs existieren erst nach dem Hauptlauf |
 
-### Phase 2b — Migration **ohne** Mitwirkung von Felix (Rückfallebene)
+**Damit ist der verlustbehaftete Anteil so klein wie möglich.** Alles, was uns schon gehört –
+und das ist ein erheblicher Teil der jüngeren Ablage: `07. Logistik`, `08. Research`,
+`08. Events`, `15. Dienstreisen`, sämtliche Meeting-Notizen und Recordings – wandert
+verlustfrei per Verschieben. Kopiert wird nur, was den Privatkonten gehört.
 
-Ohne ihn lässt sich Eigentum nicht übertragen – Google gibt uns keinen administrativen Hebel auf
-ein fremdes Privatkonto. Bleibt: **kopieren.**
+Weil „eigene Datei" vom ausführenden Konto abhängt, lohnt der Lauf **pro Mitarbeiterkonto**.
+Die fünf Refresh-Tokens aus der Kontakt-Pipeline (Florian, Denise, Marek, Lena, Oguzhan) sind
+dafür schon vorhanden. Reihenfolge:
 
-1. Kompletten Baum über Drive für Desktop / `rclone` lokal spiegeln.
-2. Inhalte in die geteilte Ablage hochladen → Eigentümer ist damit die Organisation.
-3. Team auf die neue Ablage umstellen, alte Struktur nicht mehr benutzen.
-4. Freigaben zur Altstruktur von unserer Seite entfernen.
+```bash
+# 1. Trockenlauf – zeigt Aktionen und Datenmenge, ändert nichts
+python3 scripts/drive_migrate_copy.py --source <ALT_WURZEL_ID> \
+    --target <ZIEL_ORDNER_ID> --manifest migration.csv --dry-run
 
-Preis dieses Wegs, bitte bewusst entscheiden:
+# 2. Ein Durchlauf je Mitarbeiterkonto: verschiebt dessen eigene Dateien verlustfrei.
+#    Dasselbe Manifest für alle Läufe – bereits migrierte Objekte werden übersprungen.
+GOOGLE_REFRESH_TOKEN=$TOKEN_FLORIAN python3 scripts/drive_migrate_copy.py \
+    --source <ALT_WURZEL_ID> --target <ZIEL_ORDNER_ID> --manifest migration.csv
+GOOGLE_REFRESH_TOKEN=$TOKEN_DENISE  python3 scripts/drive_migrate_copy.py ...   # usw.
 
-- Versionshistorie, Kommentare und Original-Zeitstempel gehen verloren (relevant bei
-  Vertrags- und Steuerunterlagen mit Nachweisbedarf).
-- Alle bestehenden Links in Mails, Asana, Notion und Propstack zeigen weiter auf die alten
-  Dateien.
-- Google-Docs/Sheets/Slides werden zu Kopien; wer aktiv im Original weiterarbeitet, arbeitet an
-  der falschen Datei. Kurze Schreibsperre-Phase einplanen.
-- **Die Originale bleiben in seinem Besitz.** Technisch endet unsere Abhängigkeit, sein
-  Datenbesitz nicht. Deshalb Abschnitt 4.
+# 3. Abschlusslauf mit einem beliebigen Konto: kopiert alles Übrige (Privatkonten).
 
-### Phase 2c — Das interne Konto `kern@kromeichpartner.de`
+# 4. Nachkontrolle – prüft jede Manifest-Zeile im Ziel, md5 bei Binärdateien
+python3 scripts/drive_migrate_copy.py --manifest migration.csv --verify
+```
 
-Hier sind wir Administrator, das ist trivial:
+Eigenschaften, die bei einem Lauf über mehrere tausend Dateien den Unterschied machen:
 
-1. Admin-Konsole → Nutzer → `kern@…` → **Daten übertragen** (Drive + Docs) auf
-   `admin@kromeichpartner.de`, dann in die geteilte Ablage verschieben.
+- **Wiederaufsetzbar.** Das Manifest wird zeilenweise geschrieben; nach Abbruch macht derselbe
+  Aufruf dort weiter, wo er stand, ohne Dubletten.
+- **Backoff mit Augenmaß.** Drive quittiert Ratenbegrenzung *und* fehlende Rechte mit HTTP 403.
+  Nur die Ratenbegrenzung wird wiederholt – sonst kostet jede gesperrte Datei Minuten Leerlauf.
+- **Keine stillen Verluste.** Nicht kopierbare Objekte landen als `fehler` im Manifest und
+  lassen den Lauf mit Exit-Code 1 enden. Was nicht mitkommt, steht namentlich da.
+- **Herkunftsnachweis.** Jede Kopie trägt Original-ID, -Eigentümer, -Zeitstempel und -Pfad in
+  der Beschreibung; dieselben Daten stehen im Manifest. Das ist der Teilersatz für die
+  Metadaten, die beim Kopieren verloren gehen – bei Vertrags- und Steuerunterlagen der
+  nachweisrelevante Punkt.
+- **alt→neu-ID-Mapping.** Das Manifest ist die Grundlage, um Links in Asana, Notion, Propstack
+  und Mails nachzuziehen.
+
+Getestet mit nachgebautem Drive-Dienst: `python3 -m pytest tests/test_drive_migrate_copy.py`
+(12 Tests: Kopieren, Verschieben, Rückfall auf Kopieren ohne Schreibrecht, gesperrte Dateien,
+Verknüpfungen, Wiederanlauf, Trockenlauf, 403-Unterscheidung, Nachkontrolle).
+
+### Phase 2b — Das interne Konto `kern@kromeichpartner.de`
+
+Hier sind wir Administrator, das ist unabhängig von seiner Mitwirkung:
+
+1. Admin-Konsole → Nutzer → **Daten übertragen** (Drive + Docs) auf ein Zielkonto; die Dateien
+   gehören danach uns und werden vom Migrationslauf **verschoben**, nicht kopiert.
 2. Alle Sitzungen beenden, App-Passwörter und OAuth-Token widerrufen.
-3. Konto **sperren** (nicht löschen – Beweis- und Aufbewahrungslage). Löschen erst nach
-   Ablauf der Aufbewahrungsfristen, ggf. mit Vault-Aufbewahrung.
-4. Mailweiterleitung und Delegierung für laufende Vorgänge einrichten.
+3. Konto **sperren, nicht löschen** (Beweis- und Aufbewahrungslage), ggf. Vault-Aufbewahrung.
+4. Mailweiterleitung/Delegierung für laufende Vorgänge einrichten.
 
-### Phase 3 — Nachkontrolle
+### Phase 3 — Umschalten und Nachkontrolle
 
-1. **Freigabe-Audit** über den gesamten neuen Baum: keine „Jeder mit dem Link"-Freigabe mehr,
-   keine externen Einzelfreigaben. Bestehende Link-Freigaben auf Einzeldateien überleben die
-   Verschiebung und müssen aktiv entfernt werden.
-2. **Audit-Log** (Admin-Konsole → Berichte → Drive) auf Massendownloads in den Tagen vor dem
-   Entzug prüfen und das Ergebnis dokumentieren.
-3. **Zugriffstest:** Bestätigen, dass der alte Wurzel-Link ohne Login nichts mehr liefert.
-4. **Automatisierungen prüfen:** Skripte und Connectors in diesem Repo, die auf Drive-IDs
-   zeigen, laufen nach der Verschiebung weiter (IDs bleiben stabil) – bei Weg 2b **nicht**.
-   Dann müssen die IDs nachgezogen werden.
+1. `--verify` läuft ohne Abweichung durch. Erst dann weiter.
+2. **Freigabe-Audit** über die neue Ablage: keine „Jeder mit dem Link"-Freigabe, keine externen
+   Einzelfreigaben. Beim Kopieren werden Freigaben der Quelldateien nicht mitgenommen – bei
+   verschobenen Dateien schon. Diese aktiv entfernen.
+3. **Team umschalten:** neue Ablage ist ab Datum X die einzige Quelle. Verknüpfung „Kromeich &
+   Partner" (`1wgl4XZeY-4q8RoRQ0K18muZfkXx5f5gh`) aus den „Meine Ablage"-Ordnern entfernen,
+   damit niemand aus Gewohnheit in der Altstruktur weiterarbeitet.
+4. **Links nachziehen** anhand des Manifests (Asana, Notion, Propstack, Mailvorlagen).
+   Die Automatisierungen in diesem Repo enthalten keine fest verdrahteten Drive-IDs (geprüft),
+   sind also nicht betroffen.
+5. **Audit-Log** (Admin-Konsole → Berichte → Drive) auf Massendownloads prüfen und das Ergebnis
+   dokumentieren.
+6. Erst jetzt: Kommunikation und das Schreiben aus Abschnitt 5.
 
 ---
 
-## 4. Was Technik nicht löst
+## 4. Was der Kopierweg kostet – und was davon bleibt
 
-Nach Phase 2 hat Felix keinen *Zugriff* mehr. Was er bereits heruntergeladen, synchronisiert oder
-– bei Weg 2b – als Original behalten hat, bleibt bei ihm. Das ist ein organisatorischer und
-rechtlicher Vorgang, kein IT-Vorgang:
+Ehrlich benannt, damit die Entscheidung bewusst fällt:
 
-- Schriftliche Aufforderung zur Löschung aller Unternehmensdaten aus privaten Konten und
-  Endgeräten, mit Frist und Löschbestätigung.
-- Prüfen, was Gesellschaftsvertrag, Geschäftsführeranstellungsvertrag und NDA zu Herausgabe und
-  Löschung hergeben.
-- Soweit personenbezogene Daten Dritter betroffen sind (HR-Unterlagen, Eigentümer- und
-  Mieterlisten), ist die Kromeich & Partner Verantwortlicher im Sinne der DSGVO – die
-  Verarbeitung auf einem privaten Gmail-Konto ohne Grundlage ist ein eigenständiges Thema und
-  stützt das Löschverlangen.
-- Zwei Dinge auseinanderhalten: Der **operative Datenzugriff** darf entzogen werden. Als
+| Verlust | Umfang | Gegenmaßnahme |
+|---|---|---|
+| Versionshistorie, Kommentare | nur bei kopierten Dateien (Privatkonten) | Original-Metadaten in Beschreibung + Manifest |
+| Erstellungs-/Änderungsdatum | dito | dito |
+| Alte Links zeigen auf seine Originale | alle Verweise auf kopierte Dateien | ID-Mapping im Manifest, Phase 3.4 |
+| Doppelte Bearbeitung während der Umstellung | Google-Docs, an denen aktiv gearbeitet wird | kurze Schreibpause, Umschalttermin kommunizieren |
+| Speicherverbrauch | Binärkopien belegen das Kontingent doppelt | Edition/Pool prüfen (Phase 1.1) |
+
+Was **nicht** verloren geht: alles, was Konten unserer Domain gehört – das wird verschoben.
+
+---
+
+## 5. Was Technik nicht löst
+
+Nach Phase 3 hat er keinen Zugriff auf unsere Ablage. Aber: **die Originale bleiben sein
+Eigentum, und die öffentliche Freigabe darauf können nur er oder Google schließen.** Wir
+kopieren uns aus der Abhängigkeit heraus – nicht aus seinem Datenbesitz. Der Rest ist
+organisatorisch und rechtlich:
+
+- **Schriftliche Aufforderung**, (a) alle Unternehmensdaten aus privaten Konten und Endgeräten
+  zu löschen und (b) die öffentliche Linkfreigabe auf dem Wurzelordner **unverzüglich** zu
+  schließen. Mit Frist und Löschbestätigung. Punkt (b) ist der dringlichere – dort liegen
+  Ausweisdokumente und Arbeitsverträge unserer Mitarbeiter offen.
+- **Dokumentierter Befund als Grundlage:** Der Ist-Zustand aus Phase 0.3 belegt die Exposition.
+  Falls die Freigabe nicht geschlossen wird, ist zu prüfen, ob eine Meldung nach Art. 33 DSGVO
+  erforderlich ist – Verantwortlicher für diese Daten ist die Kromeich & Partner, nicht er.
+- **Vertragliche Hebel** prüfen: Gesellschaftsvertrag, Geschäftsführeranstellungsvertrag, NDA –
+  Herausgabe- und Löschpflichten, Vertragsstrafen.
+- **Zwei Dinge auseinanderhalten:** Der operative Datenzugriff darf entzogen werden. Als
   Gesellschafter hat er unabhängig davon ein Auskunfts- und Einsichtsrecht nach § 51a GmbHG.
   Beides ist vereinbar – Auskunft erteilt die Geschäftsführung anlassbezogen, nicht per
-  Dauerzugriff auf die Ablage. Diesen Punkt bitte mit der Rechtsberatung abstimmen, bevor der
-  Entzug kommuniziert wird.
+  Dauerzugriff auf die Ablage. Diesen Punkt vor der Kommunikation mit der Rechtsberatung
+  abstimmen; er ist der wahrscheinlichste Angriffspunkt gegen das Vorgehen.
 
 ---
 
-## 5. Weitere Systeme (gleiche Frage, anderes Tool)
+## 6. Weitere Systeme
 
-Der Drive ist der größte Brocken, aber nicht der einzige Ort mit Daten. Checkliste für dieselbe
-Prüfung – jeweils: eigenes Konto, private Adresse, Gastzugang, API-Token?
+Gleiche Frage, anderes Tool – jeweils: eigenes Konto, private Adresse, Gastzugang, API-Token?
 
 | System | Zu prüfen |
 |---|---|
-| Google Workspace | Konto `kern@`, Gruppen-Mitgliedschaften, Kalenderfreigaben, Weiterleitungen, geteilte Ablagen |
-| Slack | Mitgliedschaft, Gastkonten, private Kanäle, exportierte Daten |
+| Google Workspace | Konto `kern@`, Gruppen, Kalenderfreigaben, Weiterleitungen, geteilte Ablagen |
+| Slack | Mitgliedschaft, Gastkonten, private Kanäle, Exporte |
 | Propstack (CRM) | Nutzerkonto, API-Keys, Objekt- und Eigentümerdaten |
 | Notion | Workspace-Mitgliedschaft, private Seiten, geteilte Links |
 | Asana | Nutzerkonto, Projektmitgliedschaften, Gastzugänge |
@@ -248,24 +289,26 @@ Prüfung – jeweils: eigenes Konto, private Adresse, Gastzugang, API-Token?
 | Passwortmanager | Geteilte Tresore, Einzelzugänge |
 | Sonstiges | Domain-Registrar, Steuerberater-Portal, DATEV/Lexware, Versicherungsportale |
 
-Bei allen SaaS-Tools gilt: Konto **deaktivieren, nicht löschen**, damit Zuordnungen und Historie
-erhalten bleiben.
+Konten **deaktivieren, nicht löschen** – Zuordnungen und Historie bleiben so erhalten.
 
 ---
 
-## 6. Reihenfolge und Aufwand
+## 7. Reihenfolge und Aufwand
 
 | # | Schritt | Wer | Aufwand |
 |---|---|---|---|
-| 1 | Backup des gesamten Baums | IT | 2–4 h (Datenvolumen) |
-| 2 | Öffentliche Links kappen, soweit möglich | IT | 1 h |
-| 3 | Rechtliche Abstimmung (§ 51a, Löschverlangen, Kommunikation) | GF + Anwalt | – |
-| 4 | Edition prüfen / Upgrade | Admin | 0,5 h |
-| 5 | Geteilte Ablagen + Gruppen aufsetzen | Admin | 1 h |
-| 6 | Migration Weg 2a (bzw. 2b) | Admin + Felix | 2–6 h |
-| 7 | `kern@` übertragen und sperren | Admin | 1 h |
-| 8 | Freigabe-Audit, Audit-Log, Zugriffstest | IT | 2 h |
-| 9 | Restliche Systeme nach Checkliste | IT | 2–4 h |
+| 1 | Bestandsaufnahme und Exposition dokumentieren | IT | 1 h |
+| 2 | Rechtliche Abstimmung anstoßen (§ 51a, Löschverlangen) | GF + Anwalt | parallel |
+| 3 | Edition prüfen / Upgrade | Admin | 0,5 h |
+| 4 | Geteilte Ablagen + Gruppen aufsetzen | Admin | 1 h |
+| 5 | Drive-Scope für den OAuth-Token ergänzen | IT | 0,5 h |
+| 6 | Trockenlauf, Datenmenge und Fehlerliste bewerten | IT | 1 h |
+| 7 | Migrationsläufe je Konto + Abschlusslauf | IT | 2–6 h (Datenmenge) |
+| 8 | `kern@` übertragen und sperren | Admin | 1 h |
+| 9 | `--verify`, Freigabe-Audit, Audit-Log | IT | 2 h |
+| 10 | Umschalten, Links nachziehen | Team | 2 h |
+| 11 | Kommunikation und Schreiben (Löschung + Linkfreigabe) | GF | – |
+| 12 | Restliche Systeme nach Checkliste | IT | 2–4 h |
 
-Kritischer Pfad ist Schritt 3, nicht die Technik: Sobald der Entzug angekündigt ist, ist der
-Zeitraum bis zur abgeschlossenen Migration der riskante. Backup steht deshalb an Position 1.
+Kritisch ist nicht die Technik, sondern die Reihenfolge: Schritt 11 kommt **nach** Schritt 9.
+Wer vorher redet, verliert womöglich den Lesezugriff und damit die Migration.
