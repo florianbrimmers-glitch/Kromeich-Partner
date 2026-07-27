@@ -34,6 +34,14 @@ var _p_luck: int = 0
 var _e_luck: int = 0
 # Ergebnis des letzten Glueckswurfs fuer das Kampf-Log.
 var _last_luck: float = 1.0
+# Belagerung (M9). _siege = Mauer steht auf dem Feld; _wall_hp haelt die
+# Restpunkte je Segment-Position. Verteidiger ist immer Seite 1 (die
+# Stadt), Angreifer der Spieler - KI-Angriffe auf eigene Staedte laufen
+# weiter ueber die Auto-Abrechnung im WorldMapScreen.
+const SIEGE_DEF_BONUS := 2
+var _siege: bool = false
+var _wall_hp: Dictionary = {}
+var _tower_dmg: int = 0
 
 var _p_stacks: Array = []
 var _e_stacks: Array = []
@@ -70,6 +78,21 @@ func set_battle(ctx: Dictionary) -> void:
 	_log.clear()
 	_terrain_id = int(ctx.get("terrain_id", 0))
 	_obstacles = Obstacles.generate(_terrain_id, int(ctx.get("seed", 42)), GRID_COLS, GRID_ROWS)
+	# Belagerung: Mauer-Reihe dazu. Gelaende-Obstacles der Mauer-Spalte
+	# fallen weg, damit die Reihe nicht doppelt belegt ist.
+	_siege = bool(ctx.get("siege", false))
+	_tower_dmg = int(ctx.get("tower_dmg", 0))
+	_wall_hp.clear()
+	if _siege:
+		var wcol: int = Obstacles.wall_col(GRID_COLS)
+		var kept: Array = []
+		for o in _obstacles:
+			if int(Vector2i(o["pos"]).x) != wcol:
+				kept.append(o)
+		_obstacles = kept
+		for w in Obstacles.siege_walls(GRID_COLS, GRID_ROWS):
+			_obstacles.append(w)
+			_wall_hp[Vector2i(w["pos"])] = int(w["hp"])
 	_ob_map.clear()
 	for o in _obstacles:
 		_ob_map[Vector2i(o["pos"])] = int(o["kind"])
@@ -137,6 +160,8 @@ const HANDLED_ABILITIES: Array = [
 	"death_cloud_aoe_small",
 	# M6 (Moral/Glueck/Erzfeind)
 	"undead", "morale_aura", "hates:necro_tier7",
+	# M9 (Belagerung)
+	"attack_wall",
 ]
 
 
@@ -342,9 +367,81 @@ func _next_round() -> void:
 		s["morale_extra_used"] = false
 		Fx.tick(s)
 		_regenerate(s)
+	# Belagerungs-Runde: erst schiesst der Turm, dann arbeitet das
+	# Katapult - beides einmal pro Runde, bevor die Stacks ziehen.
+	_tower_shot()
+	_catapult_shot()
 	_rebuild_order()
 	_active_slot = 0
 	_step()
+
+
+# --- Belagerung (M9) ---
+
+func _walls_standing() -> bool:
+	return not _wall_hp.is_empty()
+
+
+# Schaden auf ein Mauer-Segment. Bei 0 verschwindet es aus _obstacles UND
+# _ob_map - damit ist das Feld sofort passierbar und schussdurchlaessig,
+# ohne dass Pathing oder Schusslinie etwas von Mauern wissen muessen.
+func _damage_wall(pos: Vector2i, dmg: int) -> String:
+	if not _wall_hp.has(pos):
+		return ""
+	var left: int = int(_wall_hp[pos]) - dmg
+	if left > 0:
+		_wall_hp[pos] = left
+		for o in _obstacles:
+			if Vector2i(o["pos"]) == pos:
+				o["hp"] = left
+		return "Mauer broeckelt"
+	_wall_hp.erase(pos)
+	_ob_map.erase(pos)
+	var keep: Array = []
+	for o in _obstacles:
+		if Vector2i(o["pos"]) != pos:
+			keep.append(o)
+	_obstacles = keep
+	return "Bresche!"
+
+
+# Das Katapult des Angreifers feuert einmal pro Runde auf das Segment,
+# das dem Tor am naechsten liegt - so entsteht die Bresche dort, wo der
+# Durchbruch taktisch etwas bringt.
+func _catapult_shot() -> void:
+	if not _siege or not _walls_standing():
+		return
+	var gate: int = Obstacles.gate_row(GRID_ROWS)
+	var best: Vector2i = Vector2i(-1, -1)
+	var best_d: int = 9999
+	for pos in _wall_hp.keys():
+		var d: int = abs(int((pos as Vector2i).y) - gate)
+		if d < best_d:
+			best_d = d
+			best = pos
+	if best.x < 0:
+		return
+	var res: String = _damage_wall(best, 1)
+	if res != "":
+		_set_action("Katapult -> Mauer (%d,%d): %s" % [best.x, best.y, res])
+
+
+# Pfeilturm der Stadt: solange die Mauer steht, trifft er einmal pro
+# Runde den groessten Angreifer-Stack.
+func _tower_shot() -> void:
+	if not _siege or _tower_dmg <= 0 or not _walls_standing():
+		return
+	var target: Dictionary = {}
+	var best: int = -1
+	for s in _p_stacks:
+		if int(s["count"]) > 0 and int(s["count"]) > best:
+			best = int(s["count"])
+			target = s
+	if target.is_empty():
+		return
+	var killed: int = _apply_dmg(target, _tower_dmg)
+	_set_action("Pfeilturm -> %s: %d Sch., -%d" % [
+		UnitType.short_of(String(target["type"])), _tower_dmg, killed])
 
 
 # Rundenstart-Regeneration (Baumvater heilt immer, Gespenst nur
@@ -652,6 +749,35 @@ func _draw_obstacles(o: Vector2, c: float) -> void:
 				Color(0.30, 0.36, 0.20), true)
 			_grid_area.draw_circle(ctr + Vector2(-c * 0.20, -c * 0.10), c * 0.08, Color(0.18, 0.24, 0.12))
 			_grid_area.draw_circle(ctr + Vector2(c * 0.22, c * 0.15), c * 0.08, Color(0.18, 0.24, 0.12))
+		elif kind == 4:
+			# Stadtmauer (M9): Quaderblock mit Zinnen. Angeschlagene
+			# Segmente (hp 1) bekommen Risse, damit der Spieler sieht,
+			# wo die naechste Katapult-Kugel die Bresche schlaegt.
+			var cell_tl := o + Vector2(float(pos.x) * c, float(pos.y) * c)
+			_grid_area.draw_rect(Rect2(cell_tl + Vector2(c * 0.06, c * 0.16),
+				Vector2(c * 0.88, c * 0.72)), Color(0.52, 0.50, 0.46), true)
+			# Zinnen oben.
+			for z in range(3):
+				_grid_area.draw_rect(Rect2(
+					cell_tl + Vector2(c * (0.08 + 0.30 * float(z)), c * 0.04),
+					Vector2(c * 0.22, c * 0.14)), Color(0.58, 0.56, 0.52), true)
+			# Fugen.
+			_grid_area.draw_line(cell_tl + Vector2(c * 0.06, c * 0.44),
+				cell_tl + Vector2(c * 0.94, c * 0.44), Color(0.34, 0.32, 0.30), 1.5)
+			_grid_area.draw_line(cell_tl + Vector2(c * 0.50, c * 0.16),
+				cell_tl + Vector2(c * 0.50, c * 0.44), Color(0.34, 0.32, 0.30), 1.5)
+			_grid_area.draw_line(cell_tl + Vector2(c * 0.28, c * 0.44),
+				cell_tl + Vector2(c * 0.28, c * 0.88), Color(0.34, 0.32, 0.30), 1.5)
+			_grid_area.draw_rect(Rect2(cell_tl + Vector2(c * 0.06, c * 0.16),
+				Vector2(c * 0.88, c * 0.72)), Color(0.24, 0.23, 0.22), false, 2.0)
+			if int(ob.get("hp", Obstacles.WALL_SEGMENT_HP)) <= 1:
+				var crack := Color(0.15, 0.13, 0.12)
+				_grid_area.draw_line(cell_tl + Vector2(c * 0.30, c * 0.20),
+					cell_tl + Vector2(c * 0.46, c * 0.52), crack, 2.5)
+				_grid_area.draw_line(cell_tl + Vector2(c * 0.46, c * 0.52),
+					cell_tl + Vector2(c * 0.36, c * 0.84), crack, 2.5)
+				_grid_area.draw_line(cell_tl + Vector2(c * 0.62, c * 0.30),
+					cell_tl + Vector2(c * 0.74, c * 0.60), crack, 2.0)
 
 
 # Kleiner Cyan-Ring auf der Oberseite eines Stacks, der gewartet hat:
@@ -756,12 +882,32 @@ func _on_grid_input(event: InputEvent) -> void:
 			_try_attack_enemy(i)
 			return
 
+	# Mauer-Angriff (M9): Einheiten mit attack_wall koennen ein Segment
+	# selbst niederschlagen, statt auf das Katapult zu warten. Das ist
+	# die Daseinsberechtigung des Zyklopen.
+	if _try_attack_wall(active, cell):
+		return
+
 	if _reachable.has(cell) and cell != Vector2i(active["pos"]):
 		active["tiles_moved"] = int(_reachable.get(cell, 0))
 		active["pos"] = cell
 		_set_action("Held %s bewegt sich." % UnitType.short_of(String(active["type"])))
 		_build_reachable()
 		_end_player_turn()
+
+
+# Tap auf ein Mauer-Segment mit einer attack_wall-Einheit. Rueckgabe
+# true = Aktion verbraucht (Zug beendet).
+func _try_attack_wall(active: Dictionary, cell: Vector2i) -> bool:
+	if not _siege or not _wall_hp.has(cell):
+		return false
+	var uid: String = String(active["type"])
+	if not UnitType.has_ability(uid, "attack_wall"):
+		return false
+	var res: String = _damage_wall(cell, 1)
+	_set_action("%s schlaegt gegen die Mauer: %s" % [UnitType.short_of(uid), res])
+	_end_player_turn()
+	return true
 
 
 func _try_attack_enemy(e_idx: int) -> void:
@@ -1038,7 +1184,7 @@ func _dijkstra_for(start: Vector2i, blocked: Array, flying: bool = false) -> Dic
 	# Priority-Queue. Obstacle-Kind/Block-Checks sind inline als Integer-
 	# Vergleiche, weil Cross-File-class_name-Aufrufe im Android-Export
 	# historisch unzuverlaessig waren (siehe Pathfinder.gd).
-	# KIND: 0=Stein, 1=Baumstamm, 2=Busch, 3=Sumpf.
+	# KIND: 0=Stein, 1=Baumstamm, 2=Busch, 3=Sumpf, 4=Stadtmauer.
 	var dist: Dictionary = {start: 0}
 	var visited: Dictionary = {}
 	while true:
@@ -1061,11 +1207,14 @@ func _dijkstra_for(start: Vector2i, blocked: Array, flying: bool = false) -> Dic
 			if n in blocked:
 				continue
 			var step_cost: int = 1
-			# Flieger (M6b) ueberqueren Stein/Baum und ignorieren
+			# Flieger (M6b) ueberqueren Stein/Baum/Mauer und ignorieren
 			# Gelaende-Aufschlaege - besetzte Felder bleiben tabu.
 			if _ob_map.has(n) and not flying:
 				var kind: int = int(_ob_map[n])
-				if kind == 0 or kind == 1:
+				# 0=Stein, 1=Baumstamm, 4=Stadtmauer blocken; 2=Busch,
+				# 3=Sumpf kosten doppelt. Kinds bewusst als Literale,
+				# siehe Funktionskopf.
+				if kind == 0 or kind == 1 or kind == 4:
 					continue
 				if kind == 2 or kind == 3:
 					step_cost = 2
@@ -1102,6 +1251,10 @@ func _attack_cell_for(from: Vector2i, target_pos: Vector2i, dist_map: Dictionary
 func _dmg(attacker: Dictionary, defender: Dictionary, melee_penalty: bool) -> int:
 	var a_bonus: int = _player_bonus if int(attacker["side"]) == 0 else 0
 	var d_bonus: int = _player_bonus if int(defender["side"]) == 0 else 0
+	# Belagerung: die Stadt-Seite (1) steht hinter der Mauer und ist
+	# schwerer zu treffen, solange kein Segment gefallen ist.
+	if _siege and int(defender["side"]) == 1 and _walls_standing():
+		d_bonus += SIEGE_DEF_BONUS
 	# tiles_moved speist den Jousting-Bonus (Kavalier/Wolfsreiter).
 	var opts: Dictionary = {"tiles_moved": int(attacker.get("tiles_moved", 0))}
 	var dmg: int = CombatMath.damage(attacker, defender, melee_penalty, a_bonus, d_bonus, _rng, opts)

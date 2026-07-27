@@ -11,14 +11,20 @@ const KIND_ROCK  := 0  # Stein:     blockt Bewegung + Schusslinie voll.
 const KIND_LOG   := 1  # Baumstamm: blockt Bewegung, Schuss durchgebrochen = Schaden /2.
 const KIND_BUSH  := 2  # Busch:     durchquerbar, aber doppelte Feldkosten (halbe Speed).
 const KIND_SWAMP := 3  # Sumpf:     durchquerbar, doppelte Feldkosten (halbe Speed).
+const KIND_WALL  := 4  # Stadtmauer (M9): wie Stein, aber zerstoerbar.
+
+# Belagerung: HP je Mauer-Segment. Das Katapult macht 1 Schaden pro Runde,
+# ein Segment haelt also zwei Runden - lang genug, dass die Bresche eine
+# Entscheidung ist, kurz genug fuer eine Handy-Schlacht.
+const WALL_SEGMENT_HP := 2
 
 
 static func blocks_move(kind: int) -> bool:
-	return kind == KIND_ROCK or kind == KIND_LOG
+	return kind == KIND_ROCK or kind == KIND_LOG or kind == KIND_WALL
 
 
 static func blocks_los(kind: int) -> bool:
-	return kind == KIND_ROCK
+	return kind == KIND_ROCK or kind == KIND_WALL
 
 
 static func halves_damage(kind: int) -> bool:
@@ -40,7 +46,35 @@ static func display_name(kind: int) -> String:
 		KIND_LOG:   return "Baumstamm"
 		KIND_BUSH:  return "Busch"
 		KIND_SWAMP: return "Sumpf"
+		KIND_WALL:  return "Mauer"
 	return "?"
+
+
+# Mauer-Segmente einer belagerten Stadt (M9). Reihe in Spalte cols-4,
+# also direkt vor der Verteidiger-Startreihe (cols-2): der Verteidiger
+# steht dahinter, der Angreifer muss durchs Tor, eine Bresche schlagen
+# oder darueber fliegen (Flieger ignorieren Hindernisse ohnehin).
+# Die Tor-Luecke sitzt in der Mittelreihe, damit auch Fussvolk ohne
+# Katapult eine - riskante - Route hat.
+static func siege_walls(cols: int, rows: int) -> Array:
+	var out: Array = []
+	var col: int = cols - 4
+	if col < 1 or rows <= 0:
+		return out
+	var gate: int = rows / 2
+	for y in range(rows):
+		if y == gate:
+			continue
+		out.append({"pos": Vector2i(col, y), "kind": KIND_WALL, "hp": WALL_SEGMENT_HP})
+	return out
+
+
+static func gate_row(rows: int) -> int:
+	return rows / 2
+
+
+static func wall_col(cols: int) -> int:
+	return cols - 4
 
 
 static func generate(terrain_id: int, battle_seed: int, cols: int, rows: int) -> Array:

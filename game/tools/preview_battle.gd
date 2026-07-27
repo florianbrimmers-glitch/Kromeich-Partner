@@ -18,6 +18,7 @@ const COLS := 10
 const ROWS := 8
 const CELL := 96
 const FACTION_DIRS := ["waldvolk", "menschen", "totenreich", "orks"]
+const Obst := preload("res://scripts/core/BattleObstacles.gd")
 
 # Aufstellung wie im Spiel: Spieler Spalte 1, Gegner Spalte COLS-2.
 const PLAYER := ["men_spearman", "men_archer", "men_griffin", "men_angel"]
@@ -28,6 +29,12 @@ func _init() -> void:
 	var canvas := Image.create(COLS * CELL, ROWS * CELL, false, Image.FORMAT_RGBA8)
 	canvas.fill(Color(0.10, 0.12, 0.16, 1.0))
 	_draw_grid_lines(canvas)
+	# Belagerung (M9): Mauer-Reihe mit Tor-Luecke, ein Segment
+	# angeschlagen - so sieht der Spieler die Bresche kommen.
+	var walls: Array = Obst.siege_walls(COLS, ROWS)
+	for i in range(walls.size()):
+		var wp: Vector2i = Vector2i(walls[i]["pos"])
+		_draw_wall(canvas, wp, i == 0)
 
 	for i in range(PLAYER.size()):
 		var y: int = _row(i, PLAYER.size())
@@ -47,6 +54,35 @@ func _row(i: int, n: int) -> int:
 	if n <= 1:
 		return ROWS / 2
 	return (ROWS / (n + 1)) * (i + 1)
+
+
+# Mauer-Segment wie im Screen: Quaderblock mit Zinnen, angeschlagen mit
+# Rissen.
+func _draw_wall(canvas: Image, cell: Vector2i, damaged: bool) -> void:
+	var x0: int = cell.x * CELL
+	var y0: int = cell.y * CELL
+	var stone := Color(0.52, 0.50, 0.46, 1.0)
+	var edge := Color(0.24, 0.23, 0.22, 1.0)
+	for x in range(int(CELL * 0.06), int(CELL * 0.94)):
+		for y in range(int(CELL * 0.16), int(CELL * 0.88)):
+			canvas.set_pixel(x0 + x, y0 + y, stone)
+	# Zinnen
+	for z in range(3):
+		var zx0: int = int(CELL * (0.08 + 0.30 * float(z)))
+		for x2 in range(zx0, zx0 + int(CELL * 0.22)):
+			for y2 in range(int(CELL * 0.04), int(CELL * 0.16)):
+				canvas.set_pixel(x0 + x2, y0 + y2, Color(0.58, 0.56, 0.52, 1.0))
+	# Rahmen
+	for x3 in range(int(CELL * 0.06), int(CELL * 0.94)):
+		canvas.set_pixel(x0 + x3, y0 + int(CELL * 0.16), edge)
+		canvas.set_pixel(x0 + x3, y0 + int(CELL * 0.87), edge)
+	if damaged:
+		for t in range(int(CELL * 0.5)):
+			var f: float = float(t) / float(CELL * 0.5)
+			var cx: int = x0 + int(CELL * (0.30 + 0.16 * f))
+			var cy: int = y0 + int(CELL * (0.20 + 0.64 * f))
+			canvas.set_pixel(cx, cy, Color(0.15, 0.13, 0.12, 1.0))
+			canvas.set_pixel(cx + 1, cy, Color(0.15, 0.13, 0.12, 1.0))
 
 
 func _draw_grid_lines(canvas: Image) -> void:

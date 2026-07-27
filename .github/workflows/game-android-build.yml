@@ -68,6 +68,7 @@ jobs:
           $GODOT --headless --path game/ --script tools/test_wallet.gd
           $GODOT --headless --path game/ --script tools/test_ai_smoke.gd
           $GODOT --headless --path game/ --script tools/test_battle.gd
+          $GODOT --headless --path game/ --script tools/test_siege.gd
 
   android-apk:
     name: Godot -> APK (arm64-v8a)

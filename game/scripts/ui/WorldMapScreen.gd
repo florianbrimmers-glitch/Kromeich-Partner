@@ -117,6 +117,12 @@ const KAPELLE_XP_PER_TURN := 10
 # Glueck im Kampf pro Kapelle (M6), gedeckelt wie in Morale.LUCK_LIMIT.
 const LUCK_PER_KAPELLE := 1
 const LUCK_MAX := 3
+# Belagerung (M9): Pfeilturm-Schaden pro Runde, solange die Mauer steht,
+# und der Faktor, mit dem eine Mauer die Garnison in der Auto-Abrechnung
+# staerkt (KI-Angriffe auf Spielerstaedte laufen ohne Overlay).
+const SIEGE_TOWER_DMG := 12
+const SIEGE_TOWER_WACHTURM_BONUS := 8
+const SIEGE_AUTO_DEF_FACTOR := 1.25
 
 # Monster-Aufklaerung: exakte Staerke nur sichtbar, wenn der Held in
 # Manhattan-Reichweite ist. Weiter weg erscheint "?" (Info-Vorteil fuer
@@ -177,7 +183,7 @@ const BUILDINGS := [
 	{"id": "reiterei", "name": "Reiterei", "cost": {"gold": 1000, "wood": 5, "ore": 5}, "effect": "Rekruten Tier 5-6", "requires": "schmiede"},
 	{"id": "wachturm", "name": "Wachturm", "cost": {"gold": 400, "ore": 5}, "effect": "+1 Kampfkraft (dauerhaft)"},
 	{"id": "kapelle",  "name": "Kapelle",  "cost": {"gold": 500, "wood": 2, "ore": 2, "crystal": 1}, "effect": "+10 XP/Tag, +1 Glueck im Kampf"},
-	{"id": "mauer",    "name": "Stadtmauer", "cost": {"gold": 1200, "ore": 10, "wood": 5}, "effect": "Stadtverteidigung (Kampf-Bonus folgt)"},
+	{"id": "mauer",    "name": "Stadtmauer", "cost": {"gold": 1200, "ore": 10, "wood": 5}, "effect": "Belagerung: +2 Verteidigung, Pfeilturm, Angreifer braucht Bresche"},
 	{"id": "zitadelle", "name": "Zitadelle", "cost": {"gold": 2500, "wood": 10, "ore": 10, "crystal": 1}, "effect": "Rekruten Tier 7", "requires": ["reiterei", "mauer"]},
 ]
 # Startvorrat (Spieler UND KI), damit Tag-1-Bauten nicht an fehlendem
@@ -1723,7 +1729,7 @@ func _handle_tap(pos: Vector2) -> void:
 			var cidx: int = target_city_idx
 			_open_battle("Stadtwache", garrison, true, battle_terrain, func(r: Dictionary) -> void:
 				_on_city_result(r, cidx, target, cost)
-			)
+			, _siege_ctx_for(tc))
 			return
 
 	# Kein Kampf noetig: Mine/Schatz/Stadt ohne Wache oder leeres Feld.
@@ -1786,7 +1792,8 @@ func _monster_at(p: Vector2i) -> int:
 # Dictionary (outcome: "victory"/"defeat"/"flee", casualties: int) und
 # ist fuer Belohnung und Bewegung verantwortlich. Der Level/Wachturm-
 # Bonus fliesst in Att UND Def des Spieler-Stacks ein.
-func _open_battle(opp_name: String, opp_army: int, allow_flee: bool, terrain_id: int, on_result: Callable) -> void:
+func _open_battle(opp_name: String, opp_army: int, allow_flee: bool, terrain_id: int,
+		on_result: Callable, siege_ctx: Dictionary = {}) -> void:
 	var bonus: int = _combat_bonus()
 	var scene: PackedScene = load("res://scenes/TacticalBattle.tscn") as PackedScene
 	if scene == null:
@@ -1796,7 +1803,11 @@ func _open_battle(opp_name: String, opp_army: int, allow_flee: bool, terrain_id:
 	add_child(overlay)
 	if overlay.has_method("set_battle"):
 		var p_stacks: Array = _army_to_stacks(_hero.army)
-		var e_stacks: Array = _build_enemy_stacks(opp_name, opp_army)
+		# Verteidiger-Fraktion aus dem Belagerungs-/Stadt-Kontext: eine
+		# Totenreich-Stadt verteidigt sich mit Untoten, nicht mit
+		# Speertraegern (M9).
+		var e_stacks: Array = _build_enemy_stacks(opp_name, opp_army,
+			int(siege_ctx.get("faction", -1)))
 		overlay.call("set_battle", {
 			"player_name": "Held",
 			"player_stacks": p_stacks,
@@ -1807,6 +1818,8 @@ func _open_battle(opp_name: String, opp_army: int, allow_flee: bool, terrain_id:
 			"seed": _seed,
 			"terrain_id": terrain_id,
 			"player_luck": _player_luck(),
+			"siege": bool(siege_ctx.get("siege", false)),
+			"tower_dmg": int(siege_ctx.get("tower_dmg", 0)),
 		})
 	overlay.connect("battle_finished", func(result: Dictionary) -> void:
 		on_result.call(result)
@@ -1821,7 +1834,11 @@ func _open_battle(opp_name: String, opp_army: int, allow_flee: bool, terrain_id:
 # zusammensetzung. Keine RNG noetig - rein deterministisch aus der
 # Gesamtzahl, damit zwei Spieler mit gleichem Seed das gleiche Matchup
 # sehen.
-func _build_enemy_stacks(opp_name: String, total: int) -> Array:
+func _build_enemy_stacks(opp_name: String, total: int, faction: int = -1) -> Array:
+	# Fraktion gesetzt (Stadt-Wache, Belagerung): aus den ersten drei
+	# Tiers DIESER Fraktion mischen statt pauschal Menschen zu nehmen.
+	if faction >= 0:
+		return _faction_guard_stacks(faction, total)
 	if total <= 0:
 		return [{"type": "men_spearman", "count": 1}]
 	# Der Feind-Held erbt seine tatsaechliche Rekrutierung direkt aus der
@@ -1850,6 +1867,47 @@ func _build_enemy_stacks(opp_name: String, total: int) -> Array:
 		{"type": "men_spearman", "count": swords2},
 		{"type": "men_archer", "count": bows2},
 		{"type": "men_griffin", "count": riders},
+	]
+
+
+# Belagerungs-Kontext einer Zielstadt (M9): Fraktion immer, Mauer nur
+# wenn gebaut. Der Pfeilturm wird von Wachtuermen der Stadt verstaerkt -
+# so zahlt sich Ausbauen bei der Verteidigung aus.
+func _siege_ctx_for(city: Dictionary) -> Dictionary:
+	var built: Array = city.get("buildings", []) as Array
+	var walled: bool = built.has("mauer")
+	var tower: int = 0
+	if walled:
+		tower = SIEGE_TOWER_DMG
+		if built.has("wachturm"):
+			tower += SIEGE_TOWER_WACHTURM_BONUS
+	return {
+		"faction": int(city.get("faction", -1)),
+		"siege": walled,
+		"tower_dmg": tower,
+	}
+
+
+# Stadt-Wache einer Fraktion: gleiche Groessen-Staffelung wie die
+# generische Synthese, aber mit den Einheiten der Stadt selbst (Tier 1-3).
+func _faction_guard_stacks(fid: int, total: int) -> Array:
+	var ids: Array = UnitType.recruitable_ids_for_faction(fid)
+	if ids.is_empty():
+		return [{"type": "men_spearman", "count": max(1, total)}]
+	var t1: String = String(ids[0])
+	var t2: String = String(ids[1]) if ids.size() > 1 else t1
+	var t3: String = String(ids[2]) if ids.size() > 2 else t2
+	if total <= 2:
+		return [{"type": t1, "count": max(1, total)}]
+	if total <= 5:
+		var mid: int = max(1, int(round(float(total) * 0.4)))
+		return [{"type": t1, "count": total - mid}, {"type": t2, "count": mid}]
+	var high: int = max(1, int(round(float(total) * 0.2)))
+	var mid2: int = max(1, int(round(float(total) * 0.3)))
+	return [
+		{"type": t1, "count": max(1, total - mid2 - high)},
+		{"type": t2, "count": mid2},
+		{"type": t3, "count": high},
 	]
 
 
@@ -2813,6 +2871,11 @@ func _run_enemy_turn_for(idx: int) -> bool:
 		if target_kind == "city":
 			var tc: Dictionary = _cities[target_idx]
 			var garrison: int = int(tc.get("garrison", 0))
+			# Mauer zaehlt auch hier (M9): dieser Pfad ist die Auto-
+			# Abrechnung ohne Overlay, sonst waere die eigene Stadtmauer
+			# gegen KI-Angriffe wirkungslos.
+			if garrison > 0 and (tc.get("buildings", []) as Array).has("mauer"):
+				garrison = int(ceil(float(garrison) * SIEGE_AUTO_DEF_FACTOR))
 			if garrison > 0:
 				if eh.total_count() < garrison:
 					return true
