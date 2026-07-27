@@ -79,6 +79,37 @@ Am 27.07.2026 mit zwei Testkopien geprüft, weil der ganze Plan daran hängt: H�
 `MIGRATIONSTEST_1_bitte_loeschen.pdf` und `MIGRATIONSTEST_2_bitte_loeschen` in Florians „Meine
 Ablage" und können gelöscht werden.
 
+### 1.5 Gibt die Domain allein schon Zugriff?
+
+Nein – aber die Frage trifft einen blinden Fleck, der vor Phase 1 geklärt sein muss.
+
+Zugriff auf eine geteilte Ablage ist **explizite Mitgliedschaft**, Nutzer für Nutzer oder über
+Gruppen. Ein Konto in `kromeichpartner.de` sieht eine Ablage nicht, nur weil es zur Domain
+gehört. Am 27.07.2026 zusätzlich geprüft:
+
+- Neu angelegte Dateien in der Domain tragen **keine** `domain`-Berechtigung, nur den
+  Eigentümer. Die Voreinstellung „für alle in kromeichpartner.de freigeben" ist also aus.
+- Eine Kopie erbt die Freigaben der Quelle **nicht** (Testkopie: nur Eigentümer). Die
+  öffentliche Linkfreigabe aus 1.2 wandert damit nicht in die neue Ablage.
+
+Vier Wege führen trotzdem hinein – in dieser Prioritätsreihenfolge:
+
+1. **Administratorrollen.** Hat `kern@kromeichpartner.de` eine Super-Admin- oder delegierte
+   Administratorrolle, ist die gesamte Migration wirkungslos: Ein Admin kann sich selbst zu
+   jeder geteilten Ablage hinzufügen, per Datenexport oder Vault alles herausziehen, Passwörter
+   zurücksetzen und Konten übernehmen. **Vor Phase 1 prüfen:** Admin-Konsole → Konto →
+   Administratorrollen. Dabei mitklären, ob ein zweiter Super Admin existiert und wo
+   Domainverwaltung und Abo-Inhaberschaft liegen – ein Super Admin kann die übrigen aussperren.
+2. **Gruppen.** Wer in `team@` oder einer „alle Mitarbeiter"-Gruppe steht, erhält den Zugriff
+   transitiv. Mitgliedschaften prüfen, bevor Gruppen die Ablagen freigeben.
+3. **Domainweite Linkfreigabe.** Aktuell aus, aber pro Datei mit einem Klick setzbar
+   („Jeder in kromeichpartner.de"). Auf Ablage-Ebene per Freigabebeschränkung verhindern.
+4. **Bestehende Einzelfreigaben.** Alles, was ihm namentlich freigegeben wurde, funktioniert
+   weiter, solange das Konto aktiv ist – siehe Phase 2b.
+
+Das private Konto `felix.kern2014@gmail.com` ist gegenüber der neuen Ablage ein externes Konto
+und durch „keine externen Mitglieder" (Phase 1.4) ausgeschlossen.
+
 ---
 
 ## 2. Zielbild: geteilte Ablage im bestehenden Workspace
@@ -132,6 +163,8 @@ Geteilte Ablage „KP Vertraulich"          → nur gf@
 
 ### Phase 1 — Geteilte Ablagen aufsetzen (Admin, ~1 h)
 
+0. **Administratorrollen prüfen (siehe 1.5).** Solange `kern@` Administrator sein könnte, ist
+   jede weitere Maßnahme wirkungslos. Rolle entziehen, bevor die Ablagen entstehen.
 1. Workspace-Edition prüfen, ggf. Upgrade.
 2. Beide geteilten Ablagen anlegen, Zielordner-IDs notieren.
 3. Google-Gruppen anlegen/befüllen und als Mitglieder eintragen.
@@ -297,6 +330,7 @@ Konten **deaktivieren, nicht löschen** – Zuordnungen und Historie bleiben so 
 
 | # | Schritt | Wer | Aufwand |
 |---|---|---|---|
+| 0 | **Administratorrollen prüfen** (1.5) – entscheidet über alles Weitere | Admin | 0,5 h |
 | 1 | Bestandsaufnahme und Exposition dokumentieren | IT | 1 h |
 | 2 | Rechtliche Abstimmung anstoßen (§ 51a, Löschverlangen) | GF + Anwalt | parallel |
 | 3 | Edition prüfen / Upgrade | Admin | 0,5 h |
