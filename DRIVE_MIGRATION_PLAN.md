@@ -110,6 +110,103 @@ Vier Wege führen trotzdem hinein – in dieser Prioritätsreihenfolge:
 Das private Konto `felix.kern2014@gmail.com` ist gegenüber der neuen Ablage ein externes Konto
 und durch „keine externen Mitglieder" (Phase 1.4) ausgeschlossen.
 
+### 1.6 Er ist Super Admin — was das ändert
+
+Bestätigt am 27.07.2026: `kern@kromeichpartner.de` hat die Super-Admin-Rolle. Damit ist Punkt 1
+aus 1.5 eingetreten, und die Rangfolge des ganzen Vorhabens kippt: **Das Drive ist nicht das
+erste Problem. Der Workspace ist es.**
+
+Was ein Super Admin kann, unabhängig von jeder Ordnerberechtigung:
+
+- sich selbst zu jeder geteilten Ablage hinzufügen – auch zu einer neu angelegten
+- die komplette Organisation exportieren (Datenexport, Vault) oder eine Ablage **löschen**
+- Passwörter zurücksetzen, Konten übernehmen, Mailweiterleitung und Delegierung einrichten
+- Administratorrollen entziehen – auch die der übrigen Geschäftsführung
+- Domain-, Abo- und Sicherheitseinstellungen ändern
+- **die Audit-Protokolle einsehen** – ein Massenkopierlauf ist dort als Ereignisfolge sichtbar
+
+Der letzte Punkt trifft die Annahme, auf der Phase 0 aufgebaut war. „Erst kopieren, dann
+kommunizieren" funktioniert nur, solange die Migration unbemerkt bleibt. Ein Super Admin kann
+sie im Protokoll sehen. Sie bleibt trotzdem der richtige erste Schritt – aber als bewusst
+in Kauf genommenes Risiko mit kurzem Zeitfenster, nicht als sichere Deckung.
+
+Was sich dagegen **nicht** ändert: Sein privates Konto war nie unter unserer Kontrolle. Der
+Entzug der Admin-Rolle bringt uns den Zugriff auf `felix.kern2014@gmail.com` nicht – der
+Kopierweg aus Phase 2 bleibt der einzige Weg zu diesen Daten.
+
+#### Vor dem Entzug (Vorbereitung, ohne Außenwirkung)
+
+1. **Zweites Super-Admin-Konto** anlegen, das niemand für Tagesarbeit nutzt: eigenes Konto,
+   Hardware-Sicherheitsschlüssel, Zugangsdaten im Tresor der Geschäftsführung. Danach darf die
+   Administrationshoheit nicht mehr an einer Person hängen – das ist der Fehler, der hier
+   gerade sichtbar wird.
+2. **Backup außerhalb des Workspace.** Ein Super Admin kann auch geteilte Ablagen löschen; ein
+   Backup *innerhalb* von Google schützt nicht gegen ihn. Drive-Baum, Schlüsselpostfächer und
+   Kalender auf einen von uns kontrollierten Speicher.
+3. **Domainkontrolle prüfen:** Registrar-Zugang, DNS, MX-Einträge, Google-Verifizierungs-TXT.
+   Wer die DNS kontrolliert, kontrolliert am Ende den Workspace – das sticht jede Admin-Rolle.
+4. **Abo-Inhaberschaft und Zahlungsmittel** prüfen (ggf. Reseller).
+5. **Rechtliche Deckung** herstellen: Zuständigkeit für den Entzug klären und dokumentieren,
+   anwaltliches Schreiben vorbereiten. Bei einem Gesellschafter-Geschäftsführer ist das eine
+   andere Lage als bei einem reinen Gesellschafter – vor dem Entzug klären, nicht danach.
+
+#### Der Entzug (vorbereitet, in einem Zug – Minuten, nicht Tage)
+
+1. Super-Admin-Rolle entziehen: Admin-Konsole → Nutzer → `kern@` → Administratorrollen.
+2. Alle delegierten Rollen und Rollenzuweisungen entfernen.
+3. Sitzungen beenden („Nutzer abmelden"), Passwort zurücksetzen.
+4. **Wiederherstellungs-E-Mail und -Telefon entfernen.** Zeigt die Wiederherstellung auf
+   `felix.kern2014@gmail.com`, holt er sich das Konto sonst zurück.
+5. Bestätigung in zwei Schritten zurücksetzen, Backup-Codes verwerfen, App-Passwörter und
+   OAuth-Token widerrufen (Nutzer → Sicherheit → Verbundene Anwendungen).
+6. Daten übertragen (Phase 2b), dann Konto sperren.
+
+Der Entzug ist ein einzelner, vorbereiteter Vorgang. Halbe Schritte sind das Schlechteste:
+Google benachrichtigt bei Rollenänderungen, und bis zum letzten Schritt hat er dieselben
+Mittel wie wir.
+
+#### Was ein Super Admin hinterlassen kann – danach systematisch prüfen
+
+Der Entzug der Rolle beendet nicht, was vorher eingerichtet wurde:
+
+- weitere Administratorkonten (Nutzerliste **und** Rollenzuweisungen durchgehen)
+- Dienstkonten und OAuth-Clients mit **domainweiter Delegierung**
+  (Sicherheit → API-Steuerung) – das ist der unauffälligste Dauerzugang überhaupt
+- E-Mail-Routing, Journaling, Catch-All, Standard-Weiterleitungen (Apps → Gmail → Routing):
+  damit lässt sich sämtlicher Mailverkehr mitlesen, ohne ein Konto zu besitzen
+- Gmail-Delegierung auf fremde Postfächer
+- SSO/SAML-Konfiguration
+- Vault-Aufbewahrungsregeln und bereits gelaufene Exporte
+- Google-Cloud- und Apps-Script-Projekte, Dienstkonten-Schlüssel
+- Drittanbieter-Apps in der Zulassungsliste
+- Gruppen, in denen er Inhaber ist; Gruppen mit Selbstbeitritt
+- domainweite Freigabeeinstellungen
+- **Admin-Protokoll der letzten Monate** auf Rollenänderungen, Exporte und Routing-Änderungen
+  auswerten und das Ergebnis sichern
+
+#### Falls niemand sonst Super Admin ist
+
+Dann kann der Entzug nicht aus dem Workspace heraus erfolgen. Der Weg führt über die
+Domaininhaberschaft: Nachweis der Vertretungsberechtigung und Kontrolle über DNS/Registrar
+gegenüber Google Support. Das dauert, ist formell und setzt Punkt 3 der Vorbereitung voraus –
+umso wichtiger, das vorher zu prüfen.
+
+#### Reihenfolge: Migration zuerst oder Lockdown zuerst?
+
+Beides hat einen Preis. Der Lockdown alarmiert ihn und kostet voraussichtlich den öffentlichen
+Link, über den wir sein privates Drive überhaupt lesen. Die Migration zuerst lässt ihm die
+Admin-Mittel für weitere Stunden – und ist im Protokoll sichtbar.
+
+- **Ohne akute Eskalation:** Backup und Drive-Migration zuerst, unmittelbar danach der Lockdown
+  in einem Zug. Das Zeitfenster ist so lang wie die Migration – deshalb vorher trockenlaufen
+  lassen, damit der Echtlauf ohne Überraschungen durchgeht.
+- **Bei akuter Eskalation oder wenn er ohnehin aufmerksam ist:** Lockdown zuerst. Dann mit dem
+  Lesezugriff arbeiten, der übrig bleibt, und den Rest über den Rechtsweg holen.
+
+In beiden Fällen gilt Punkt 2 der Vorbereitung: **das Backup außerhalb des Workspace kommt vor
+allem anderen.** Die Daten sind ohnehin längst in seinen Händen – wogegen wir uns schützen, ist
+nicht Abfluss, sondern Zerstörung.
+
 ---
 
 ## 2. Zielbild: geteilte Ablage im bestehenden Workspace
@@ -163,8 +260,9 @@ Geteilte Ablage „KP Vertraulich"          → nur gf@
 
 ### Phase 1 — Geteilte Ablagen aufsetzen (Admin, ~1 h)
 
-0. **Administratorrollen prüfen (siehe 1.5).** Solange `kern@` Administrator sein könnte, ist
-   jede weitere Maßnahme wirkungslos. Rolle entziehen, bevor die Ablagen entstehen.
+0. **Admin-Lockdown nach 1.6.** `kern@` ist Super Admin – eine geteilte Ablage schützt nichts,
+   solange die Rolle besteht. Vorbereitung und Entzug gehören vor Phase 3, die Reihenfolge
+   gegenüber Phase 2 entscheidet 1.6 („Migration zuerst oder Lockdown zuerst").
 1. Workspace-Edition prüfen, ggf. Upgrade.
 2. Beide geteilten Ablagen anlegen, Zielordner-IDs notieren.
 3. Google-Gruppen anlegen/befüllen und als Mitglieder eintragen.
@@ -310,7 +408,8 @@ Gleiche Frage, anderes Tool – jeweils: eigenes Konto, private Adresse, Gastzug
 
 | System | Zu prüfen |
 |---|---|
-| Google Workspace | Konto `kern@`, Gruppen, Kalenderfreigaben, Weiterleitungen, geteilte Ablagen |
+| Google Workspace | **Super-Admin-Rolle (1.6)**, Konto `kern@`, Gruppen, Kalenderfreigaben, Weiterleitungen, geteilte Ablagen |
+| Miro | Team-Mitgliedschaft, Boards, geteilte Links (in dieser Sitzung nicht prüfbar – Connector nicht autorisiert) |
 | Slack | Mitgliedschaft, Gastkonten, private Kanäle, Exporte |
 | Propstack (CRM) | Nutzerkonto, API-Keys, Objekt- und Eigentümerdaten |
 | Notion | Workspace-Mitgliedschaft, private Seiten, geteilte Links |
@@ -330,7 +429,10 @@ Konten **deaktivieren, nicht löschen** – Zuordnungen und Historie bleiben so 
 
 | # | Schritt | Wer | Aufwand |
 |---|---|---|---|
-| 0 | **Administratorrollen prüfen** (1.5) – entscheidet über alles Weitere | Admin | 0,5 h |
+| 0a | Zweites, gesichertes Super-Admin-Konto einrichten (1.6) | Admin | 0,5 h |
+| 0b | **Backup außerhalb des Workspace** – vor allem anderen (1.6) | IT | 2–4 h |
+| 0c | Domainkontrolle, DNS/Registrar, Abo-Inhaberschaft prüfen (1.6) | Admin | 1 h |
+| 0d | Zuständigkeit für den Rollenentzug klären und dokumentieren (1.6) | GF + Anwalt | – |
 | 1 | Bestandsaufnahme und Exposition dokumentieren | IT | 1 h |
 | 2 | Rechtliche Abstimmung anstoßen (§ 51a, Löschverlangen) | GF + Anwalt | parallel |
 | 3 | Edition prüfen / Upgrade | Admin | 0,5 h |
