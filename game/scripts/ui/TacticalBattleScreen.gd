@@ -1296,11 +1296,28 @@ func _check_end() -> bool:
 		var uid: String = String(s["type"])
 		var lost: int = int(s.get("count_start", 0)) - int(s["count"])
 		if lost > 0: cas[uid] = int(cas.get(uid, 0)) + lost
-	if not p_alive:
-		battle_finished.emit({"outcome": "defeat", "casualties": cas})
-	else:
-		battle_finished.emit({"outcome": "victory", "casualties": cas})
+	# Ueberlebende BEIDER Seiten mitgeben: eine gescheiterte Belagerung
+	# soll die Stadt-Garnison geschwaecht zuruecklassen, und bei einem
+	# Verteidigungskampf um die eigene Stadt braucht der Aufrufer die
+	# Reste der eigenen (Garnisons-)Truppe.
+	var res: Dictionary = {
+		"outcome": "victory" if p_alive else "defeat",
+		"casualties": cas,
+		"player_remaining": _remaining_of(_p_stacks),
+		"enemy_remaining": _remaining_of(_e_stacks),
+	}
+	battle_finished.emit(res)
 	return true
+
+
+func _remaining_of(stacks: Array) -> Dictionary:
+	var out: Dictionary = {}
+	for s in stacks:
+		var c: int = int(s["count"])
+		if c > 0:
+			var uid: String = String(s["type"])
+			out[uid] = int(out.get(uid, 0)) + c
+	return out
 
 
 func _on_wait() -> void:

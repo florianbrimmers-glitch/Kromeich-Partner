@@ -18,6 +18,8 @@ signal build_requested(building_id: String)
 signal recruit_requested(unit_id: String)
 signal plaza_tapped(stats: String)
 signal market_trade_requested(res: String, buy: bool)
+# Einheiten zwischen Held und Stadt-Garnison verschieben (M9b).
+signal garrison_move_requested(unit_id: String, to_city: bool, all: bool)
 signal closed()
 
 const LAYOUT_PATH := "res://data/city_layout.json"
@@ -65,6 +67,11 @@ var _recruit_title: Label
 var _recruit_rows_box: VBoxContainer
 var _recruit_labels: Dictionary = {}
 var _recruit_buttons: Dictionary = {}
+# Garnison-Panel (M9b): wird bei jedem Oeffnen neu aufgebaut, weil sich
+# beide Seiten (Held/Stadt) staendig aendern.
+var _gar_panel: Panel
+var _gar_rows: VBoxContainer
+var _gar_title: Label
 var _cal: Label
 var _status: Label
 var _font: Font
@@ -125,6 +132,20 @@ func _build_hud() -> void:
 	_cal.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_cal)
 
+	# Garnison-Button neben "Schliessen": Einheiten der Stadt ansehen und
+	# mit dem Helden tauschen (M9b).
+	var gar_btn := Button.new()
+	gar_btn.text = "Garnison"
+	gar_btn.add_theme_font_size_override("font_size", 28)
+	gar_btn.custom_minimum_size = Vector2(200, 90)
+	gar_btn.anchor_left = 1.0
+	gar_btn.anchor_right = 1.0
+	gar_btn.offset_left = -240
+	gar_btn.offset_top = 130
+	gar_btn.offset_right = -20
+	gar_btn.pressed.connect(_open_garrison_panel)
+	add_child(gar_btn)
+
 	var close_btn := Button.new()
 	close_btn.text = "Schliessen"
 	close_btn.add_theme_font_size_override("font_size", 30)
@@ -161,6 +182,8 @@ func open(ctx: Dictionary) -> void:
 	_update_hud()
 	_refresh_trade_labels()
 	_refresh_recruit_labels()
+	if _gar_panel != null and _gar_panel.visible:
+		_fill_garrison_rows()
 	queue_redraw()
 
 
@@ -169,6 +192,8 @@ func refresh(ctx: Dictionary) -> void:
 	_update_hud()
 	_refresh_trade_labels()
 	_refresh_recruit_labels()
+	if _gar_panel != null and _gar_panel.visible:
+		_fill_garrison_rows()
 	queue_redraw()
 
 
@@ -828,6 +853,129 @@ func _build_recruit_panel() -> void:
 	close_btn.add_theme_font_size_override("font_size", 30)
 	close_btn.pressed.connect(func() -> void: _recruit_panel.visible = false)
 	vb.add_child(close_btn)
+
+
+# --- Garnison-Panel (M9b) ---
+# Links die Heldenarmee, rechts die Garnison. Pro Einheit eine Zeile mit
+# Verschiebe-Buttons; ohne Held vor Ort zeigt es nur den Bestand, weil
+# Tauschen dann nicht geht.
+
+func _open_garrison_panel() -> void:
+	if _gar_panel == null:
+		_build_garrison_panel()
+	_fill_garrison_rows()
+	_gar_panel.visible = true
+
+
+func _build_garrison_panel() -> void:
+	var panel := Panel.new()
+	panel.visible = false
+	panel.anchor_left = 0.5
+	panel.anchor_top = 0.5
+	panel.anchor_right = 0.5
+	panel.anchor_bottom = 0.5
+	panel.offset_left = -460
+	panel.offset_top = -540
+	panel.offset_right = 460
+	panel.offset_bottom = 540
+	add_child(panel)
+	_gar_panel = panel
+
+	var bg := ColorRect.new()
+	bg.color = Color(0.08, 0.09, 0.12, 1.0)
+	bg.anchor_right = 1.0
+	bg.anchor_bottom = 1.0
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(bg)
+
+	var vb := VBoxContainer.new()
+	vb.anchor_right = 1.0
+	vb.anchor_bottom = 1.0
+	vb.offset_left = 28
+	vb.offset_top = 28
+	vb.offset_right = -28
+	vb.offset_bottom = -28
+	vb.add_theme_constant_override("separation", 14)
+	panel.add_child(vb)
+
+	_gar_title = Label.new()
+	_gar_title.add_theme_font_size_override("font_size", 36)
+	vb.add_child(_gar_title)
+
+	_gar_rows = VBoxContainer.new()
+	_gar_rows.add_theme_constant_override("separation", 10)
+	vb.add_child(_gar_rows)
+
+	var spacer := Control.new()
+	spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	vb.add_child(spacer)
+
+	var close_btn := Button.new()
+	close_btn.text = "Schliessen"
+	close_btn.custom_minimum_size = Vector2(0, 96)
+	close_btn.add_theme_font_size_override("font_size", 30)
+	close_btn.pressed.connect(func() -> void: _gar_panel.visible = false)
+	vb.add_child(close_btn)
+
+
+func _fill_garrison_rows() -> void:
+	if _gar_rows == null:
+		return
+	for c in _gar_rows.get_children():
+		c.queue_free()
+	var city: Dictionary = _ctx.get("city", {})
+	var gar: Dictionary = city.get("garrison_army", {}) as Dictionary
+	var hero: Object = _ctx.get("hero", null)
+	var here: bool = bool(_ctx.get("hero_here", false))
+	_gar_title.text = "Garnison %s" % Garrison.summary(gar)
+	if not here:
+		var hint := Label.new()
+		hint.text = "Held ist nicht in der Stadt - Tauschen nicht moeglich.\nRekruten wandern direkt in die Garnison."
+		hint.add_theme_font_size_override("font_size", 26)
+		_gar_rows.add_child(hint)
+	# Alle Einheiten, die auf einer der beiden Seiten vorkommen.
+	var ids: Array = []
+	for uid in UnitType.all_ids():
+		var in_hero: int = int((hero.army as Dictionary).get(uid, 0)) if hero != null else 0
+		if in_hero > 0 or int(gar.get(uid, 0)) > 0:
+			ids.append(String(uid))
+	if ids.is_empty():
+		var empty := Label.new()
+		empty.text = "Keine Einheiten vorhanden."
+		empty.add_theme_font_size_override("font_size", 26)
+		_gar_rows.add_child(empty)
+		return
+	for uid in ids:
+		var u: String = String(uid)
+		var in_hero2: int = int((hero.army as Dictionary).get(u, 0)) if hero != null else 0
+		var in_city: int = int(gar.get(u, 0))
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 10)
+		_gar_rows.add_child(row)
+
+		var lbl := Label.new()
+		lbl.text = "%s  Held %d / Stadt %d" % [UnitType.name_of(u), in_hero2, in_city]
+		lbl.custom_minimum_size = Vector2(380, 0)
+		lbl.add_theme_font_size_override("font_size", 24)
+		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(lbl)
+
+		if here:
+			_add_move_button(row, "-> Stadt", u, true, false, in_hero2 > 0)
+			_add_move_button(row, "alle >>", u, true, true, in_hero2 > 0)
+			_add_move_button(row, "-> Held", u, false, false, in_city > 0)
+			_add_move_button(row, "<< alle", u, false, true, in_city > 0)
+
+
+func _add_move_button(row: HBoxContainer, text: String, uid: String,
+		to_city: bool, all: bool, enabled: bool) -> void:
+	var b := Button.new()
+	b.text = text
+	b.disabled = not enabled
+	b.custom_minimum_size = Vector2(150, 76)
+	b.add_theme_font_size_override("font_size", 22)
+	b.pressed.connect(func() -> void: garrison_move_requested.emit(uid, to_city, all))
+	row.add_child(b)
 
 
 func _refresh_recruit_labels() -> void:

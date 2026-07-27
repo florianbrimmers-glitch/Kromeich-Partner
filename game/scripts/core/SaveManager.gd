@@ -13,7 +13,7 @@ extends Node
 
 const SAVE_DIR := "user://saves"
 const AUTOSAVE_PATH := "user://saves/autosave.json"
-const SAVE_VERSION := 2
+const SAVE_VERSION := 3
 
 # v1 -> v2: Einheiten-IDs der 3-Tier-Aera (M4-Migration). Das Mapping
 # lebte als LEGACY_ALIASES in UnitType und wurde bei jedem Lookup
@@ -84,9 +84,30 @@ static func migrate(d: Dictionary) -> Dictionary:
 		match int(d["save_version"]):
 			1:
 				d = _migrate_1_to_2(d)
+			2:
+				d = _migrate_2_to_3(d)
 			_:
 				# Unbekannte Zwischenversion: nicht endlos schleifen.
 				d["save_version"] = SAVE_VERSION
+	return d
+
+
+# v2 -> v3: Stadt-Garnisonen werden echte Einheiten. Vorher stand dort
+# nur eine Staerke-Zahl, aus der der Kampf Stacks synthetisierte; jetzt
+# haelt jede Stadt ein { unit_id: count }-Dictionary wie der Held.
+# Die alte Zahl wird ueber Garrison.synth in Einheiten der Stadt-Fraktion
+# umgesetzt - ein Save aus v2 verliert also keine Verteidiger.
+static func _migrate_2_to_3(d: Dictionary) -> Dictionary:
+	for c in d.get("cities", []) as Array:
+		if not (c is Dictionary):
+			continue
+		var cd: Dictionary = c as Dictionary
+		if cd.has("garrison_army"):
+			continue
+		var strength: int = int(cd.get("garrison", 0))
+		var fid: int = int(cd.get("faction", 1))
+		cd["garrison_army"] = Garrison.synth(fid, strength) if strength > 0 else {}
+	d["save_version"] = 3
 	return d
 
 

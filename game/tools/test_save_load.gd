@@ -153,5 +153,18 @@ func _test_scene_roundtrip() -> void:
 		_check(typeof(fixture) == TYPE_DICTIONARY, "Fixture ist gueltiges JSON")
 		var migrated: Dictionary = SaveLib.migrate(fixture as Dictionary)
 		_check(wm.call("_restore_state", migrated), "Fixture v1 laedt nach migrate()")
+		# Die Kette v1 -> v2 -> v3 muss auch die Stadt-Garnisonen umsetzen:
+		# aus der alten Staerke-Zahl werden echte Einheiten (M9b).
+		_check(int(migrated.get("save_version", 0)) == SaveLib.SAVE_VERSION,
+			"Fixture landet auf v%d" % SaveLib.SAVE_VERSION)
+		var conv: int = 0
+		for c in migrated.get("cities", []) as Array:
+			var cd: Dictionary = c as Dictionary
+			if not Garrison.is_empty(cd.get("garrison_army", {})):
+				conv += 1
+				for uid in (cd["garrison_army"] as Dictionary).keys():
+					if UnitType.faction_of(String(uid)) != int(cd.get("faction", -1)):
+						_check(false, "migrierte Garnison passt nicht zur Fraktion")
+		_check(conv > 0, "alte Staerke-Zahl wurde zu echten Verteidigern (%d Staedte)" % conv)
 	wm.queue_free()
 	await process_frame

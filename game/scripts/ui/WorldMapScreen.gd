@@ -122,7 +122,6 @@ const LUCK_MAX := 3
 # staerkt (KI-Angriffe auf Spielerstaedte laufen ohne Overlay).
 const SIEGE_TOWER_DMG := 12
 const SIEGE_TOWER_WACHTURM_BONUS := 8
-const SIEGE_AUTO_DEF_FACTOR := 1.25
 
 # Monster-Aufklaerung: exakte Staerke nur sichtbar, wenn der Held in
 # Manhattan-Reichweite ist. Weiter weg erscheint "?" (Info-Vorteil fuer
@@ -525,7 +524,11 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 			"faction": _cities.size() % FACTION_NAMES.size(),
 			"owner": OWNER_NEUTRAL,
 			"buildings": [],
-			"garrison": rng.next_int(GARRISON_MIN, GARRISON_MAX),
+			# Echte Verteidiger statt einer Staerke-Zahl: die Einheiten
+			# der Stadt-Fraktion, die man beim Erobern auch besiegt.
+			"garrison_army": Garrison.synth(
+				_cities.size() % FACTION_NAMES.size(),
+				rng.next_int(GARRISON_MIN, GARRISON_MAX)),
 			"pools": {} as Dictionary,
 		})
 
@@ -556,7 +559,7 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 		else:
 			player_start_idx = roll
 		_cities[player_start_idx]["owner"] = OWNER_HERO
-		_cities[player_start_idx]["garrison"] = 0
+		_cities[player_start_idx]["garrison_army"] = {}
 		spawn = _cities[player_start_idx]["pos"]
 		_map["hero_spawn"] = spawn
 		_hero.position = spawn
@@ -595,7 +598,7 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 				break
 			var owner_id: int = OWNER_AI_MIN + slot
 			_cities[best_idx]["owner"] = owner_id
-			_cities[best_idx]["garrison"] = 0
+			_cities[best_idx]["garrison_army"] = {}
 			var ai_faction: int = int(_cities[best_idx]["faction"])
 			var ai_starter: String = UnitType.starter_id_for_faction(ai_faction)
 			var ai_hero := Hero.new(_cities[best_idx]["pos"], ENEMY_BASE_MP)
@@ -1170,7 +1173,7 @@ func _draw_map() -> void:
 			_map_area.draw_rect(crect, _ai_ring_color(owner), false, 4.0)
 		else:
 			_map_area.draw_rect(crect, Color(0.1, 0.1, 0.12), false, 2.0)
-		var garrison: int = int(city.get("garrison", 0))
+		var garrison: int = Garrison.total(city.get("garrison_army", {}))
 		if owner != OWNER_HERO and garrison > 0 and cfog == FOG_VISIBLE:
 			var cdist: int = abs(cp.x - _hero.position.x) + abs(cp.y - _hero.position.y)
 			var gtxt: String
@@ -1724,12 +1727,15 @@ func _handle_tap(pos: Vector2) -> void:
 	# Stadt-Wache: Overlay-Kampf. Bei Sieg claimt Callback die Stadt.
 	if target_city_idx >= 0 and int(_cities[target_city_idx]["owner"]) != OWNER_HERO:
 		var tc: Dictionary = _cities[target_city_idx]
-		var garrison: int = int(tc.get("garrison", 0))
-		if garrison > 0:
+		var gar: Dictionary = tc.get("garrison_army", {}) as Dictionary
+		if not Garrison.is_empty(gar):
 			var cidx: int = target_city_idx
-			_open_battle("Stadtwache", garrison, true, battle_terrain, func(r: Dictionary) -> void:
-				_on_city_result(r, cidx, target, cost)
-			, _siege_ctx_for(tc))
+			var sctx: Dictionary = _siege_ctx_for(tc)
+			sctx["enemy_army"] = gar
+			_open_battle("Stadtwache", Garrison.total(gar), true, battle_terrain,
+				func(r: Dictionary) -> void:
+					_on_city_result(r, cidx, target, cost)
+			, sctx)
 			return
 
 	# Kein Kampf noetig: Mine/Schatz/Stadt ohne Wache oder leeres Feld.
@@ -1802,12 +1808,22 @@ func _open_battle(opp_name: String, opp_army: int, allow_flee: bool, terrain_id:
 	var overlay = scene.instantiate()
 	add_child(overlay)
 	if overlay.has_method("set_battle"):
+		# Spieler-Seite: normalerweise die Heldenarmee. Bei einem
+		# Verteidigungskampf um die eigene Stadt steuert der Spieler
+		# stattdessen die Garnison (plus Held, falls er dort steht).
 		var p_stacks: Array = _army_to_stacks(_hero.army)
-		# Verteidiger-Fraktion aus dem Belagerungs-/Stadt-Kontext: eine
-		# Totenreich-Stadt verteidigt sich mit Untoten, nicht mit
-		# Speertraegern (M9).
-		var e_stacks: Array = _build_enemy_stacks(opp_name, opp_army,
-			int(siege_ctx.get("faction", -1)))
+		if siege_ctx.has("player_army"):
+			p_stacks = Garrison.to_stacks(siege_ctx["player_army"] as Dictionary)
+		# Gegner-Seite: echte Garnison-Einheiten, wenn vorhanden
+		# (Stadt-Angriff), sonst die Groessen-Synthese fuer Monster und
+		# Objektwachen. Fraktion aus dem Kontext, damit eine
+		# Totenreich-Stadt sich mit Untoten verteidigt (M9).
+		var e_stacks: Array
+		if siege_ctx.has("enemy_army"):
+			e_stacks = Garrison.to_stacks(siege_ctx["enemy_army"] as Dictionary)
+		else:
+			e_stacks = _build_enemy_stacks(opp_name, opp_army,
+				int(siege_ctx.get("faction", -1)))
 		overlay.call("set_battle", {
 			"player_name": "Held",
 			"player_stacks": p_stacks,
@@ -2028,7 +2044,7 @@ func _on_enemy_hero_result(result: Dictionary, target: Vector2i, cost: int, targ
 	var claimed: bool = false
 	if target_city_idx >= 0 and int(_cities[target_city_idx]["owner"]) != OWNER_HERO:
 		_cities[target_city_idx]["owner"] = OWNER_HERO
-		_cities[target_city_idx]["garrison"] = 0
+		_cities[target_city_idx]["garrison_army"] = {}
 		claimed = true
 	var msg_h_win: String
 	if leveled:
@@ -2092,19 +2108,26 @@ func _on_city_result(result: Dictionary, city_idx: int, target: Vector2i, cost: 
 		return
 	if outcome == "defeat":
 		_apply_casualties(result)
+		# Gescheiterte Belagerung: die Verteidiger haben Verluste und
+		# bleiben in dieser Staerke stehen - der naechste Versuch ist
+		# leichter. Vorher blieb die Garnison unversehrt.
+		if city_idx >= 0 and city_idx < _cities.size():
+			var lost_city: Dictionary = _cities[city_idx]
+			lost_city["garrison_army"] = SaveCodec.int_dict(
+				result.get("enemy_remaining", lost_city.get("garrison_army", {})))
 		_update_labels()
 		_on_battle_defeat()
 		return
 	if city_idx < 0 or city_idx >= _cities.size():
 		return
 	var tc: Dictionary = _cities[city_idx]
-	var garrison: int = int(tc.get("garrison", 0))
+	var garrison: int = Garrison.total(tc.get("garrison_army", {}))
 	var cas: int = _count_casualties(result)
 	_apply_casualties(result)
 	var xp_c: int = garrison * XP_PER_STRENGTH
 	_hero.xp += xp_c
 	var leveled_c: bool = _check_level_up()
-	tc["garrison"] = 0
+	tc["garrison_army"] = {}
 	tc["owner"] = OWNER_HERO
 	_finish_move_to(target, cost)
 	var fid: int = int(tc["faction"])
@@ -2273,6 +2296,7 @@ func _build_city_screen() -> void:
 	cs.recruit_requested.connect(_on_city_recruit)
 	cs.plaza_tapped.connect(_set_status)
 	cs.market_trade_requested.connect(_on_market_trade)
+	cs.garrison_move_requested.connect(_on_garrison_move)
 	cs.closed.connect(_on_city_closed)
 	_city_screen = cs
 
@@ -2317,6 +2341,12 @@ func _on_city_recruit(unit_id: String) -> void:
 	if _selected_city < 0:
 		return
 	_recruit_unit(_selected_city, unit_id)
+
+
+func _on_garrison_move(unit_id: String, to_city: bool, all: bool) -> void:
+	if _selected_city < 0:
+		return
+	_move_garrison(_selected_city, unit_id, to_city, all)
 
 
 func _on_market_trade(res: String, buy: bool) -> void:
@@ -2406,26 +2436,68 @@ func _recruit_unit(city_idx: int, unit_id: String) -> void:
 	var req: String = UnitType.building_for(unit_id)
 	if not built.has(req):
 		return
-	# Held muss in der Stadt stehen, sonst wuerden gekaufte Einheiten in
-	# die Heldenarmee teleportieren. Mirror zur Button-Logik in _show_city.
-	if _hero.position != Vector2i(city["pos"]):
-		return
 	# Pool: leer = abwarten bis die Tagesration den naechsten Stack liefert.
 	var pools: Dictionary = city.get("pools", {}) as Dictionary
 	if int(pools.get(unit_id, 0)) <= 0:
 		_set_status("Kein Nachschub")
 		return
-	# Stack-Limit: neuen Typ nur rein, wenn noch Slot frei ist. Bestehende
-	# Stacks koennen immer aufstocken.
-	if not _hero.can_add_unit(unit_id):
-		_set_status("Armee voll - max %d Stacks" % Hero.MAX_ARMY_SLOTS)
-		return
-	_hero.wallet.pay(cost)
-	_hero.add_units(unit_id, 1)
+	# Steht der Held in der Stadt, bekommt er die Einheit. Sonst wandert
+	# sie in die Garnison und verteidigt die Stadt - Fernverwaltung gibt
+	# es ja schon (eigene Stadt aus der Ferne antippen).
+	var hero_here: bool = _hero.position == Vector2i(city["pos"])
+	if hero_here:
+		# Stack-Limit: neuen Typ nur rein, wenn noch Slot frei ist.
+		# Bestehende Stacks koennen immer aufstocken.
+		if not _hero.can_add_unit(unit_id):
+			_set_status("Armee voll - max %d Stacks" % Hero.MAX_ARMY_SLOTS)
+			return
+		_hero.wallet.pay(cost)
+		_hero.add_units(unit_id, 1)
+		_set_status("Rekrutiert: +1 %s" % UnitType.name_of(unit_id))
+	else:
+		_hero.wallet.pay(cost)
+		var gar: Dictionary = city.get("garrison_army", {}) as Dictionary
+		Garrison.add(gar, unit_id, 1)
+		city["garrison_army"] = gar
+		_set_status("In die Garnison: +1 %s" % UnitType.name_of(unit_id))
 	pools[unit_id] = int(pools[unit_id]) - 1
 	city["pools"] = pools
 	_update_labels()
-	_set_status("Rekrutiert: +1 %s" % UnitType.name_of(unit_id))
+	_show_city(city_idx)
+
+
+# Einheiten zwischen Held und Stadt-Garnison verschieben (CityScreen-
+# Panel). to_city = true: vom Helden in die Stadt.
+func _move_garrison(city_idx: int, unit_id: String, to_city: bool, all: bool) -> void:
+	if city_idx < 0 or city_idx >= _cities.size():
+		return
+	var city: Dictionary = _cities[city_idx]
+	if _hero == null or _hero.position != Vector2i(city["pos"]):
+		_set_status("Held muss in der Stadt stehen")
+		return
+	var gar: Dictionary = city.get("garrison_army", {}) as Dictionary
+	if to_city:
+		var have: int = _hero.count_of(unit_id)
+		if have <= 0:
+			return
+		var n: int = have if all else 1
+		_hero.remove_units(unit_id, n)
+		Garrison.add(gar, unit_id, n)
+		_set_status("%d %s -> Garnison" % [n, UnitType.short_of(unit_id)])
+	else:
+		var in_city: int = int(gar.get(unit_id, 0))
+		if in_city <= 0:
+			return
+		# Slot-Limit des Helden respektieren (max 6 Typen).
+		if not _hero.can_add_unit(unit_id):
+			_set_status("Armee voll - max %d Stacks" % Hero.MAX_ARMY_SLOTS)
+			return
+		var n2: int = in_city if all else 1
+		Garrison.remove(gar, unit_id, n2)
+		_hero.add_units(unit_id, n2)
+		_set_status("%d %s -> Held" % [n2, UnitType.short_of(unit_id)])
+	city["garrison_army"] = gar
+	_update_labels()
 	_show_city(city_idx)
 
 
@@ -2604,7 +2676,7 @@ func _run_enemy_turn_for(idx: int) -> bool:
 			continue
 		if not ecosts.has(cp):
 			continue
-		var garrison_c: int = int(_cities[i].get("garrison", 0))
+		var garrison_c: int = Garrison.total(_cities[i].get("garrison_army", {}))
 		# Safety-Margin: KI greift nicht mit knapper Armee an, sondern
 		# braucht AI_RAID_SAFETY_PCT Prozent mehr. Verhindert 1:1-Pyrrhus-
 		# Eroberungen, bei denen die KI nach Sieg handlungsunfaehig ist.
@@ -2870,18 +2942,44 @@ func _run_enemy_turn_for(idx: int) -> bool:
 	if eh.position == target_pos:
 		if target_kind == "city":
 			var tc: Dictionary = _cities[target_idx]
-			var garrison: int = int(tc.get("garrison", 0))
-			# Mauer zaehlt auch hier (M9): dieser Pfad ist die Auto-
-			# Abrechnung ohne Overlay, sonst waere die eigene Stadtmauer
-			# gegen KI-Angriffe wirkungslos.
-			if garrison > 0 and (tc.get("buildings", []) as Array).has("mauer"):
-				garrison = int(ceil(float(garrison) * SIEGE_AUTO_DEF_FACTOR))
+			var gar: Dictionary = tc.get("garrison_army", {}) as Dictionary
+			# Eigene Stadt MIT Verteidigern: der SPIELER spielt den
+			# Verteidigungskampf selbst aus - hinter seiner Mauer, mit
+			# Pfeilturm und Verteidiger-Bonus. Gleiches Muster wie der
+			# Pflicht-Kampf gegen den Spieler-Helden: Overlay auf,
+			# return false suspendiert die KI-Phase, der Callback setzt
+			# sie fort.
+			if int(tc.get("owner", OWNER_NEUTRAL)) == OWNER_HERO \
+					and not Garrison.is_empty(gar):
+				var terr_def: int = int(tiles[target_pos.y * MAP_WIDTH + target_pos.x])
+				var sctx_def: Dictionary = _siege_ctx_for(tc)
+				# Verteidiger = Garnison, plus Held wenn er in der Stadt steht.
+				var def_army: Dictionary = gar.duplicate()
+				var hero_in_city: bool = _hero != null and _hero.position == target_pos
+				if hero_in_city:
+					for hk in _hero.army.keys():
+						Garrison.add(def_army, String(hk), int(_hero.army[hk]))
+				sctx_def["player_army"] = def_army
+				# Der Belagerer kaempft mit seinen ECHTEN Einheiten, nicht
+				# mit einer aus der Kopfzahl synthetisierten Truppe.
+				sctx_def["enemy_army"] = eh.army.duplicate()
+				var c_idx: int = target_idx
+				var ai_idx: int = idx
+				var nxt: int = idx + 1
+				_open_battle("Belagerer", eh.total_count(), false, terr_def,
+					func(r: Dictionary) -> void:
+						_on_city_defense_result(r, c_idx, ai_idx, nxt, hero_in_city)
+				, sctx_def)
+				return false
+			# Fremde/neutrale Stadt oder leere eigene Stadt: wie bisher ohne
+			# Overlay (der Spieler ist nicht beteiligt).
+			var garrison: int = Garrison.total(gar)
 			if garrison > 0:
 				if eh.total_count() < garrison:
 					return true
 				eh.apply_proportional_losses(garrison)
 			tc["owner"] = oid
-			tc["garrison"] = 0
+			tc["garrison_army"] = {}
 		elif target_kind == "mine":
 			var obj: Dictionary = _objects[target_idx]
 			var g: int = int(obj.get("guard", 0))
@@ -3060,6 +3158,68 @@ func _on_ai_attack_result(result: Dictionary, ai_idx: int, next_idx: int) -> voi
 	_advance_ai_phase(next_idx)
 
 
+# Callback nach dem Verteidigungskampf um eine eigene Stadt.
+# Der Spieler hat Garnison (+ Held, falls anwesend) gesteuert; die
+# Ueberlebenden kommen aus result.player_remaining zurueck.
+# hero_joined = der Held stand in der Stadt und hat mitgekaempft.
+func _on_city_defense_result(result: Dictionary, city_idx: int, ai_idx: int,
+		next_idx: int, hero_joined: bool) -> void:
+	var outcome: String = String(result.get("outcome", "defeat"))
+	var remaining: Dictionary = SaveCodec.int_dict(result.get("player_remaining", {}))
+	if city_idx < 0 or city_idx >= _cities.size():
+		_advance_ai_phase(next_idx)
+		return
+	var city: Dictionary = _cities[city_idx]
+	if outcome == "victory":
+		# Stadt gehalten. Reste zurueckverteilen: der Held bekommt
+		# zuerst, was er beigesteuert hatte, der Rest bleibt Garnison.
+		var left: Dictionary = remaining.duplicate()
+		if hero_joined and _hero != null:
+			var new_hero_army: Dictionary = {}
+			for k in _hero.army.keys():
+				var uid: String = String(k)
+				var take: int = min(int(_hero.army[uid]), int(left.get(uid, 0)))
+				if take > 0:
+					new_hero_army[uid] = take
+					Garrison.remove(left, uid, take)
+			_hero.army = new_hero_army
+		city["garrison_army"] = left
+		if ai_idx >= 0 and ai_idx < _enemies.size():
+			# Der Belagerer verliert genau, was im Kampf gefallen ist -
+			# ueberlebt etwas, zieht er geschwaecht ab.
+			var att_left: Dictionary = SaveCodec.int_dict(result.get("enemy_remaining", {}))
+			var ah: Hero = _enemies[ai_idx]["hero"] as Hero
+			if ah == null or Garrison.is_empty(att_left):
+				_enemies[ai_idx]["hero"] = null
+			else:
+				ah.army = att_left
+		_set_combat("Stadt verteidigt! Garnison: %s" % Garrison.summary(left))
+	else:
+		# Stadt gefallen: Angreifer uebernimmt, Verteidiger sind weg.
+		# Stand der Held mit in der Stadt, ist er ebenfalls gefallen -
+		# dann ist das Spiel verloren (gleiche Regel wie im Feldkampf).
+		city["garrison_army"] = {}
+		if ai_idx >= 0 and ai_idx < _enemies.size():
+			var att: Hero = _enemies[ai_idx]["hero"] as Hero
+			if att != null:
+				city["owner"] = int(_enemies[ai_idx]["owner_id"])
+				# Der Angreifer behaelt genau seine Ueberlebenden.
+				var left_att: Dictionary = SaveCodec.int_dict(
+					result.get("enemy_remaining", {}))
+				if Garrison.is_empty(left_att):
+					_enemies[ai_idx]["hero"] = null
+				else:
+					att.army = left_att
+		if hero_joined:
+			_update_labels()
+			_on_battle_defeat()
+			return
+		_set_combat("Stadt verloren - Garnison gefallen")
+	_update_labels()
+	_request_redraw()
+	_advance_ai_phase(next_idx)
+
+
 func _on_reroll() -> void:
 	_start(_seed + 1, _player_faction)
 
@@ -3144,7 +3304,8 @@ func _restore_state(d: Dictionary) -> bool:
 		# JSON-Floats -> ints fuer bekannte Zahlfelder.
 		c["faction"] = int(c.get("faction", 0))
 		c["owner"] = int(c.get("owner", -1))
-		c["garrison"] = int(c.get("garrison", 0))
+		c["garrison_army"] = SaveCodec.int_dict(c.get("garrison_army", {}))
+		c.erase("garrison")   # v2-Rest, migrate() hat ihn schon umgesetzt
 		c["pools"] = SaveCodec.int_dict(c.get("pools", {}))
 		_cities.append(c)
 	_objects.clear()

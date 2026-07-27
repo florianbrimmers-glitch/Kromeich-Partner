@@ -102,6 +102,11 @@ jobs:
           ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
             --headless --path game/ --script tools/test_siege.gd
 
+      - name: Garnison-Tests (echte Stadt-Verteidiger)
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/test_garrison.gd
+
       - name: Balance-Simulator (informativ, bricht nicht)
         continue-on-error: true
         run: |
