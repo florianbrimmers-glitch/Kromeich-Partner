@@ -207,9 +207,83 @@ In beiden Fällen gilt Punkt 2 der Vorbereitung: **das Backup außerhalb des Wor
 allem anderen.** Die Daten sind ohnehin längst in seinen Händen – wogegen wir uns schützen, ist
 nicht Abfluss, sondern Zerstörung.
 
+### 1.7 Kein eigener Admin-Zugang — würde eine geteilte Ablage über ein Nutzerkonto reichen?
+
+Stand 27.07.2026: Wir haben **keinen** Administratorzugang zum Google Workspace. Die
+Super-Admin-Rolle liegt allein bei `kern@kromeichpartner.de`.
+
+**Anlegen ja, Schutz nein.** Eine geteilte Ablage lässt sich als normaler Nutzer anlegen
+(sofern nicht administrativ gesperrt), und der Kopierlauf aus Phase 2 funktioniert dorthin.
+Sie löst auch ein echtes Problem: Die Daten gehören danach der Organisation und nicht mehr
+einem privaten Gmail-Konto – niemand kann sie durch Kontolöschung mitnehmen.
+
+Gegen einen Super Admin schützt sie **nicht**. In der Admin-Konsole unter
+Apps → Drive und Docs → *Geteilte Ablagen verwalten* sieht er **jede** geteilte Ablage der
+Organisation, auch die, in der er kein Mitglied ist, und kann sich mit zwei Klicks selbst als
+Manager eintragen – oder die Ablage samt Inhalt löschen. Wir würden die Daten von einem Ort,
+den er *besitzt*, an einen Ort verschieben, den er *verwaltet*. In einem Punkt wäre es sogar
+schlechter: Alles läge dann gebündelt in einem Container, den er in einem Zug löschen kann.
+
+**Die geteilte Ablage bleibt das richtige Ziel – aber erst, wenn die Admin-Frage geklärt ist.**
+Vorher ist sie Ablage in fremder Verwaltung.
+
+#### Das eigentliche Problem ist größer als das Drive
+
+Ohne Admin-Zugang kontrollieren wir unsere eigene IT nicht. Er kann heute jedes Postfach und
+jedes Konto löschen. Gemessen daran ist der Drive-Zugriff das kleinere Thema. Daraus folgen
+drei Stränge, die parallel laufen:
+
+**Strang 1 – Backup außerhalb von Google, sofort.** Braucht weder Admin-Rechte noch seine
+Mitwirkung. Drive-Baum über das Migrationsskript, Postfächer über Takeout je Nutzer, Kalender
+dazu. Ziel: ein Speicher außerhalb von Google *und* außerhalb von allem, was er verwaltet. Das
+ist der Schutz gegen Zerstörung – und der ist jetzt das dringlichste Risiko, nicht der Abfluss.
+
+**Strang 2 – Administrationshoheit klären und zurückholen.**
+
+- Prüfen, ob es ein vergessenes Administratorkonto gibt (Ersteinrichtungs-Konto, `admin@`).
+- Google hat für genau diesen Fall ein Verfahren: Nachweis der Domaininhaberschaft über einen
+  DNS-TXT-Eintrag, dann stellt der Support administrativen Zugriff her. **Voraussetzung ist
+  Zugriff auf DNS/Registrar** – der existiert vermutlich, denn für den Microsoft-Tenant
+  (Strang 3) mussten DNS-Einträge gesetzt werden. Wer diesen Zugang hat, ist die erste zu
+  beantwortende Frage überhaupt: Wer die DNS kontrolliert, kontrolliert am Ende beide
+  Plattformen.
+- Dazu Nachweis der Vertretungsberechtigung (Handelsregisterauszug) und anwaltliche
+  Begleitung. Das Verfahren dauert Tage bis Wochen – deshalb parallel starten, nicht danach.
+
+**Strang 3 – Microsoft 365 ist bereits vorhanden.** Auf `kromeichpartner.de` existiert ein
+Microsoft-365-Tenant (geprüft: angemeldet als `kromeich@kromeichpartner.de`). Genutzt wird er
+für Dateien bisher praktisch nicht – vorhanden ist im Wesentlichen das persönliche OneDrive
+mit `Notizbücher`, `Scans`, `Anlagen`, `Besprechungen`, `Aufnahmen`. Team-Sites mit Inhalten
+gibt es nicht.
+
+Das ist die schnellste saubere Zielplattform, **sofern er dort nicht ebenfalls Administrator
+ist**. Zu prüfen unter admin.microsoft.com → Rollen → Globaler Administrator. Fällt die
+Prüfung günstig aus:
+
+- SharePoint-**Team-Site** als Ziel, nicht das persönliche OneDrive – sonst wiederholen wir
+  exakt den Fehler, der uns hierhergebracht hat (Unternehmensdaten in einer Personenablage).
+- Der Kopierlauf kann von Drive nach lokal und von dort nach SharePoint laufen; das Manifest
+  bleibt als Herkunftsnachweis und ID-Mapping gültig.
+- Einschränkung: gleiche Domain, gleiche DNS. Wer die DNS kontrolliert, kann auch hier den
+  Mailfluss stören. Strang 2 wird dadurch nicht überflüssig.
+
+#### Reihenfolge unter diesen Vorzeichen
+
+1. Backup außerhalb von Google (Strang 1) – diese Woche, unabhängig von allem anderen.
+2. Zwei Fragen beantworten, beide ohne Google-Admin möglich: **Wer kontrolliert
+   DNS/Registrar?** und **Wer ist Global Admin im Microsoft-Tenant?**
+3. Danach die Weggabelung: Google-Admin zurückholen und dort die geteilte Ablage aufsetzen –
+   oder auf eine SharePoint-Team-Site umziehen, wenn der Microsoft-Tenant uns gehört.
+4. Die geteilte Ablage aus Abschnitt 2 erst nach Schritt 3. Vorher schafft sie ein falsches
+   Sicherheitsgefühl.
+
 ---
 
 ## 2. Zielbild: geteilte Ablage im bestehenden Workspace
+
+> **Voraussetzung:** gilt erst, wenn die Administrationshoheit nach 1.7 geklärt ist. Führt der
+> Weg stattdessen zu SharePoint, bleibt die Struktur dieselbe – Team-Site statt geteilter
+> Ablage, Microsoft-365-Gruppe statt Google-Gruppe.
 
 Kein neues Werkzeug – nur, was in Google Workspace `kromeichpartner.de` schon enthalten ist:
 
@@ -429,10 +503,12 @@ Konten **deaktivieren, nicht löschen** – Zuordnungen und Historie bleiben so 
 
 | # | Schritt | Wer | Aufwand |
 |---|---|---|---|
-| 0a | Zweites, gesichertes Super-Admin-Konto einrichten (1.6) | Admin | 0,5 h |
-| 0b | **Backup außerhalb des Workspace** – vor allem anderen (1.6) | IT | 2–4 h |
-| 0c | Domainkontrolle, DNS/Registrar, Abo-Inhaberschaft prüfen (1.6) | Admin | 1 h |
-| 0d | Zuständigkeit für den Rollenentzug klären und dokumentieren (1.6) | GF + Anwalt | – |
+| 0a | **Backup außerhalb von Google** – vor allem anderen (1.7) | IT | 2–4 h |
+| 0b | Wer kontrolliert DNS/Registrar? (1.7) | GF | 1 h |
+| 0c | Wer ist Global Admin im Microsoft-Tenant? (1.7) | GF | 0,5 h |
+| 0d | Admin-Wiederherstellung bei Google anstoßen (1.7, Strang 2) | GF + Anwalt | Tage–Wochen |
+| 0e | Zuständigkeit für den Rollenentzug klären und dokumentieren (1.6) | GF + Anwalt | – |
+| 0f | Zweites, gesichertes Super-Admin-Konto einrichten (1.6) | Admin | 0,5 h |
 | 1 | Bestandsaufnahme und Exposition dokumentieren | IT | 1 h |
 | 2 | Rechtliche Abstimmung anstoßen (§ 51a, Löschverlangen) | GF + Anwalt | parallel |
 | 3 | Edition prüfen / Upgrade | Admin | 0,5 h |
