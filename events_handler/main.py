@@ -8,7 +8,8 @@ from datetime import datetime, timedelta, timezone
 
 from . import config
 from .classifier import extract_events, html_to_text
-from .asana_gateway import build_task, create_event_task
+from .asana_gateway import build_task, create_event_task, list_section_tasks
+from .dedup import find_duplicate
 from .logbuch import append_record
 from .models import DecisionRecord, RunReport
 from .slack_gateway import (
@@ -73,7 +74,17 @@ def _gather_source(msg: dict) -> tuple[str, str]:
     return title, content
 
 
-def _process_message(msg: dict, run_id: str, report: RunReport) -> None:
+def _existing_tasks() -> list[dict]:
+    """Bestehende Aufgaben des Ziel-Abschnitts. Bei Fehler leere Liste – dann wird
+    ohne Dublettencheck gearbeitet (lieber ein Doppeleintrag als ein verlorenes Event)."""
+    try:
+        return list_section_tasks()
+    except Exception as e:
+        logger.warning("Bestand nicht abrufbar (%s) – Dublettencheck für diesen Lauf deaktiviert", e)
+        return []
+
+
+def _process_message(msg: dict, run_id: str, report: RunReport, existing: list[dict]) -> None:
     ts = msg["ts"]
     title, content = _gather_source(msg)
 
@@ -116,9 +127,23 @@ def _process_message(msg: dict, run_id: str, report: RunReport) -> None:
         record.aufgabe_notes = notes
         vorbereitet += 1
 
+        # Dublettencheck gegen den Abschnitt (inkl. der in DIESEM Lauf angelegten
+        # Aufgaben): dasselbe Event kommt oft aus zwei Nachrichten – einmal als
+        # Einzel-Einladung, einmal in einem Sammel-Newsletter.
+        dup_gid, dup_grund = find_duplicate(event, existing)
+        time.sleep(1)
+        if dup_gid:
+            record.duplikat_von = dup_gid
+            report.duplikate += 1
+            logger.info("  Event %s#%d: %r steht bereits in der Liste (gid %s: %s) – übersprungen",
+                        ts, idx, name, dup_gid, dup_grund)
+            append_record(record)
+            continue
+
         # DRY_RUN: Aufgabe nur vorbereiten/loggen, nicht in Asana anlegen
         if config.dry_run():
             logger.info("  [DRY_RUN] Event %s#%d: Aufgabe NICHT angelegt (vorbereitet: %r)", ts, idx, name)
+            existing.append({"gid": f"dry-run-{ts}-{idx}", "name": name})
             append_record(record)
             continue
 
@@ -128,6 +153,8 @@ def _process_message(msg: dict, run_id: str, report: RunReport) -> None:
             record.in_asana = url is not None
             if url:
                 report.aufgaben_erstellt += 1
+            # neu angelegte Aufgabe sofort in den Vergleichsbestand aufnehmen
+            existing.append({"gid": (url or "").rsplit("/", 1)[-1] or f"neu-{ts}-{idx}", "name": name})
             logger.info("  Event %s#%d: '%s' -> Asana %s", ts, idx, name, url or "(NO_WRITE)")
         except Exception as e:  # pro Event weiterlaufen
             logger.exception("  Asana-Anlage fehlgeschlagen für %s#%d", ts, idx)
@@ -161,6 +188,10 @@ def run_pipeline() -> RunReport:
     report.nachrichten_gesehen = len(messages)
     logger.info("%d Nachrichten im Scan-Fenster (%dh)", len(messages), config.scan_hours())
 
+    # Bestand des Ziel-Abschnitts einmal laden; die Liste wächst im Lauf mit,
+    # damit auch zwei Nachrichten desselben Laufs gegeneinander geprüft werden.
+    existing = _existing_tasks()
+
     for i, msg in enumerate(messages, 1):
         preview = (msg.get("text") or (msg.get("files", [{}]) or [{}])[0].get("title") or "")[:80]
         logger.info("--- Nachricht %d/%d (%s): %s ---", i, len(messages), msg["ts"], preview)
@@ -174,7 +205,7 @@ def run_pipeline() -> RunReport:
             continue
 
         try:
-            _process_message(msg, run_id, report)
+            _process_message(msg, run_id, report, existing)
         except Exception as e:  # pro Nachricht weiterlaufen
             logger.exception("Fehler bei Nachricht %s", msg.get("ts"))
             report.fehler.append(f"Nachricht {msg.get('ts')}: {e}")
@@ -191,6 +222,7 @@ def _print_summary(report: RunReport) -> None:
     logger.info("  Events erkannt:           %d", report.events_erkannt)
     logger.info("  Nicht-Events/leer:        %d", report.nicht_events)
     logger.info("  Asana-Aufgaben erstellt:  %d", report.aufgaben_erstellt)
+    logger.info("  Dubletten übersprungen:   %d", report.duplikate)
     logger.info("  Fehler:                   %d", len(report.fehler))
     for fehler in report.fehler:
         logger.info("    - %s", fehler)

@@ -69,6 +69,6 @@ pytest tests/events_handler/ -v
 ## Bekannte Einschränkungen
 
 - Aufgaben werden **an den Abschnitt „Events" angehängt** (nicht chronologisch einsortiert) – bewusst simpel; Sortierung macht ein Mensch.
-- Kein Abgleich gegen bereits in Asana stehende Events; Doppelte werden über den ✅-Marker auf Slack-Ebene vermieden (jede Nachricht nur einmal verarbeitet).
+- Doppelte werden auf zwei Ebenen vermieden: der ✅-Marker verhindert, dass **dieselbe Nachricht** zweimal verarbeitet wird, und der **Dublettencheck** (`dedup.py`) verhindert, dass **dasselbe Event** aus zwei Nachrichten zweimal angelegt wird (typisch: einmal als Einzel-Einladung, einmal in einem Sammel-Newsletter). Verglichen wird per KI gegen die bestehenden Aufgaben des Abschnitts – inklusive der im selben Lauf neu angelegten und der von Hand eingetragenen. Schlägt der Check fehl (API/Parse), wird bewusst angelegt: ein Doppeleintrag ist weniger schädlich als ein verlorenes Event.
 - `due_on` wird nicht gesetzt: die Event-Termine im Abschnitt stehen im Aufgaben-**Namen** (oft Zeiträume wie „24.-26.03", die kein einzelnes Datum sind).
 - Sehr große HTML-Anhänge werden zu Text reduziert und auf ~16.000 Zeichen gekürzt.
