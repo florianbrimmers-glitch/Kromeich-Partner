@@ -1,0 +1,58 @@
+Gewerbegebiet;Flaeche_m2;Kernband_5_10k;Gebaeudetyp;Name_Betreiber;Adresse;Lat;Lon;OSM_Link
+Broich;8029;ja;manufacture;;Rheinische Bahn RS1 45479 Broich;51.430025;6.873;https://www.openstreetmap.org/way/26713444
+Broich;5260;ja;yes;Hauptwerkstatt;Duisburger Straße 86 45479 Mülheim an der Ruhr;51.428364;6.8673;https://www.openstreetmap.org/way/25058921
+Heißen;6094;ja;yes;;Geitlingstraße 82 45472 Mülheim an der Ruhr;51.43993;6.922389;https://www.openstreetmap.org/way/26705496
+Heißen;5369;ja;yes;Möbel Bernskötter;Heinrich-Lemberg-Straße 29 45472 Mülheim an der Ruhr;51.435304;6.926706;https://www.openstreetmap.org/way/321799663
+Heißen;5046;ja;yes;;Alexanderstraße 61 45472 Mülheim an der Ruhr;51.440037;6.93034;https://www.openstreetmap.org/way/26705466
+Heißen;4969;Puffer;yes;;Am Förderturm 36 45472 Mülheim an der Ruhr;51.444543;6.943946;https://www.openstreetmap.org/way/53384277
+Heißen;4839;Puffer;yes;;Alexanderstraße 29-31 45472 Mülheim an der Ruhr;51.439144;6.92742;https://www.openstreetmap.org/way/26705480
+Heißen;4499;Puffer;yes;;Alexanderstraße 45 45472 Heißen;51.439548;6.929562;https://www.openstreetmap.org/way/26705469
+Heißen;4312;Puffer;yes;;Alexanderstraße 27 45472 Mülheim an der Ruhr;51.438502;6.926266;https://www.openstreetmap.org/way/73856203
+Heißen;4059;Puffer;yes;;Schenkendorfstraße 3 45472 Heißen;51.443292;6.950362;https://www.openstreetmap.org/way/53384258
+Mellinghofen / Eppinghofen;10152;Puffer;warehouse;;Pilgerstraße 29 45473 Mülheim an der Ruhr;51.446609;6.881281;https://www.openstreetmap.org/way/112579869
+Mellinghofen / Eppinghofen;10034;Puffer;yes;;Aktienstraße 45 45473 Mülheim an der Ruhr;51.435419;6.880758;https://www.openstreetmap.org/way/26712330
+Mellinghofen / Eppinghofen;9709;ja;yes;FLEXCITY Industriepark Bau 26;Mellinghofer Straße 45473 Mellinghofen;51.442539;6.884448;https://www.openstreetmap.org/way/93667251
+Mellinghofen / Eppinghofen;8841;ja;yes;Geneba Industriepark Bau 25;Kranbahnallee 3 45473 Mülheim an der Ruhr;51.439994;6.881956;https://www.openstreetmap.org/way/114189151
+Mellinghofen / Eppinghofen;8659;ja;industrial;;Pilgerstraße 11 45473 Mülheim an der Ruhr;51.445379;6.882731;https://www.openstreetmap.org/way/26706358
+Mellinghofen / Eppinghofen;7110;ja;industrial;;Aktienstraße 23 45473 Eppinghofen;51.435333;6.87902;https://www.openstreetmap.org/way/72553553
+Mellinghofen / Eppinghofen;6982;ja;yes;Geneba Industriepark Bau 25;Kranbahnallee 1 45473 Mülheim an der Ruhr;51.43927;6.883014;https://www.openstreetmap.org/way/152389194
+Mellinghofen / Eppinghofen;6072;ja;warehouse;;Pilgerstraße 3 45473 Mellinghofen;51.446764;6.882439;https://www.openstreetmap.org/way/302739883
+Mellinghofen / Eppinghofen;5959;ja;industrial;;Freiherr-vom-Stein-Straße 165 45473 Mülheim an der Ruhr;51.442153;6.921217;https://www.openstreetmap.org/way/26705515
+Mellinghofen / Eppinghofen;5818;ja;yes;FLEXCITY Industriepark Bau 29;Mellinghofer Straße 45473 Mellinghofen;51.441679;6.884942;https://www.openstreetmap.org/way/93667257
+Mellinghofen / Eppinghofen;5451;ja;yes;Geneba Industriepark Bau 2;Wiesenstraße 54 45473 Mellinghofen;51.441932;6.879851;https://www.openstreetmap.org/way/152389197
+Mellinghofen / Eppinghofen;5247;ja;industrial;;Mellinghofer Straße 45473 Mellinghofen;51.44411;6.882492;https://www.openstreetmap.org/way/1233921641
+Mellinghofen / Eppinghofen;4609;Puffer;yes;Geneba Industriepark Bau 3;Kranbahnallee 45473 Mellinghofen;51.442374;6.880183;https://www.openstreetmap.org/way/152389199
+Mellinghofen / Eppinghofen;4216;Puffer;yes;MTC - MEDION Technologie Center;Freiherr-vom-Stein-Straße 131 45473 Mülheim an der Ruhr;51.444557;6.920001;https://www.openstreetmap.org/way/26796057
+Mellinghofen / Eppinghofen;4015;Puffer;yes;;Wiesenstraße 45473 Mellinghofen;51.44266;6.879053;https://www.openstreetmap.org/way/114190792
+Speldorf / Hafen;11998;Puffer;industrial;MUK Logistik;Weseler Straße 91-101 45478 Mülheim an der Ruhr;51.432801;6.840235;https://www.openstreetmap.org/way/25196638
+Speldorf / Hafen;11577;Puffer;yes;;Timmerhellstraße 5 45478 Mülheim an der Ruhr;51.435041;6.842947;https://www.openstreetmap.org/way/1341770954
+Speldorf / Hafen;11256;Puffer;industrial;Bau 81;Rheinstraße 100 45478 Mülheim an der Ruhr;51.438446;6.852622;https://www.openstreetmap.org/way/210928503
+Speldorf / Hafen;10831;Puffer;yes;;Lippestraße 17-21 45478 Mülheim an der Ruhr;51.438885;6.843992;https://www.openstreetmap.org/way/102215218
+Speldorf / Hafen;9724;ja;industrial;;Weseler Straße 89 45478 Mülheim an der Ruhr;51.432746;6.842141;https://www.openstreetmap.org/way/26713572
+Speldorf / Hafen;9636;ja;yes;Würth;Weseler Straße 46 45478 Mülheim an der Ruhr;51.430711;6.853547;https://www.openstreetmap.org/way/103307577
+Speldorf / Hafen;8622;ja;yes;;Rheinstraße 110-112 45478 Speldorf;51.438033;6.845201;https://www.openstreetmap.org/way/25196643
+Speldorf / Hafen;8144;ja;industrial;Seton GmbH Lederfabrik Lindgens;Lahnstraße 15 45478 Mülheim an der Ruhr;51.436628;6.855955;https://www.openstreetmap.org/way/289922243
+Speldorf / Hafen;7444;ja;industrial;;Am Nordhafen 45478 Speldorf;51.43967;6.841792;https://www.openstreetmap.org/way/102214964
+Speldorf / Hafen;6983;ja;industrial;;Lippestraße 17-21 45478 Speldorf;51.439291;6.843004;https://www.openstreetmap.org/way/102214931
+Speldorf / Hafen;6371;ja;industrial;;Weseler Straße 115 45478 Mülheim an der Ruhr;51.433655;6.839841;https://www.openstreetmap.org/way/223670925
+Speldorf / Hafen;6132;ja;yes;;Lahnstraße 27 45478 Mülheim an der Ruhr;51.436859;6.857276;https://www.openstreetmap.org/way/64095148
+Speldorf / Hafen;6088;ja;industrial;;Rheinstraße 136 45478 Speldorf;51.438538;6.84262;https://www.openstreetmap.org/way/102214864
+Speldorf / Hafen;6011;ja;industrial;;Umschlag 10 45478 Mülheim an der Ruhr;51.437425;6.837656;https://www.openstreetmap.org/way/75313403
+Speldorf / Hafen;5964;ja;industrial;Bau 80 C;Timmerhellstraße 45478 Speldorf;51.438524;6.850517;https://www.openstreetmap.org/way/1429040108
+Speldorf / Hafen;5716;ja;industrial;Bau 80 A;Rheinstraße 45478 Speldorf;51.438256;6.851679;https://www.openstreetmap.org/way/1429041005
+Speldorf / Hafen;5634;ja;industrial;Bau 80 B;Rheinstraße 45478 Speldorf;51.438289;6.851069;https://www.openstreetmap.org/way/1429040855
+Speldorf / Hafen;5409;ja;yes;;Lahnstraße 10 45478 Mülheim an der Ruhr;51.434975;6.856451;https://www.openstreetmap.org/way/65715280
+Speldorf / Hafen;5376;ja;industrial;;Hafenstraße 35 45478 Mülheim an der Ruhr;51.438757;6.835803;https://www.openstreetmap.org/way/270609878
+Speldorf / Hafen;5336;ja;yes;;Elbestraße 11 45478 Mülheim an der Ruhr;51.43167;6.858794;https://www.openstreetmap.org/way/65720820
+Speldorf / Hafen;5136;ja;industrial;Harbecke;Timmerhellstraße 23 45478 Speldorf;51.435203;6.846459;https://www.openstreetmap.org/way/103373696
+Speldorf / Hafen;4868;Puffer;yes;;Weseler Straße 110a 45478 Mülheim an der Ruhr;51.434022;6.843377;https://www.openstreetmap.org/way/103373685
+Speldorf / Hafen;4850;Puffer;yes;Grand Eventhalle;Weseler Straße 120 45478 Mülheim an der Ruhr;51.434726;6.840641;https://www.openstreetmap.org/way/1448620216
+Speldorf / Hafen;4792;Puffer;yes;;Lahnstraße 38 45478 Mülheim an der Ruhr;51.436133;6.859859;https://www.openstreetmap.org/way/65687993
+Speldorf / Hafen;4601;Puffer;warehouse;Storopack;Gewerbeallee 11 45478 Mülheim an der Ruhr;51.433271;6.850371;https://www.openstreetmap.org/way/75312825
+Speldorf / Hafen;4531;Puffer;industrial;;Umschlag 10 45478 Speldorf;51.436207;6.837686;https://www.openstreetmap.org/way/75313398
+Speldorf / Hafen;4469;Puffer;yes;;Saalestraße 10 45478 Mülheim an der Ruhr;51.431849;6.863167;https://www.openstreetmap.org/way/26713473
+Speldorf / Hafen;4462;Puffer;yes;;Lahnstraße 30 45478 Mülheim an der Ruhr;51.435758;6.857492;https://www.openstreetmap.org/way/65688471
+Speldorf / Hafen;4009;Puffer;yes;INFINTEQ;Wissollstraße 18 45478 Mülheim an der Ruhr;51.424215;6.848769;https://www.openstreetmap.org/way/25030230
+Styrum;7230;ja;yes;;Styrumer Schlossweg 45476 Styrum;51.441122;6.862589;https://www.openstreetmap.org/way/1318816907
+Styrum;7023;ja;yes;;Burgstraße 45476 Styrum;51.442569;6.858782;https://www.openstreetmap.org/way/432095967
+Styrum;5711;ja;yes;;Burgstraße 2 45476 Mülheim an der Ruhr;51.441962;6.864461;https://www.openstreetmap.org/way/25064267
