@@ -1,0 +1,15 @@
+Prio;Flaeche_m2;km_zu_Duempten;Gebaeudetyp;Name;Adresse;Kontakt;Lat;Lon;OSM_Link
+A1 FlexCity/Frasers;8841;2.6;yes;Geneba Industriepark Bau 25;Kranbahnallee 3 45473 Mülheim an der Ruhr;Wilhelm Heusch, Frasers Property, +49 151 544 104 03;51.439994;6.881956;https://www.openstreetmap.org/way/114189151
+A1 FlexCity/Frasers;6982;2.7;yes;Geneba Industriepark Bau 25;Kranbahnallee 1 45473 Mülheim an der Ruhr;Wilhelm Heusch, Frasers Property, +49 151 544 104 03;51.43927;6.883014;https://www.openstreetmap.org/way/152389194
+A1 FlexCity/Frasers;5818;2.4;yes;FLEXCITY Industriepark Bau 29;Mellinghofer Straße 45473 Mellinghofen;Wilhelm Heusch, Frasers Property, +49 151 544 104 03;51.441679;6.884942;https://www.openstreetmap.org/way/93667257
+A1 FlexCity/Frasers;5451;2.5;yes;Geneba Industriepark Bau 2;Wiesenstraße 54 45473 Mellinghofen;Wilhelm Heusch, Frasers Property, +49 151 544 104 03;51.441932;6.879851;https://www.openstreetmap.org/way/152389197
+A1 FlexCity/Frasers;4609;2.4;yes;Geneba Industriepark Bau 3;Kranbahnallee 45473 Mellinghofen;Wilhelm Heusch, Frasers Property, +49 151 544 104 03;51.442374;6.880183;https://www.openstreetmap.org/way/152389199
+A2 Goodman;6072;1.9;warehouse;;Pilgerstraße 3 45473 Mellinghofen;Goodman Germany (de.goodman.com);51.446764;6.882439;https://www.openstreetmap.org/way/302739883
+B Eigennutzer;8659;2.0;industrial;;Pilgerstraße 11 45473 Mülheim an der Ruhr;Trilux Retail / Ansorg (vermutlich);51.445379;6.882731;https://www.openstreetmap.org/way/26706358
+C recherchieren;7230;3.1;yes;;Styrumer Schlossweg 45476 Styrum;;51.441122;6.862589;https://www.openstreetmap.org/way/1318816907
+C recherchieren;7110;3.2;industrial;;Aktienstraße 23 45473 Eppinghofen;;51.435333;6.87902;https://www.openstreetmap.org/way/72553553
+C recherchieren;7023;3.2;yes;;Burgstraße 45476 Styrum;;51.442569;6.858782;https://www.openstreetmap.org/way/432095967
+C recherchieren;6094;3.3;yes;;Geitlingstraße 82 45472 Mülheim an der Ruhr;;51.43993;6.922389;https://www.openstreetmap.org/way/26705496
+C recherchieren;5959;3.1;industrial;;Freiherr-vom-Stein-Straße 165 45473 Mülheim an der Ruhr;;51.442153;6.921217;https://www.openstreetmap.org/way/26705515
+C recherchieren;5711;3.0;yes;;Burgstraße 2 45476 Mülheim an der Ruhr;;51.441962;6.864461;https://www.openstreetmap.org/way/25064267
+C recherchieren;5247;2.2;industrial;;Mellinghofer Straße 45473 Mellinghofen;;51.44411;6.882492;https://www.openstreetmap.org/way/1233921641
