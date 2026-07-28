@@ -39,6 +39,7 @@ class DecisionRecord(BaseModel):
     aufgabe_notes: str | None = None  # die vorbereitete Aufgaben-Beschreibung
     in_asana: bool = False            # tatsächlich als Asana-Aufgabe angelegt?
     asana_task_url: str | None = None
+    duplikat_von: str | None = None   # gid der bestehenden Aufgabe, wenn als Dublette erkannt
     fehler: str | None = None
 
 
@@ -48,4 +49,5 @@ class RunReport(BaseModel):
     events_erkannt: int = 0
     nicht_events: int = 0
     aufgaben_erstellt: int = 0
+    duplikate: int = 0
     fehler: list[str] = Field(default_factory=list)

@@ -76,6 +76,29 @@ def _request(method: str, path: str, *, json: dict | None = None, params: dict |
     raise last_error if last_error else RuntimeError(f"Asana {method} {path} fehlgeschlagen")
 
 
+def list_section_tasks() -> list[dict]:
+    """Namen der Aufgaben im Ziel-Abschnitt – Grundlage für den Dublettencheck.
+
+    Reiner GET, läuft auch unter NO_WRITE/DRY_RUN. Bei fehlendem Token/Fehler
+    entscheidet der Aufrufer, wie er damit umgeht."""
+    tasks: list[dict] = []
+    offset: str | None = None
+    while True:
+        params: dict = {"opt_fields": "name", "limit": 100}
+        if offset:
+            params["offset"] = offset
+        data = _request("GET", f"/sections/{config.section_id()}/tasks", params=params).json()
+        for t in data.get("data", []):
+            if isinstance(t, dict) and t.get("gid"):
+                tasks.append({"gid": t["gid"], "name": t.get("name") or ""})
+        next_page = data.get("next_page") or {}
+        if not next_page.get("offset"):
+            break
+        offset = next_page["offset"]
+    logger.info("%d bestehende Aufgabe(n) im Abschnitt %s", len(tasks), config.section_id())
+    return tasks
+
+
 def create_event_task(name: str, notes: str) -> str | None:
     """Legt eine Aufgabe im Marketing-Projekt an und schiebt sie in den 'Events'-Abschnitt.
 
