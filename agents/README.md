@@ -104,6 +104,28 @@ danebenlag:
 - **Flächenupdate Mileway** — 23 Einheiten in 3 Projekten. Erwartet ist ein
   Portfolio-Abgleich, nicht „keine eindeutige Zuordnung".
 
+#### Die Neuanlage getrennt testen
+
+Der Agent legt Projekte und Einheiten selbstständig an. Das ist der Schreibpfad
+mit den dauerhaftesten Folgen — `DELETE` gibt bei Einheiten 401, jede Fehlanlage
+muss von Hand in der UI weg. Deshalb in dieser Reihenfolge:
+
+1. **Erkennungstest.** Ein Objekt, das es **gibt**, als angebliche Neumeldung
+   schicken. Der Agent muss es finden und darf **nichts** anlegen. Legt er trotzdem
+   an, greift die Dublettenprüfung nicht — dann nicht scharf schalten.
+2. **Trockenlauf.** Ein Objekt, das es wirklich nicht gibt, mit dem Zusatz
+   `SCHREIBE NICHTS, zeige nur den geplanten Datensatz samt Pflichtfeldern`.
+   Feldbelegung, Projekt-vs-Einheit-Entscheidung und Status prüfen.
+3. **Ein einziger echter Fall.** Danach den Datensatz in der UI ansehen: Titel,
+   `unit_id`, Betreuer, Status, `free_from`, Provision, Flächen, Koordinaten,
+   Eigentümer-Verknüpfung. Und die JSONL aus `/mnt/session/outputs/` durchgehen.
+4. **Wiederanlauf.** Dieselbe Meldung ein zweites Mal schicken. Es darf **keine**
+   zweite Anlage entstehen — der `bemerkung`-Eintrag mit Quelle ist der Schutz.
+
+Die Obergrenze steht bei **fünf neuen Projekten pro Lauf** (im System-Prompt,
+Abschnitt „Obergrenze pro Lauf"). Das ist eine gesetzte Annahme, kein Naturgesetz
+— dreh sie hoch, wenn die ersten Wochen sauber laufen.
+
 Vor dem Scharfschalten `effort` einmal über echte Newsletter vergleichen
 (`medium` / `high` / `xhigh`) — bei Opus 5 sind die niedrigen Stufen
 ungewöhnlich stark, und ein übernommener Wert ist selten der richtige.
