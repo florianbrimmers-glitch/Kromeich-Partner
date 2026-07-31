@@ -1,0 +1,52 @@
+# Environment für den Propstack-Objekte-Agenten.
+#
+# Ausrollen:
+#   ENV_ID=$(ant beta:environments create < agents/propstack.environment.yaml --transform id -r)
+# Ändern (Änderungen greifen nur für NEUE Container, laufende Sessions behalten ihre Config):
+#   ant beta:environments update --environment-id "$ENV_ID" < agents/propstack.environment.yaml
+#
+# ⚠️ Environment-Namen müssen eindeutig sein - ein zweites `create` mit demselben
+# Namen gibt HTTP 409.
+
+name: propstack-objekte
+description: >
+  Container für die Propstack-Objektpflege aus Newslettern und Eigentümer-Mails.
+  Egress ist absichtlich eng: der Agent verarbeitet fremde Inhalte (Newsletter,
+  gescrapte Websites) und darf daraus keine beliebigen Hosts erreichen können.
+
+config:
+  type: cloud
+
+  networking:
+    # Deny-by-default. Jeder Host, den der Agent braucht, muss hier stehen -
+    # sonst schlagen die Aufrufe fehl. Das ist die zweite Verteidigungslinie
+    # neben den `allowed_hosts` der Vault-Credentials: die Vault-Liste steuert,
+    # WOFÜR ein Secret eingesetzt wird, diese Liste steuert, WOHIN der Container
+    # überhaupt darf. Ein Host muss in BEIDEN stehen.
+    type: limited
+
+    # pip install im Container (httpx, google-auth für die Repo-Skripte).
+    allow_package_managers: true
+
+    allowed_hosts:
+      # --- Propstack ---------------------------------------------------------
+      - api.propstack.de
+
+      # --- Google / Gmail ----------------------------------------------------
+      # oauth2.googleapis.com ist der Token-Endpoint für den Refresh-Flow;
+      # ohne ihn kommt kein Access Token zustande.
+      - oauth2.googleapis.com
+      - gmail.googleapis.com
+      - www.googleapis.com
+
+      # --- Apify (Eigentümer-Websites) ---------------------------------------
+      - api.apify.com
+
+      # --- Slack (Reaction setzen, Permalink auflösen) ------------------------
+      - slack.com
+      - www.slack.com
+      - files.slack.com
+
+      # --- GitHub (Repo-Mount, Clone läuft über den Anthropic-Git-Proxy) -----
+      - github.com
+      - api.github.com
