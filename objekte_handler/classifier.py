@@ -30,6 +30,15 @@ Extrahiere zusätzlich (null wenn nicht vorhanden):
 - hausnummer
 - stadt
 - objekt_name: Projekt-/Eigentümername wie "Viersen Aconlog", "prodac Castrop", "Landau von Nvelop"
+- eigentuemer: NUR die Firma, die das Objekt besitzt/entwickelt/vermietet – ohne Ortszusatz
+  und ohne Rechtsform-Ballast. Das ist der wichtigste Schlüssel überhaupt, weil die
+  Zugehörigkeit im CRM über die Eigentümer-Verknüpfung läuft und nie im Objekttitel steht.
+  "Flächenupdate Mileway 07/26" -> "Mileway"
+  "Viersen Aconlog – die kleine Einheit ist vermietet" -> "Aconlog"
+  "Das Objekt Landau von Nvelop fehlt in Propstack" -> "Nvelop"
+  "Newsletter Panattoni 06/26" -> "Panattoni"
+  Nenne die Firma auch dann, wenn sie zusätzlich im objekt_name steht. null, wenn die
+  Nachricht keine Eigentümerfirma nennt – rate nicht aus dem Ortsnamen.
 - aktion: "vermietet" | "update" | "sonstiges" (nur bei status_anweisung)
 - groessen_hinweis: "kleinste" | "groesste" | Quadratmeterzahl als String | null
   (z.B. "die kleine Einheit" -> "kleinste")
@@ -44,6 +53,7 @@ Antworte ausschließlich mit einem JSON-Objekt:
   "hausnummer": "..." | null,
   "stadt": "..." | null,
   "objekt_name": "..." | null,
+  "eigentuemer": "..." | null,
   "groessen_hinweis": "..." | null,
   "confidence": 0.0,
   "begruendung": "..."
