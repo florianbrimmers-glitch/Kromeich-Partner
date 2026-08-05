@@ -26,6 +26,7 @@ class ContactData(BaseModel):
     zip_code: str | None = None
     city: str | None = None
     country: str = "Deutschland"
+    salutation: str | None = None  # "mr" (Herr) / "ms" (Frau), sonst None
 
     def has_missing_fields(self) -> bool:
         return any(
