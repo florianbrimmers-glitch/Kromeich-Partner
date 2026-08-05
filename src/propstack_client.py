@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 from datetime import date
 
 import httpx
@@ -12,6 +13,24 @@ logger = logging.getLogger(__name__)
 
 PROPSTACK_BASE_URL = "https://api.propstack.de/v1"
 PROPSTACK_BASE_URL_V2 = "https://api.propstack.de/v2"
+
+try:
+    import gender_guesser.detector as _gender
+    _gender_detector = _gender.Detector(case_sensitive=False)
+except Exception:  # Bibliothek fehlt -> Anrede-Fallback wird einfach übersprungen
+    _gender_detector = None
+
+
+def _derive_salutation(first_name: str | None) -> str | None:
+    """Leitet 'mr'/'ms' aus dem Vornamen ab – nur bei EINDEUTIGEM Geschlecht.
+    Unklare/uni-sex/internationale Namen -> None (Anrede bleibt leer, kein Raten)."""
+    if not first_name or _gender_detector is None:
+        return None
+    token = re.split(r"[ \-]", first_name.strip())[0]
+    if not token:
+        return None
+    guess = _gender_detector.get_gender(token)
+    return {"male": "mr", "female": "ms"}.get(guess)
 
 
 def _api_key() -> str:
@@ -219,6 +238,11 @@ def create_contact(
         client_data["office_city"] = contact.city
     if contact.country:
         client_data["office_country"] = contact.country
+
+    # Anrede: explizit aus der Signatur/Karte, sonst eindeutiger Namens-Fallback
+    salutation = contact.salutation or _derive_salutation(contact.first_name)
+    if salutation:
+        client_data["salutation"] = salutation
 
     if group_ids:
         client_data["mailchimp_interest_ids"] = group_ids

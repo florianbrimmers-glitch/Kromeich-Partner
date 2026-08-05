@@ -31,7 +31,8 @@ Antworte ausschließlich mit einem JSON-Objekt in diesem Format:
   "street": "string oder null (NUR Straßenname, OHNE Hausnummer)",
   "house_number": "string oder null (NUR die Hausnummer)",
   "zip_code": "string oder null",
-  "city": "string oder null"
+  "city": "string oder null",
+  "salutation": "mr wenn männliche Anrede/Person klar erkennbar (z.B. Herr), ms wenn weiblich (z.B. Frau), sonst null"
 }}
 
 Absender: {sender}
@@ -133,6 +134,7 @@ def extract_contact(email_data: EmailData) -> ContactData | None:
             house_number=data.get("house_number") or None,
             zip_code=data.get("zip_code") or None,
             city=data.get("city") or None,
+            salutation=(data.get("salutation") if data.get("salutation") in ("mr", "ms") else None),
         )
     except (json.JSONDecodeError, KeyError, IndexError) as e:
         logger.error("Failed to parse extraction response for %s: %s", email_data.sender_email, e)
@@ -237,7 +239,8 @@ Antworte ausschließlich mit einem JSON-Objekt in diesem Format:
   "street": "string oder null (NUR Straßenname, OHNE Hausnummer)",
   "house_number": "string oder null (NUR die Hausnummer)",
   "zip_code": "string oder null",
-  "city": "string oder null"
+  "city": "string oder null",
+  "salutation": "mr wenn männliche Anrede/Person klar erkennbar (z.B. Herr), ms wenn weiblich (z.B. Frau), sonst null"
 }}
 """
 
@@ -260,7 +263,8 @@ Antworte ausschließlich mit einem JSON-Objekt in diesem Format:
   "street": "string oder null (NUR Straßenname, OHNE Hausnummer)",
   "house_number": "string oder null (NUR die Hausnummer)",
   "zip_code": "string oder null",
-  "city": "string oder null"
+  "city": "string oder null",
+  "salutation": "mr wenn männliche Anrede/Person klar erkennbar (z.B. Herr), ms wenn weiblich (z.B. Frau), sonst null"
 }}
 
 Slack-Nachricht:
@@ -299,6 +303,7 @@ def _parse_contact_json(text: str, source: str) -> ContactData | None:
         house_number=data.get("house_number") or None,
         zip_code=data.get("zip_code") or None,
         city=data.get("city") or None,
+        salutation=(data.get("salutation") if data.get("salutation") in ("mr", "ms") else None),
     )
 
 
