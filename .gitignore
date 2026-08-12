@@ -15,4 +15,11 @@ env/
 
 # Objekte-Handler Entscheidungslog (wird als Actions-Artefakt hochgeladen)
 objekte_decisions.jsonl
+
+# Comparables-Report: Läufe erzeugen diese Dateien lokal (in Actions Artefakte)
+comparables_decisions.jsonl
+comparables_dataset.csv
+comparables_cache.jsonl
+comparables_report.pdf
+
 .pytest_cache/

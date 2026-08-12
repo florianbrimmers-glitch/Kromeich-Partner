@@ -55,6 +55,29 @@ print("Refresh Token:", creds.refresh_token)
 
 ---
 
+### 1b. Google Drive API (OAuth2) – für den Comparables-Report
+
+Sie benötigen zusätzlich: `GOOGLE_REFRESH_TOKEN_DRIVE`
+
+⚠️ Das Token aus Schritt 1 reicht **nicht**: es ist auf `gmail.readonly` ausgestellt, der
+Comparables-Report liest aber Google Drive. Ein Token mit zu kleinem Scope scheitert mit
+`insufficient authentication scopes`.
+
+1. Aktivieren Sie in der Google Cloud Console zusätzlich die **Google Drive API**
+2. Führen Sie das Skript aus Schritt 3 erneut aus – mit diesem Scope:
+
+```python
+scopes=["https://www.googleapis.com/auth/drive.readonly"],
+```
+
+3. Melden Sie sich mit dem Konto an, das Zugriff auf die Leasing-Ordner hat
+4. Legen Sie den Refresh Token als GitHub Secret `GOOGLE_REFRESH_TOKEN_DRIVE` an
+
+`GOOGLE_CLIENT_ID` und `GOOGLE_CLIENT_SECRET` aus Schritt 1 werden mitbenutzt.
+Details: `comparables_handler/README.md`.
+
+---
+
 ### 2. Anthropic API Key
 
 Secret: `ANTHROPIC_API_KEY`

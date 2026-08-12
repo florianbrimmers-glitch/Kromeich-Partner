@@ -1,0 +1,110 @@
+name: Comparables Report
+
+on:
+  schedule:
+    # Monatlich am 1. um 05:00 UTC (nach objekte 02:00, newsletter 03:00, events 03:30)
+    - cron: "0 5 1 * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (Report bauen und loggen, aber NICHT in Slack posten)"
+        required: false
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+      no_write:
+        description: "Nur lesen/loggen – kein Slack-Post"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+      make_pdf:
+        description: "K&P-PDF erzeugen (für Kundengespräche)"
+        required: false
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+      max_documents:
+        description: "Kostenbremse: max. Dokumente (0 = alle)"
+        required: false
+        default: "0"
+      channel:
+        description: "Slack-Kanal-ID (leer = Standard #objekte)"
+        required: false
+        default: ""
+
+concurrency:
+  group: comparables-report
+  cancel-in-progress: false
+
+jobs:
+  comparables-report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Der Extraktions-Cache (fileId+modifiedTime -> Extraktion) spart die
+      # Claude-Calls für unveränderte Angebote über die Monate hinweg.
+      - name: Restore extraction cache
+        uses: actions/cache@v4
+        with:
+          path: comparables_cache.jsonl
+          key: comparables-cache-${{ github.run_id }}
+          restore-keys: |
+            comparables-cache-
+
+      - name: Run comparables report
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          # Drive braucht den Scope drive.readonly. Die bestehenden
+          # GOOGLE_REFRESH_TOKEN* sind auf gmail.readonly ausgestellt und
+          # reichen NICHT – deshalb ein eigenes Secret, mit Fallback.
+          GOOGLE_REFRESH_TOKEN_DRIVE: ${{ secrets.GOOGLE_REFRESH_TOKEN_DRIVE }}
+          GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN }}
+          GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
+          # Noch NICHT scharf: der Cron läuft bewusst im Dry-Run, bis der
+          # erste Report inhaltlich abgenommen und der Zielkanal bestätigt
+          # ist (siehe comparables_handler/README.md, "Scharfschalten").
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'true' }}
+          NO_WRITE: ${{ github.event.inputs.no_write || 'false' }}
+          MAKE_PDF: ${{ github.event.inputs.make_pdf || 'true' }}
+          MAX_DOCUMENTS: ${{ github.event.inputs.max_documents || '0' }}
+          COMPARABLES_CHANNEL: ${{ github.event.inputs.channel }}
+          DECISION_LOG_PATH: comparables_decisions.jsonl
+          DATASET_PATH: comparables_dataset.csv
+          EXTRACTION_CACHE_PATH: comparables_cache.jsonl
+          PDF_PATH: comparables_report.pdf
+        run: python -m comparables_handler.main
+
+      - name: Upload comparables dataset
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: comparables-${{ github.run_id }}
+          path: |
+            comparables_dataset.csv
+            comparables_report.pdf
+            comparables_decisions.jsonl
+          if-no-files-found: ignore
+          retention-days: 90
