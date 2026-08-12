@@ -53,6 +53,17 @@ def _zeile(stat: RegionStats) -> str:
     )
 
 
+def _einzelzeile(stat: RegionStats) -> str:
+    """Einzelwerte ohne Median-Anspruch: die tatsächlichen Werte zeigen."""
+    if stat.min_kaltmiete is not None and stat.max_kaltmiete is not None and \
+            stat.min_kaltmiete != stat.max_kaltmiete:
+        werte = f"{eur(stat.min_kaltmiete)} / {eur(stat.max_kaltmiete)} €/m²"
+    else:
+        werte = eur(stat.median_kaltmiete, "€/m²")
+    nk = f", NK {eur(stat.median_nebenkosten)}" if stat.median_nebenkosten is not None else ""
+    return f"• *{stat.key} {stat.label}*: {werte}{nk} – n={stat.n}"
+
+
 def baue_nachricht(stats: list[RegionStats], report: RunReport, stand: str) -> str:
     """Der monatliche Slack-Post. Reine Funktion – im Test ohne Netz prüfbar."""
     zeilen = [f"*Vergleichsmieten aus Mietangeboten – Stand {stand}*"]
@@ -66,15 +77,17 @@ def baue_nachricht(stats: list[RegionStats], report: RunReport, stand: str) -> s
             f"{report.zeilen_ausgeschlossen} Zeile(n) ausgeschlossen."
         )
         if report.propstack.units_geladen and not report.propstack.mit_miete:
+            # KEIN einziger Betrag ist etwas anderes als eine niedrige Quote:
+            # das riecht nach falschem Feldnamen, nicht nach fehlenden Daten.
             zeilen.append(
-                "Keine der Propstack-Einheiten trug eine Miete in den geprüften Feldern – "
-                "Feldnamen prüfen (`scripts/propstack_miet_audit.py`)."
+                "Keine *einzige* Einheit trug einen Betrag in den geprüften Feldern – "
+                "das deutet auf einen falschen Feldnamen hin, nicht auf fehlende "
+                "Daten (`scripts/propstack_miet_audit.py`)."
             )
         return "\n".join(zeilen)
 
     zeilen.append(
-        f"Datenbasis: {ges.n_objekte} Objekt(e), {ges.n} Laufzeit-Option(en) "
-        f"aus {report.dateien_eindeutig} Drive-Dokument(en) – "
+        f"*{ges.n} bekannte Mieten* an {ges.n_objekte} Standort(en) – "
         f"Gesamt-Median {eur(ges.median_kaltmiete, '€/m²')} "
         f"(Spanne {eur(ges.min_kaltmiete)}–{eur(ges.max_kaltmiete)})"
     )
@@ -83,11 +96,14 @@ def baue_nachricht(stats: list[RegionStats], report: RunReport, stand: str) -> s
     if leit:
         zeilen.append(f"\n*Leitregionen* (2-stellige PLZ, ab n={config.MIN_N_LEITREGION})")
         zeilen.extend(_zeile(s) for s in leit)
-    else:
+
+    einzeln = aggregate.einzelwerte(stats)
+    if einzeln:
         zeilen.append(
-            f"\n_Keine Leitregion erreicht n={config.MIN_N_LEITREGION} – "
-            "Auswertung nur auf Zonen-Ebene._"
+            f"\n*Einzelwerte* (n<{config.MIN_N_LEITREGION} – kein Median, "
+            "aber belegte Mieten)"
         )
+        zeilen.extend(_einzelzeile(s) for s in einzeln)
 
     zon = aggregate.zonen(stats)
     if zon:
@@ -96,14 +112,13 @@ def baue_nachricht(stats: list[RegionStats], report: RunReport, stand: str) -> s
 
     ps = report.propstack
     if ps.units_geladen:
-        anteil = ps.mit_miete / ps.units_geladen * 100
-        hinweis = (
-            f"\n_Propstack-Abdeckung: {ps.mit_miete} von {ps.units_geladen} "
-            f"Miet-Einheiten mit Miete ({anteil:.0f} %)"
+        # Bewusst absolut formuliert: Vermieter veröffentlichen ihre Mieten
+        # nicht, ein niedriger Anteil ist der Normalfall und kein Mangel.
+        # Zählbar ist, wie viele Mieten wir KENNEN.
+        zeilen.append(
+            f"\n_Aus Propstack: {ps.mit_miete} hinterlegte Mieten "
+            f"(von {ps.units_geladen} Miet-Einheiten insgesamt)._"
         )
-        if ps.preis_auf_anfrage:
-            hinweis += f", {ps.preis_auf_anfrage}× „Preis auf Anfrage“"
-        zeilen.append(hinweis + "._")
 
     fuss = [
         f"Quellen: Propstack {ges.n_propstack} · Drive {ges.n_drive}",

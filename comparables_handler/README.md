@@ -18,13 +18,24 @@ Steuerung über `QUELLE`:
 
 Die beiden Quellen überschneiden sich kaum und beantworten unterschiedliche Fragen: Propstack sagt, **was K&P verlangt**, das Drive sagt, **was der Markt anbietet**. Für einen belastbaren Marktmedian ist `beide` die vollständigere Basis; die Herkunft steht in jeder Zeile und im Slack-Post.
 
-### Zur Datenqualität in Propstack
+### Zur Größe der Datenbasis
 
-Die Asana-Aufgabe hielt Propstack für ungeeignet („nur 1 von 20 abrufbaren Miet-Einheiten mit Preis; Juni-Analyse: 944/1018 ohne Preis") – notierte daneben aber den offenen Nebenbefund „`/units` liefert nur 20 Einheiten". Beides hängt vermutlich zusammen:
+**Wenige Mieten bei vielen Objekten ist der Normalfall, kein Datenfehler.** Mietkonditionen werden am Markt nicht geteilt – Vermieter veröffentlichen sie nicht. Was K&P kennt, stammt aus eigenen Mandaten, Beratungsprojekten und konkreten Anfragen. Jeder einzelne Wert ist damit eine **belegte** Kondition und nicht aus einem Marktbericht geschätzt. Der aussagekräftige Maßstab ist deshalb die **absolute Zahl** der bekannten Mieten, nicht ihr Anteil am Gesamtbestand.
 
-- `objekte_handler/propstack.py` schickt `per: 100`, der funktionierende Aufruf im `propstack-pipeline-report`-Skill dagegen `per_page: 100` + `page`. Ignoriert Propstack `per`, fällt die Antwort auf die Default-Seitengröße **20** zurück – und die Preis-Statistik wurde auf einer beliebigen ersten Seite gemessen. Dieser Handler schickt deshalb **beide** Parameternamen und paginiert konsequent.
-- Mieten können in Standardfeldern (`base_rent`, `price`, …) **oder in Custom Fields** stehen; geprüft werden beide (`config.KALTMIETE_FELDER`, `CUSTOM_FIELD_MIETE_MARKER`).
-- Ein echter Gegenbefund bleibt: der Exposé-Workflow setzt bei unbekannter Miete bewusst `price_on_inquiry: true`. Solche Einheiten sind legitim ohne Preis und werden **getrennt gezählt**, nicht als Datenfehler.
+Daraus folgen zwei Design-Entscheidungen:
+
+- Der Report führt die **Anzahl belegter Mieten** als Kernaussage. Eine Abdeckungsquote wird nicht als Kennzahl geführt, weil sie eine Normalität als Mangel darstellen würde.
+- Regionen mit weniger als `MIN_N_LEITREGION` (3) Datenpunkten werden **nicht unterdrückt**, sondern als **Einzelwerte** ausgewiesen – ohne Median-Anspruch, aber mit den konkreten Werten. Ein einzelner belegter Mietwert ist im Kundengespräch wertvoll; er darf nur nicht wie ein Median auftreten.
+
+Ein Sonderfall bleibt ein echtes Warnsignal: findet der Lauf in **keiner einzigen** Einheit einen Betrag, ist das kein Datenmangel, sondern ein Hinweis auf einen falschen Feldnamen. Nur dieser Fall wird als Fehler gemeldet.
+
+### Zum Nebenbefund „/units liefert nur 20 Einheiten"
+
+Die Asana-Aufgabe notierte diesen Punkt als offen. Er ist unabhängig von der Preis-Abdeckung und betrifft, wie viele Einheiten überhaupt gelesen werden:
+
+`objekte_handler/propstack.py` schickt `per: 100`, der funktionierende Aufruf im `propstack-pipeline-report`-Skill dagegen `per_page: 100` + `page`. Ignoriert Propstack `per`, fällt die Antwort auf die Default-Seitengröße **20** zurück. Dieser Handler schickt deshalb **beide** Parameternamen und paginiert konsequent – sonst wären selbst bei perfekter Pflege nur 20 Einheiten sichtbar.
+
+Zusätzlich können Mieten in Standardfeldern (`base_rent`, `price`, …) **oder in Custom Fields** stehen; geprüft werden beide (`config.KALTMIETE_FELDER`, `CUSTOM_FIELD_MIETE_MARKER`). Einheiten mit `price_on_inquiry` („auf Anfrage") werden getrennt gezählt.
 
 **Vor der Abnahme einmal ausführen:**
 
@@ -32,7 +43,7 @@ Die Asana-Aufgabe hielt Propstack für ungeeignet („nur 1 von 20 abrufbaren Mi
 PROPSTACK_API_KEY=xxx python3 scripts/propstack_miet_audit.py --json audit.json
 ```
 
-Das Skript prüft die Paginierungs-Varianten gegeneinander und zählt über **alle** Einheiten, welche Felder Beträge tragen. Ergebnis: die tatsächliche Abdeckung und der Feldname, der in `KALTMIETE_FELDER` nach vorn gehört. Jeder Lauf des Handlers weist die Abdeckung zusätzlich im Slack-Post aus („x von y Miet-Einheiten mit Miete").
+Das Skript prüft die Paginierungs-Varianten gegeneinander und zählt über **alle** Einheiten, welche Felder Beträge tragen. Ergebnis: wie viele Mieten tatsächlich hinterlegt sind und in welchem Feldnamen – der gehört dann in `KALTMIETE_FELDER` nach vorn.
 
 ## Ablauf (Propstack)
 
@@ -64,7 +75,7 @@ Das Skript prüft die Paginierungs-Varianten gegeneinander und zählt über **al
 
 Der Cron läuft **bewusst noch im Dry-Run**. Drei Dinge sind vor dem Scharfschalten zu klären:
 
-0. **Propstack-Abdeckung** – `scripts/propstack_miet_audit.py` einmal laufen lassen (siehe oben). Liegt die Abdeckung deutlich unter 50 %, ist `QUELLE=beide` die tragfähigere Basis.
+0. **Feldnamen bestätigen** – `scripts/propstack_miet_audit.py` einmal laufen lassen (siehe oben) und das häufigste Mietfeld in `KALTMIETE_FELDER` nach vorn setzen. Dabei zeigt sich auch, wie viele Mieten pro Region zusammenkommen und ob `QUELLE=beide` zusätzliche Datenpunkte bringt.
 1. **Zielkanal.** Es gibt (Stand 12.08.2026) keinen Leasing-/Comparables-Kanal im Workspace; Default ist deshalb `#objekte` (`C07GH7AN80J`). Ein eigener Kanal ist sinnvoller – dann `COMPARABLES_CHANNEL` im Workflow setzen.
 2. **Inhaltliche Abnahme** des ersten Reports (Actions → *Comparables Report* → Run workflow, `dry_run: true`), insbesondere der extrahierten Kaltmieten gegen die Quell-PDFs.
 

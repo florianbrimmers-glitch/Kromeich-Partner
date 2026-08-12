@@ -33,15 +33,38 @@ def test_median_bei_gerader_anzahl():
     assert leit[0].median_kaltmiete == 4.55
 
 
-def test_duenne_leitregion_erscheint_nur_in_der_zone():
-    """Bei n<3 ist eine 2-stellige PLZ nicht aussagekräftig."""
+def test_duenne_leitregion_wird_einzelwert_nicht_verworfen():
+    """Bei n<3 trägt die Region keinen Median – die belegten Werte bleiben
+    aber sichtbar. Bekannte Mieten sind zu rar, um sie wegzulassen."""
     zeilen = _zeilen_mit_mieten("59192", [4.50, 4.60])
     stats = aggregate.aggregiere(zeilen)
-    assert aggregate.leitregionen(stats) == []
+
+    assert aggregate.leitregionen(stats) == []      # kein belastbarer Median
+    einzeln = aggregate.einzelwerte(stats)          # aber ausgewiesen
+    assert len(einzeln) == 1
+    assert einzeln[0].key == "59"
+    assert einzeln[0].n == 2
+    assert einzeln[0].min_kaltmiete == 4.50
+    assert einzeln[0].max_kaltmiete == 4.60
+
     zonen = aggregate.zonen(stats)
     assert len(zonen) == 1
-    assert zonen[0].key == "5"
     assert zonen[0].n == 2
+
+
+def test_belastbare_und_duenne_regionen_werden_getrennt():
+    zeilen = _zeilen_mit_mieten("59192", [4.50, 4.60, 4.70])   # n=3 -> Median
+    zeilen += _zeilen_mit_mieten("06749", [5.00])              # n=1 -> Einzelwert
+    stats = aggregate.aggregiere(zeilen)
+    assert [s.key for s in aggregate.leitregionen(stats)] == ["59"]
+    assert [s.key for s in aggregate.einzelwerte(stats)] == ["06"]
+
+
+def test_einzelwerte_zaehlen_in_die_gesamtstatistik():
+    """Sie sind aus dem Median-Block ausgenommen, nicht aus den Daten."""
+    zeilen = _zeilen_mit_mieten("59192", [4.50, 4.60, 4.70]) + _zeilen_mit_mieten("06749", [5.00])
+    gesamt = aggregate.gesamt(aggregate.aggregiere(zeilen))
+    assert gesamt.n == 4
 
 
 def test_zone_bündelt_mehrere_leitregionen():
@@ -128,3 +151,15 @@ def test_standorte_werden_ueber_die_adresse_gezaehlt():
     stats = aggregate.leitregionen(aggregate.aggregiere(zeilen))
     assert stats[0].n == 3
     assert stats[0].n_objekte == 3
+
+
+def test_gleiche_strasse_in_verschiedenen_orten_sind_zwei_standorte():
+    """'Hauptstraße 1' gibt es tausendfach – ohne PLZ im Schlüssel würden
+    Standorte quer durch Deutschland zu einem verschmelzen."""
+    zeilen = _zeilen_mit_mieten("59192", [4.50, 4.60]) + _zeilen_mit_mieten("44145", [5.00, 5.10])
+    for zeile in zeilen:
+        zeile.adresse = "Hauptstraße 1"
+        zeile.objekt = "Logistikhalle"
+    gesamt = aggregate.gesamt(aggregate.aggregiere(zeilen))
+    assert gesamt.n == 4
+    assert gesamt.n_objekte == 2      # zwei Orte, nicht einer

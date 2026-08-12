@@ -93,8 +93,11 @@ LAUFZEIT_MAX_MONATE = 360
 
 CONFIDENCE_THRESHOLD = 0.5
 
-# Ab wie vielen Datenpunkten eine Leitregion (2-stellige PLZ) eigenständig
-# ausgewiesen wird. Darunter zählt sie nur in die Postleitzone (1-stellig).
+# Ab wie vielen Datenpunkten ein Median als belastbar ausgewiesen wird.
+# Regionen darunter werden NICHT unterdrückt, sondern als Einzelwerte
+# ausgewiesen: bekannte Mieten sind rar (Vermieter veröffentlichen sie nicht),
+# und ein einzelner belegter Wert ist im Kundengespräch wertvoll – er darf nur
+# nicht als "Median" auftreten.
 MIN_N_LEITREGION = 3
 
 # --- Slack ------------------------------------------------------------------

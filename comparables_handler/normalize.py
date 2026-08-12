@@ -59,8 +59,9 @@ def propstack_zu_zeile(unit: dict, statistik: PropstackReport) -> ComparableZeil
     """Eine Propstack-Miet-Einheit als Comparable-Zeile.
 
     None, wenn es kein Mietobjekt ist. Einheiten OHNE Miete kommen bewusst
-    MIT Ausschlussgrund zurück – nur so lässt sich die Abdeckung ("wie viele
-    Einheiten tragen wirklich eine Miete?") aus dem Datensatz belegen.
+    MIT Ausschlussgrund zurück, damit im Datensatz nachvollziehbar bleibt,
+    welche Einheiten geprüft wurden. Das ist keine Mängelliste: Mieten werden
+    am Markt nicht geteilt, die meisten Einheiten tragen legitim keine.
     """
     skalar = propstack_gateway.skalar
 

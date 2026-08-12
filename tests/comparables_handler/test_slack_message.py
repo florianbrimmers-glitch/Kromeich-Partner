@@ -4,14 +4,18 @@ from comparables_handler.models import AngebotsOption, RunReport
 from .fixtures import doc, mileway_bergkamen, westcore_bitterfeld
 
 
-def _stats(plz="59192", mieten=(4.00, 4.58, 5.20)):
+def _zeilen(plz="59192", mieten=(4.00, 4.58, 5.20)):
     angebot = mileway_bergkamen()
     angebot.plz = plz
     angebot.optionen = [
         AngebotsOption(laufzeit_monate=60 + 12 * i, kaltmiete_eur_qm=m, nebenkosten_eur_qm=2.15)
         for i, m in enumerate(mieten)
     ]
-    return aggregate.aggregiere(normalize.zu_zeilen(doc(), angebot))
+    return normalize.zu_zeilen(doc(name=f"{plz}.pdf"), angebot)
+
+
+def _stats(plz="59192", mieten=(4.00, 4.58, 5.20)):
+    return aggregate.aggregiere(_zeilen(plz, mieten))
 
 
 def test_deutsche_zahlformatierung():
@@ -36,13 +40,45 @@ def test_nachricht_ohne_daten_warnt_statt_zu_luegen():
     assert "22" in text
 
 
-def test_duenne_datenlage_wird_benannt():
-    """Nur n=2 in der Leitregion -> Hinweis statt stiller Auslassung."""
+def test_duenne_region_erscheint_als_einzelwert():
+    """Bekannte Mieten sind rar – n=2 wird NICHT unterdrückt, sondern als
+    Einzelwert gezeigt (ohne Median-Anspruch)."""
     text = slack_gateway.baue_nachricht(
         _stats(mieten=(4.50, 4.60)), RunReport(dateien_eindeutig=22), "August 2026",
     )
-    assert "Keine Leitregion erreicht" in text
-    assert "Postleitzonen" in text
+    assert "Einzelwerte" in text
+    assert "Leitregionen" not in text        # n=2 trägt keinen Median
+    assert "4,50 / 4,60 €/m²" in text        # die belegten Werte selbst
+    assert "n=2" in text
+
+
+def test_einzelner_wert_wird_ausgewiesen():
+    """n=1: der eine belegte Wert ist die wertvolle Information."""
+    text = slack_gateway.baue_nachricht(
+        _stats(mieten=(4.58,)), RunReport(dateien_eindeutig=22), "August 2026",
+    )
+    assert "Einzelwerte" in text
+    assert "4,58 €/m²" in text
+    assert "n=1" in text
+
+
+def test_belastbare_und_duenne_regionen_getrennt():
+    stats = aggregate.aggregiere(
+        _zeilen("59192", (4.50, 4.60, 4.70)) + _zeilen("06749", (5.00,))
+    )
+    text = slack_gateway.baue_nachricht(stats, RunReport(), "August 2026")
+    assert "*Leitregionen*" in text
+    assert "*Einzelwerte*" in text
+    assert text.index("*Leitregionen*") < text.index("*Einzelwerte*")
+
+
+def test_absolute_zahl_steht_vorn():
+    """Die Kernaussage ist die Anzahl belegter Mieten, nicht eine Quote."""
+    text = slack_gateway.baue_nachricht(
+        _stats(), RunReport(dateien_eindeutig=22), "August 2026",
+    )
+    assert "*3 bekannte Mieten*" in text
+    assert "%" not in text          # keine Abdeckungsquote als Kernaussage
 
 
 def test_fussnote_zaehlt_ausschluesse_und_dubletten():
@@ -68,12 +104,12 @@ def test_keine_spanne_bei_einem_einzelwert():
     assert "Spanne" not in text.split("Postleitzonen")[1]
 
 
-def test_objekt_und_zeilenzahl_werden_unterschieden():
-    """Laufzeitstaffel: 1 Objekt, 3 Optionen – beides muss im Post stehen."""
+def test_standort_und_datenpunkte_werden_unterschieden():
+    """Laufzeitstaffel: 1 Standort, 3 Datenpunkte – beides muss im Post stehen."""
     stats = aggregate.aggregiere(normalize.zu_zeilen(doc(), westcore_bitterfeld()))
     text = slack_gateway.baue_nachricht(stats, RunReport(dateien_eindeutig=22), "August 2026")
-    assert "1 Objekt(e)" in text
-    assert "3 Laufzeit-Option(en)" in text
+    assert "*3 bekannte Mieten*" in text
+    assert "1 Standort(en)" in text
 
 
 def test_run_url_wird_angehaengt(monkeypatch):

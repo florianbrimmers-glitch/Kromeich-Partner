@@ -225,18 +225,20 @@ def analysiere_felder(units: list[dict]) -> dict:
     print("=" * 70)
     if bestes:
         feld, anzahl = bestes[0]
-        anteil = anzahl / len(miet_units) * 100
-        print(f"  {anzahl} von {len(miet_units)} Mietobjekten ({anteil:.0f} %) tragen eine")
-        print(f"  Miete – am häufigsten im Feld '{feld}'.")
-        if anteil >= 50:
-            print("  -> Propstack ist als Datenbasis tragfähig. Feld in")
-            print("     comparables_handler/config.py KALTMIETE_FELDER nach vorn setzen.")
-        else:
-            print("  -> Abdeckung unter 50 %. Für regionale Mediane vermutlich zu dünn;")
-            print("     Drive-Angebote als zweite Quelle behalten (QUELLE=beide).")
+        print(f"  {anzahl} Mietobjekte tragen eine Miete – am häufigsten im Feld '{feld}'.")
+        print(f"  Feld in comparables_handler/config.py KALTMIETE_FELDER nach vorn setzen.")
+        print()
+        print("  Maßstab ist die ABSOLUTE Zahl, nicht der Anteil am Bestand: Mieten")
+        print("  werden am Markt nicht geteilt, ein niedriger Anteil ist der Normalfall")
+        print(f"  und kein Datenfehler. {anzahl} belegte Mieten sind eine belastbare Basis.")
+        print()
+        print("  Entscheidend ist die Verteilung je Region – siehe die n-Werte im")
+        print("  Report-Lauf: Regionen mit n>=3 tragen einen Median, darunter werden")
+        print("  die Werte als Einzelwerte ausgewiesen (nicht unterdrückt).")
     else:
-        print("  Keine Mieten gefunden. Vor dem Weiterbauen in der Propstack-UI")
-        print("  eine Einheit mit bekannter Miete öffnen und prüfen, wie das Feld heißt.")
+        print("  KEIN einziger Betrag gefunden. Das ist etwas anderes als eine niedrige")
+        print("  Quote und deutet auf einen falschen Feldnamen hin: in der Propstack-UI")
+        print("  eine Einheit mit bekannter Miete öffnen und den Feldnamen abgleichen.")
 
     return {
         "units_gesamt": len(units),

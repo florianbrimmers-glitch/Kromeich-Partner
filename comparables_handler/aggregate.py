@@ -22,10 +22,13 @@ def _stats(ebene: str, key: str, label: str, zeilen: list[ComparableZeile]) -> R
 
     # n zählt Report-ZEILEN (Laufzeit-Optionen bzw. Einheiten); n_objekte die
     # dahinterliegenden Standorte – bei Laufzeitstaffeln ist n größer.
-    # Gruppiert wird über die ADRESSE: in Propstack tragen bei Multi-Unit-
-    # Standorten mehrere Einheiten denselben Objektnamen, über den Namen
-    # würden sie fälschlich zu einem Objekt verschmelzen.
-    standorte = {(z.adresse or z.objekt or z.datei) for z in zeilen}
+    # Gruppiert wird über PLZ + ADRESSE:
+    #  - über den Objektnamen allein würden Multi-Unit-Standorte verschmelzen,
+    #    weil Propstack die Einheiten eines Standorts gleich benennt;
+    #  - über die Adresse allein würden gleichnamige Straßen in verschiedenen
+    #    Orten verschmelzen ("Hauptstraße 1" gibt es tausendfach). In der
+    #    Gesamtzeile über alle Regionen hinweg wäre das falsch.
+    standorte = {(z.plz, z.adresse or z.objekt or z.datei) for z in zeilen}
     objekte = sorted({(z.objekt or z.adresse or z.datei) for z in zeilen})
 
     return RegionStats(
@@ -71,18 +74,22 @@ def aggregiere(zeilen: list[ComparableZeile]) -> list[RegionStats]:
 
     ergebnis: list[RegionStats] = []
 
-    leitregionen = [
-        _stats("leitregion", key, gruppe[0].region_label or key, gruppe)
-        for key, gruppe in sorted(nach_leitregion.items())
-        if len(gruppe) >= config.MIN_N_LEITREGION
-    ]
-    duenn = len(nach_leitregion) - len(leitregionen)
-    if duenn:
-        logger.info(
-            "%d Leitregion(en) mit weniger als n=%d – nur in der Postleitzone ausgewiesen",
-            duenn, config.MIN_N_LEITREGION,
-        )
-    ergebnis.extend(sorted(leitregionen, key=lambda s: (-s.n, s.key)))
+    # Belastbare Mediane und Einzelwerte werden getrennt ausgewiesen, aber
+    # BEIDE gezeigt. Bekannte Mieten sind rar; eine Region wegen n=1 ganz
+    # wegzulassen würde die wertvollste Information verschweigen.
+    belastbar: list[RegionStats] = []
+    einzelwerte: list[RegionStats] = []
+    for key, gruppe in sorted(nach_leitregion.items()):
+        ebene = "leitregion" if len(gruppe) >= config.MIN_N_LEITREGION else "leitregion_einzel"
+        stat = _stats(ebene, key, gruppe[0].region_label or key, gruppe)
+        (belastbar if ebene == "leitregion" else einzelwerte).append(stat)
+
+    logger.info(
+        "%d Leitregion(en) mit belastbarem Median (n>=%d), %d als Einzelwerte",
+        len(belastbar), config.MIN_N_LEITREGION, len(einzelwerte),
+    )
+    ergebnis.extend(sorted(belastbar, key=lambda s: (-s.n, s.key)))
+    ergebnis.extend(sorted(einzelwerte, key=lambda s: (-s.n, s.key)))
 
     ergebnis.extend(
         _stats("zone", key, gruppe[0].zone_label or key, gruppe)
@@ -94,7 +101,13 @@ def aggregiere(zeilen: list[ComparableZeile]) -> list[RegionStats]:
 
 
 def leitregionen(stats: list[RegionStats]) -> list[RegionStats]:
+    """Leitregionen mit belastbarem Median (n >= MIN_N_LEITREGION)."""
     return [s for s in stats if s.ebene == "leitregion"]
+
+
+def einzelwerte(stats: list[RegionStats]) -> list[RegionStats]:
+    """Leitregionen mit n < MIN_N_LEITREGION – als Einzelwerte, nicht als Median."""
+    return [s for s in stats if s.ebene == "leitregion_einzel"]
 
 
 def zonen(stats: list[RegionStats]) -> list[RegionStats]:

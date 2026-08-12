@@ -182,12 +182,16 @@ def erzeuge_pdf(stats: list[RegionStats], report: RunReport, stand: str, pfad: s
 
     flow.append(Paragraph("Datenbasis", titel_stil))
     flow.append(Paragraph(
-        f"Grundlage sind <b>{ges.n_objekte} Objekte</b> mit insgesamt <b>{ges.n} Laufzeit-Optionen</b>, "
-        f"extrahiert aus {report.dateien_eindeutig} Mietangebots-Dokumenten im Google Drive "
-        f"(Ordner „03. Leasing“ und „Mietangebote“). Der Gesamt-Median der Nettokaltmiete liegt bei "
-        f"<b>{eur(ges.median_kaltmiete, '€/m²')}</b> pro Monat, die Spanne reicht von "
-        f"{eur(ges.min_kaltmiete)} bis {eur(ges.max_kaltmiete)} €/m². "
-        f"Davon sind {ges.n_eigene} eigene und {ges.n_erhalten} erhaltene Angebote.", body,
+        f"Grundlage sind <b>{ges.n} belegte Mieten</b> an {ges.n_objekte} Standorten. "
+        f"Der Median der Nettokaltmiete liegt bei <b>{eur(ges.median_kaltmiete, '€/m²')}</b> "
+        f"pro Monat, die Spanne reicht von {eur(ges.min_kaltmiete)} bis "
+        f"{eur(ges.max_kaltmiete)} €/m².", body,
+    ))
+    flow.append(Paragraph(
+        "Mietkonditionen sind am Markt nicht öffentlich – Vermieter veröffentlichen sie "
+        "in der Regel nicht. Die hier ausgewerteten Werte stammen aus eigenen Mandaten, "
+        "Beratungsprojekten und konkreten Anfragen und sind damit belegte Konditionen, "
+        "keine Schätzungen aus Marktberichten.", body,
     ))
 
     kopf = ["Region", "Median", "Spanne", "NK", "Effektiv", "n", "Objekte"]
@@ -202,10 +206,19 @@ def erzeuge_pdf(stats: list[RegionStats], report: RunReport, stand: str, pfad: s
         flow.append(_tabelle(kopf, _stats_zeilen(leit), breiten, fonts))
         flow.append(Spacer(1, 4 * mm))
         flow.append(Paragraph(
-            f"Ausgewiesen werden Leitregionen mit mindestens n={config.MIN_N_LEITREGION} "
-            "Datenpunkten. Dünner besetzte Regionen fließen ausschließlich in die "
-            "Postleitzonen-Auswertung ein.", klein,
+            f"Als Median ausgewiesen ab n={config.MIN_N_LEITREGION} Datenpunkten.", klein,
         ))
+
+    einzeln = aggregate.einzelwerte(stats)
+    if einzeln:
+        flow.append(Paragraph("Einzelwerte", titel_stil))
+        flow.append(Paragraph(
+            f"Regionen mit weniger als {config.MIN_N_LEITREGION} Datenpunkten. Die Werte sind "
+            "belegt, tragen aber keinen belastbaren Median – sie sind als Einzelfälle zu lesen.",
+            klein,
+        ))
+        flow.append(Spacer(1, 2 * mm))
+        flow.append(_tabelle(kopf, _stats_zeilen(einzeln), breiten, fonts))
 
     zon = aggregate.zonen(stats)
     if zon:
@@ -230,6 +243,10 @@ def erzeuge_pdf(stats: list[RegionStats], report: RunReport, stand: str, pfad: s
         "Konditionen sowie Werte außerhalb des Plausibilitätsbereichs "
         f"({eur(config.KALTMIETE_MIN_EUR_QM)}–{eur(config.KALTMIETE_MAX_EUR_QM)} €/m²).",
         "<b>Median statt Mittelwert:</b> einzelne Ausreißer verschieben den Median nicht.",
+        "<b>Zur Größe der Datenbasis:</b> Mieten werden am Markt nicht geteilt. Jeder hier "
+        "ausgewiesene Wert ist eine konkret bekannte Kondition aus einem Mandat, einem "
+        "Beratungsprojekt oder einer Anfrage – die absolute Zahl der Datenpunkte ist "
+        "deshalb der aussagekräftige Maßstab, nicht ihr Anteil am Gesamtbestand.",
     ):
         flow.append(Paragraph(punkt, body))
 
