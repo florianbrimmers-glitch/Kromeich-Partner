@@ -87,11 +87,12 @@ def _tabelle(kopf: list[str], zeilen: list[list[str]], breiten: list[float], fon
 def _stats_zeilen(stats: list[RegionStats]) -> list[list[str]]:
     zeilen = []
     for s in stats:
-        spanne = (
-            f"{eur(s.min_kaltmiete)} – {eur(s.max_kaltmiete)}"
-            if s.min_kaltmiete is not None and s.max_kaltmiete is not None
-            else "–"
-        )
+        # Bei nur einem Wert keine Pseudo-Spanne "6,40 – 6,40" ausweisen
+        if (s.min_kaltmiete is not None and s.max_kaltmiete is not None
+                and s.min_kaltmiete != s.max_kaltmiete):
+            spanne = f"{eur(s.min_kaltmiete)} – {eur(s.max_kaltmiete)}"
+        else:
+            spanne = "–"
         zeilen.append([
             f"{s.key}  {s.label}",
             eur(s.median_kaltmiete),
@@ -218,7 +219,9 @@ def erzeuge_pdf(stats: list[RegionStats], report: RunReport, stand: str, pfad: s
             klein,
         ))
         flow.append(Spacer(1, 2 * mm))
-        flow.append(_tabelle(kopf, _stats_zeilen(einzeln), breiten, fonts))
+        # Spalte bewusst nicht "Median" nennen: bei n=1 wäre das irreführend.
+        kopf_einzel = ["Region", "Wert", "von – bis", "NK", "Effektiv", "n", "Objekte"]
+        flow.append(_tabelle(kopf_einzel, _stats_zeilen(einzeln), breiten, fonts))
 
     zon = aggregate.zonen(stats)
     if zon:
