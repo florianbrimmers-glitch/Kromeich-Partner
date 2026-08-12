@@ -9,12 +9,13 @@ from .models import ComparableZeile, DecisionRecord
 logger = logging.getLogger(__name__)
 
 CSV_SPALTEN = (
-    "datum", "objekt", "adresse", "plz", "ort", "region_key", "region_label",
+    "quelle", "datum", "objekt", "adresse", "plz", "ort", "region_key", "region_label",
     "zone_key", "zone_label", "anbieter", "empfaenger", "eigenes_angebot",
     "nutzungsart", "flaeche_qm", "laufzeit_monate", "kaltmiete_eur_qm",
     "nebenkosten_eur_qm", "mietfreie_monate", "effektivmiete_eur_qm",
-    "sicherheit", "indexierung", "option_hinweis", "normalisiert_aus_absolut",
-    "confidence", "ausschluss_grund", "datei", "quelle_link", "fundstellen", "file_id",
+    "sicherheit", "indexierung", "option_hinweis", "vermietet", "miete_feld",
+    "normalisiert_aus_absolut", "confidence", "ausschluss_grund",
+    "datei", "quelle_link", "fundstellen", "file_id",
 )
 
 

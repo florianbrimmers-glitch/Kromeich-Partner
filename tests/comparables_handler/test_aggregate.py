@@ -116,3 +116,15 @@ def test_effektivmiete_median_wird_gebildet():
     gesamt = aggregate.gesamt(stats)
     # 4,35 und 3,85 -> Median 4,10
     assert gesamt.median_effektivmiete == 4.10
+
+
+def test_standorte_werden_ueber_die_adresse_gezaehlt():
+    """Propstack führt Multi-Unit-Standorte mit gleichem Objektnamen.
+    Über den Namen gruppiert wären das fälschlich '1 Objekt'."""
+    zeilen = _zeilen_mit_mieten("59192", [4.50, 4.60, 4.70])
+    for i, zeile in enumerate(zeilen):
+        zeile.objekt = "Logistikpark Bergkamen"      # gleicher Name ...
+        zeile.adresse = f"Musterweg {i + 1}"         # ... verschiedene Adressen
+    stats = aggregate.leitregionen(aggregate.aggregiere(zeilen))
+    assert stats[0].n == 3
+    assert stats[0].n_objekte == 3

@@ -81,10 +81,13 @@ class ComparableZeile(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     # Herkunft
-    file_id: str
-    datei: str
+    quelle: str = "drive"             # "propstack" | "drive"
+    file_id: str                      # Drive-fileId bzw. Propstack-Unit-ID
+    datei: str                        # Dateiname bzw. Objektbezeichnung
     quelle_link: str | None = None
     fundstellen: int = 1
+    miete_feld: str | None = None     # Propstack: Feld, aus dem die Miete kam
+    vermietet: bool | None = None     # Propstack: rented-Flag
 
     # Objekt
     objekt: str | None = None
@@ -134,6 +137,8 @@ class RegionStats(BaseModel):
     n_objekte: int = 0
     n_eigene: int = 0
     n_erhalten: int = 0
+    n_propstack: int = 0
+    n_drive: int = 0
     median_kaltmiete: float | None = None
     min_kaltmiete: float | None = None
     max_kaltmiete: float | None = None
@@ -162,7 +167,23 @@ class DecisionRecord(BaseModel):
     fehler: str | None = None
 
 
+class PropstackReport(BaseModel):
+    """Zähler des Propstack-Zweigs – auch die Grundlage der Datenqualitäts-Aussage."""
+
+    units_geladen: int = 0
+    keine_mietobjekte: int = 0
+    mit_miete: int = 0
+    ohne_miete: int = 0
+    preis_auf_anfrage: int = 0
+    ohne_flaeche: int = 0
+    aus_absolut_normalisiert: int = 0
+    vermietet: int = 0
+    miete_felder: dict[str, int] = Field(default_factory=dict)
+
+
 class RunReport(BaseModel):
+    quelle: str = ""
+    propstack: PropstackReport = Field(default_factory=PropstackReport)
     dateien_gefunden: int = 0
     dateien_eindeutig: int = 0
     dateien_kopien_uebersprungen: int = 0

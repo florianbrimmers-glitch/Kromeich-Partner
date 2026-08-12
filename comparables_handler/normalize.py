@@ -4,8 +4,8 @@ import logging
 import re
 import unicodedata
 
-from . import config, regions
-from .models import ComparableZeile, DriveDoc, Mietangebot
+from . import config, propstack_gateway, regions
+from .models import ComparableZeile, DriveDoc, Mietangebot, PropstackReport
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +34,126 @@ def normalisiere_strasse(value: str | None) -> str:
     if not value:
         return ""
     return normalisiere_text(_STRASSE_RE.sub("str", _entumlauten(value).lower()))
+
+
+# --- Propstack: Einheit -> Report-Zeile ------------------------------------
+def _propstack_objektname(unit: dict) -> str:
+    skalar = propstack_gateway.skalar
+    for feld in ("name", "title", "street"):
+        wert = skalar(unit.get(feld))
+        if wert and str(wert).strip():
+            return str(wert).strip()
+    return f"Unit {unit.get('id')}"
+
+
+def _propstack_adresse(unit: dict) -> str | None:
+    skalar = propstack_gateway.skalar
+    strasse = skalar(unit.get("street"))
+    nummer = skalar(unit.get("house_number"))
+    if not strasse:
+        return None
+    return f"{strasse} {nummer}".strip() if nummer is not None else str(strasse).strip()
+
+
+def propstack_zu_zeile(unit: dict, statistik: PropstackReport) -> ComparableZeile | None:
+    """Eine Propstack-Miet-Einheit als Comparable-Zeile.
+
+    None, wenn es kein Mietobjekt ist. Einheiten OHNE Miete kommen bewusst
+    MIT Ausschlussgrund zurück – nur so lässt sich die Abdeckung ("wie viele
+    Einheiten tragen wirklich eine Miete?") aus dem Datensatz belegen.
+    """
+    skalar = propstack_gateway.skalar
+
+    if not propstack_gateway.ist_mietobjekt(unit):
+        statistik.keine_mietobjekte += 1
+        return None
+
+    plz = regions.normalize_plz(skalar(unit.get("zip_code")))
+    leit = regions.leitregion(plz)
+    zon = regions.zone(plz)
+
+    kaltmiete, miete_feld = propstack_gateway.hole_betrag(
+        unit, config.KALTMIETE_FELDER, config.CUSTOM_FIELD_MIETE_MARKER,
+    )
+    nebenkosten, _ = propstack_gateway.hole_betrag(
+        unit, config.NEBENKOSTEN_FELDER, config.CUSTOM_FIELD_NK_MARKER,
+    )
+    flaeche, _ = propstack_gateway.hole_flaeche(unit)
+    vermietet = skalar(unit.get("rented")) is True
+
+    if flaeche is None:
+        statistik.ohne_flaeche += 1
+    if vermietet:
+        statistik.vermietet += 1
+
+    # Absolute Monatsmiete auf €/m² umrechnen. Propstack führt base_rent
+    # üblicherweise absolut; ein €/m²-Wert steht meist in einem Custom Field.
+    aus_absolut = False
+    if kaltmiete is not None and kaltmiete > config.ABSOLUT_SCHWELLE_EUR_QM:
+        if flaeche and flaeche > 0:
+            kaltmiete = round(kaltmiete / flaeche, 2)
+            aus_absolut = True
+            statistik.aus_absolut_normalisiert += 1
+        # ohne Fläche bleibt der Betrag stehen und fällt in die
+        # Plausibilitätsprüfung – als Ausreißer mit Grund, nicht still
+    if nebenkosten is not None and nebenkosten > config.NEBENKOSTEN_MAX_EUR_QM:
+        if flaeche and flaeche > 0:
+            nebenkosten = round(nebenkosten / flaeche, 2)
+        else:
+            nebenkosten = None
+
+    if kaltmiete is None:
+        statistik.ohne_miete += 1
+        if propstack_gateway.preis_auf_anfrage(unit):
+            statistik.preis_auf_anfrage += 1
+    else:
+        statistik.mit_miete += 1
+        if miete_feld:
+            statistik.miete_felder[miete_feld] = statistik.miete_felder.get(miete_feld, 0) + 1
+
+    unit_id = str(unit.get("id"))
+    zeile = ComparableZeile(
+        quelle=config.QUELLE_PROPSTACK,
+        file_id=unit_id,
+        datei=_propstack_objektname(unit),
+        quelle_link=f"https://app.propstack.de/properties/{unit_id}",
+        miete_feld=miete_feld,
+        vermietet=vermietet,
+        objekt=_propstack_objektname(unit),
+        adresse=_propstack_adresse(unit),
+        plz=plz,
+        ort=skalar(unit.get("city")),
+        region_key=leit[0] if leit else None,
+        region_label=leit[1] if leit else None,
+        zone_key=zon[0] if zon else None,
+        zone_label=zon[1] if zon else None,
+        # Propstack führt eigene Mandate: die Miete ist eine ANGEBOTSMIETE von K&P.
+        anbieter=(skalar((unit.get("broker") or {}).get("name"))
+                  if isinstance(unit.get("broker"), dict) else None),
+        datum=(skalar(unit.get("updated_at")) or skalar(unit.get("created_at")) or None),
+        eigenes_angebot=True,
+        flaeche_qm=flaeche,
+        nutzungsart=skalar(unit.get("rs_category")) or skalar(unit.get("rs_type")),
+        kaltmiete_eur_qm=kaltmiete,
+        nebenkosten_eur_qm=nebenkosten,
+        effektivmiete_eur_qm=effektivmiete(kaltmiete, None, None),
+        normalisiert_aus_absolut=aus_absolut,
+        confidence=1.0,   # strukturiertes Feld, keine LLM-Schätzung
+        option_hinweis="vermietet" if vermietet else None,
+    )
+
+    zeile.ausschluss_grund = _plausibilitaet(zeile)
+    if zeile.ausschluss_grund is None and not plz:
+        zeile.ausschluss_grund = "keine PLZ – Region nicht zuordenbar"
+    return zeile
+
+
+def propstack_zu_zeilen(
+    units: list[dict], statistik: PropstackReport
+) -> list[ComparableZeile]:
+    statistik.units_geladen = len(units)
+    zeilen = [propstack_zu_zeile(unit, statistik) for unit in units]
+    return [z for z in zeilen if z is not None]
 
 
 # --- Ausschluss auf Dateinamen-Ebene (vor dem LLM-Call) --------------------

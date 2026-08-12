@@ -4,6 +4,33 @@ import os
 
 CLAUDE_MODEL = "claude-opus-4-8"
 
+# --- Datenquelle ------------------------------------------------------------
+# Propstack ist die primäre Quelle: dort werden die Mieten gepflegt, die Daten
+# sind strukturiert und brauchen keine LLM-Extraktion. Der Drive-Pfad liefert
+# ergänzend die ERHALTENEN Fremdangebote (Mileway, HIH, Westcore …), die in
+# Propstack nicht stehen, weil sie keine eigenen Mandate sind.
+QUELLE_PROPSTACK = "propstack"
+QUELLE_DRIVE = "drive"
+QUELLE_BEIDE = "beide"
+
+
+def quelle() -> str:
+    wert = os.environ.get("QUELLE", QUELLE_PROPSTACK).strip().lower()
+    if wert not in (QUELLE_PROPSTACK, QUELLE_DRIVE, QUELLE_BEIDE):
+        raise RuntimeError(
+            f"QUELLE={wert!r} unbekannt – erlaubt: "
+            f"{QUELLE_PROPSTACK}, {QUELLE_DRIVE}, {QUELLE_BEIDE}"
+        )
+    return wert
+
+
+def nutzt_propstack() -> bool:
+    return quelle() in (QUELLE_PROPSTACK, QUELLE_BEIDE)
+
+
+def nutzt_drive() -> bool:
+    return quelle() in (QUELLE_DRIVE, QUELLE_BEIDE)
+
 # --- Google-Drive-Datenbasis -------------------------------------------------
 # Gefunden am 12.08.2026 per Drive-Suche. Zwei "03. Leasing"-Ordner (eigenes
 # Shared Drive + ein von felix.kern geteilter) und zwei "Mietangebote"-Ordner.
@@ -148,6 +175,61 @@ def kp_design_dir() -> str:
         "KP_DESIGN_DIR",
         os.path.expanduser("~/.claude/skills/synced/kp-design"),
     )
+
+
+# --- Propstack --------------------------------------------------------------
+PROPSTACK_BASE_URL = "https://api.propstack.de/v1"
+PROPSTACK_MAX_ATTEMPTS = 4
+
+# Seitengröße. ACHTUNG: der Listen-Endpoint respektiert `per_page` (so nutzt es
+# der propstack-pipeline-report-Skill erfolgreich). `per` wird offenbar
+# ignoriert und die Antwort fällt auf die Default-Seitengröße von 20 zurück –
+# genau das erklärt den Nebenbefund "/units liefert nur 20 Einheiten" aus der
+# Asana-Aufgabe. Wir schicken beide Namen, damit es unabhängig davon läuft.
+PROPSTACK_PER_PAGE = 100
+PROPSTACK_MAX_PAGES = 200          # Schutz gegen Endlos-Paginierung
+
+# Mietobjekte erkennen
+MARKETING_TYPES_MIETE = ("RENT", "RENT_AND_BUY", "MIETE")
+
+# Kaltmiete: Feld-Kandidaten in Prüfreihenfolge. Propstack folgt weitgehend
+# OpenImmo/IS24. Welcher Name bei K&P tatsächlich gefüllt ist, beantwortet
+# scripts/propstack_miet_audit.py – bis dahin werden alle geprüft.
+KALTMIETE_FELDER = ("base_rent", "rent_price", "net_rent", "price")
+# Nebenkosten
+NEBENKOSTEN_FELDER = ("service_charge", "additional_costs", "operating_costs", "nebenkosten")
+# Custom Fields, die eine Miete tragen können (Teilstring-Match, klein)
+CUSTOM_FIELD_MIETE_MARKER = ("kaltmiete", "nettomiete", "miete_qm", "mietpreis", "miete")
+CUSTOM_FIELD_NK_MARKER = ("nebenkosten", "nk_qm", "betriebskosten")
+
+# Flächen-Kandidaten in Prüfreihenfolge (für die €/m²-Normalisierung)
+FLAECHE_FELDER = (
+    "net_floor_space", "total_floor_space", "usable_floor_space",
+    "industrial_area", "property_space_value", "living_space",
+)
+
+# Oberhalb dieses €/m²-Werts gilt ein Mietbetrag als ABSOLUTE Monatsmiete und
+# wird über die Fläche normalisiert (4,58 = €/m², 45.000 = absolut).
+ABSOLUT_SCHWELLE_EUR_QM = 25.0
+
+PROPSTACK_KEY_ENV_NAMES = ("PROPSTACK_KEY_OBJEKTE", "PROPSTACK_API_KEY")
+
+
+def propstack_key_env_name() -> str | None:
+    for name in PROPSTACK_KEY_ENV_NAMES:
+        if os.environ.get(name, "").strip():
+            return name
+    return None
+
+
+def propstack_key() -> str:
+    name = propstack_key_env_name()
+    if not name:
+        raise RuntimeError(
+            "Kein Propstack-Key gefunden. Eines dieser Secrets füllen "
+            f"({', '.join(PROPSTACK_KEY_ENV_NAMES)})."
+        )
+    return os.environ[name].strip()
 
 
 # --- Google-Drive-Zugang ----------------------------------------------------

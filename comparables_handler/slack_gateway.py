@@ -60,10 +60,16 @@ def baue_nachricht(stats: list[RegionStats], report: RunReport, stand: str) -> s
     ges = aggregate.gesamt(stats)
     if ges is None or ges.n == 0:
         zeilen.append(
-            "\n:warning: Keine verwertbaren Angebote gefunden. "
-            f"{report.dateien_eindeutig} Dokument(e) geprüft, "
+            "\n:warning: Keine verwertbaren Mieten gefunden. "
+            f"{report.propstack.units_geladen} Propstack-Einheit(en) und "
+            f"{report.dateien_eindeutig} Drive-Dokument(e) geprüft, "
             f"{report.zeilen_ausgeschlossen} Zeile(n) ausgeschlossen."
         )
+        if report.propstack.units_geladen and not report.propstack.mit_miete:
+            zeilen.append(
+                "Keine der Propstack-Einheiten trug eine Miete in den geprüften Feldern – "
+                "Feldnamen prüfen (`scripts/propstack_miet_audit.py`)."
+            )
         return "\n".join(zeilen)
 
     zeilen.append(
@@ -88,8 +94,20 @@ def baue_nachricht(stats: list[RegionStats], report: RunReport, stand: str) -> s
         zeilen.append("\n*Postleitzonen* (1-stellige PLZ)")
         zeilen.extend(_zeile(s) for s in zon)
 
+    ps = report.propstack
+    if ps.units_geladen:
+        anteil = ps.mit_miete / ps.units_geladen * 100
+        hinweis = (
+            f"\n_Propstack-Abdeckung: {ps.mit_miete} von {ps.units_geladen} "
+            f"Miet-Einheiten mit Miete ({anteil:.0f} %)"
+        )
+        if ps.preis_auf_anfrage:
+            hinweis += f", {ps.preis_auf_anfrage}× „Preis auf Anfrage“"
+        zeilen.append(hinweis + "._")
+
     fuss = [
-        f"Eigene Angebote: {ges.n_eigene} · erhaltene: {ges.n_erhalten}",
+        f"Quellen: Propstack {ges.n_propstack} · Drive {ges.n_drive}",
+        f"eigene Angebote: {ges.n_eigene} · erhaltene: {ges.n_erhalten}",
         f"Ausgeschlossen: {report.zeilen_ausgeschlossen} Zeile(n)",
     ]
     if report.versionen_uebersprungen:

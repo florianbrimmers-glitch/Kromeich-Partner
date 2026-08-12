@@ -1,12 +1,47 @@
-# Comparables-Report (Google Drive → Slack + K&P-PDF)
+# Comparables-Report (Propstack + Drive → Slack + K&P-PDF)
 
-Liest **alle Mietangebote aus dem Google Drive**, extrahiert die Konditionen und liefert **Vergleichsmieten pro Region** – Median, Spanne und n. Läuft als monatlicher GitHub-Actions-Cron (`.github/workflows/comparables-report.yml`, 1. des Monats 05:00 UTC), Entrypoint `python -m comparables_handler.main`.
+Liefert **Vergleichsmieten pro Region** – Median, Spanne und n. Läuft als monatlicher GitHub-Actions-Cron (`.github/workflows/comparables-report.yml`, 1. des Monats 05:00 UTC), Entrypoint `python -m comparables_handler.main`.
 
 Eigenständiges Paket – **kein Code-Sharing mit `src/`** oder den anderen Handlern.
 
 Umsetzung der Asana-Aufgabe [Comparables-Report aus Mietangeboten](https://app.asana.com/1/1207989209959731/task/1213887655130097).
 
-## Ablauf
+## Datenquellen
+
+Steuerung über `QUELLE`:
+
+| `QUELLE` | Inhalt |
+|---|---|
+| `propstack` (Default) | Die in Propstack gepflegten Mieten – **Angebotsmieten der eigenen Mandate**. Strukturiert, keine LLM-Extraktion nötig. |
+| `drive` | Mietangebots-Dokumente aus dem Google Drive – vor allem **erhaltene Fremdangebote** (Mileway, HIH, Westcore …). Braucht Claude zur Extraktion. |
+| `beide` | Union beider Quellen; jede Zeile trägt ihre Herkunft in der Spalte `quelle`. |
+
+Die beiden Quellen überschneiden sich kaum und beantworten unterschiedliche Fragen: Propstack sagt, **was K&P verlangt**, das Drive sagt, **was der Markt anbietet**. Für einen belastbaren Marktmedian ist `beide` die vollständigere Basis; die Herkunft steht in jeder Zeile und im Slack-Post.
+
+### Zur Datenqualität in Propstack
+
+Die Asana-Aufgabe hielt Propstack für ungeeignet („nur 1 von 20 abrufbaren Miet-Einheiten mit Preis; Juni-Analyse: 944/1018 ohne Preis") – notierte daneben aber den offenen Nebenbefund „`/units` liefert nur 20 Einheiten". Beides hängt vermutlich zusammen:
+
+- `objekte_handler/propstack.py` schickt `per: 100`, der funktionierende Aufruf im `propstack-pipeline-report`-Skill dagegen `per_page: 100` + `page`. Ignoriert Propstack `per`, fällt die Antwort auf die Default-Seitengröße **20** zurück – und die Preis-Statistik wurde auf einer beliebigen ersten Seite gemessen. Dieser Handler schickt deshalb **beide** Parameternamen und paginiert konsequent.
+- Mieten können in Standardfeldern (`base_rent`, `price`, …) **oder in Custom Fields** stehen; geprüft werden beide (`config.KALTMIETE_FELDER`, `CUSTOM_FIELD_MIETE_MARKER`).
+- Ein echter Gegenbefund bleibt: der Exposé-Workflow setzt bei unbekannter Miete bewusst `price_on_inquiry: true`. Solche Einheiten sind legitim ohne Preis und werden **getrennt gezählt**, nicht als Datenfehler.
+
+**Vor der Abnahme einmal ausführen:**
+
+```bash
+PROPSTACK_API_KEY=xxx python3 scripts/propstack_miet_audit.py --json audit.json
+```
+
+Das Skript prüft die Paginierungs-Varianten gegeneinander und zählt über **alle** Einheiten, welche Felder Beträge tragen. Ergebnis: die tatsächliche Abdeckung und der Feldname, der in `KALTMIETE_FELDER` nach vorn gehört. Jeder Lauf des Handlers weist die Abdeckung zusätzlich im Slack-Post aus („x von y Miet-Einheiten mit Miete").
+
+## Ablauf (Propstack)
+
+1. **Laden** – `GET /units` paginiert (`per_page` + `page`, `expand=1`, `marketing_type=RENT`), Kaufobjekte fallen raus.
+2. **Feld-Auflösung** – Kaltmiete, Nebenkosten und Fläche aus den Kandidatenfeldern; welches Feld gegriffen hat, steht als `miete_feld` in jeder Zeile.
+3. **Normalisierung** – Beträge über `ABSOLUT_SCHWELLE_EUR_QM` (25 €/m²) gelten als absolute Monatsmiete und werden über die Fläche in €/m² umgerechnet. Fehlt die Fläche, bleibt der Wert stehen und fällt der Plausibilitätsprüfung **mit Grund** auf – nie stillschweigend.
+4. **Aggregation** – wie unten, gemeinsam mit den Drive-Zeilen.
+
+## Ablauf (Drive)
 
 1. **Discovery** – zwei Wege gleichzeitig: Titel-Suche (`Mietangebot` im Dateinamen) plus Rekursion über die Ordner `03. Leasing` und `Mietangebote` (IDs in `config.SEED_FOLDER_IDS`). Verknüpfungen werden aufgelöst, Shared Drives eingeschlossen.
 2. **Datei-Dedup** – dasselbe Angebot liegt im Drive typischerweise 3–5× in verschiedenen Ordnern. Zusammengefasst wird über die Inhalts-Prüfsumme (`md5Checksum`), ersatzweise Größe + MIME-Typ. Gemessen am 12.08.2026: **~70 Treffer → ~22 verschiedene Dokumente.** Ohne diesen Schritt ginge jede Kopie einzeln an Claude.
@@ -27,8 +62,9 @@ Umsetzung der Asana-Aufgabe [Comparables-Report aus Mietangeboten](https://app.a
 
 ### Scharfschalten
 
-Der Cron läuft **bewusst noch im Dry-Run**. Zwei Dinge sind vor dem Scharfschalten zu klären:
+Der Cron läuft **bewusst noch im Dry-Run**. Drei Dinge sind vor dem Scharfschalten zu klären:
 
+0. **Propstack-Abdeckung** – `scripts/propstack_miet_audit.py` einmal laufen lassen (siehe oben). Liegt die Abdeckung deutlich unter 50 %, ist `QUELLE=beide` die tragfähigere Basis.
 1. **Zielkanal.** Es gibt (Stand 12.08.2026) keinen Leasing-/Comparables-Kanal im Workspace; Default ist deshalb `#objekte` (`C07GH7AN80J`). Ein eigener Kanal ist sinnvoller – dann `COMPARABLES_CHANNEL` im Workflow setzen.
 2. **Inhaltliche Abnahme** des ersten Reports (Actions → *Comparables Report* → Run workflow, `dry_run: true`), insbesondere der extrahierten Kaltmieten gegen die Quell-PDFs.
 
@@ -38,10 +74,13 @@ Danach im Workflow `DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}` setz
 
 | Variable | Pflicht | Default | Bedeutung |
 |---|---|---|---|
-| `GOOGLE_CLIENT_ID` | ja | – | OAuth-Client (wie Kontakt-Pipeline) |
-| `GOOGLE_CLIENT_SECRET` | ja | – | OAuth-Client |
-| `GOOGLE_REFRESH_TOKEN_DRIVE` | ja | – | Refresh-Token **mit `drive.readonly`** (siehe unten) |
-| `ANTHROPIC_API_KEY` | ja | – | Claude-Extraktion |
+| `QUELLE` | nein | `propstack` | `propstack` / `drive` / `beide` |
+| `PROPSTACK_API_KEY` | für Propstack | – | v1-Key (dasselbe Secret wie die anderen Handler) |
+| `PROPSTACK_KEY_OBJEKTE` | nein | – | Optionaler Override für den units-Zugriff |
+| `GOOGLE_CLIENT_ID` | für Drive | – | OAuth-Client (wie Kontakt-Pipeline) |
+| `GOOGLE_CLIENT_SECRET` | für Drive | – | OAuth-Client |
+| `GOOGLE_REFRESH_TOKEN_DRIVE` | für Drive | – | Refresh-Token **mit `drive.readonly`** (siehe unten) |
+| `ANTHROPIC_API_KEY` | für Drive | – | Claude-Extraktion (Propstack braucht kein LLM) |
 | `SLACK_BOT_TOKEN` | nur scharf | – | Bot-Token für den Report-Post |
 | `COMPARABLES_CHANNEL` | nein | `C07GH7AN80J` (#objekte) | Zielkanal |
 | `DRY_RUN` | nein | `true` | Report bauen, aber nicht posten |
@@ -55,6 +94,8 @@ Danach im Workflow `DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}` setz
 | `DECISION_LOG_PATH` | nein | `comparables_decisions.jsonl` | Entscheidungslog |
 
 ## Secrets-Setup: Drive-Zugang
+
+Nur nötig für `QUELLE=drive` oder `beide`. Der Propstack-Zweig nutzt das bestehende `PROPSTACK_API_KEY`.
 
 ⚠️ **Die bestehenden `GOOGLE_REFRESH_TOKEN*`-Secrets reichen nicht.** Sie sind auf `gmail.readonly` ausgestellt; Drive-Aufrufe damit scheitern mit `insufficient authentication scopes`. Es braucht ein eigenes Token:
 
@@ -80,7 +121,14 @@ Mit dem Konto anmelden, das Zugriff auf die Leasing-Ordner hat, und das Ergebnis
 
 ```bash
 pip install -r requirements.txt
-NO_WRITE=true MAKE_PDF=true python -m comparables_handler.main
+
+# Propstack (Default)
+PROPSTACK_API_KEY=xxx NO_WRITE=true MAKE_PDF=true python -m comparables_handler.main
+
+# beide Quellen
+QUELLE=beide PROPSTACK_API_KEY=xxx GOOGLE_CLIENT_ID=… GOOGLE_CLIENT_SECRET=… \
+  GOOGLE_REFRESH_TOKEN_DRIVE=… ANTHROPIC_API_KEY=… NO_WRITE=true \
+  python -m comparables_handler.main
 ```
 
 Tests (ohne Netz/Credentials):
@@ -104,10 +152,16 @@ jq -r 'select(.angebot.ist_mietangebot) | "\(.angebot.objekt): \(.angebot.option
 
 ## Voraussetzung im Team
 
-Die Auswertung ist nur so gut wie die Ablage: **jedes ein- und ausgehende Mietangebot gehört in den Drive-Leasing-Ordner** (Team-Regel aus der Asana-Aufgabe). Angebote, die nur im Mail-Postfach liegen, sieht der Job nicht.
+Die Auswertung ist nur so gut wie die Pflege:
+
+- **Propstack:** Miete und Fläche an der Einheit hinterlegen. Ist die Miete unbekannt, `price_on_inquiry` setzen – dann erscheint die Einheit als „auf Anfrage" statt als Datenlücke.
+- **Drive:** jedes ein- und ausgehende Mietangebot in den Leasing-Ordner ablegen (Team-Regel aus der Asana-Aufgabe). Angebote, die nur im Mail-Postfach liegen, sieht der Job nicht.
 
 ## Bekannte Einschränkungen
 
+- **Propstack liefert nur eine Zeile je Einheit** – keine Laufzeit-Optionen, keine mietfreie Zeit, keine Indexierung. Die Effektivmiete entspricht dort der Kaltmiete. Diese Konditionen stehen nur in den Drive-Angeboten.
+- **Propstack-Mieten sind eigene Angebotsmieten**, keine Marktmieten Dritter. Für die Marktsicht braucht es `QUELLE=beide`.
+- **Absolut vs. €/m²** wird über die Schwelle von 25 €/m² unterschieden. Eine echte Büro-Kaltmiete über 25 €/m² würde fälschlich als Absolutbetrag gelesen – für Logistik-/Hallenflächen unkritisch, bei Büroflächen in Innenstadtlage im Auge behalten.
 - **Regions-Labels** sind kuratiert (`regions.py`). Unbekannte Leitregionen erscheinen als „PLZ-Gebiet 23" – die Zahl bleibt korrekt, nur die Beschriftung fehlt.
 - **Dünne Datenbasis:** bei ~20 Angeboten erreicht kaum eine Leitregion n=3. Die Postleitzone trägt dann die Aussage; der Post weist das explizit aus.
 - **Ohne PLZ keine Region.** Nennt ein Angebot nur den Ort, fällt die Zeile mit Grund aus der Statistik.
@@ -118,7 +172,7 @@ Die Auswertung ist nur so gut wie die Ablage: **jedes ein- und ausgehende Mietan
 
 ## Explizit außerhalb des Scopes
 
-- **Propstack als Datenbasis** – laut Vorabanalyse ungeeignet: nur 1 von 20 abrufbaren Miet-Einheiten hatte einen Preis (Juni-Analyse: 944 von 1018 ohne Preis). Der Nebenbefund „`/units`-Listenendpoint liefert nur 20 Einheiten – Key-Scope prüfen" ist weiterhin offen und gehört nicht in diesen Handler.
-- Abgeschlossene Mietverträge (nur indikative Angebote werden ausgewertet)
-- Schreiben nach Propstack oder ins Drive
+- Abgeschlossene Mietverträge – ausgewertet werden **Angebotsmieten** (Propstack-Mandate und indikative Angebote), keine Vertragsmieten.
+- Schreiben nach Propstack oder ins Drive – der Handler liest ausschließlich.
 - Gesuch-Intake (separate Aufgabe)
+- Reparatur von `objekte_handler/propstack.py` (schickt `per: 100` statt `per_page`) – dieser Handler umgeht das Problem für sich; der Fix am bestehenden Handler ist eine eigene Änderung.

@@ -32,7 +32,7 @@ def test_nachricht_enthaelt_median_spanne_und_n():
 def test_nachricht_ohne_daten_warnt_statt_zu_luegen():
     report = RunReport(dateien_eindeutig=22, zeilen_ausgeschlossen=5)
     text = slack_gateway.baue_nachricht([], report, "August 2026")
-    assert "Keine verwertbaren Angebote" in text
+    assert "Keine verwertbaren Mieten" in text
     assert "22" in text
 
 

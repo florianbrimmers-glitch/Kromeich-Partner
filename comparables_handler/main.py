@@ -6,7 +6,10 @@ import time
 import uuid
 from datetime import datetime, timezone
 
-from . import aggregate, cache, config, drive_gateway, extractor, logbuch, normalize, report_pdf
+from . import (
+    aggregate, cache, config, drive_gateway, extractor, logbuch, normalize,
+    propstack_gateway, report_pdf,
+)
 from .models import ComparableZeile, DecisionRecord, DriveDoc, Mietangebot, RunReport
 from .slack_gateway import MONATE, baue_nachricht, poste
 
@@ -130,19 +133,33 @@ def _extrahiere(
     return paare
 
 
-def run_pipeline() -> RunReport:
-    report = RunReport()
-    run_id = uuid.uuid4().hex[:12]
-    stand = _stand()
+def _propstack_zeilen(report: RunReport) -> list[ComparableZeile]:
+    """Primärquelle: die in Propstack gepflegten Mieten."""
+    units = propstack_gateway.fetch_units(nur_miete=True)
+    zeilen = normalize.propstack_zu_zeilen(units, report.propstack)
 
-    if config.no_write():
-        logger.info("=== NO_WRITE – reiner Lese-/Loglauf, kein Slack-Post ===")
-    elif config.dry_run():
-        logger.info("=== DRY RUN – Report wird gebaut und geloggt, aber nicht gepostet ===")
+    ps = report.propstack
+    logger.info(
+        "Propstack: %d Einheiten, davon %d mit Miete und %d ohne "
+        "(%d davon 'Preis auf Anfrage')",
+        ps.units_geladen, ps.mit_miete, ps.ohne_miete, ps.preis_auf_anfrage,
+    )
+    if ps.miete_felder:
+        logger.info("Mieten gefunden in: %s", ", ".join(
+            f"{feld}={anzahl}" for feld, anzahl in sorted(
+                ps.miete_felder.items(), key=lambda x: -x[1])
+        ))
+    if ps.units_geladen and not ps.mit_miete:
+        report.fehler.append(
+            f"Propstack: keine einzige der {ps.units_geladen} Miet-Einheiten trägt eine "
+            "Miete in den geprüften Feldern – Feldnamen mit "
+            "scripts/propstack_miet_audit.py klären"
+        )
+    return zeilen
 
-    logger.info("Stand: %s | Zielkanal: %s", stand, config.slack_channel())
 
-    # 1. Drive-Discovery inkl. Datei-Dedup (Mehrfachablagen)
+def _drive_zeilen(report: RunReport, run_id: str) -> list[ComparableZeile]:
+    """Ergänzungsquelle: erhaltene Fremdangebote aus dem Drive."""
     docs, rohtreffer, kopien = drive_gateway.discover_documents()
     report.dateien_gefunden = rohtreffer
     report.dateien_eindeutig = len(docs)
@@ -178,17 +195,48 @@ def run_pipeline() -> RunReport:
         logbuch.append_record(_record(
             run_id, doc, angebot=angebot, zeilen=len(doc_zeilen),
         ))
+    return zeilen
+
+
+def run_pipeline() -> RunReport:
+    report = RunReport()
+    run_id = uuid.uuid4().hex[:12]
+    stand = _stand()
+    report.quelle = config.quelle()
+
+    if config.no_write():
+        logger.info("=== NO_WRITE – reiner Lese-/Loglauf, kein Slack-Post ===")
+    elif config.dry_run():
+        logger.info("=== DRY RUN – Report wird gebaut und geloggt, aber nicht gepostet ===")
+
+    logger.info("Quelle: %s | Stand: %s | Zielkanal: %s",
+                report.quelle, stand, config.slack_channel())
+
+    zeilen: list[ComparableZeile] = []
+    if config.nutzt_propstack():
+        try:
+            zeilen.extend(_propstack_zeilen(report))
+        except Exception as e:
+            logger.exception("Propstack-Abruf fehlgeschlagen")
+            report.fehler.append(f"Propstack: {e}")
+    if config.nutzt_drive():
+        try:
+            zeilen.extend(_drive_zeilen(report, run_id))
+        except Exception as e:
+            logger.exception("Drive-Auswertung fehlgeschlagen")
+            report.fehler.append(f"Drive: {e}")
 
     report.zeilen_gesamt = len(zeilen)
     report.zeilen_verwertbar = sum(1 for z in zeilen if z.verwertbar)
     report.zeilen_ausgeschlossen = report.zeilen_gesamt - report.zeilen_verwertbar
     for zeile in zeilen:
         if zeile.ausschluss_grund:
-            logger.info("Zeile ausgeschlossen (%s): %s", zeile.datei, zeile.ausschluss_grund)
+            logger.info("Zeile ausgeschlossen (%s/%s): %s",
+                        zeile.quelle, zeile.datei, zeile.ausschluss_grund)
 
     logbuch.schreibe_dataset(zeilen)
 
-    # 5. Aggregation + Ausgabe
+    # Aggregation + Ausgabe
     stats = aggregate.aggregiere(zeilen)
     report.regionen = len(aggregate.leitregionen(stats)) + len(aggregate.zonen(stats))
 
@@ -205,7 +253,20 @@ def run_pipeline() -> RunReport:
 
 def _print_summary(report: RunReport, stats: list) -> None:
     logger.info("=" * 60)
-    logger.info("Zusammenfassung Comparables-Report")
+    logger.info("Zusammenfassung Comparables-Report (Quelle: %s)", report.quelle)
+    if config.nutzt_propstack():
+        ps = report.propstack
+        logger.info("  -- Propstack --")
+        logger.info("  Miet-Einheiten geladen:     %d", ps.units_geladen)
+        logger.info("    mit Miete:                %d", ps.mit_miete)
+        logger.info("    ohne Miete:               %d", ps.ohne_miete)
+        logger.info("      davon Preis auf Anfrage:%d", ps.preis_auf_anfrage)
+        logger.info("    ohne Fläche:              %d", ps.ohne_flaeche)
+        logger.info("    aus absolut normalisiert: %d", ps.aus_absolut_normalisiert)
+        logger.info("    als vermietet markiert:   %d", ps.vermietet)
+        for feld, anzahl in sorted(ps.miete_felder.items(), key=lambda x: -x[1]):
+            logger.info("    Miete aus %-22s %d", feld + ":", anzahl)
+        logger.info("  -- Drive --")
     logger.info("  Drive-Treffer (roh):        %d", report.dateien_gefunden)
     logger.info("  Mehrfachablagen entfernt:   %d", report.dateien_kopien_uebersprungen)
     logger.info("  Eindeutige Dokumente:       %d", report.dateien_eindeutig)

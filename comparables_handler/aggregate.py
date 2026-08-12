@@ -20,8 +20,12 @@ def _stats(ebene: str, key: str, label: str, zeilen: list[ComparableZeile]) -> R
     flaechen = [z.flaeche_qm for z in zeilen if z.flaeche_qm is not None]
     daten = [z.datum for z in zeilen if z.datum]
 
-    # n zählt Report-ZEILEN (Laufzeit-Optionen); n_objekte die dahinterliegenden
-    # Objekte – bei Laufzeitstaffeln ist n deutlich größer als n_objekte.
+    # n zählt Report-ZEILEN (Laufzeit-Optionen bzw. Einheiten); n_objekte die
+    # dahinterliegenden Standorte – bei Laufzeitstaffeln ist n größer.
+    # Gruppiert wird über die ADRESSE: in Propstack tragen bei Multi-Unit-
+    # Standorten mehrere Einheiten denselben Objektnamen, über den Namen
+    # würden sie fälschlich zu einem Objekt verschmelzen.
+    standorte = {(z.adresse or z.objekt or z.datei) for z in zeilen}
     objekte = sorted({(z.objekt or z.adresse or z.datei) for z in zeilen})
 
     return RegionStats(
@@ -29,9 +33,11 @@ def _stats(ebene: str, key: str, label: str, zeilen: list[ComparableZeile]) -> R
         key=key,
         label=label,
         n=len(zeilen),
-        n_objekte=len(objekte),
+        n_objekte=len(standorte),
         n_eigene=sum(1 for z in zeilen if z.eigenes_angebot is True),
         n_erhalten=sum(1 for z in zeilen if z.eigenes_angebot is False),
+        n_propstack=sum(1 for z in zeilen if z.quelle == config.QUELLE_PROPSTACK),
+        n_drive=sum(1 for z in zeilen if z.quelle == config.QUELLE_DRIVE),
         median_kaltmiete=_median(kaltmieten),
         min_kaltmiete=round(min(kaltmieten), 2) if kaltmieten else None,
         max_kaltmiete=round(max(kaltmieten), 2) if kaltmieten else None,

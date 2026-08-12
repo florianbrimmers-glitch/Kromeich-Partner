@@ -6,6 +6,15 @@ on:
     - cron: "0 5 1 * *"
   workflow_dispatch:
     inputs:
+      quelle:
+        description: "Datenquelle"
+        required: false
+        default: "propstack"
+        type: choice
+        options:
+          - "propstack"
+          - "beide"
+          - "drive"
       dry_run:
         description: "Dry run (Report bauen und loggen, aber NICHT in Slack posten)"
         required: false
@@ -75,6 +84,11 @@ jobs:
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Primärquelle: die in Propstack gepflegten Mieten
+          PROPSTACK_API_KEY: ${{ secrets.PROPSTACK_API_KEY }}
+          PROPSTACK_KEY_OBJEKTE: ${{ secrets.PROPSTACK_KEY_OBJEKTE }}
+          QUELLE: ${{ github.event.inputs.quelle || 'propstack' }}
+          # Drive nur nötig, wenn QUELLE drive/beide ist
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           # Drive braucht den Scope drive.readonly. Die bestehenden
