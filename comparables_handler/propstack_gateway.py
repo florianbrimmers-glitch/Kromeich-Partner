@@ -172,39 +172,40 @@ def zu_zahl(value) -> float | None:
         return None
 
 
-def _custom_fields(unit: dict) -> dict:
+def custom_fields(unit: dict) -> dict:
     felder = unit.get("custom_fields")
     return felder if isinstance(felder, dict) else {}
 
 
-def _aus_custom_fields(unit: dict, marker: tuple[str, ...]) -> tuple[float | None, str | None]:
-    """Ersten Custom-Field-Wert, dessen Name einen Marker enthält."""
-    for name, rohwert in _custom_fields(unit).items():
-        klein = str(name).lower()
-        if not any(m in klein for m in marker):
-            continue
-        wert = zu_zahl(rohwert)
-        if wert is not None:
-            return wert, f"custom_fields.{name}"
-    return None, None
+def hole_betrag(unit: dict, felder: tuple[str, ...]) -> tuple[float | None, str | None]:
+    """Ersten gefüllten Betrag aus einer EXPLIZITEN Feldliste.
 
-
-def hole_betrag(
-    unit: dict, felder: tuple[str, ...], custom_marker: tuple[str, ...]
-) -> tuple[float | None, str | None]:
-    """Ersten gefüllten Betrag aus Standardfeldern, dann aus Custom Fields.
+    Bewusst keine Namens-Heuristik: ein Teilstring-Match auf "miete" würde
+    `stellplatzmiete` (20-70 € pro Stellplatz) mitnehmen und den €/m²-Median
+    zerstören. Gesucht wird nur, was in config.FLAECHENARTEN steht.
 
     Rückgabe: (Wert, Feldname) – der Feldname wandert in den Datensatz, damit
     nachvollziehbar bleibt, WOHER eine Miete kommt.
     """
+    cf = custom_fields(unit)
     for feld in felder:
-        wert = zu_zahl(unit.get(feld))
+        # Custom Fields zuerst: dort pflegt K&P die Mieten.
+        wert = zu_zahl(cf.get(feld)) if feld in cf else zu_zahl(unit.get(feld))
         if wert is not None and wert > 0:
-            return wert, feld
-    return _aus_custom_fields(unit, custom_marker)
+            quelle = f"custom_fields.{feld}" if feld in cf else feld
+            return wert, quelle
+    return None, None
 
 
-def hole_flaeche(unit: dict) -> tuple[float | None, str | None]:
+def hole_flaeche(unit: dict, felder: tuple[str, ...] = ()) -> tuple[float | None, str | None]:
+    """Fläche der Flächenart, sonst die Gesamtfläche der Einheit.
+
+    Die Fläche dient nur der Einordnung (Größenklasse) – die Mieten stehen
+    bereits als €/m² und werden NICHT über die Fläche gerechnet.
+    """
+    wert, feld = hole_betrag(unit, felder)
+    if wert is not None:
+        return wert, feld
     for feld in config.FLAECHE_FELDER:
         wert = zu_zahl(unit.get(feld))
         if wert is not None and wert > 0:

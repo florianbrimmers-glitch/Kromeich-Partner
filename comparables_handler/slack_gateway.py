@@ -39,17 +39,22 @@ def _run_url() -> str | None:
     return None
 
 
+def spanne(stat: RegionStats) -> str:
+    """" (Spanne 4,05–4,90)" – leer bei nur einem Wert.
+
+    Bei n=1 wäre "Spanne 4,58–4,58" Etikettenschwindel.
+    """
+    if (stat.min_kaltmiete is None or stat.max_kaltmiete is None
+            or stat.min_kaltmiete == stat.max_kaltmiete):
+        return ""
+    return f" (Spanne {eur(stat.min_kaltmiete)}–{eur(stat.max_kaltmiete)})"
+
+
 def _zeile(stat: RegionStats) -> str:
-    spanne = ""
-    if stat.min_kaltmiete is not None and stat.max_kaltmiete is not None:
-        if stat.min_kaltmiete == stat.max_kaltmiete:
-            spanne = ""
-        else:
-            spanne = f" (Spanne {eur(stat.min_kaltmiete)}–{eur(stat.max_kaltmiete)})"
     nk = f", NK {eur(stat.median_nebenkosten)}" if stat.median_nebenkosten is not None else ""
     return (
         f"• *{stat.key} {stat.label}*: Median {eur(stat.median_kaltmiete, '€/m²')}"
-        f"{spanne}{nk} – n={stat.n} aus {stat.n_objekte} Objekt(en)"
+        f"{spanne(stat)}{nk} – n={stat.n} aus {stat.n_objekte} Objekt(en)"
     )
 
 
@@ -86,29 +91,38 @@ def baue_nachricht(stats: list[RegionStats], report: RunReport, stand: str) -> s
             )
         return "\n".join(zeilen)
 
+    arten = aggregate.flaechenarten(stats)
     zeilen.append(
-        f"*{ges.n} bekannte Mieten* an {ges.n_objekte} Standort(en) – "
-        f"Gesamt-Median {eur(ges.median_kaltmiete, '€/m²')} "
-        f"(Spanne {eur(ges.min_kaltmiete)}–{eur(ges.max_kaltmiete)})"
+        f"*{ges.n} bekannte Mieten* an {ges.n_objekte} Standort(en), "
+        f"{len(arten)} Flächenart(en)"
     )
 
-    leit = aggregate.leitregionen(stats)
-    if leit:
-        zeilen.append(f"\n*Leitregionen* (2-stellige PLZ, ab n={config.MIN_N_LEITREGION})")
-        zeilen.extend(_zeile(s) for s in leit)
-
-    einzeln = aggregate.einzelwerte(stats)
-    if einzeln:
+    # Getrennt je Flächenart: Hallen- und Büromieten liegen in ganz anderen
+    # Größenordnungen, ein gemeinsamer Median wäre eine Phantasiezahl.
+    for art in arten:
+        art_ges = aggregate.art_gesamt(stats, art)
+        if art_ges is None:
+            continue
         zeilen.append(
-            f"\n*Einzelwerte* (n<{config.MIN_N_LEITREGION} – kein Median, "
-            "aber belegte Mieten)"
+            f"\n*{art}* – Median {eur(art_ges.median_kaltmiete, '€/m²')}"
+            f"{spanne(art_ges)}, n={art_ges.n} an {art_ges.n_objekte} Standort(en)"
         )
-        zeilen.extend(_einzelzeile(s) for s in einzeln)
 
-    zon = aggregate.zonen(stats)
-    if zon:
-        zeilen.append("\n*Postleitzonen* (1-stellige PLZ)")
-        zeilen.extend(_zeile(s) for s in zon)
+        leit = aggregate.leitregionen(stats, art)
+        for s in leit:
+            zeilen.append("  " + _zeile(s))
+
+        einzeln = aggregate.einzelwerte(stats, art)
+        if einzeln:
+            zeilen.append(
+                f"  _Einzelwerte (n<{config.MIN_N_LEITREGION}, kein Median):_ "
+                + " · ".join(
+                    f"{s.key} {eur(s.median_kaltmiete)} (n={s.n})" for s in einzeln
+                )
+            )
+        if not leit and not einzeln:
+            zon = aggregate.zonen(stats, art)
+            zeilen.extend("  " + _zeile(s) for s in zon)
 
     ps = report.propstack
     if ps.units_geladen:

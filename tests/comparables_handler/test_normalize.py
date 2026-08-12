@@ -114,7 +114,7 @@ def test_unplausible_kaltmiete_wird_ausgeschlossen():
     angebot.optionen = [AngebotsOption(laufzeit_monate=60, kaltmiete_eur_qm=458.0)]
     zeile = normalize.zu_zeilen(doc(), angebot)[0]
     assert not zeile.verwertbar
-    assert "außerhalb" in zeile.ausschluss_grund
+    assert "absolute Monatsmiete" in zeile.ausschluss_grund
 
 
 def test_unplausible_nebenkosten_verwerfen_nur_das_feld():

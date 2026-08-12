@@ -84,7 +84,30 @@ def _tabelle(kopf: list[str], zeilen: list[list[str]], breiten: list[float], fon
     return tabelle
 
 
-def _stats_zeilen(stats: list[RegionStats]) -> list[list[str]]:
+def _spanne_text(stat: RegionStats) -> str:
+    """", Spanne 4,05 bis 4,90 €/m²" – leer bei nur einem Wert."""
+    if (stat.min_kaltmiete is None or stat.max_kaltmiete is None
+            or stat.min_kaltmiete == stat.max_kaltmiete):
+        return ""
+    return f", Spanne {eur(stat.min_kaltmiete)} bis {eur(stat.max_kaltmiete)} €/m²"
+
+
+def hat_effektivmiete(stats: list[RegionStats]) -> bool:
+    """Trägt die Effektivmiete Information, oder ist sie nur die Kaltmiete?
+
+    Propstack führt keine mietfreien Zeiten – dort ist die Effektivmiete
+    zwangsläufig gleich der Kaltmiete. Eine zweite identische Spalte im
+    Kundengespräch ist Ballast, deshalb wird sie dann weggelassen.
+    """
+    return any(
+        s.median_effektivmiete is not None
+        and s.median_kaltmiete is not None
+        and abs(s.median_effektivmiete - s.median_kaltmiete) >= 0.01
+        for s in stats
+    )
+
+
+def _stats_zeilen(stats: list[RegionStats], mit_effektiv: bool = True) -> list[list[str]]:
     zeilen = []
     for s in stats:
         # Bei nur einem Wert keine Pseudo-Spanne "6,40 – 6,40" ausweisen
@@ -93,15 +116,12 @@ def _stats_zeilen(stats: list[RegionStats]) -> list[list[str]]:
             spanne = f"{eur(s.min_kaltmiete)} – {eur(s.max_kaltmiete)}"
         else:
             spanne = "–"
-        zeilen.append([
-            f"{s.key}  {s.label}",
-            eur(s.median_kaltmiete),
-            spanne,
-            eur(s.median_nebenkosten),
-            eur(s.median_effektivmiete),
-            str(s.n),
-            str(s.n_objekte),
-        ])
+        zeile = [f"{s.key}  {s.label}", eur(s.median_kaltmiete), spanne,
+                 eur(s.median_nebenkosten)]
+        if mit_effektiv:
+            zeile.append(eur(s.median_effektivmiete))
+        zeile += [str(s.n), str(s.n_objekte)]
+        zeilen.append(zeile)
     return zeilen
 
 
@@ -135,6 +155,10 @@ def erzeuge_pdf(stats: list[RegionStats], report: RunReport, stand: str, pfad: s
     klein = ParagraphStyle(
         "klein", fontName=fonts["KP-Body"], fontSize=8, leading=12,
         textColor=colors.HexColor("#5A5A5A"), spaceAfter=3,
+    )
+    eyebrow = ParagraphStyle(
+        "eyebrow", fontName=fonts["KP-Body-Bold"], fontSize=8.5, leading=12,
+        textColor=colors.HexColor("#5F7A3A"), spaceBefore=6, spaceAfter=3,
     )
 
     def _kopf(canv, doc):
@@ -181,12 +205,12 @@ def erzeuge_pdf(stats: list[RegionStats], report: RunReport, stand: str, pfad: s
         doc.build(flow, onFirstPage=_kopf, onLaterPages=_kopf)
         return pfad
 
+    arten = aggregate.flaechenarten(stats)
+
     flow.append(Paragraph("Datenbasis", titel_stil))
     flow.append(Paragraph(
-        f"Grundlage sind <b>{ges.n} belegte Mieten</b> an {ges.n_objekte} Standorten. "
-        f"Der Median der Nettokaltmiete liegt bei <b>{eur(ges.median_kaltmiete, '€/m²')}</b> "
-        f"pro Monat, die Spanne reicht von {eur(ges.min_kaltmiete)} bis "
-        f"{eur(ges.max_kaltmiete)} €/m².", body,
+        f"Grundlage sind <b>{ges.n} belegte Mieten</b> an {ges.n_objekte} Standorten, "
+        f"aufgeteilt auf {len(arten)} Flächenart(en).", body,
     ))
     flow.append(Paragraph(
         "Mietkonditionen sind am Markt nicht öffentlich – Vermieter veröffentlichen sie "
@@ -194,39 +218,58 @@ def erzeuge_pdf(stats: list[RegionStats], report: RunReport, stand: str, pfad: s
         "Beratungsprojekten und konkreten Anfragen und sind damit belegte Konditionen, "
         "keine Schätzungen aus Marktberichten.", body,
     ))
+    flow.append(Paragraph(
+        "<b>Die Flächenarten werden getrennt ausgewertet.</b> Hallen- und Lagerflächen, "
+        "Büroflächen und Mezzanine liegen in grundlegend verschiedenen Preisniveaus; "
+        "ein gemeinsamer Median über alle Flächenarten würde keinen Markt beschreiben.",
+        body,
+    ))
 
-    kopf = ["Region", "Median", "Spanne", "NK", "Effektiv", "n", "Objekte"]
-    breiten = [
-        inhalt_w - 5 * 21 * mm - 24 * mm,
-        21 * mm, 36 * mm, 18 * mm, 21 * mm, 12 * mm, 16 * mm,
-    ]
+    mit_effektiv = hat_effektivmiete(stats)
+    kopf = ["Region", "Median", "Spanne", "NK"]
+    # Spalte bewusst nicht "Median" nennen: bei n=1 wäre das irreführend.
+    kopf_einzel = ["Region", "Wert", "von – bis", "NK"]
+    breiten = [0.0, 21 * mm, 36 * mm, 18 * mm]
+    if mit_effektiv:
+        kopf.append("Effektiv")
+        kopf_einzel.append("Effektiv")
+        breiten.append(21 * mm)
+    kopf += ["n", "Objekte"]
+    kopf_einzel += ["n", "Objekte"]
+    breiten += [12 * mm, 16 * mm]
+    breiten[0] = inhalt_w - sum(breiten[1:])
 
-    leit = aggregate.leitregionen(stats)
-    if leit:
-        flow.append(Paragraph("Leitregionen (2-stellige Postleitzahl)", titel_stil))
-        flow.append(_tabelle(kopf, _stats_zeilen(leit), breiten, fonts))
-        flow.append(Spacer(1, 4 * mm))
+    for art in arten:
+        art_ges = aggregate.art_gesamt(stats, art)
+        if art_ges is None:
+            continue
+
+        flow.append(Paragraph(art, titel_stil))
         flow.append(Paragraph(
-            f"Als Median ausgewiesen ab n={config.MIN_N_LEITREGION} Datenpunkten.", klein,
+            f"Median <b>{eur(art_ges.median_kaltmiete, '€/m²')}</b>{_spanne_text(art_ges)} – "
+            f"{art_ges.n} Datenpunkte an {art_ges.n_objekte} Standorten.", body,
         ))
 
-    einzeln = aggregate.einzelwerte(stats)
-    if einzeln:
-        flow.append(Paragraph("Einzelwerte", titel_stil))
-        flow.append(Paragraph(
-            f"Regionen mit weniger als {config.MIN_N_LEITREGION} Datenpunkten. Die Werte sind "
-            "belegt, tragen aber keinen belastbaren Median – sie sind als Einzelfälle zu lesen.",
-            klein,
-        ))
-        flow.append(Spacer(1, 2 * mm))
-        # Spalte bewusst nicht "Median" nennen: bei n=1 wäre das irreführend.
-        kopf_einzel = ["Region", "Wert", "von – bis", "NK", "Effektiv", "n", "Objekte"]
-        flow.append(_tabelle(kopf_einzel, _stats_zeilen(einzeln), breiten, fonts))
+        leit = aggregate.leitregionen(stats, art)
+        if leit:
+            flow.append(Paragraph("Leitregionen (2-stellige Postleitzahl)", eyebrow))
+            flow.append(_tabelle(kopf, _stats_zeilen(leit, mit_effektiv), breiten, fonts))
+            flow.append(Spacer(1, 3 * mm))
 
-    zon = aggregate.zonen(stats)
-    if zon:
-        flow.append(Paragraph("Postleitzonen (1-stellige Postleitzahl)", titel_stil))
-        flow.append(_tabelle(kopf, _stats_zeilen(zon), breiten, fonts))
+        einzeln = aggregate.einzelwerte(stats, art)
+        if einzeln:
+            flow.append(Paragraph(
+                f"Einzelwerte (weniger als {config.MIN_N_LEITREGION} Datenpunkte – belegt, "
+                "aber ohne belastbaren Median)", eyebrow,
+            ))
+            flow.append(_tabelle(kopf_einzel, _stats_zeilen(einzeln, mit_effektiv), breiten, fonts))
+            flow.append(Spacer(1, 3 * mm))
+
+        zon = aggregate.zonen(stats, art)
+        if zon:
+            flow.append(Paragraph("Postleitzonen (1-stellige Postleitzahl)", eyebrow))
+            flow.append(_tabelle(kopf, _stats_zeilen(zon, mit_effektiv), breiten, fonts))
+        flow.append(Spacer(1, 5 * mm))
 
     flow.append(PageBreak())
     flow.append(Paragraph("Methodik", titel_stil))

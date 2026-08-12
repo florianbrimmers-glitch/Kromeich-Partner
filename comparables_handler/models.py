@@ -130,9 +130,13 @@ class ComparableZeile(BaseModel):
 class RegionStats(BaseModel):
     """Vergleichsmieten einer Region: Median + Spanne + n (Task-Vorgabe)."""
 
-    ebene: str                 # "leitregion" (PLZ 2-stellig) | "zone" (1-stellig)
+    ebene: str                 # "leitregion" | "leitregion_einzel" | "zone" | "gesamt"
     key: str
     label: str
+    # Flächenart (Halle/Lager, Büro, Mezzanine …). Hallen- und Büromieten
+    # liegen in ganz verschiedenen Größenordnungen und dürfen nie in denselben
+    # Median fallen – die Flächenart ist deshalb Teil des Gruppenschlüssels.
+    nutzungsart: str = ""
     n: int = 0
     n_objekte: int = 0
     n_eigene: int = 0
@@ -176,6 +180,7 @@ class PropstackReport(BaseModel):
     ohne_miete: int = 0
     preis_auf_anfrage: int = 0
     ohne_flaeche: int = 0
+    flaeche_unplausibel: int = 0
     aus_absolut_normalisiert: int = 0
     vermietet: int = 0
     miete_felder: dict[str, int] = Field(default_factory=dict)

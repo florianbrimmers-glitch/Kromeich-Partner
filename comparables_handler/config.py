@@ -184,36 +184,108 @@ def kp_design_dir() -> str:
 PROPSTACK_BASE_URL = "https://api.propstack.de/v1"
 PROPSTACK_MAX_ATTEMPTS = 4
 
-# Seitengröße. ACHTUNG: der Listen-Endpoint respektiert `per_page` (so nutzt es
-# der propstack-pipeline-report-Skill erfolgreich). `per` wird offenbar
-# ignoriert und die Antwort fällt auf die Default-Seitengröße von 20 zurück –
-# genau das erklärt den Nebenbefund "/units liefert nur 20 Einheiten" aus der
-# Asana-Aufgabe. Wir schicken beide Namen, damit es unabhängig davon läuft.
+# Seitengröße. Am 12.08.2026 gegen die echte API gemessen
+# (scripts/propstack_miet_audit.py):
+#     per=100        -> 100 Einheiten   ✅
+#     per_page=100   ->  20 Einheiten   ❌ (wird ignoriert)
+#     ohne Parameter ->  20 Einheiten
+# Der Listen-Endpoint respektiert also `per`, NICHT `per_page`. Der bestehende
+# objekte_handler liegt damit richtig. Der Nebenbefund "/units liefert nur 20"
+# aus der Asana-Aufgabe entstand durch einen Aufruf ohne Seitengröße.
+# Wir schicken beide Namen; `per` gewinnt.
 PROPSTACK_PER_PAGE = 100
 PROPSTACK_MAX_PAGES = 200          # Schutz gegen Endlos-Paginierung
 
 # Mietobjekte erkennen
 MARKETING_TYPES_MIETE = ("RENT", "RENT_AND_BUY", "MIETE")
 
-# Kaltmiete: Feld-Kandidaten in Prüfreihenfolge. Propstack folgt weitgehend
-# OpenImmo/IS24. Welcher Name bei K&P tatsächlich gefüllt ist, beantwortet
-# scripts/propstack_miet_audit.py – bis dahin werden alle geprüft.
-KALTMIETE_FELDER = ("base_rent", "rent_price", "net_rent", "price")
-# Nebenkosten
-NEBENKOSTEN_FELDER = ("service_charge", "additional_costs", "operating_costs", "nebenkosten")
-# Custom Fields, die eine Miete tragen können (Teilstring-Match, klein)
-CUSTOM_FIELD_MIETE_MARKER = ("kaltmiete", "nettomiete", "miete_qm", "mietpreis", "miete")
-CUSTOM_FIELD_NK_MARKER = ("nebenkosten", "nk_qm", "betriebskosten")
 
-# Flächen-Kandidaten in Prüfreihenfolge (für die €/m²-Normalisierung)
-FLAECHE_FELDER = (
-    "net_floor_space", "total_floor_space", "usable_floor_space",
-    "industrial_area", "property_space_value", "living_space",
+# --- Mieten je Flächenart ---------------------------------------------------
+# K&P pflegt die Mieten NICHT in den Propstack-Standardfeldern, sondern in
+# Custom Fields – und zwar GETRENNT JE FLÄCHENART, bereits als €/m²/Monat
+# (gemessen 12.08.2026 über 1.978 Mietobjekte).
+#
+# Das ist fachlich entscheidend: Hallenflächen liegen bei 4-8 €/m², Büro bei
+# 12-14 €/m². Beides in einen Median zu werfen ergäbe eine Zahl, die keinen
+# Markt beschreibt. Deshalb ist die Flächenart Teil des Aggregations-
+# schlüssels und jede Fläche eine eigene Report-Zeile.
+#
+# Reihenfolge je Art: interner Wert zuerst (aus Mandaten/Beratung, also die
+# tatsächlich bekannte Kondition), dann der ausgeschriebene Mietpreis, dann
+# die "ab"-Angabe der Flächenaufstellung.
+class Flaechenart:
+    """Eine Flächenart mit ihren Miet-, NK- und Flächenfeldern."""
+
+    def __init__(self, name, miete_felder, miete_bis_felder=(), nk_felder=(), flaeche_felder=()):
+        self.name = name
+        self.miete_felder = miete_felder
+        self.miete_bis_felder = miete_bis_felder
+        self.nk_felder = nk_felder
+        self.flaeche_felder = flaeche_felder
+
+
+FLAECHENARTEN = (
+    Flaechenart(
+        "Halle/Lager",
+        miete_felder=("intern_mietpreis_hallenflache", "mietpreis_hallenflache",
+                      "lagerflache_miete_m_von"),
+        miete_bis_felder=("lagerflache_miete_m_bis",),
+        nk_felder=("lagerflache_nebenkosten_m_von", "lagerflache_nebenkosten_m_bis"),
+        flaeche_felder=("lagerflache", "lagerflache_gesamt"),
+    ),
+    Flaechenart(
+        "Büro",
+        miete_felder=("intern_mietpreis_buro", "mietpreis_buroflache", "buroflache_miete_m_von"),
+        miete_bis_felder=("buroflache_miete_m_bis",),
+        nk_felder=("buroflache_nebenkosten_m_von", "buroflache_nebenkosten_m_bis"),
+        flaeche_felder=("buroflache", "buroflache_gesamt"),
+    ),
+    Flaechenart(
+        "Mezzanine",
+        miete_felder=("intern_mietpreis_mezzanine", "mietpreis_mezzanine",
+                      "mezzanineflache_miete_m_von"),
+        miete_bis_felder=("mezzanineflache_miete_m_bis",),
+        flaeche_felder=("mezzanineflache", "mezzanineflache_gesamt"),
+    ),
+    Flaechenart(
+        "Servicefläche",
+        miete_felder=("serviceflache_miete_m_von",),
+        miete_bis_felder=("serviceflache_miete_m_bis",),
+        flaeche_felder=("serviceflache_gesamt",),
+    ),
+    Flaechenart(
+        "Freifläche",
+        miete_felder=("freiflache_miete_m_von",),
+        miete_bis_felder=("freiflache_miete_m_bis",),
+        flaeche_felder=("freiflache_gesamt",),
+    ),
+    Flaechenart(
+        "Keller/Archiv",
+        miete_felder=("keller_archivflache_miete_m_von",),
+        flaeche_felder=(),
+    ),
 )
 
-# Oberhalb dieses €/m²-Werts gilt ein Mietbetrag als ABSOLUTE Monatsmiete und
-# wird über die Fläche normalisiert (4,58 = €/m², 45.000 = absolut).
-ABSOLUT_SCHWELLE_EUR_QM = 25.0
+# BEWUSST NICHT ausgewertet – das sind Preise pro Stellplatz, nicht pro m².
+# Sie würden mit Werten von 20-70 € jeden €/m²-Median zerstören.
+STELLPLATZ_FELDER_IGNORIERT = (
+    "stellplatzmiete", "lkw_stellplatzmiete", "preis_aussen_stellpl",
+    "preis_innen_stellpl", "parking_space_price",
+)
+
+# BEWUSST NICHT ausgewertet – die Standardfelder sind bei K&P kaum gepflegt
+# (base_rent: 6 von 1.978) und inkonsistent: sie enthalten teils €/m² (6,00),
+# teils absolute Monatsmieten (19.848). Ohne Unterscheidungsmerkmal ist das
+# nicht sicher normalisierbar, für 6 Datenpunkte nicht das Risiko wert.
+STANDARDFELDER_IGNORIERT = ("base_rent", "price", "price_per_sqm", "rent_price")
+
+# Fallback-Flächen, wenn die Flächenart keine eigene Fläche trägt. Reihenfolge
+# nach gemessener Belegung: property_space_value 63 %, total_floor_space 63 %,
+# industrial_area 34 %, usable_floor_space 12 %.
+# plot_area ist BEWUSST NICHT dabei – das Grundstück ist keine Mietfläche.
+FLAECHE_FELDER = (
+    "property_space_value", "total_floor_space", "industrial_area", "usable_floor_space",
+)
 
 PROPSTACK_KEY_ENV_NAMES = ("PROPSTACK_KEY_OBJEKTE", "PROPSTACK_API_KEY")
 

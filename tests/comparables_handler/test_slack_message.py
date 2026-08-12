@@ -47,8 +47,8 @@ def test_duenne_region_erscheint_als_einzelwert():
         _stats(mieten=(4.50, 4.60)), RunReport(dateien_eindeutig=22), "August 2026",
     )
     assert "Einzelwerte" in text
-    assert "Leitregionen" not in text        # n=2 trägt keinen Median
-    assert "4,50 / 4,60 €/m²" in text        # die belegten Werte selbst
+    assert "kein Median" in text             # n=2 trägt keinen Median
+    assert "59 4,55" in text                 # der belegte Wert selbst
     assert "n=2" in text
 
 
@@ -67,9 +67,10 @@ def test_belastbare_und_duenne_regionen_getrennt():
         _zeilen("59192", (4.50, 4.60, 4.70)) + _zeilen("06749", (5.00,))
     )
     text = slack_gateway.baue_nachricht(stats, RunReport(), "August 2026")
-    assert "*Leitregionen*" in text
-    assert "*Einzelwerte*" in text
-    assert text.index("*Leitregionen*") < text.index("*Einzelwerte*")
+    assert "*59 Hamm" in text                 # n=3 -> eigene Median-Zeile
+    assert "Einzelwerte" in text
+    assert "06 5,00 (n=1)" in text            # n=1 -> kompakt als Einzelwert
+    assert text.index("*59 Hamm") < text.index("Einzelwerte")
 
 
 def test_absolute_zahl_steht_vorn():
@@ -98,10 +99,12 @@ def test_fehler_werden_im_post_sichtbar():
     assert "1 Fehler" in text
 
 
-def test_keine_spanne_bei_einem_einzelwert():
+def test_keine_pseudospanne_bei_einem_einzelwert():
+    """Bei n=1 wäre "Spanne 4,58-4,58" Etikettenschwindel."""
     stats = aggregate.aggregiere(normalize.zu_zeilen(doc(), mileway_bergkamen()))
     text = slack_gateway.baue_nachricht(stats, RunReport(dateien_eindeutig=1), "August 2026")
-    assert "Spanne" not in text.split("Postleitzonen")[1]
+    assert "4,58–4,58" not in text
+    assert "4,58 / 4,58" not in text
 
 
 def test_standort_und_datenpunkte_werden_unterschieden():

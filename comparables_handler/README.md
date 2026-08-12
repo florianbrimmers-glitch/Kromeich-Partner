@@ -29,13 +29,52 @@ Daraus folgen zwei Design-Entscheidungen:
 
 Ein Sonderfall bleibt ein echtes Warnsignal: findet der Lauf in **keiner einzigen** Einheit einen Betrag, ist das kein Datenmangel, sondern ein Hinweis auf einen falschen Feldnamen. Nur dieser Fall wird als Fehler gemeldet.
 
-### Zum Nebenbefund „/units liefert nur 20 Einheiten"
+### Gemessener Stand (12.08.2026, echte API)
 
-Die Asana-Aufgabe notierte diesen Punkt als offen. Er ist unabhängig von der Preis-Abdeckung und betrifft, wie viele Einheiten überhaupt gelesen werden:
+Erhoben mit `scripts/propstack_miet_audit.py` und einem vollständigen Lauf:
 
-`objekte_handler/propstack.py` schickt `per: 100`, der funktionierende Aufruf im `propstack-pipeline-report`-Skill dagegen `per_page: 100` + `page`. Ignoriert Propstack `per`, fällt die Antwort auf die Default-Seitengröße **20** zurück. Dieser Handler schickt deshalb **beide** Parameternamen und paginiert konsequent – sonst wären selbst bei perfekter Pflege nur 20 Einheiten sichtbar.
+| | |
+|---|---|
+| Einheiten in Propstack | 2.046 |
+| davon Mietobjekte | 1.978 |
+| Einheiten mit mindestens einer Miete | 433 |
+| **belegte Mieten (Datenpunkte)** | **711** |
+| davon Halle/Lager · Büro · Mezzanine | 347 · 265 · 66 |
+| ausgeschlossen | 16 |
 
-Zusätzlich können Mieten in Standardfeldern (`base_rent`, `price`, …) **oder in Custom Fields** stehen; geprüft werden beide (`config.KALTMIETE_FELDER`, `CUSTOM_FIELD_MIETE_MARKER`). Einheiten mit `price_on_inquiry` („auf Anfrage") werden getrennt gezählt.
+**Paginierung geklärt** – der Nebenbefund „`/units` liefert nur 20 Einheiten" lag am fehlenden Seitengrößen-Parameter, nicht am Key-Scope:
+
+| Aufruf | Ergebnis |
+|---|---|
+| `per=100` | **100 Einheiten** ✅ |
+| `per_page=100` | 20 ❌ (wird ignoriert) |
+| `limit=100` / ohne Parameter | 20 |
+
+Der Listen-Endpoint respektiert also `per`. `objekte_handler/propstack.py` liegt damit **richtig**; hier ist nichts zu reparieren. Dieser Handler schickt beide Namen und paginiert über `page`.
+
+**Mieten stehen in Custom Fields, je Flächenart getrennt** und bereits als €/m²:
+
+| Feld | belegt |
+|---|---|
+| `intern_mietpreis_hallenflache` | 160 |
+| `lagerflache_miete_m_von` | 150 |
+| `buroflache_miete_m_von` | 147 |
+| `intern_mietpreis_buro` | 109 |
+| `mietpreis_hallenflache` | 62 |
+| `intern_mietpreis_mezzanine` | 42 |
+
+Die Standardfelder sind unbrauchbar: `base_rent` ist in 6 von 1.978 Einheiten gefüllt und mischt €/m² (6,00) mit absoluten Monatsmieten (19.848) – ohne Unterscheidungsmerkmal nicht sicher normalisierbar, deshalb in `STANDARDFELDER_IGNORIERT`.
+
+**Zwei Fallen, die im echten Datenbestand scharf sind:**
+
+1. `stellplatzmiete` / `lkw_stellplatzmiete` tragen 20–70 € **pro Stellplatz** (95 Einheiten). Eine Namens-Heuristik auf „miete" hätte sie als €/m² gelesen und jeden Median zerstört. Deshalb wird **ausschließlich** gesucht, was in `FLAECHENARTEN` explizit steht.
+2. In `*_gesamt`-Flächenfeldern steckt bei ~190 Einheiten die deutsche Tausendertrennung in einem Dezimalfeld: `lagerflache_gesamt = 10.403` wird als „10,40 m²" angezeigt. Das ist ein **Datenfehler in Propstack**, nicht im Parser. Die Fläche wird verworfen und der Verdacht als Hinweis in den Datensatz geschrieben – die **Miete bleibt gültig**, denn sie steht schon als €/m². Ohne diese Trennung hingen 190 Datenpunkte an einer Flächenangabe, die sie nicht brauchen.
+
+Die betroffenen Einheiten lassen sich aus dem Datensatz ziehen:
+
+```bash
+grep "Tausendertrennung" comparables_dataset.csv | cut -d';' -f3,29
+```
 
 **Vor der Abnahme einmal ausführen:**
 
@@ -43,14 +82,13 @@ Zusätzlich können Mieten in Standardfeldern (`base_rent`, `price`, …) **oder
 PROPSTACK_API_KEY=xxx python3 scripts/propstack_miet_audit.py --json audit.json
 ```
 
-Das Skript prüft die Paginierungs-Varianten gegeneinander und zählt über **alle** Einheiten, welche Felder Beträge tragen. Ergebnis: wie viele Mieten tatsächlich hinterlegt sind und in welchem Feldnamen – der gehört dann in `KALTMIETE_FELDER` nach vorn.
-
 ## Ablauf (Propstack)
 
-1. **Laden** – `GET /units` paginiert (`per_page` + `page`, `expand=1`, `marketing_type=RENT`), Kaufobjekte fallen raus.
-2. **Feld-Auflösung** – Kaltmiete, Nebenkosten und Fläche aus den Kandidatenfeldern; welches Feld gegriffen hat, steht als `miete_feld` in jeder Zeile.
-3. **Normalisierung** – Beträge über `ABSOLUT_SCHWELLE_EUR_QM` (25 €/m²) gelten als absolute Monatsmiete und werden über die Fläche in €/m² umgerechnet. Fehlt die Fläche, bleibt der Wert stehen und fällt der Plausibilitätsprüfung **mit Grund** auf – nie stillschweigend.
-4. **Aggregation** – wie unten, gemeinsam mit den Drive-Zeilen.
+1. **Laden** – `GET /units` paginiert (`per` + `page`, `expand=1`, `marketing_type=RENT`), Kaufobjekte fallen raus.
+2. **Eine Zeile je Flächenart** – für jede Flächenart aus `config.FLAECHENARTEN` (Halle/Lager, Büro, Mezzanine, Service-, Frei-, Keller/Archivfläche) wird geprüft, ob eine Miete hinterlegt ist. Eine Einheit mit Hallen- **und** Büromiete liefert zwei Datenpunkte. Welches Feld gegriffen hat, steht als `miete_feld` in jeder Zeile.
+3. **Keine Umrechnung** – die Custom Fields stehen bereits in €/m²/Monat. Ein Betrag über 25 €/m² ist deshalb kein Umrechnungsfall, sondern ein Datenfehler (absolute Monatsmiete im €/m²-Feld) und wird **mit Grund** ausgeschlossen.
+4. **Fläche nur als Kontext** – eine unplausible Fläche verwirft das Flächenfeld, nicht den Datenpunkt.
+5. **Aggregation** – getrennt je Flächenart, dann je Region.
 
 ## Ablauf (Drive)
 
@@ -75,7 +113,7 @@ Das Skript prüft die Paginierungs-Varianten gegeneinander und zählt über **al
 
 Der Cron läuft **bewusst noch im Dry-Run**. Drei Dinge sind vor dem Scharfschalten zu klären:
 
-0. **Feldnamen bestätigen** – `scripts/propstack_miet_audit.py` einmal laufen lassen (siehe oben) und das häufigste Mietfeld in `KALTMIETE_FELDER` nach vorn setzen. Dabei zeigt sich auch, wie viele Mieten pro Region zusammenkommen und ob `QUELLE=beide` zusätzliche Datenpunkte bringt.
+0. **Feldbelegung gegenprüfen** – `scripts/propstack_miet_audit.py` laufen lassen. Die Feldnamen in `config.FLAECHENARTEN` sind am 12.08.2026 gegen den echten Bestand verifiziert; kommen in Propstack neue Custom Fields dazu, gehören sie dort ergänzt.
 1. **Zielkanal.** Es gibt (Stand 12.08.2026) keinen Leasing-/Comparables-Kanal im Workspace; Default ist deshalb `#objekte` (`C07GH7AN80J`). Ein eigener Kanal ist sinnvoller – dann `COMPARABLES_CHANNEL` im Workflow setzen.
 2. **Inhaltliche Abnahme** des ersten Reports (Actions → *Comparables Report* → Run workflow, `dry_run: true`), insbesondere der extrahierten Kaltmieten gegen die Quell-PDFs.
 
@@ -170,9 +208,10 @@ Die Auswertung ist nur so gut wie die Pflege:
 
 ## Bekannte Einschränkungen
 
-- **Propstack liefert nur eine Zeile je Einheit** – keine Laufzeit-Optionen, keine mietfreie Zeit, keine Indexierung. Die Effektivmiete entspricht dort der Kaltmiete. Diese Konditionen stehen nur in den Drive-Angeboten.
+- **Propstack kennt keine Laufzeit-Optionen**, keine mietfreie Zeit und keine Indexierung. Die Effektivmiete entspricht dort der Kaltmiete; die Spalte wird im PDF automatisch weggelassen, wenn sie nichts hinzufügt. Diese Konditionen stehen nur in den Drive-Angeboten.
 - **Propstack-Mieten sind eigene Angebotsmieten**, keine Marktmieten Dritter. Für die Marktsicht braucht es `QUELLE=beide`.
-- **Absolut vs. €/m²** wird über die Schwelle von 25 €/m² unterschieden. Eine echte Büro-Kaltmiete über 25 €/m² würde fälschlich als Absolutbetrag gelesen – für Logistik-/Hallenflächen unkritisch, bei Büroflächen in Innenstadtlage im Auge behalten.
+- **Die 25-€/m²-Grenze** trennt plausible €/m²-Werte von Datenfehlern. Eine echte Büromiete über 25 €/m² (Innenstadt-Toplage) würde damit fälschlich ausgeschlossen – im Logistik-Portfolio bislang kein Fall, bei Büroflächen im Auge behalten.
+- **Fehlende Flächen:** bei ~190 Einheiten ist die Flächenangabe in Propstack fehlerhaft (siehe oben). Der Median der Fläche pro Region ist deshalb weniger belastbar als der Mietmedian.
 - **Regions-Labels** sind kuratiert (`regions.py`). Unbekannte Leitregionen erscheinen als „PLZ-Gebiet 23" – die Zahl bleibt korrekt, nur die Beschriftung fehlt.
 - **Dünne Datenbasis:** bei ~20 Angeboten erreicht kaum eine Leitregion n=3. Die Postleitzone trägt dann die Aussage; der Post weist das explizit aus.
 - **Ohne PLZ keine Region.** Nennt ein Angebot nur den Ort, fällt die Zeile mit Grund aus der Statistik.
@@ -186,4 +225,4 @@ Die Auswertung ist nur so gut wie die Pflege:
 - Abgeschlossene Mietverträge – ausgewertet werden **Angebotsmieten** (Propstack-Mandate und indikative Angebote), keine Vertragsmieten.
 - Schreiben nach Propstack oder ins Drive – der Handler liest ausschließlich.
 - Gesuch-Intake (separate Aufgabe)
-- Reparatur von `objekte_handler/propstack.py` (schickt `per: 100` statt `per_page`) – dieser Handler umgeht das Problem für sich; der Fix am bestehenden Handler ist eine eigene Änderung.
+- Korrektur der fehlerhaften Flächenangaben in Propstack (~190 Einheiten mit Tausendertrennung in einem Dezimalfeld) – der Handler meldet sie, ändert aber nichts im CRM.

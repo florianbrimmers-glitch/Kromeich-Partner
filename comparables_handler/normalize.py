@@ -55,72 +55,42 @@ def _propstack_adresse(unit: dict) -> str | None:
     return f"{strasse} {nummer}".strip() if nummer is not None else str(strasse).strip()
 
 
-def propstack_zu_zeile(unit: dict, statistik: PropstackReport) -> ComparableZeile | None:
-    """Eine Propstack-Miet-Einheit als Comparable-Zeile.
+def propstack_zu_zeilen_einer_unit(
+    unit: dict, statistik: PropstackReport
+) -> list[ComparableZeile]:
+    """Eine Propstack-Einheit -> eine Zeile JE FLÄCHENART mit Miete.
 
-    None, wenn es kein Mietobjekt ist. Einheiten OHNE Miete kommen bewusst
-    MIT Ausschlussgrund zurück, damit im Datensatz nachvollziehbar bleibt,
-    welche Einheiten geprüft wurden. Das ist keine Mängelliste: Mieten werden
-    am Markt nicht geteilt, die meisten Einheiten tragen legitim keine.
+    Hallen-, Büro- und Mezzaninemieten liegen in getrennten Feldern und in
+    völlig verschiedenen Größenordnungen (4-8 vs. 12-14 vs. 3-4 €/m²). Sie
+    werden deshalb als eigene Datenpunkte mit eigener Flächenart geführt und
+    später getrennt aggregiert.
+
+    Leere Liste, wenn es kein Mietobjekt ist oder keine Fläche eine Miete
+    trägt. Das ist der Normalfall und keine Mängelmeldung: Mieten werden am
+    Markt nicht geteilt.
     """
     skalar = propstack_gateway.skalar
 
     if not propstack_gateway.ist_mietobjekt(unit):
         statistik.keine_mietobjekte += 1
-        return None
+        return []
 
     plz = regions.normalize_plz(skalar(unit.get("zip_code")))
     leit = regions.leitregion(plz)
     zon = regions.zone(plz)
-
-    kaltmiete, miete_feld = propstack_gateway.hole_betrag(
-        unit, config.KALTMIETE_FELDER, config.CUSTOM_FIELD_MIETE_MARKER,
-    )
-    nebenkosten, _ = propstack_gateway.hole_betrag(
-        unit, config.NEBENKOSTEN_FELDER, config.CUSTOM_FIELD_NK_MARKER,
-    )
-    flaeche, _ = propstack_gateway.hole_flaeche(unit)
     vermietet = skalar(unit.get("rented")) is True
-
-    if flaeche is None:
-        statistik.ohne_flaeche += 1
     if vermietet:
         statistik.vermietet += 1
 
-    # Absolute Monatsmiete auf €/m² umrechnen. Propstack führt base_rent
-    # üblicherweise absolut; ein €/m²-Wert steht meist in einem Custom Field.
-    aus_absolut = False
-    if kaltmiete is not None and kaltmiete > config.ABSOLUT_SCHWELLE_EUR_QM:
-        if flaeche and flaeche > 0:
-            kaltmiete = round(kaltmiete / flaeche, 2)
-            aus_absolut = True
-            statistik.aus_absolut_normalisiert += 1
-        # ohne Fläche bleibt der Betrag stehen und fällt in die
-        # Plausibilitätsprüfung – als Ausreißer mit Grund, nicht still
-    if nebenkosten is not None and nebenkosten > config.NEBENKOSTEN_MAX_EUR_QM:
-        if flaeche and flaeche > 0:
-            nebenkosten = round(nebenkosten / flaeche, 2)
-        else:
-            nebenkosten = None
-
-    if kaltmiete is None:
-        statistik.ohne_miete += 1
-        if propstack_gateway.preis_auf_anfrage(unit):
-            statistik.preis_auf_anfrage += 1
-    else:
-        statistik.mit_miete += 1
-        if miete_feld:
-            statistik.miete_felder[miete_feld] = statistik.miete_felder.get(miete_feld, 0) + 1
-
     unit_id = str(unit.get("id"))
-    zeile = ComparableZeile(
+    objekt = _propstack_objektname(unit)
+    basis = dict(
         quelle=config.QUELLE_PROPSTACK,
         file_id=unit_id,
-        datei=_propstack_objektname(unit),
+        datei=objekt,
         quelle_link=f"https://app.propstack.de/properties/{unit_id}",
-        miete_feld=miete_feld,
         vermietet=vermietet,
-        objekt=_propstack_objektname(unit),
+        objekt=objekt,
         adresse=_propstack_adresse(unit),
         plz=plz,
         ort=skalar(unit.get("city")),
@@ -133,28 +103,75 @@ def propstack_zu_zeile(unit: dict, statistik: PropstackReport) -> ComparableZeil
                   if isinstance(unit.get("broker"), dict) else None),
         datum=(skalar(unit.get("updated_at")) or skalar(unit.get("created_at")) or None),
         eigenes_angebot=True,
-        flaeche_qm=flaeche,
-        nutzungsart=skalar(unit.get("rs_category")) or skalar(unit.get("rs_type")),
-        kaltmiete_eur_qm=kaltmiete,
-        nebenkosten_eur_qm=nebenkosten,
-        effektivmiete_eur_qm=effektivmiete(kaltmiete, None, None),
-        normalisiert_aus_absolut=aus_absolut,
         confidence=1.0,   # strukturiertes Feld, keine LLM-Schätzung
-        option_hinweis="vermietet" if vermietet else None,
     )
 
-    zeile.ausschluss_grund = _plausibilitaet(zeile)
-    if zeile.ausschluss_grund is None and not plz:
-        zeile.ausschluss_grund = "keine PLZ – Region nicht zuordenbar"
-    return zeile
+    zeilen: list[ComparableZeile] = []
+    for art in config.FLAECHENARTEN:
+        kaltmiete, miete_feld = propstack_gateway.hole_betrag(unit, art.miete_felder)
+        if kaltmiete is None:
+            continue
+
+        miete_bis, _ = propstack_gateway.hole_betrag(unit, art.miete_bis_felder)
+        nebenkosten, _ = propstack_gateway.hole_betrag(unit, art.nk_felder)
+        flaeche, _ = propstack_gateway.hole_flaeche(unit, art.flaeche_felder)
+        flaeche, flaechen_hinweis = pruefe_flaeche(flaeche)
+        if flaechen_hinweis:
+            statistik.flaeche_unplausibel += 1
+
+        # Die Custom Fields stehen bereits in €/m²/Monat – hier wird NICHT
+        # über die Fläche gerechnet. Unplausible NK werden verworfen, ohne
+        # die Miete zu entwerten.
+        if nebenkosten is not None and not (
+            config.NEBENKOSTEN_MIN_EUR_QM <= nebenkosten <= config.NEBENKOSTEN_MAX_EUR_QM
+        ):
+            nebenkosten = None
+
+        hinweis = []
+        if miete_bis is not None and miete_bis != kaltmiete:
+            hinweis.append(f"Spanne bis {miete_bis:.2f} €/m²".replace(".", ","))
+        if vermietet:
+            hinweis.append("vermietet")
+        if flaechen_hinweis:
+            hinweis.append(flaechen_hinweis)
+
+        zeile = ComparableZeile(
+            **basis,
+            nutzungsart=art.name,
+            miete_feld=miete_feld,
+            flaeche_qm=flaeche,
+            kaltmiete_eur_qm=kaltmiete,
+            nebenkosten_eur_qm=nebenkosten,
+            effektivmiete_eur_qm=effektivmiete(kaltmiete, None, None),
+            option_hinweis=" · ".join(hinweis) or None,
+        )
+        zeile.ausschluss_grund = _plausibilitaet(zeile)
+        if zeile.ausschluss_grund is None and not plz:
+            zeile.ausschluss_grund = "keine PLZ – Region nicht zuordenbar"
+
+        statistik.mit_miete += 1
+        if miete_feld:
+            statistik.miete_felder[miete_feld] = statistik.miete_felder.get(miete_feld, 0) + 1
+        if flaeche is None:
+            statistik.ohne_flaeche += 1
+        zeilen.append(zeile)
+
+    if not zeilen:
+        statistik.ohne_miete += 1
+        if propstack_gateway.preis_auf_anfrage(unit):
+            statistik.preis_auf_anfrage += 1
+
+    return zeilen
 
 
 def propstack_zu_zeilen(
     units: list[dict], statistik: PropstackReport
 ) -> list[ComparableZeile]:
     statistik.units_geladen = len(units)
-    zeilen = [propstack_zu_zeile(unit, statistik) for unit in units]
-    return [z for z in zeilen if z is not None]
+    zeilen: list[ComparableZeile] = []
+    for unit in units:
+        zeilen.extend(propstack_zu_zeilen_einer_unit(unit, statistik))
+    return zeilen
 
 
 # --- Ausschluss auf Dateinamen-Ebene (vor dem LLM-Call) --------------------
@@ -277,18 +294,39 @@ def effektivmiete(
     return round(kaltmiete * (laufzeit_monate - mietfreie_monate) / laufzeit_monate, 2)
 
 
+def pruefe_flaeche(flaeche: float | None) -> tuple[float | None, str | None]:
+    """Unplausible Fläche verwerfen – aber NICHT den Datenpunkt.
+
+    Die Fläche ist nur Größenkontext; die Mieten stehen bereits als €/m². Eine
+    kaputte Fläche darf also keine gültige Miete entwerten.
+
+    Realer Fall in Propstack (gemessen 12.08.2026, ~190 Einheiten betroffen):
+    in `*_gesamt`-Felder wurde die deutsche Tausendertrennung in ein
+    Dezimalfeld getippt – "10.403" wird als 10,403 m² gespeichert und als
+    "10,40 m²" angezeigt. Der Verdacht wird als Hinweis mitgegeben, damit die
+    Daten in Propstack korrigiert werden können; hochgerechnet wird NICHT.
+    """
+    if flaeche is None:
+        return None, None
+    if config.FLAECHE_MIN_QM <= flaeche <= config.FLAECHE_MAX_QM:
+        return flaeche, None
+    verdacht = ""
+    if 0 < flaeche < 100 and round(flaeche % 1, 3) not in (0.0,):
+        verdacht = " – Verdacht: Tausendertrennung in Propstack"
+    return None, f"Fläche {flaeche} m² unplausibel, verworfen{verdacht}"
+
+
 def _plausibilitaet(zeile: ComparableZeile) -> str | None:
     if zeile.kaltmiete_eur_qm is None:
         return "keine Kaltmiete extrahierbar"
-    if not (config.KALTMIETE_MIN_EUR_QM <= zeile.kaltmiete_eur_qm <= config.KALTMIETE_MAX_EUR_QM):
+    if zeile.kaltmiete_eur_qm > config.KALTMIETE_MAX_EUR_QM:
         return (
-            f"Kaltmiete {zeile.kaltmiete_eur_qm} €/m² außerhalb "
-            f"{config.KALTMIETE_MIN_EUR_QM}-{config.KALTMIETE_MAX_EUR_QM}"
+            f"Kaltmiete {zeile.kaltmiete_eur_qm} €/m² über "
+            f"{config.KALTMIETE_MAX_EUR_QM} – sieht wie eine absolute "
+            "Monatsmiete aus, nicht wie €/m²"
         )
-    if zeile.flaeche_qm is not None and not (
-        config.FLAECHE_MIN_QM <= zeile.flaeche_qm <= config.FLAECHE_MAX_QM
-    ):
-        return f"Fläche {zeile.flaeche_qm} m² unplausibel"
+    if zeile.kaltmiete_eur_qm < config.KALTMIETE_MIN_EUR_QM:
+        return f"Kaltmiete {zeile.kaltmiete_eur_qm} €/m² unter {config.KALTMIETE_MIN_EUR_QM}"
     if zeile.laufzeit_monate is not None and not (
         config.LAUFZEIT_MIN_MONATE <= zeile.laufzeit_monate <= config.LAUFZEIT_MAX_MONATE
     ):
@@ -323,6 +361,7 @@ def zu_zeilen(doc: DriveDoc, angebot: Mietangebot) -> list[ComparableZeile]:
                 kaltmiete = round(option.kaltmiete_absolut_eur / flaeche, 2)
                 aus_absolut = True
 
+        flaeche, _ = pruefe_flaeche(flaeche) if not aus_absolut else (flaeche, None)
         nebenkosten = option.nebenkosten_eur_qm if option else None
         if nebenkosten is not None and not (
             config.NEBENKOSTEN_MIN_EUR_QM <= nebenkosten <= config.NEBENKOSTEN_MAX_EUR_QM

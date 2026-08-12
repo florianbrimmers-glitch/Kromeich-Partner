@@ -258,11 +258,13 @@ def _print_summary(report: RunReport, stats: list) -> None:
         ps = report.propstack
         logger.info("  -- Propstack --")
         logger.info("  Miet-Einheiten geladen:     %d", ps.units_geladen)
-        logger.info("    mit Miete:                %d", ps.mit_miete)
-        logger.info("    ohne Miete:               %d", ps.ohne_miete)
+        logger.info("    Einheiten mit Miete:      %d", ps.units_geladen - ps.ohne_miete)
+        logger.info("    Einheiten ohne Miete:     %d", ps.ohne_miete)
         logger.info("      davon Preis auf Anfrage:%d", ps.preis_auf_anfrage)
-        logger.info("    ohne Fläche:              %d", ps.ohne_flaeche)
-        logger.info("    aus absolut normalisiert: %d", ps.aus_absolut_normalisiert)
+        logger.info("  Mieten gefunden (Zeilen):   %d", ps.mit_miete)
+        logger.info("    ohne Flächenangabe:       %d", ps.ohne_flaeche)
+        logger.info("    Fläche verworfen:         %d (Datenfehler in Propstack)",
+                    ps.flaeche_unplausibel)
         logger.info("    als vermietet markiert:   %d", ps.vermietet)
         for feld, anzahl in sorted(ps.miete_felder.items(), key=lambda x: -x[1]):
             logger.info("    Miete aus %-22s %d", feld + ":", anzahl)

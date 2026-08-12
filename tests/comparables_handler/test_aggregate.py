@@ -163,3 +163,17 @@ def test_gleiche_strasse_in_verschiedenen_orten_sind_zwei_standorte():
     gesamt = aggregate.gesamt(aggregate.aggregiere(zeilen))
     assert gesamt.n == 4
     assert gesamt.n_objekte == 2      # zwei Orte, nicht einer
+
+
+def test_effektivmiete_spalte_nur_wenn_sie_information_traegt():
+    """Propstack führt keine mietfreien Zeiten – dann ist die Effektivmiete
+    gleich der Kaltmiete und die Spalte wäre eine Dublette."""
+    from comparables_handler import report_pdf
+    ohne = _zeilen_mit_mieten("59192", [4.50, 4.60, 4.70])   # ohne mietfreie Zeit
+    assert not report_pdf.hat_effektivmiete(aggregate.aggregiere(ohne))
+
+    mit = _zeilen_mit_mieten("59192", [4.50, 4.60, 4.70])
+    for zeile in mit:
+        zeile.mietfreie_monate = 3.0
+        zeile.effektivmiete_eur_qm = normalize.effektivmiete(zeile.kaltmiete_eur_qm, 60, 3)
+    assert report_pdf.hat_effektivmiete(aggregate.aggregiere(mit))
