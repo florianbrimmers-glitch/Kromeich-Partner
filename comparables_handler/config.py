@@ -318,11 +318,14 @@ def asana_dataset_anhaengen() -> bool:
 
 
 def asana_grund() -> str:
-    """Warum die Asana-Ablage nicht läuft – für eine klare Log-Zeile."""
+    """Warum die Asana-Ablage nicht läuft – für eine klare Log-Zeile.
+
+    NO_WRITE steht hier bewusst NICHT: der Trockenlauf soll die Beschreibung
+    loggen, die entstanden wäre. Das entscheidet asana_gateway, nicht die
+    Konfiguration – sonst wäre die Vorschau toter Code.
+    """
     if not asana_upload():
         return "ASANA_UPLOAD nicht gesetzt (Opt-in)"
-    if no_write():
-        return "NO_WRITE"
     if not asana_token_env_name():
         return ("kein Asana-Token gesetzt (eines von "
                 f"{', '.join(ASANA_TOKEN_ENV_NAMES)})")

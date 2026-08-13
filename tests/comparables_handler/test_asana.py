@@ -122,12 +122,17 @@ def test_dry_run_haelt_asana_nicht_auf(monkeypatch):
     assert config.asana_aktiv() is True
 
 
-def test_no_write_schaltet_asana_ab(monkeypatch):
+def test_no_write_ist_kein_konfigurationsgrund(monkeypatch):
+    """NO_WRITE schaltet den Schreibzugriff ab, nicht die Konfiguration.
+
+    Stünde es in asana_grund(), würde veroeffentliche() vorher aussteigen und
+    die Vorschau der Beschreibung nie geloggt – der Trockenlauf wäre blind.
+    """
     monkeypatch.setenv("ASANA_ACCESS_TOKEN", "test-token")
     monkeypatch.setenv("ASANA_UPLOAD", "true")
     monkeypatch.setenv("NO_WRITE", "true")
-    assert config.asana_aktiv() is False
-    assert config.asana_grund() == "NO_WRITE"
+    assert config.asana_aktiv() is True
+    assert config.asana_grund() == ""
 
 
 # --- Namen (Idempotenz-Schlüssel) ------------------------------------------
