@@ -42,7 +42,9 @@ Erhoben mit `scripts/propstack_miet_audit.py` und einem vollständigen Lauf:
 | ausgeschlossen | 10 |
 | Mieten anderer Flächenarten (nicht im Report) | 335 |
 
-**Paginierung geklärt** – der Nebenbefund „`/units` liefert nur 20 Einheiten" lag am fehlenden Seitengrößen-Parameter, nicht am Key-Scope:
+**Paginierung, zwei getrennte Befunde.**
+
+Erstens die Seitengröße – der Nebenbefund „`/units` liefert nur 20 Einheiten" lag am fehlenden Parameter, nicht am Key-Scope:
 
 | Aufruf | Ergebnis |
 |---|---|
@@ -50,7 +52,17 @@ Erhoben mit `scripts/propstack_miet_audit.py` und einem vollständigen Lauf:
 | `per_page=100` | 20 ❌ (wird ignoriert) |
 | `limit=100` / ohne Parameter | 20 |
 
-Der Listen-Endpoint respektiert also `per`. `objekte_handler/propstack.py` liegt damit **richtig**; hier ist nichts zu reparieren. Dieser Handler schickt beide Namen und paginiert über `page`.
+Der Listen-Endpoint respektiert also `per`. `objekte_handler/propstack.py` liegt damit **richtig**.
+
+Zweitens – und schwerwiegender – **die Sortierung muss stabil sein.** Ohne `sort_by` sortiert Propstack offenbar nach Änderungszeit: bearbeitete Einheiten wandern nach vorn, die Seiten verschieben sich *während* der Paginierung und Einheiten fallen durchs Raster. Zwei direkt aufeinanderfolgende Läufe am 13.08.2026:
+
+| Aufruf | Lauf 1 | Lauf 2 | Abweichung |
+|---|---|---|---|
+| ohne Sortierung | 2013 | 2027 | 107 bzw. 121 IDs nur in einem Lauf |
+| `sort=id` / `order_by=id` | 2051 | 2021 | ebenfalls instabil (Parameter wird ignoriert) |
+| **`sort_by=id&order=asc`** | **2134** | **2134** | **identisch** |
+
+Die instabile Variante verlor also rund **120 Einheiten pro Lauf** – und jeden Lauf andere. Für einen monatlichen Report wäre das Rauschen ohne Marktbewegung. Nur `sort_by` greift (`config.PROPSTACK_SORTIERUNG`).
 
 **Mieten stehen in Custom Fields, je Flächenart getrennt** und bereits als €/m². Ausgewertet werden nur die Felder, die es in der Propstack-**Maske** gibt:
 

@@ -85,6 +85,7 @@ def fetch_units(nur_miete: bool = True) -> list[dict]:
             "per_page": config.PROPSTACK_PER_PAGE,
             "per": config.PROPSTACK_PER_PAGE,
             "expand": 1,
+            **config.PROPSTACK_SORTIERUNG,
         }
         if nur_miete:
             params["marketing_type"] = "RENT"

@@ -446,3 +446,18 @@ def test_unbekannte_nutzungsart_bleibt_unveraendert():
     """Lieber ein eigener Abschnitt als eine falsche Einordnung."""
     assert normalize.normalisiere_nutzungsart("Freifläche") == "Freifläche"
     assert normalize.normalisiere_nutzungsart(None) is None
+
+
+def test_stabile_sortierung_wird_mitgeschickt(monkeypatch):
+    """Ohne sort_by verschieben sich die Seiten während der Paginierung und
+    es fallen Einheiten durchs Raster – gemessen ~120 pro Lauf."""
+    gesendet = []
+
+    def fake_request(path, params):
+        gesendet.append(params)
+        return _FakeResponse(_fake_units(1, 5) if params["page"] == 1 else [])
+
+    monkeypatch.setattr(propstack_gateway, "_request", fake_request)
+    propstack_gateway.fetch_units()
+    assert gesendet[0]["sort_by"] == "id"
+    assert gesendet[0]["order"] == "asc"

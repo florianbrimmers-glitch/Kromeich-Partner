@@ -270,6 +270,17 @@ PROPSTACK_MAX_ATTEMPTS = 4
 PROPSTACK_PER_PAGE = 100
 PROPSTACK_MAX_PAGES = 200          # Schutz gegen Endlos-Paginierung
 
+# STABILE Sortierung ist Pflicht, nicht Kosmetik. Ohne sie sortiert Propstack
+# nach Änderungszeit: bearbeitete Einheiten wandern nach vorn, die Seiten
+# verschieben sich WÄHREND der Paginierung und Einheiten fallen durchs Raster.
+# Gemessen am 13.08.2026 in zwei direkt aufeinanderfolgenden Läufen:
+#     ohne Sortierung        2013 / 2027 IDs, 107 bzw. 121 nur in einem Lauf
+#     sort_by=id&order=asc   2134 / 2134 IDs, identisch
+# Die instabile Variante verlor also rund 120 Einheiten pro Lauf – und jeden
+# Lauf andere. Für einen monatlichen Report wäre das Rauschen ohne
+# Marktbewegung. `sort`/`order_by` werden ignoriert, nur `sort_by` greift.
+PROPSTACK_SORTIERUNG = {"sort_by": "id", "order": "asc"}
+
 # Mietobjekte erkennen
 MARKETING_TYPES_MIETE = ("RENT", "RENT_AND_BUY", "MIETE")
 
