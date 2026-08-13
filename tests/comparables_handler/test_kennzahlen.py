@@ -192,3 +192,60 @@ def test_leere_tabelle_liefert_keine_werte():
     assert t.zeilen == []
     assert t.gesamt is None
     assert kennzahlen.snapshot_werte([t]) == {}
+
+
+# --- Durchschnitts- und Spitzenmiete --------------------------------------
+def test_durchschnitt_ist_das_arithmetische_mittel():
+    """Bewusst nicht flächengewichtet – die Propstack-Flächen sind unzuverlässig."""
+    zeilen = [_zeile("40213", 4.00), _zeile("40468", 6.00), _zeile("40474", 11.00)]
+    t = kennzahlen.baue_tabelle(zeilen, "Halle/Lager")
+    assert t.gesamt.median_jetzt == 6.00        # Median
+    assert t.gesamt.durchschnittsmiete == 7.00  # Mittel (21/3)
+
+
+def test_spitzenmiete_ist_nicht_das_maximum():
+    """Ein einzelner Ausreißer soll das Spitzenniveau nicht bestimmen."""
+    mieten = [4.0, 4.5, 5.0, 5.5, 6.0, 6.5, 7.0, 7.5, 8.0, 20.0]
+    zeilen = [_zeile(f"402{i:02d}", m) for i, m in enumerate(mieten)]
+    t = kennzahlen.baue_tabelle(zeilen, "Halle/Lager")
+    assert t.gesamt.max_kaltmiete == 20.0        # Maximum bleibt sichtbar
+    assert t.gesamt.spitzenmiete < 20.0          # Spitze nicht
+    assert t.gesamt.spitzenmiete > t.gesamt.median_jetzt
+
+
+def test_spitzenmiete_bei_einem_wert_ist_der_wert():
+    t = kennzahlen.baue_tabelle([_zeile("40213", 6.50)], "Halle/Lager")
+    assert t.gesamt.spitzenmiete == 6.50
+    assert t.gesamt.durchschnittsmiete == 6.50
+
+
+def test_perzentil_1_ergibt_das_maximum(monkeypatch):
+    """Über die Konfiguration ist die echte Spitze einstellbar."""
+    monkeypatch.setattr(kennzahlen.config, "SPITZENMIETE_PERZENTIL", 1.0)
+    zeilen = [_zeile("40213", 4.0), _zeile("40468", 6.0), _zeile("40474", 20.0)]
+    t = kennzahlen.baue_tabelle(zeilen, "Halle/Lager")
+    assert t.gesamt.spitzenmiete == 20.0
+
+
+def test_spitze_liegt_nie_unter_dem_median():
+    for mieten in ([5.0], [5.0, 5.0], [4.0, 5.0, 6.0], [1.0, 2.0, 3.0, 10.0]):
+        zeilen = [_zeile(f"402{i:02d}", m) for i, m in enumerate(mieten)]
+        t = kennzahlen.baue_tabelle(zeilen, "Halle/Lager")
+        assert t.gesamt.spitzenmiete >= t.gesamt.median_jetzt
+
+
+def test_kennwerte_stehen_auch_je_gruppe():
+    zeilen = [_zeile("40213", 6.0), _zeile("44145", 4.0), _zeile("44139", 8.0)]
+    t = kennzahlen.baue_tabelle(zeilen, "Halle/Lager")
+    ruhr = next(z for z in t.zeilen if z.label == "Ruhrgebiet")
+    assert ruhr.durchschnittsmiete == 6.00
+    assert ruhr.spitzenmiete is not None
+
+
+def test_snapshot_enthaelt_durchschnitt_und_spitze():
+    """Damit die Zeitreihe später auch diese Werte vergleichen kann."""
+    t = kennzahlen.baue_tabelle([_zeile("40213", 6.0), _zeile("40468", 8.0)], "Halle/Lager")
+    werte = kennzahlen.snapshot_werte([t])
+    assert werte["Halle/Lager|Düsseldorf|durchschnitt"] == 7.0
+    assert "Halle/Lager|Düsseldorf|spitze" in werte
+    assert "Halle/Lager|Gesamt|durchschnitt" in werte

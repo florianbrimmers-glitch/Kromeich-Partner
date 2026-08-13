@@ -13,6 +13,35 @@ def _median(werte: list[float]) -> float | None:
     return round(median(werte), 2) if werte else None
 
 
+def _mittel(werte: list[float]) -> float | None:
+    """Arithmetisches Mittel – bewusst NICHT flächengewichtet.
+
+    Marktberichte gewichten die Durchschnittsmiete üblicherweise über die
+    Fläche. Hier ginge das nur mit den Propstack-Flächen, und die sind bei
+    ~190 Einheiten fehlerhaft erfasst (Tausendertrennung in Dezimalfeldern).
+    Ein kaputtes Gewicht verdirbt den Wert stärker als das fehlende.
+    """
+    return round(sum(werte) / len(werte), 2) if werte else None
+
+
+def _perzentil(werte: list[float], anteil: float) -> float | None:
+    """Lineare Interpolation zwischen den Rangplätzen.
+
+    Bei kleinem n läuft das Ergebnis gegen das Maximum – gewollt: mit drei
+    Datenpunkten gibt es kein belastbares Spitzensegment.
+    """
+    if not werte:
+        return None
+    sortiert = sorted(werte)
+    if len(sortiert) == 1:
+        return round(sortiert[0], 2)
+    position = (len(sortiert) - 1) * anteil
+    unten = int(position)
+    oben = min(unten + 1, len(sortiert) - 1)
+    rest = position - unten
+    return round(sortiert[unten] + (sortiert[oben] - sortiert[unten]) * rest, 2)
+
+
 def _veraenderung(jetzt: float | None, vorher: float | None) -> float | None:
     """Relative Veränderung in Prozent. None, wenn keine Basis existiert."""
     if jetzt is None or vorher is None or vorher == 0:
@@ -41,6 +70,8 @@ def _zeile(
         median_jetzt=jetzt,
         median_vorher=vorher,
         veraenderung_prozent=_veraenderung(jetzt, vorher),
+        durchschnittsmiete=_mittel(mieten),
+        spitzenmiete=_perzentil(mieten, config.SPITZENMIETE_PERZENTIL),
         min_kaltmiete=round(min(mieten), 2) if mieten else None,
         max_kaltmiete=round(max(mieten), 2) if mieten else None,
         median_nebenkosten=_median(nk),
@@ -166,13 +197,23 @@ def _anteile(
 
 
 def snapshot_werte(tabellen: list[KennzahlenTabelle]) -> dict[str, float]:
-    """Alle Werte des Laufs für die Snapshot-Ablage flach einsammeln."""
+    """Alle Werte des Laufs für die Snapshot-Ablage flach einsammeln.
+
+    Durchschnitt und Spitzenmiete werden mit Suffix mitgeschrieben, auch wenn
+    die Veränderungsspalte heute nur den Median vergleicht – so ist die
+    Zeitreihe später ohne Datenverlust erweiterbar.
+    """
     werte: dict[str, float] = {}
     for tabelle in tabellen:
-        for zeile in list(tabelle.zeilen) + list(tabelle.anteile):
+        alle = list(tabelle.zeilen) + list(tabelle.anteile)
+        if tabelle.gesamt:
+            alle.append(tabelle.gesamt)
+        for zeile in alle:
+            basis = snapshots.schluessel(tabelle.flaechenart, zeile.label)
             if zeile.median_jetzt is not None:
-                werte[snapshots.schluessel(tabelle.flaechenart, zeile.label)] = zeile.median_jetzt
-        if tabelle.gesamt and tabelle.gesamt.median_jetzt is not None:
-            werte[snapshots.schluessel(tabelle.flaechenart, tabelle.gesamt.label)] = \
-                tabelle.gesamt.median_jetzt
+                werte[basis] = zeile.median_jetzt
+            if zeile.durchschnittsmiete is not None:
+                werte[f"{basis}|durchschnitt"] = zeile.durchschnittsmiete
+            if zeile.spitzenmiete is not None:
+                werte[f"{basis}|spitze"] = zeile.spitzenmiete
     return werte

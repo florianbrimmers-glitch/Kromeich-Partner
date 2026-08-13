@@ -71,7 +71,9 @@ def _einzelzeile(stat: RegionStats) -> str:
 
 def _kennzahlen_block(tabellen: list, stand_vorher: str | None) -> list[str]:
     """Kompakte Marktgebiets-Kennzahlen für Slack (Top-Märkte + Summen)."""
-    zeilen: list[str] = ["\n*Kennzahlen nach Marktgebiet* (Median Nettokaltmiete)"]
+    zeilen: list[str] = [
+        "\n*Kennzahlen nach Marktgebiet* (Nettokaltmiete €/m²: Median · Ø · Spitze)"
+    ]
     for tabelle in tabellen:
         if not tabelle.zeilen:
             continue
@@ -85,11 +87,18 @@ def _kennzahlen_block(tabellen: list, stand_vorher: str | None) -> list[str]:
                 veraenderung = (
                     f" ({vorzeichen}{z.veraenderung_prozent:.1f}".replace(".", ",") + " %)"
                 )
-            teile.append(f"{z.label} {eur(z.median_jetzt)}{veraenderung} (n={z.n})")
+            teile.append(
+                f"{z.label} {eur(z.median_jetzt)}{veraenderung} "
+                f"(Ø {eur(z.durchschnittsmiete)}, Spitze {eur(z.spitzenmiete)}, n={z.n})"
+            )
         gesamt = tabelle.gesamt
         kopf = f"  *{tabelle.flaechenart}*"
         if gesamt:
-            kopf += f" – gesamt {eur(gesamt.median_jetzt, '€/m²')}, n={gesamt.n}"
+            kopf += (
+                f" – Median {eur(gesamt.median_jetzt, '€/m²')}, "
+                f"Ø {eur(gesamt.durchschnittsmiete)}, "
+                f"Spitze {eur(gesamt.spitzenmiete)}, n={gesamt.n}"
+            )
         zeilen.append(kopf)
         if teile:
             zeilen.append("  " + " · ".join(teile))

@@ -118,23 +118,29 @@ Freitext-Nutzungsarten aus den Drive-Angeboten („Logistik", „Halle", „Lage
 Zusätzlich zur regionalen Auswertung baut der Report eine Kennzahlen-Tabelle im Stil der üblichen Logistik-Marktberichte – je Flächenart:
 
 ```
-                                    n  Standorte   2025-08  aktuell  VERÄNDERUNG
+                                     n  Ø-MIETE  SPITZE  2025-08  MEDIAN  VERÄNDERUNG
 Bedeutende Logistikmärkte
-   Berlin                           8          6      9,55     9,72       +1,8 %
-   Düsseldorf                      79         63      5,75     7,00      +21,7 %
+   Berlin                            8     8,55   11,38     9,55    9,72       +1,8 %
+   Düsseldorf                       89     6,49    8,90     5,75    6,50      +13,0 %
    …
-Bedeutende Logistikmärkte gesamt   141        101      6,26     7,00      +11,8 %
+Bedeutende Logistikmärkte gesamt    152     6,85    9,50     6,26    6,90      +10,2 %
 Sonstige Standorte
-   Ruhrgebiet                      109         69      6,16     6,50       +5,5 %
-   Übrige Logistikregionen          77         46      4,86     5,49      +13,0 %
-Sonstige Standorte gesamt          186        115      5,49     6,00       +9,3 %
-Gesamt                             327        216      6,15     6,45       +4,9 %
-Anteil intern bekannter Konditionen           46,7 %   48,0 %  +1,3 %-Pkte.
-Anteil bereits vermieteter Flächen             1,4 %    7,3 %  +5,9 %-Pkte.
-Anteil mit Nebenkosten-Angabe                  0,0 %    3,7 %  +3,7 %-Pkte.
+   Ruhrgebiet                      111     6,37    8,50     6,16    6,50       +5,5 %
+   Übrige Logistikregionen          85     5,61    8,48     4,86    5,49      +13,0 %
+Sonstige Standorte gesamt          196     6,04    8,50     5,49    6,00       +9,3 %
+Gesamt                             348     6,39    9,30     6,15    6,25       +1,6 %
+Anteil intern bekannter Konditionen                        46,7 %  46,0 %  -0,7 %-Pkte.
+Anteil bereits vermieteter Flächen                          1,4 %   6,3 %  +4,9 %-Pkte.
+Anteil mit Nebenkosten-Angabe                               0,0 %   3,4 %  +3,4 %-Pkte.
 ```
 
-**Lesart:** `n` addiert sich über die Gruppen, der **Median nicht** – er wird je Gruppe über alle Datenpunkte neu berechnet (anders als beim Flächenumsatz in den Marktberichten, wo die Zwischensumme wirklich eine Summe ist). Anteile werden in **Prozentpunkten** verändert ausgewiesen.
+**Lesart:**
+
+- `n` addiert sich über die Gruppen, die **Mietwerte nicht** – sie werden je Gruppe über alle Datenpunkte neu berechnet (anders als beim Flächenumsatz in den Marktberichten, wo die Zwischensumme wirklich eine Summe ist).
+- **Ø-Miete** ist das arithmetische Mittel, **nicht flächengewichtet**. Marktberichte gewichten üblicherweise über die Fläche; das ginge hier nur mit den Propstack-Flächen, und die sind bei ~190 Einheiten fehlerhaft erfasst. Ein kaputtes Gewicht verdirbt den Wert stärker als das fehlende.
+- **Spitze** ist das `SPITZENMIETE_PERZENTIL` (95.) Perzentil, **nicht das Maximum**: ein einzelner Ausreißer soll das Spitzenniveau nicht bestimmen. Das Maximum steht in der Spanne-Spalte der regionalen Auswertung. `SPITZENMIETE_PERZENTIL = 1.0` ergibt das echte Maximum. Bei wenigen Datenpunkten nähert sich die Spitzenmiete zwangsläufig dem Maximum – bei n=3 ist kein Spitzensegment abgrenzbar.
+- Die **Veränderung** vergleicht den Median. Ø-Miete und Spitze weisen den aktuellen Stand aus; beide werden aber im Snapshot mitgeschrieben (`…|durchschnitt`, `…|spitze`), sodass die Zeitreihe später ohne Datenverlust auf sie erweiterbar ist.
+- Anteile werden in **Prozentpunkten** verändert ausgewiesen.
 
 Die Marktgrenzen stehen in `config.MARKTGEBIETE_TOP` und `MARKTGEBIET_RUHR` und sind eine **fachliche Festlegung, die K&P bestätigen sollte** – etwa ob Krefeld (PLZ 47) zum Ruhrgebiet oder zu Düsseldorf zählt und ob Aachen (52) zu Köln gehört. Märkte ohne Datenpunkt erscheinen nicht als Leerzeile; die Reihenfolge der Top-Märkte ist fest, damit die Tabelle monatlich gleich aussieht.
 

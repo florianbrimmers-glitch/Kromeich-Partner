@@ -165,6 +165,11 @@ class KennzahlenZeile(BaseModel):
     median_jetzt: float | None = None
     median_vorher: float | None = None
     veraenderung_prozent: float | None = None   # bei Anteilen: Prozentpunkte
+    # Arithmetisches Mittel (NICHT flächengewichtet – die Flächenangaben in
+    # Propstack sind zu unzuverlässig, um als Gewicht zu dienen).
+    durchschnittsmiete: float | None = None
+    # Oberes Perzentil (config.SPITZENMIETE_PERZENTIL), nicht das Maximum.
+    spitzenmiete: float | None = None
     min_kaltmiete: float | None = None
     max_kaltmiete: float | None = None
     median_nebenkosten: float | None = None

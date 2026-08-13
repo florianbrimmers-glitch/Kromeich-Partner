@@ -125,6 +125,11 @@ GRUPPE_TOP = "Bedeutende Logistikmärkte"
 GRUPPE_SONSTIGE = "Sonstige Standorte"
 LABEL_UEBRIGE = "Übrige Logistikregionen"
 
+# Spitzenmiete: oberes Perzentil statt des Maximums. Ein einzelner Ausreißer
+# soll das Spitzenniveau nicht bestimmen – und das Maximum ist über die
+# Spanne-Spalte ohnehin sichtbar. 1.0 ergibt das echte Maximum.
+SPITZENMIETE_PERZENTIL = 0.95
+
 # Wie viele Monate zurück der Vergleichswert der Veränderungsspalte liegt.
 # 12 = Vorjahresvergleich; der nächstgelegene vorhandene Snapshot gewinnt.
 VERGLEICH_MONATE = 12

@@ -103,7 +103,9 @@ def kennzahlen_tabelle(tabelle, breiten: list[float], fonts: dict[str, str], sta
     from reportlab.platypus import Table, TableStyle
 
     vorher_kopf = stand_vorher or "Vorperiode"
-    daten: list[list[str]] = [["", "n", "Standorte", vorher_kopf, "aktuell", "VERÄNDERUNG"]]
+    daten: list[list[str]] = [
+        ["", "n", "Ø-MIETE", "SPITZE", vorher_kopf, "MEDIAN", "VERÄNDERUNG"]
+    ]
     stil: list = [
         ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(DUNKELGRUEN)),
         ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
@@ -133,7 +135,8 @@ def kennzahlen_tabelle(tabelle, breiten: list[float], fonts: dict[str, str], sta
         return [
             einrueckung + z.label,
             str(z.n) if not z.ist_prozentwert else "",
-            str(z.n_standorte) if not z.ist_prozentwert else "",
+            "" if z.ist_prozentwert else eur(z.durchschnittsmiete),
+            "" if z.ist_prozentwert else eur(z.spitzenmiete),
             vorher,
             jetzt,
             _prozent(z.veraenderung_prozent, punkte=z.ist_prozentwert),
@@ -143,7 +146,7 @@ def kennzahlen_tabelle(tabelle, breiten: list[float], fonts: dict[str, str], sta
         # Gruppen-Kopfzeile einschieben (wie "Flächenumsatz bedeutende …")
         if z.gruppe and z.gruppe != letzte_gruppe and z.ebene == "position":
             zeile_index += 1
-            daten.append([z.gruppe, "", "", "", "", ""])
+            daten.append([z.gruppe, "", "", "", "", "", ""])
             stil += [
                 ("FONTNAME", (0, zeile_index), (-1, zeile_index), fonts["KP-Body-Bold"]),
                 ("BACKGROUND", (0, zeile_index), (-1, zeile_index), colors.white),
@@ -330,10 +333,9 @@ def erzeuge_pdf(
             untertitel + " Gegliedert nach den bedeutenden Logistikmärkten "
             "und den sonstigen Standorten.", body,
         ))
-        kz_breiten = [
-            inhalt_w - (16 + 20 + 26 + 24 + 30) * mm,
-            16 * mm, 20 * mm, 26 * mm, 24 * mm, 30 * mm,
-        ]
+        # 7 Spalten: Region | n | Ø | Spitze | Vorperiode | Median | Veränderung
+        kz_spalten = (11, 19, 18, 22, 20, 26)
+        kz_breiten = [inhalt_w - sum(kz_spalten) * mm] + [b * mm for b in kz_spalten]
         for tabelle in tabellen:
             if not tabelle.zeilen:
                 continue
@@ -342,9 +344,14 @@ def erzeuge_pdf(
             flow.append(Spacer(1, 5 * mm))
 
         hinweise = [
-            "<b>n</b> ist die Zahl der belegten Mieten, <b>Standorte</b> die Zahl der "
-            "dahinterliegenden Adressen. n summiert sich über die Gruppen – der Median "
-            "nicht: er wird je Gruppe über alle Datenpunkte neu berechnet.",
+            "<b>n</b> ist die Zahl der belegten Mieten. n summiert sich über die Gruppen – "
+            "die Mietwerte nicht: sie werden je Gruppe über alle Datenpunkte neu berechnet.",
+            "<b>Ø-Miete</b> ist das arithmetische Mittel, bewusst <b>nicht flächengewichtet</b>: "
+            "die Flächenangaben im CRM sind dafür zu unzuverlässig. "
+            f"<b>Spitze</b> ist das {int(config.SPITZENMIETE_PERZENTIL * 100)}. Perzentil und "
+            "damit nicht der Höchstwert – ein einzelner Ausreißer soll das Spitzenniveau "
+            "nicht bestimmen. Bei wenigen Datenpunkten nähert sich die Spitzenmiete "
+            "zwangsläufig dem Maximum.",
         ]
         if stand_vorher:
             hinweise.append(
