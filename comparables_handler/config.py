@@ -82,7 +82,11 @@ ANLAGEN_MARKER = ("anlage", "anlagen", "beiblatt")
 EIGENE_ANBIETER_MARKER = ("kromeich", "k&p", "kromeich & partner")
 
 # --- Plausibilität (Ausreißer fliegen mit Grund raus) ----------------------
-KALTMIETE_MIN_EUR_QM = 1.0
+# Untergrenze für Halle/Lager. Bei 1,00 rutschten Platzhalter-Werte durch:
+# "Stettiner Straße 2, Neuss" trug 1,00 €/m², während dieselbe Adresse andere
+# Einheiten mit 3,00 führt. Unter 2,50 €/m² gibt es für Hallen-/Lagerflächen
+# keinen echten Markt – solche Werte sind Platzhalter oder Tippfehler.
+KALTMIETE_MIN_EUR_QM = 2.5
 KALTMIETE_MAX_EUR_QM = 25.0
 NEBENKOSTEN_MIN_EUR_QM = 0.1
 NEBENKOSTEN_MAX_EUR_QM = 6.0
@@ -124,6 +128,30 @@ MARKTGEBIET_RUHR = ("Ruhrgebiet", ("44", "45", "46", "47", "58", "59"))
 GRUPPE_TOP = "Bedeutende Logistikmärkte"
 GRUPPE_SONSTIGE = "Sonstige Standorte"
 LABEL_UEBRIGE = "Übrige Logistikregionen"
+
+# --- Aggregationsbasis ------------------------------------------------------
+# "standort": je Adresse EIN Wert (Median ihrer Einheiten) – so zählt ein
+#   Multi-Unit-Objekt einmal und nicht 14-mal. Gemessen am 13.08.2026: die 10
+#   größten Standorte stellten 21 % aller Datenpunkte; in Berlin verschob das
+#   den Median um 1,67 €/m². Für eine Marktaussage ist der Standort die
+#   richtige Einheit.
+# "einheit": jede vermietbare Einheit zählt einzeln – relevant, wenn die Frage
+#   lautet "was zahlt ein Mieter für eine Einheit", nicht "wie hoch ist das
+#   Marktniveau".
+AGGREGATION_STANDORT = "standort"
+AGGREGATION_EINHEIT = "einheit"
+AGGREGATION_STANDARD = AGGREGATION_STANDORT
+
+
+def aggregation() -> str:
+    wert = os.environ.get("AGGREGATION", AGGREGATION_STANDARD).strip().lower()
+    if wert not in (AGGREGATION_STANDORT, AGGREGATION_EINHEIT):
+        raise RuntimeError(
+            f"AGGREGATION={wert!r} unbekannt – erlaubt: "
+            f"{AGGREGATION_STANDORT}, {AGGREGATION_EINHEIT}"
+        )
+    return wert
+
 
 # Spitzenmiete: oberes Perzentil statt des Maximums. Ein einzelner Ausreißer
 # soll das Spitzenniveau nicht bestimmen – und das Maximum ist über die

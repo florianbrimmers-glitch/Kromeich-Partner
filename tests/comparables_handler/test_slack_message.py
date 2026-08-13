@@ -5,13 +5,18 @@ from .fixtures import doc, mileway_bergkamen, westcore_bitterfeld
 
 
 def _zeilen(plz="59192", mieten=(4.00, 4.58, 5.20)):
-    angebot = mileway_bergkamen()
-    angebot.plz = plz
-    angebot.optionen = [
-        AngebotsOption(laufzeit_monate=60 + 12 * i, kaltmiete_eur_qm=m, nebenkosten_eur_qm=2.15)
-        for i, m in enumerate(mieten)
-    ]
-    return normalize.zu_zeilen(doc(name=f"{plz}.pdf"), angebot)
+    """Je Miete ein eigener Standort (Werte an derselben Adresse werden
+    zusammengefasst – siehe test_aggregate)."""
+    zeilen = []
+    for i, miete in enumerate(mieten):
+        angebot = mileway_bergkamen()
+        angebot.plz = plz
+        angebot.adresse = f"Teststraße {i + 1}"
+        angebot.optionen = [
+            AngebotsOption(laufzeit_monate=60, kaltmiete_eur_qm=miete, nebenkosten_eur_qm=2.15)
+        ]
+        zeilen.extend(normalize.zu_zeilen(doc(name=f"{plz}-{i}.pdf"), angebot))
+    return zeilen
 
 
 def _stats(plz="59192", mieten=(4.00, 4.58, 5.20)):
@@ -107,11 +112,11 @@ def test_keine_pseudospanne_bei_einem_einzelwert():
     assert "4,58 / 4,58" not in text
 
 
-def test_standort_und_datenpunkte_werden_unterschieden():
-    """Laufzeitstaffel: 1 Standort, 3 Datenpunkte – beides muss im Post stehen."""
+def test_laufzeitstaffel_zaehlt_als_eine_miete():
+    """Drei Laufzeit-Optionen an einer Adresse sind EIN Marktdatenpunkt."""
     stats = aggregate.aggregiere(normalize.zu_zeilen(doc(), westcore_bitterfeld()))
     text = slack_gateway.baue_nachricht(stats, RunReport(dateien_eindeutig=22), "August 2026")
-    assert "*3 bekannte Mieten*" in text
+    assert "*1 bekannte Mieten*" in text
     assert "1 Standort(en)" in text
 
 

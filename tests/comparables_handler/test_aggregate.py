@@ -5,14 +5,21 @@ from .fixtures import doc, mileway_bergkamen, westcore_bitterfeld
 
 
 def _zeilen_mit_mieten(plz: str, mieten: list[float], anbieter="Mileway"):
-    angebot = mileway_bergkamen()
-    angebot.plz = plz
-    angebot.anbieter = anbieter
-    angebot.optionen = [
-        AngebotsOption(laufzeit_monate=60 + 12 * i, kaltmiete_eur_qm=m)
-        for i, m in enumerate(mieten)
-    ]
-    return normalize.zu_zeilen(doc(name=f"{plz}.pdf"), angebot)
+    """Je Miete ein EIGENER Standort – so sind diese Tests gemeint.
+
+    Mehrere Werte an derselben Adresse werden bewusst zu einem Datenpunkt
+    zusammengefasst (siehe test_standort_aggregation_*); wer das Verhalten je
+    Wert prüfen will, braucht getrennte Adressen.
+    """
+    zeilen = []
+    for i, miete in enumerate(mieten):
+        angebot = mileway_bergkamen()
+        angebot.plz = plz
+        angebot.anbieter = anbieter
+        angebot.adresse = f"Teststraße {i + 1}"
+        angebot.optionen = [AngebotsOption(laufzeit_monate=60, kaltmiete_eur_qm=miete)]
+        zeilen.extend(normalize.zu_zeilen(doc(name=f"{plz}-{i}.pdf"), angebot))
+    return zeilen
 
 
 def test_median_und_spanne_pro_region():
@@ -86,13 +93,42 @@ def test_ausgeschlossene_zeilen_gehen_nicht_in_die_statistik():
     assert leit[0].max_kaltmiete == 4.70
 
 
-def test_n_objekte_unterscheidet_sich_von_n_zeilen():
-    """Eine Laufzeitstaffel ist EIN Objekt, aber drei Datenpunkte."""
+def test_laufzeitstaffel_zaehlt_als_ein_standort():
+    """Eine Laufzeitstaffel (4,50/4,30/4,05 an EINER Adresse) ist EIN
+    Marktdatenpunkt, nicht drei. Im Datensatz bleiben alle drei Zeilen."""
     zeilen = normalize.zu_zeilen(doc(name="sun.pdf"), westcore_bitterfeld())
+    assert len(zeilen) == 3                      # CSV behält jede Option
     stats = aggregate.aggregiere(zeilen)
-    leit = aggregate.leitregionen(stats)
-    assert leit[0].n == 3
-    assert leit[0].n_objekte == 1
+    einzeln = aggregate.einzelwerte(stats)       # n=1 -> kein Median
+    assert einzeln[0].n == 1
+    assert einzeln[0].n_einheiten == 3
+    assert einzeln[0].n_objekte == 1
+    assert einzeln[0].median_kaltmiete == 4.30   # Median der Staffel
+
+
+def test_standort_aggregation_fasst_multi_unit_objekte_zusammen():
+    """Der reale Fall: 14 Einheiten an der Neue Ritterstraße 34 tragen alle
+    8,50 €. Ohne Zusammenfassung zählte ein Objekt 14-mal und dominierte den
+    Markt – gemessen 13.08.2026: 21 % aller Datenpunkte aus 10 Standorten."""
+    viele = _zeilen_mit_mieten("47809", [8.5] * 14)
+    for zeile in viele:                          # alle an DERSELBEN Adresse
+        zeile.adresse = "Neue Ritterstraße 34"
+    einer = _zeilen_mit_mieten("40213", [5.0])
+    stats = aggregate.aggregiere(viele + einer)
+    gesamt = aggregate.gesamt(stats)
+    assert gesamt.n == 2                         # zwei Standorte
+    assert gesamt.n_einheiten == 15
+    assert gesamt.median_kaltmiete == 6.75       # (8,50 + 5,00) / 2
+
+
+def test_aggregation_je_einheit_ist_umschaltbar(monkeypatch):
+    monkeypatch.setenv("AGGREGATION", "einheit")
+    viele = _zeilen_mit_mieten("47809", [8.5] * 14)
+    for zeile in viele:
+        zeile.adresse = "Neue Ritterstraße 34"
+    gesamt = aggregate.gesamt(aggregate.aggregiere(viele + _zeilen_mit_mieten("40213", [5.0])))
+    assert gesamt.n == 15
+    assert gesamt.median_kaltmiete == 8.50       # das Multi-Unit-Objekt dominiert
 
 
 def test_eigene_und_erhaltene_werden_getrennt_gezaehlt():
@@ -161,7 +197,8 @@ def test_gleiche_strasse_in_verschiedenen_orten_sind_zwei_standorte():
         zeile.adresse = "Hauptstraße 1"
         zeile.objekt = "Logistikhalle"
     gesamt = aggregate.gesamt(aggregate.aggregiere(zeilen))
-    assert gesamt.n == 4
+    assert gesamt.n == 2              # je Ort ein Standort-Datenpunkt
+    assert gesamt.n_einheiten == 4
     assert gesamt.n_objekte == 2      # zwei Orte, nicht einer
 
 

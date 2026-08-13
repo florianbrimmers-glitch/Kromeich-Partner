@@ -137,7 +137,8 @@ class RegionStats(BaseModel):
     # liegen in ganz verschiedenen Größenordnungen und dürfen nie in denselben
     # Median fallen – die Flächenart ist deshalb Teil des Gruppenschlüssels.
     nutzungsart: str = ""
-    n: int = 0
+    n: int = 0                 # Datenpunkte auf der Aggregationsbasis
+    n_einheiten: int = 0       # zugrundeliegende Einheiten (>= n)
     n_objekte: int = 0
     n_eigene: int = 0
     n_erhalten: int = 0
@@ -160,7 +161,8 @@ class KennzahlenZeile(BaseModel):
     gruppe: str = ""
     # "position" | "zwischensumme" | "gesamtsumme" | "anteil"
     ebene: str = "position"
-    n: int = 0
+    n: int = 0                 # Datenpunkte auf der Aggregationsbasis
+    n_einheiten: int = 0       # zugrundeliegende Einheiten (>= n)
     n_standorte: int = 0
     median_jetzt: float | None = None
     median_vorher: float | None = None

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from decimal import ROUND_HALF_UP, Decimal
 from statistics import median
 
 from . import config
@@ -11,16 +12,59 @@ logger = logging.getLogger(__name__)
 OHNE_ART = "ohne Angabe"
 
 
+def standort_key(zeile: ComparableZeile) -> tuple:
+    """Identität eines Standorts: PLZ + Adresse.
+
+    Nicht der Objektname – Propstack benennt die Einheiten eines Standorts
+    gleich ("Unit 1".."Unit 14"), und ohne PLZ würden gleichnamige Straßen in
+    verschiedenen Orten verschmelzen.
+    """
+    return (zeile.plz, zeile.adresse or zeile.objekt or zeile.datei)
+
+
+def mietwerte(zeilen: list[ComparableZeile], feld: str = "kaltmiete_eur_qm") -> list[float]:
+    """Die Werte auf der konfigurierten Aggregationsbasis.
+
+    Bei AGGREGATION=standort liefert jeder Standort EINEN Wert (den Median
+    seiner Einheiten). Sonst würde ein Multi-Unit-Objekt den Markt dominieren:
+    gemessen am 13.08.2026 trug die Neue Ritterstraße 34 vierzehnmal identisch
+    8,50 €/m² bei, die 10 größten Standorte stellten 21 % aller Datenpunkte.
+    """
+    einzel = [getattr(z, feld) for z in zeilen if getattr(z, feld) is not None]
+    if config.aggregation() == config.AGGREGATION_EINHEIT:
+        return einzel
+
+    nach_standort: dict[tuple, list[float]] = {}
+    for zeile in zeilen:
+        wert = getattr(zeile, feld)
+        if wert is not None:
+            nach_standort.setdefault(standort_key(zeile), []).append(wert)
+    return [median(werte) for werte in nach_standort.values()]
+
+
+def runde(wert: float | None, stellen: int = 2) -> float | None:
+    """Kaufmännisch runden (ROUND_HALF_UP).
+
+    Pythons round() rundet zur geraden Zahl: round(6.625, 2) ergibt 6,62.
+    In einem Kundendokument liest sich das wie ein Fehler, deshalb hier die
+    in Deutschland erwartete Rundung.
+    """
+    if wert is None:
+        return None
+    quant = Decimal(1).scaleb(-stellen)
+    return float(Decimal(str(wert)).quantize(quant, rounding=ROUND_HALF_UP))
+
+
 def _median(werte: list[float]) -> float | None:
-    return round(median(werte), 2) if werte else None
+    return runde(median(werte)) if werte else None
 
 
 def _stats(
     ebene: str, key: str, label: str, zeilen: list[ComparableZeile], nutzungsart: str = ""
 ) -> RegionStats:
-    kaltmieten = [z.kaltmiete_eur_qm for z in zeilen if z.kaltmiete_eur_qm is not None]
-    nebenkosten = [z.nebenkosten_eur_qm for z in zeilen if z.nebenkosten_eur_qm is not None]
-    effektiv = [z.effektivmiete_eur_qm for z in zeilen if z.effektivmiete_eur_qm is not None]
+    kaltmieten = mietwerte(zeilen)
+    nebenkosten = mietwerte(zeilen, "nebenkosten_eur_qm")
+    effektiv = mietwerte(zeilen, "effektivmiete_eur_qm")
     flaechen = [z.flaeche_qm for z in zeilen if z.flaeche_qm is not None]
     daten = [z.datum for z in zeilen if z.datum]
 
@@ -31,7 +75,7 @@ def _stats(
     #    weil Propstack die Einheiten eines Standorts gleich benennt;
     #  - über die Adresse allein würden gleichnamige Straßen in verschiedenen
     #    Orten verschmelzen ("Hauptstraße 1" gibt es tausendfach).
-    standorte = {(z.plz, z.adresse or z.objekt or z.datei) for z in zeilen}
+    standorte = {standort_key(z) for z in zeilen}
     objekte = sorted({(z.objekt or z.adresse or z.datei) for z in zeilen})
 
     return RegionStats(
@@ -39,15 +83,17 @@ def _stats(
         key=key,
         label=label,
         nutzungsart=nutzungsart,
-        n=len(zeilen),
+        # n zählt auf der Aggregationsbasis: bei "standort" also Standorte.
+        n=len(kaltmieten) or len(zeilen),
+        n_einheiten=len(zeilen),
         n_objekte=len(standorte),
         n_eigene=sum(1 for z in zeilen if z.eigenes_angebot is True),
         n_erhalten=sum(1 for z in zeilen if z.eigenes_angebot is False),
         n_propstack=sum(1 for z in zeilen if z.quelle == config.QUELLE_PROPSTACK),
         n_drive=sum(1 for z in zeilen if z.quelle == config.QUELLE_DRIVE),
         median_kaltmiete=_median(kaltmieten),
-        min_kaltmiete=round(min(kaltmieten), 2) if kaltmieten else None,
-        max_kaltmiete=round(max(kaltmieten), 2) if kaltmieten else None,
+        min_kaltmiete=runde(min(kaltmieten)) if kaltmieten else None,
+        max_kaltmiete=runde(max(kaltmieten)) if kaltmieten else None,
         median_nebenkosten=_median(nebenkosten),
         median_effektivmiete=_median(effektiv),
         median_flaeche=_median(flaechen),
@@ -71,12 +117,18 @@ def _regionen_einer_art(
     # Belastbare Mediane und Einzelwerte werden getrennt ausgewiesen, aber
     # BEIDE gezeigt. Bekannte Mieten sind rar; eine Region wegen n=1 ganz
     # wegzulassen würde die wertvollste Information verschweigen.
+    # Die Schwelle greift auf der AGGREGATIONSBASIS: 14 Einheiten an einer
+    # Adresse sind ein Standort und tragen keinen belastbaren Median, auch
+    # wenn es 14 Zeilen sind.
     belastbar: list[RegionStats] = []
     einzeln: list[RegionStats] = []
     for key, gruppe in sorted(nach_leitregion.items()):
-        ebene = "leitregion" if len(gruppe) >= config.MIN_N_LEITREGION else "leitregion_einzel"
-        stat = _stats(ebene, key, gruppe[0].region_label or key, gruppe, nutzungsart)
-        (belastbar if ebene == "leitregion" else einzeln).append(stat)
+        stat = _stats("leitregion", key, gruppe[0].region_label or key, gruppe, nutzungsart)
+        if stat.n < config.MIN_N_LEITREGION:
+            stat.ebene = "leitregion_einzel"
+            einzeln.append(stat)
+        else:
+            belastbar.append(stat)
 
     ergebnis: list[RegionStats] = []
     ergebnis.extend(sorted(belastbar, key=lambda s: (-s.n, s.key)))

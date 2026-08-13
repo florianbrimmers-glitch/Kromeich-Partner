@@ -106,6 +106,7 @@ def test_ausgeschlossene_zeilen_gehen_nicht_ein():
 
 
 def test_standorte_werden_getrennt_gezaehlt():
+    """n zählt Standorte, n_einheiten die dahinterliegenden Einheiten."""
     zeilen = [
         _zeile("40213", 6.0, adresse="Hauptstraße 1"),
         _zeile("40213", 6.5, adresse="Hauptstraße 1"),   # gleiche Adresse
@@ -113,8 +114,11 @@ def test_standorte_werden_getrennt_gezaehlt():
     ]
     t = kennzahlen.baue_tabelle(zeilen, "Halle/Lager")
     duesseldorf = next(z for z in t.zeilen if z.label == "Düsseldorf")
-    assert duesseldorf.n == 3
+    assert duesseldorf.n == 2            # zwei Standorte
+    assert duesseldorf.n_einheiten == 3  # drei Einheiten
     assert duesseldorf.n_standorte == 2
+    # Median über die Standortwerte: 6,25 (Hauptstraße) und 7,00 -> 6,63
+    assert duesseldorf.median_jetzt == 6.63
 
 
 # --- Periodenvergleich -----------------------------------------------------

@@ -3,14 +3,14 @@ from __future__ import annotations
 import logging
 from statistics import median
 
-from . import config, marktgebiete, snapshots
+from . import aggregate, config, marktgebiete, snapshots
 from .models import ComparableZeile, KennzahlenTabelle, KennzahlenZeile
 
 logger = logging.getLogger(__name__)
 
 
 def _median(werte: list[float]) -> float | None:
-    return round(median(werte), 2) if werte else None
+    return aggregate.runde(median(werte)) if werte else None
 
 
 def _mittel(werte: list[float]) -> float | None:
@@ -21,7 +21,7 @@ def _mittel(werte: list[float]) -> float | None:
     ~190 Einheiten fehlerhaft erfasst (Tausendertrennung in Dezimalfeldern).
     Ein kaputtes Gewicht verdirbt den Wert stärker als das fehlende.
     """
-    return round(sum(werte) / len(werte), 2) if werte else None
+    return aggregate.runde(sum(werte) / len(werte)) if werte else None
 
 
 def _perzentil(werte: list[float], anteil: float) -> float | None:
@@ -34,27 +34,29 @@ def _perzentil(werte: list[float], anteil: float) -> float | None:
         return None
     sortiert = sorted(werte)
     if len(sortiert) == 1:
-        return round(sortiert[0], 2)
+        return aggregate.runde(sortiert[0])
     position = (len(sortiert) - 1) * anteil
     unten = int(position)
     oben = min(unten + 1, len(sortiert) - 1)
     rest = position - unten
-    return round(sortiert[unten] + (sortiert[oben] - sortiert[unten]) * rest, 2)
+    return aggregate.runde(sortiert[unten] + (sortiert[oben] - sortiert[unten]) * rest)
 
 
 def _veraenderung(jetzt: float | None, vorher: float | None) -> float | None:
     """Relative Veränderung in Prozent. None, wenn keine Basis existiert."""
     if jetzt is None or vorher is None or vorher == 0:
         return None
-    return round((jetzt - vorher) / vorher * 100, 1)
+    return aggregate.runde((jetzt - vorher) / vorher * 100, 1)
 
 
 def _zeile(
     label: str, gruppe: str, zeilen: list[ComparableZeile], vergleich: dict | None,
     flaechenart: str, ist_summe: bool = False, ebene: str = "position",
 ) -> KennzahlenZeile:
-    mieten = [z.kaltmiete_eur_qm for z in zeilen if z.kaltmiete_eur_qm is not None]
-    nk = [z.nebenkosten_eur_qm for z in zeilen if z.nebenkosten_eur_qm is not None]
+    # Gleiche Basis wie die regionale Auswertung – sonst widersprechen sich
+    # Kennzahlen-Tabelle und Regionsblock im selben Report.
+    mieten = aggregate.mietwerte(zeilen)
+    nk = aggregate.mietwerte(zeilen, "nebenkosten_eur_qm")
     jetzt = _median(mieten)
 
     vorher = None
@@ -65,15 +67,16 @@ def _zeile(
         label=label,
         gruppe=gruppe,
         ebene=ebene,
-        n=len(zeilen),
-        n_standorte=len({(z.plz, z.adresse or z.objekt or z.datei) for z in zeilen}),
+        n=len(mieten) or len(zeilen),
+        n_einheiten=len(zeilen),
+        n_standorte=len({aggregate.standort_key(z) for z in zeilen}),
         median_jetzt=jetzt,
         median_vorher=vorher,
         veraenderung_prozent=_veraenderung(jetzt, vorher),
         durchschnittsmiete=_mittel(mieten),
         spitzenmiete=_perzentil(mieten, config.SPITZENMIETE_PERZENTIL),
-        min_kaltmiete=round(min(mieten), 2) if mieten else None,
-        max_kaltmiete=round(max(mieten), 2) if mieten else None,
+        min_kaltmiete=aggregate.runde(min(mieten)) if mieten else None,
+        max_kaltmiete=aggregate.runde(max(mieten)) if mieten else None,
         median_nebenkosten=_median(nk),
         ist_summe=ist_summe,
     )
@@ -152,7 +155,7 @@ ANTEIL_MIT_NK = "Anteil mit Nebenkosten-Angabe"
 
 
 def _anteil(teil: int, gesamt: int) -> float | None:
-    return round(teil / gesamt * 100, 1) if gesamt else None
+    return aggregate.runde(teil / gesamt * 100, 1) if gesamt else None
 
 
 def _anteile(
@@ -189,7 +192,7 @@ def _anteile(
             label=label, gruppe="", ebene="anteil", n=gesamt,
             median_jetzt=jetzt, median_vorher=vorher,
             # Prozentpunkte, nicht relative Veränderung
-            veraenderung_prozent=(round(jetzt - vorher, 1)
+            veraenderung_prozent=(aggregate.runde(jetzt - vorher, 1)
                                   if jetzt is not None and vorher is not None else None),
             ist_prozentwert=True,
         ))

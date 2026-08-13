@@ -65,10 +65,12 @@ Der Listen-Endpoint respektiert also `per`. `objekte_handler/propstack.py` liegt
 
 Die Standardfelder sind unbrauchbar: `base_rent` ist in 6 von 1.978 Einheiten gefüllt und mischt €/m² (6,00) mit absoluten Monatsmieten (19.848) – ohne Unterscheidungsmerkmal nicht sicher normalisierbar, deshalb in `STANDARDFELDER_IGNORIERT`.
 
-**Zwei Fallen, die im echten Datenbestand scharf sind:**
+**Drei Fallen, die im echten Datenbestand scharf sind:**
 
 1. `stellplatzmiete` / `lkw_stellplatzmiete` tragen 20–70 € **pro Stellplatz** (95 Einheiten). Eine Namens-Heuristik auf „miete" hätte sie als €/m² gelesen und jeden Median zerstört. Deshalb wird **ausschließlich** gesucht, was in `FLAECHENARTEN` explizit steht.
 2. In `*_gesamt`-Flächenfeldern steckt bei ~190 Einheiten die deutsche Tausendertrennung in einem Dezimalfeld: `lagerflache_gesamt = 10.403` wird als „10,40 m²" angezeigt. Das ist ein **Datenfehler in Propstack**, nicht im Parser. Die Fläche wird verworfen und der Verdacht als Hinweis in den Datensatz geschrieben – die **Miete bleibt gültig**, denn sie steht schon als €/m². Ohne diese Trennung hingen 190 Datenpunkte an einer Flächenangabe, die sie nicht brauchen.
+
+3. **Platzhalter-Mieten unter dem Marktniveau.** Die Untergrenze lag ursprünglich bei 1,00 €/m² – damit rutschte genau ein Platzhalter durch: „Stettiner Straße 2, Neuss" mit 1,00 €/m², während dieselbe Adresse andere Einheiten mit 3,00 führt. Die Grenze liegt jetzt bei **2,50 €/m²**; darunter gibt es für Hallen-/Lagerflächen keinen echten Markt. Betroffen sind fünf Werte (1,00 / 2,00 / 2,00 / 2,00 / 2,30), alle mit Grund im Datensatz.
 
 Die betroffenen Einheiten lassen sich aus dem Datensatz ziehen:
 
@@ -136,6 +138,7 @@ Anteil mit Nebenkosten-Angabe                               0,0 %   3,4 %  +3,4 
 
 **Lesart:**
 
+- **`n` zählt Standorte, nicht Einheiten.** Ein Multi-Unit-Objekt ist EIN Marktdatenpunkt: gemessen am 13.08.2026 trugen 14 Einheiten der Neue Ritterstraße 34 alle identisch 8,50 €/m², und die 10 größten Standorte stellten 21 % aller Datenpunkte. Ungewichtet verschob das den Berlin-Median um 1,67 €/m². Je Standort geht der Median seiner Einheiten ein; `AGGREGATION=einheit` schaltet auf Zählung je Einheit um (relevant für „was zahlt ein Mieter", nicht für „wie hoch ist das Marktniveau"). Die Einheitenzahl bleibt als `n_einheiten` erhalten und der CSV-Datensatz enthält weiterhin jede Einheit.
 - `n` addiert sich über die Gruppen, die **Mietwerte nicht** – sie werden je Gruppe über alle Datenpunkte neu berechnet (anders als beim Flächenumsatz in den Marktberichten, wo die Zwischensumme wirklich eine Summe ist).
 - **Ø-Miete** ist das arithmetische Mittel, **nicht flächengewichtet**. Marktberichte gewichten üblicherweise über die Fläche; das ginge hier nur mit den Propstack-Flächen, und die sind bei ~190 Einheiten fehlerhaft erfasst. Ein kaputtes Gewicht verdirbt den Wert stärker als das fehlende.
 - **Spitze** ist das `SPITZENMIETE_PERZENTIL` (95.) Perzentil, **nicht das Maximum**: ein einzelner Ausreißer soll das Spitzenniveau nicht bestimmen. Das Maximum steht in der Spanne-Spalte der regionalen Auswertung. `SPITZENMIETE_PERZENTIL = 1.0` ergibt das echte Maximum. Bei wenigen Datenpunkten nähert sich die Spitzenmiete zwangsläufig dem Maximum – bei n=3 ist kein Spitzensegment abgrenzbar.
