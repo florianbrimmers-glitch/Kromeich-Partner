@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 #
 # Propstack führt KEINE Miethistorie – ohne diese Ablage gäbe es keine
 # Veränderungsspalte, nur eine erfundene. Die Zeitreihe entsteht dadurch, dass
-# jeder Monatslauf seinen Stand anhängt.
+# jeder Quartalslauf seinen Stand anhängt.
 
 
 def schluessel(flaechenart: str, label: str) -> str:

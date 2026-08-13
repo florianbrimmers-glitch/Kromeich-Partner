@@ -1,6 +1,6 @@
 # Comparables-Report (Propstack + Drive → Slack + K&P-PDF)
 
-Liefert **Vergleichsmieten pro Region** – Median, Spanne und n. Läuft als monatlicher GitHub-Actions-Cron (`.github/workflows/comparables-report.yml`, 1. des Monats 05:00 UTC), Entrypoint `python -m comparables_handler.main`.
+Liefert **Vergleichsmieten pro Region** – Median, Spanne und n. Läuft als **quartalsweiser** GitHub-Actions-Cron (`.github/workflows/comparables-report.yml`, 1. Januar/April/Juli/Oktober 05:00 UTC), Entrypoint `python -m comparables_handler.main`. Mieten bewegen sich nicht monatlich – ein Quartal ist der Takt, in dem sich der Median überhaupt sichtbar ändert.
 
 Eigenständiges Paket – **kein Code-Sharing mit `src/`** oder den anderen Handlern.
 
@@ -62,7 +62,7 @@ Zweitens – und schwerwiegender – **die Sortierung muss stabil sein.** Ohne `
 | `sort=id` / `order_by=id` | 2051 | 2021 | ebenfalls instabil (Parameter wird ignoriert) |
 | **`sort_by=id&order=asc`** | **2134** | **2134** | **identisch** |
 
-Die instabile Variante verlor also rund **120 Einheiten pro Lauf** – und jeden Lauf andere. Für einen monatlichen Report wäre das Rauschen ohne Marktbewegung. Nur `sort_by` greift (`config.PROPSTACK_SORTIERUNG`).
+Die instabile Variante verlor also rund **120 Einheiten pro Lauf** – und jeden Lauf andere. Für einen Quartalsreport wäre das Rauschen ohne Marktbewegung. Nur `sort_by` greift (`config.PROPSTACK_SORTIERUNG`).
 
 **Mieten stehen in Custom Fields, je Flächenart getrennt** und bereits als €/m². Ausgewertet werden nur die Felder, die es in der Propstack-**Maske** gibt:
 
@@ -167,15 +167,15 @@ Anteil mit Nebenkosten-Angabe                               0,0 %   3,4 %  +3,4 
 - Die **Veränderung** vergleicht den Median. Ø-Miete und Spitze weisen den aktuellen Stand aus; beide werden aber im Snapshot mitgeschrieben (`…|durchschnitt`, `…|spitze`), sodass die Zeitreihe später ohne Datenverlust auf sie erweiterbar ist.
 - Anteile werden in **Prozentpunkten** verändert ausgewiesen.
 
-Die Marktgrenzen stehen in `config.MARKTGEBIETE_TOP` und `MARKTGEBIET_RUHR` und sind eine **fachliche Festlegung, die K&P bestätigen sollte** – etwa ob Krefeld (PLZ 47) zum Ruhrgebiet oder zu Düsseldorf zählt und ob Aachen (52) zu Köln gehört. Märkte ohne Datenpunkt erscheinen nicht als Leerzeile; die Reihenfolge der Top-Märkte ist fest, damit die Tabelle monatlich gleich aussieht.
+Die Marktgrenzen stehen in `config.MARKTGEBIETE_TOP` und `MARKTGEBIET_RUHR` und sind eine **fachliche Festlegung, die K&P bestätigen sollte** – etwa ob Krefeld (PLZ 47) zum Ruhrgebiet oder zu Düsseldorf zählt und ob Aachen (52) zu Köln gehört. Märkte ohne Datenpunkt erscheinen nicht als Leerzeile; die Reihenfolge der Top-Märkte ist fest, damit die Tabelle in jedem Quartal gleich aussieht.
 
 ### Zeitreihe (Voraussetzung der Veränderungsspalte)
 
 **Propstack führt keine Miethistorie.** Ein Periodenvergleich lässt sich daraus nicht ableiten – er entsteht nur, weil jeder Lauf seine Mediane in `comparables_snapshots.json` fortschreibt (`SNAPSHOT_PATH`).
 
 - Beim **ersten Lauf bleibt die Veränderungsspalte leer** und der Report sagt das auch. Es wird keine Basis erfunden.
-- Verglichen wird mit dem Stand vor `VERGLEICH_MONATE` (12) Monaten, Toleranz ±`VERGLEICH_TOLERANZ_MONATE` (3). Fehlt ein passender Stand, bleibt die Spalte leer statt gegen eine unpassende Basis zu rechnen.
-- Zwei Läufe im selben Monat ersetzen sich, statt zwei Stände zu erzeugen.
+- Verglichen wird mit dem Stand vor `VERGLEICH_MONATE` (12) Monaten, Toleranz ±`VERGLEICH_TOLERANZ_MONATE` (**1**, weil im Quartalstakt der Nachbar-Snapshot genau 3 Monate daneben liegt und sonst als Vorjahresvergleich durchgehen würde). Fehlt ein passender Stand, bleibt die Spalte leer statt gegen eine unpassende Basis zu rechnen.
+- Zwei Läufe im selben Monat ersetzen sich, statt zwei Stände zu erzeugen (Nachlauf, manueller Re-Run).
 - Die Datei wird vom Workflow **ins Repository zurückgeschrieben** (Schritt „Zeitreihe fortschreiben", nur auf `main`). Ein Actions-Cache reicht nicht: er kann evakuiert werden, und dann bricht die Zeitreihe ab.
 - `NO_WRITE=true` schreibt die Zeitreihe **nicht** fort – Testläufe verfälschen sie also nicht.
 
@@ -186,37 +186,27 @@ SNAPSHOT_PATH=/tmp/snap.json PROPSTACK_API_KEY=xxx NO_WRITE=true MAKE_PDF=true \
   python -m comparables_handler.main
 ```
 
-## Vertraulichkeit: interne und externe Fassung
+## Verwendung der Zahlen
 
-163 der 225 Mieten stehen in `intern_mietpreis_*` – Konditionen, die K&P aus Mandaten und Anfragen kennt und die der Vermieter **nicht veröffentlicht**. Vorgabe K&P (13.08.2026): solche Werte dürfen einzeln nicht nach außen. Der Report erzeugt deshalb aus **derselben Auswertung** zwei PDFs (`VERTRAULICHKEIT`, Default `beide`):
+**Vorgabe K&P (13.08.2026):** die Mieten dürfen als **Marktindex** verwendet werden. Die Einschränkung greift erst, wenn ein **konkretes Objekt angeboten** wird – dann darf die aus Mandat oder Anfrage bekannte Kondition dieses Objekts nicht herangezogen werden. Das ist eine Regel über die *Verwendung*, nicht über den Inhalt der Datei: es gibt **einen** Report, ohne Fassungen. Der Satz steht so auch auf der Methodik-Seite des PDF und in der Asana-Beschreibung.
 
-| | `comparables_report.pdf` (intern) | `comparables_report_extern.pdf` |
-|---|---|---|
-| Zeilen unter `MIN_N_EXTERN` (5) | ja | **nein** |
-| Einzelwerte-Block (n < 3) | ja | **nein** |
-| Objektliste „Erfasste Objekte" | ja | **nein** |
-| Fußzeile | „nur zur internen Verwendung" | „Weitergabe nur an den Adressaten" |
+(Eine zwischenzeitliche Zweiteilung in eine interne und eine externe Fassung mit Schwellenwert n≥5 wurde verworfen – sie beantwortete eine Frage, die sich nicht gestellt hat.)
 
-Maßstab ist die **Zuordenbarkeit**, nicht die Zahl selbst: ein Median über 114 Standorte gehört keinem Objekt, eine Zeile mit n=1 ist exakt die Miete eines Objekts. Deshalb fällt die Objektliste weg (sie ist der Schlüssel von Wert zu Objekt), während Spannen und Perzentile über den Gesamtbestand stehen bleiben.
-
-`MIN_N_EXTERN = 5` liegt bewusst über `MIN_N_LEITREGION = 3`. Am Stand 13.08.2026 unterdrückt das in der externen Fassung 44 Zeilen; München (n=1) und Leipzig/Halle (n=1) verschwinden, Berlin (n=5) bleibt.
-
-**Der Slack-Post ist immer die interne Fassung** – er geht in einen internen Kanal. Auch der CSV-Datensatz bleibt vollständig; er ist ein Arbeitsdatensatz, kein Weitergabe-Dokument.
+**Feld-Priorität:** die **ausgeschriebene** Miete (`mietpreis_*`) gewinnt vor der internen Einschätzung (`intern_mietpreis_*`). Wo der Vermieter einen Preis nennt, ist das der belastbarere Wert; das interne Feld greift nur, wenn nichts ausgeschrieben ist. Gemessen am 13.08.2026 verschiebt das 16 Einheiten und den Gesamtmedian um 2 Cent (6,80 -> 6,78 €/m²); die Verteilung liegt danach bei 147 internen zu 78 ausgeschriebenen Werten.
 
 ## Ablage in Asana
 
-Jeder Lauf legt den Monatsbericht als **Unteraufgabe** unter einer festen Oberaufgabe ab, mit beiden PDFs im Anhang:
+Jeder Lauf legt den Quartalsbericht als **Unteraufgabe** unter einer festen Oberaufgabe ab, mit dem PDF im Anhang:
 
 ```
 03. (VER) Vermietung / Leasingpaket
-  └─ Vergleichsmieten – Monatsberichte              <- Oberaufgabe, 1217454616756224
-       ├─ Vergleichsmieten August 2026
-       │    ├─ Vergleichsmieten_August_2026.pdf         (intern)
-       │    └─ Vergleichsmieten_August_2026_extern.pdf  (freigegeben)
-       └─ Vergleichsmieten September 2026
+  └─ Vergleichsmieten – Quartalsberichte            <- Oberaufgabe, 1217454616756224
+       ├─ Vergleichsmieten Oktober 2026
+       │    └─ Vergleichsmieten_Oktober_2026.pdf
+       └─ Vergleichsmieten Januar 2027
 ```
 
-Die Beschreibung der Unteraufgabe trägt die Kennzahlen (Median, Ø, Spitze, Mediane je Markt), die Quellenzählung, den Link auf den Actions-Lauf und den Hinweis, welche der beiden Dateien nach außen darf.
+Die Beschreibung der Unteraufgabe trägt die Kennzahlen (Median, Ø, Spitze, Mediane je Markt), die Quellenzählung, den Link auf den Actions-Lauf und die Verwendungsregel.
 
 **Der Asana-MCP-Connector kann keine Dateien anhängen** – es gibt dort nur ein Lese-Tool für Attachments. Der Upload läuft deshalb über die REST-API (`POST /attachments`, multipart) mit einem **Personal Access Token**: dasselbe Secret, das der `events_handler` nutzt (`ASANA_ACCESS_TOKEN`, Fallback-Namen siehe `config.ASANA_TOKEN_ENV_NAMES`). Ohne Token wird die Ablage übersprungen und der Grund geloggt; der Report selbst läuft weiter.
 
@@ -266,12 +256,11 @@ Danach im Workflow `DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}` setz
 | `DRY_RUN` | nein | `true` | Report bauen, aber nicht posten |
 | `NO_WRITE` | nein | `false` | Reiner Lese-/Loglauf |
 | `MAKE_PDF` | nein | `false` | K&P-PDF erzeugen |
-| `VERTRAULICHKEIT` | nein | `beide` | `intern` / `extern` / `beide` – welche PDF-Fassung(en) entstehen |
-| `PDF_PATH` | nein | `comparables_report.pdf` | Ausgabepfad der internen Fassung; die externe hängt `_extern` an |
+| `PDF_PATH` | nein | `comparables_report.pdf` | Ausgabepfad des PDF |
 | `KP_DESIGN_DIR` | nein | `~/.claude/skills/synced/kp-design` | Erste Suchstelle für die K&P-Schriften; fehlt sie, greift `assets/fonts` im Repository (siehe dortige README) |
-| `ASANA_UPLOAD` | nein | `false` | Monatsbericht als Asana-Unteraufgabe ablegen (Opt-in) |
+| `ASANA_UPLOAD` | nein | `false` | Quartalsbericht als Asana-Unteraufgabe ablegen (Opt-in) |
 | `ASANA_ACCESS_TOKEN` | für Asana | – | Personal Access Token; Fallbacks: `ASANA_TOKEN`, `ASANA_PAT`, `ASANA_API_KEY`, `ASANA_API_TOKEN`, `ASANA_PERSONAL_ACCESS_TOKEN` |
-| `ASANA_PARENT_TASK_ID` | nein | `1217454616756224` | Oberaufgabe, unter der die Monatsberichte hängen |
+| `ASANA_PARENT_TASK_ID` | nein | `1217454616756224` | Oberaufgabe, unter der die Quartalsberichte hängen |
 | `ASANA_ATTACH_DATASET` | nein | `false` | zusätzlich die CSV anhängen |
 | `MAX_DOCUMENTS` | nein | `0` | Kostenbremse (0 = alle); gekappte Dokumente werden als Fehler gemeldet |
 | `DATASET_PATH` | nein | `comparables_dataset.csv` | CSV-Datensatz |

@@ -116,7 +116,7 @@ def baue_nachricht(
     stats: list[RegionStats], report: RunReport, stand: str,
     tabellen: list | None = None, stand_vorher: str | None = None,
 ) -> str:
-    """Der monatliche Slack-Post. Reine Funktion – im Test ohne Netz prüfbar."""
+    """Der Quartals-Post für Slack. Reine Funktion – im Test ohne Netz prüfbar."""
     zeilen = [f"*Vergleichsmieten aus Mietangeboten – Stand {stand}*"]
 
     ges = aggregate.gesamt(stats)
@@ -206,7 +206,7 @@ def baue_nachricht(
 def poste(text: str) -> bool:
     """Postet den Report in den Zielkanal.
 
-    Im DRY_RUN/NO_WRITE nur geloggt – ein monatlicher Post ist nicht
+    Im DRY_RUN/NO_WRITE nur geloggt – ein Quartals-Post ist nicht
     zurücknehmbar, deshalb ist der Default bewusst still.
     """
     if config.no_write() or config.dry_run():

@@ -84,12 +84,23 @@ def test_kaltmiete_aus_custom_field():
     assert feld == "custom_fields.intern_mietpreis_hallenflache"
 
 
-def test_interner_wert_hat_vorrang_vor_ausgeschriebenem():
-    """intern_* stammt aus Mandat/Beratung – die tatsächlich bekannte Kondition."""
+def test_ausgeschriebener_wert_hat_vorrang_vor_dem_internen():
+    """Vorgabe K&P (13.08.2026): die externe Miete sticht die interne.
+
+    Wo der Vermieter einen Preis ausschreibt, ist das der belastbarere Wert;
+    `intern_mietpreis_*` ist unsere Einschätzung und greift nur, wenn nichts
+    ausgeschrieben ist.
+    """
     unit = _unit(custom={
         "intern_mietpreis_hallenflache": {"value": 4.58},
         "mietpreis_hallenflache": {"value": 5.50},
     })
+    wert, feld = propstack_gateway.hole_betrag(unit, HALLE.miete_felder)
+    assert (wert, feld) == (5.50, "custom_fields.mietpreis_hallenflache")
+
+
+def test_interner_wert_greift_ohne_ausgeschriebenen():
+    unit = _unit(custom={"intern_mietpreis_hallenflache": {"value": 4.58}})
     wert, feld = propstack_gateway.hole_betrag(unit, HALLE.miete_felder)
     assert (wert, feld) == (4.58, "custom_fields.intern_mietpreis_hallenflache")
 

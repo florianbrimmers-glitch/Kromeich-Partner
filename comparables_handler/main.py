@@ -241,9 +241,9 @@ def run_pipeline() -> RunReport:
         logger.info("=== DRY RUN – Report wird gebaut und geloggt, aber nicht gepostet ===")
 
     logger.info(
-        "Quelle: %s | Flächenarten: %s | Stand: %s | Zielkanal: %s | PDF-Fassung: %s",
+        "Quelle: %s | Flächenarten: %s | Stand: %s | Zielkanal: %s",
         report.quelle, ", ".join(config.ausgewertete_flaechenarten()),
-        stand, config.slack_channel(), config.vertraulichkeit(),
+        stand, config.slack_channel(),
     )
 
     zeilen: list[ComparableZeile] = []
@@ -282,20 +282,15 @@ def run_pipeline() -> RunReport:
     report.slack_gepostet = poste(text)
 
     if config.make_pdf():
-        # Beide Fassungen aus DENSELBEN Zahlen – siehe config.pdf_fassungen().
-        for fassung in config.pdf_fassungen():
-            pfad = report_pdf.erzeuge_pdf(
-                stats, report, stand, config.pdf_path(fassung), tabellen,
-                stand_vorher, fassung,
-            )
-            if pfad:
-                report.pdfs[fassung] = pfad
+        report.pdf_erstellt = report_pdf.erzeuge_pdf(
+            stats, report, stand, config.pdf_path(), tabellen, stand_vorher,
+        )
 
-    # Ablage in Asana: eine Unteraufgabe je Monat unter der Oberaufgabe.
+    # Ablage in Asana: eine Unteraufgabe je Lauf unter der Oberaufgabe.
     # Läuft NACH dem PDF, weil die Dateien angehängt werden.
     try:
         report.asana_task_url = asana_gateway.veroeffentliche(
-            stats, report, stand, report.pdfs, tabellen, stand_vorher,
+            stats, report, stand, report.pdf_erstellt, tabellen, stand_vorher,
         )
     except Exception as e:
         logger.exception("Asana-Ablage fehlgeschlagen")
@@ -338,9 +333,8 @@ def _print_summary(report: RunReport, stats: list) -> None:
     logger.info("    davon ausgeschlossen:     %d", report.zeilen_ausgeschlossen)
     logger.info("  Regionen ausgewiesen:       %d", report.regionen)
     logger.info("  Slack gepostet:             %s", report.slack_gepostet)
-    logger.info("  PDF-Fassungen:              %s",
-                ", ".join(f"{f}: {p}" for f, p in report.pdfs.items()) or "–")
-    logger.info("  Asana-Monatsbericht:        %s",
+    logger.info("  PDF:                        %s", report.pdf_erstellt or "–")
+    logger.info("  Asana-Quartalsbericht:      %s",
                 report.asana_task_url or f"– ({config.asana_grund() or 'nicht angelegt'})")
     logger.info("  Fehler:                     %d", len(report.fehler))
     for fehler in report.fehler:

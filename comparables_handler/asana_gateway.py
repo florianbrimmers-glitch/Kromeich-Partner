@@ -1,14 +1,18 @@
-"""Monatsbericht als Asana-Unteraufgabe mit PDF-Anhang.
+"""Quartalsbericht als Asana-Unteraufgabe mit PDF-Anhang.
 
 Struktur (mit K&P festgelegt am 13.08.2026):
 
     03. (VER) Vermietung / Leasingpaket
-      └─ Vergleichsmieten – Monatsberichte        (Oberaufgabe, ASANA_PARENT_TASK_ID)
-           ├─ Vergleichsmieten August 2026        (je Lauf eine Unteraufgabe)
-           │    ├─ Vergleichsmieten_August_2026.pdf          (intern)
-           │    └─ Vergleichsmieten_August_2026_extern.pdf   (freigegeben)
-           └─ Vergleichsmieten September 2026
+      └─ Vergleichsmieten – Quartalsberichte      (Oberaufgabe, ASANA_PARENT_TASK_ID)
+           ├─ Vergleichsmieten Oktober 2026       (je Lauf eine Unteraufgabe)
+           │    └─ Vergleichsmieten_Oktober_2026.pdf
+           └─ Vergleichsmieten Januar 2027
                 └─ …
+
+Benannt wird nach dem MONAT des Laufs, nicht nach dem Quartal: der Report ist
+eine Momentaufnahme ("Stand Oktober 2026"). "Q4 2026" ließe offen, ob das
+Quartal abgebildet oder begonnen wird. Bei vier Läufen im Jahr ist der
+Monatsname ohnehin eindeutig.
 
 WICHTIG – zwei verschiedene Zugänge:
 
@@ -18,7 +22,8 @@ deshalb über die REST-API mit einem Personal Access Token – dasselbe Secret,
 das der events_handler nutzt (`ASANA_ACCESS_TOKEN` u.a.). Ohne Token macht
 dieser Handler nichts und sagt es im Log; der Report selbst läuft weiter.
 
-Idempotenz: zwei Läufe im selben Monat dürfen nicht zwei Unteraufgaben
+Idempotenz: zwei Läufe im selben Monat (Nachlauf, manueller Re-Run) dürfen
+nicht zwei Unteraufgaben
 erzeugen. Gesucht wird über den exakten Namen; existiert die Unteraufgabe, wird
 ihre Beschreibung aktualisiert und die Anhänge werden ERSETZT (erst der neue
 hochgeladen, dann der alte entfernt). Überspringen wäre falsch: ein
@@ -193,12 +198,9 @@ def aufgaben_name(stand: str) -> str:
     return f"Vergleichsmieten {stand}"
 
 
-def anhang_name(stand: str, fassung: str) -> str:
+def anhang_name(stand: str) -> str:
     """Dateiname im Anhang – sprechend, nicht 'comparables_report.pdf'."""
-    stamm = f"Vergleichsmieten_{stand.replace(' ', '_')}"
-    if fassung == config.VERTRAULICH_EXTERN:
-        return f"{stamm}_extern.pdf"
-    return f"{stamm}.pdf"
+    return f"Vergleichsmieten_{stand.replace(' ', '_')}.pdf"
 
 
 def _lauf_link() -> str | None:
@@ -264,11 +266,10 @@ def baue_notiz(
 
     zeilen += [
         "",
-        "Anhänge – zwei Fassungen:",
-        f"  {anhang_name(stand, config.VERTRAULICH_INTERN)} – INTERN. Enthält Einzelwerte "
-        "und die Liste der erfassten Objekte. Nicht nach außen geben.",
-        f"  {anhang_name(stand, config.VERTRAULICH_EXTERN)} – für Kundengespräche "
-        f"freigegeben. Nur Märkte ab {config.MIN_N_EXTERN} Standorten, keine Objektliste.",
+        f"Anhang: {anhang_name(stand)}",
+        "Verwendung: als Marktindex verwendbar. Die Konditionen einzelner Objekte "
+        "stammen aus Mandaten und Anfragen – nicht heranziehen, wenn genau dieses "
+        "Objekt angeboten wird.",
     ]
 
     quelle_text = {
@@ -292,23 +293,12 @@ def baue_notiz(
 
 
 # --- Orchestrierung --------------------------------------------------------
-# Anhänge in fester Reihenfolge: die interne Fassung ist die vollständige und
-# steht deshalb oben. Alphabetisch stünde "extern" vor "intern".
-_FASSUNG_REIHENFOLGE = (config.VERTRAULICH_INTERN, config.VERTRAULICH_EXTERN)
-
-
-def _in_reihenfolge(pdfs: dict[str, str]) -> list[tuple[str, str]]:
-    bekannt = [(f, pdfs[f]) for f in _FASSUNG_REIHENFOLGE if f in pdfs]
-    rest = [(f, p) for f, p in sorted(pdfs.items()) if f not in _FASSUNG_REIHENFOLGE]
-    return bekannt + rest
-
-
 def veroeffentliche(
     stats: list[RegionStats], report: RunReport, stand: str,
-    pdfs: dict[str, str], tabellen: list | None = None,
+    pdf: str | None = None, tabellen: list | None = None,
     stand_vorher: str | None = None,
 ) -> str | None:
-    """Monatsbericht als Unteraufgabe anlegen/aktualisieren. Rückgabe: Link.
+    """Quartalsbericht als Unteraufgabe anlegen/aktualisieren. Rückgabe: Link.
 
     Kein Token oder keine Oberaufgabe konfiguriert -> übersprungen, nicht
     abgebrochen. Der Comparables-Report ist auch ohne Asana vollständig.
@@ -324,9 +314,8 @@ def veroeffentliche(
     if config.no_write():
         modus = "NO_WRITE"
         logger.info("[%s] Würde Asana-Unteraufgabe %r unter %s anlegen/aktualisieren, "
-                    "Anhänge: %s", modus, name, parent,
-                    ", ".join(anhang_name(stand, f) for f, _ in _in_reihenfolge(pdfs))
-                    or "keine")
+                    "Anhang: %s", modus, name, parent,
+                    anhang_name(stand) if pdf else "keiner")
         logger.info("[%s] Beschreibung:\n%s", modus, notiz)
         return None
 
@@ -352,7 +341,7 @@ def veroeffentliche(
     # Reihenfolge: erst hochladen, dann die alte löschen. Bricht der Upload ab,
     # hat die Aufgabe weiterhin den alten Anhang statt keinen.
     vorhanden = vorhandene_anhaenge(gid)
-    anzuhaengen = [(anhang_name(stand, f), p) for f, p in _in_reihenfolge(pdfs)]
+    anzuhaengen = [(anhang_name(stand), pdf)] if pdf else []
     if config.asana_dataset_anhaengen():
         anzuhaengen.append((
             f"Vergleichsmieten_{stand.replace(' ', '_')}_Datensatz.csv",
@@ -369,5 +358,5 @@ def veroeffentliche(
             loesche_anhang(alt)
 
     url = f"https://app.asana.com/0/0/{gid}"
-    logger.info("Asana-Monatsbericht: %s", url)
+    logger.info("Asana-Quartalsbericht: %s", url)
     return url

@@ -154,51 +154,14 @@ def aggregation() -> str:
 
 
 # --- Vertraulichkeit --------------------------------------------------------
-# 163 der 225 Mieten stehen in `intern_mietpreis_*`: Konditionen, die K&P aus
-# Mandaten und Anfragen kennt und die der Vermieter NICHT veröffentlicht.
-# Vorgabe K&P (13.08.2026): solche Werte dürfen nicht nach außen kommuniziert
-# werden. Deshalb zwei Fassungen desselben Laufs:
+# Vorgabe K&P (13.08.2026): die Mieten dürfen als MARKTINDEX verwendet werden –
+# die Einschränkung greift erst, wenn ein konkretes Objekt angeboten wird. Der
+# Report ist deshalb EIN Dokument ohne Fassungen; die Regel betrifft die
+# Verwendung der Zahlen, nicht den Inhalt der Datei.
 #
-# "intern":  vollständig – Einzelwerte (n=1), Objektliste, alles.
-# "extern":  nur Zeilen ab MIN_N_EXTERN, ohne Objektliste und ohne den
-#            Einzelwerte-Block. Bei n=1 wäre der ausgewiesene "Median" exakt
-#            die Miete EINES Objekts – das ist keine Statistik, das ist eine
-#            Weitergabe. Entscheidend ist die ZUORDENBARKEIT: ein Median über
-#            114 Standorte gehört keinem Objekt, eine Zeile mit n=1 schon.
-# "beide":   erzeugt in einem Lauf beide Dateien (Standard – die interne
-#            Fassung fürs Team, die externe fürs Kundengespräch).
-VERTRAULICH_INTERN = "intern"
-VERTRAULICH_EXTERN = "extern"
-VERTRAULICH_BEIDE = "beide"
-
-# Ab wie vielen Datenpunkten eine Zeile nach außen darf. 5 ist bewusst
-# deutlich höher als MIN_N_LEITREGION (3): der Median soll sich nicht auf ein
-# oder zwei Objekte zurückrechnen lassen.
-MIN_N_EXTERN = 5
-
-
-def vertraulichkeit() -> str:
-    wert = os.environ.get("VERTRAULICHKEIT", VERTRAULICH_BEIDE).strip().lower()
-    if wert not in (VERTRAULICH_INTERN, VERTRAULICH_EXTERN, VERTRAULICH_BEIDE):
-        raise RuntimeError(
-            f"VERTRAULICHKEIT={wert!r} unbekannt – erlaubt: "
-            f"{VERTRAULICH_INTERN}, {VERTRAULICH_EXTERN}, {VERTRAULICH_BEIDE}"
-        )
-    return wert
-
-
-def pdf_fassungen() -> tuple[str, ...]:
-    """Welche PDF-Fassungen dieser Lauf erzeugt.
-
-    Beide aus DERSELBEN Auswertung zu rendern ist billig (nur Layout) und
-    verhindert, dass interne und externe Zahlen aus zwei Läufen stammen und
-    auseinanderlaufen.
-    """
-    wert = vertraulichkeit()
-    if wert == VERTRAULICH_BEIDE:
-        return (VERTRAULICH_INTERN, VERTRAULICH_EXTERN)
-    return (wert,)
-
+# Daraus folgt auch die Reihenfolge in FLAECHENARTEN: die VERÖFFENTLICHTE Miete
+# (`mietpreis_*`) gewinnt vor der internen Einschätzung (`intern_mietpreis_*`).
+# Wo der Vermieter einen Preis ausschreibt, ist das der belastbarere Wert.
 
 # Spitzenmiete: oberes Perzentil statt des Maximums. Ein einzelner Ausreißer
 # soll das Spitzenniveau nicht bestimmen – und das Maximum ist über die
@@ -208,8 +171,13 @@ SPITZENMIETE_PERZENTIL = 0.95
 # Wie viele Monate zurück der Vergleichswert der Veränderungsspalte liegt.
 # 12 = Vorjahresvergleich; der nächstgelegene vorhandene Snapshot gewinnt.
 VERGLEICH_MONATE = 12
-# Toleranz bei der Snapshot-Suche (Monate)
-VERGLEICH_TOLERANZ_MONATE = 3
+# Toleranz bei der Snapshot-Suche (Monate). Im Quartalstakt liegt der
+# NACHBAR-Snapshot genau 3 Monate daneben – mit Toleranz 3 würde ein fehlender
+# Vorjahresstand still durch einen 9- oder 15-Monats-Vergleich ersetzt und als
+# Vorjahresveränderung ausgewiesen. Lieber eine leere Spalte als eine falsch
+# beschriftete: 1 lässt nur den Monatsversatz durch, der aus einem verschobenen
+# Lauf entsteht.
+VERGLEICH_TOLERANZ_MONATE = 1
 
 
 # --- Slack ------------------------------------------------------------------
@@ -263,18 +231,9 @@ def cache_path() -> str:
     return os.environ.get("EXTRACTION_CACHE_PATH", "comparables_cache.jsonl")
 
 
-def pdf_path(fassung: str = VERTRAULICH_INTERN) -> str:
-    """Zielpfad einer PDF-Fassung.
-
-    Die Fassung steht IM DATEINAMEN: eine Datei, an der man nicht sieht, ob sie
-    Einzelwerte enthält, landet irgendwann im falschen Anhang. PDF_PATH setzt
-    den Namen der internen Fassung; die externe hängt "_extern" an.
-    """
-    basis = os.environ.get("PDF_PATH", "comparables_report.pdf")
-    if fassung != VERTRAULICH_EXTERN:
-        return basis
-    stamm, punkt, endung = basis.rpartition(".")
-    return f"{stamm}_extern{punkt}{endung}" if punkt else f"{basis}_extern"
+def pdf_path() -> str:
+    """Zielpfad des PDF. Es gibt genau eine Fassung."""
+    return os.environ.get("PDF_PATH", "comparables_report.pdf")
 
 
 def snapshot_path() -> str:
@@ -291,14 +250,14 @@ def make_pdf() -> bool:
     return _env_bool("MAKE_PDF", "false")
 
 
-# --- Asana: Monatsbericht als Unteraufgabe ---------------------------------
+# --- Asana: Quartalsbericht als Unteraufgabe -------------------------------
 # Struktur (mit K&P festgelegt am 13.08.2026): eine Oberaufgabe im Projekt
 # "03. (VER) Vermietung", Abschnitt "Leasingpaket", darunter je Lauf eine
 # Unteraufgabe mit den PDFs im Anhang.
 #
 # ACHTUNG: Der Asana-MCP-Connector kann KEINE Dateien anhängen. Der Upload
 # braucht einen Personal Access Token – dasselbe Secret wie im events_handler.
-ASANA_PARENT_TASK_ID = "1217454616756224"   # "Vergleichsmieten – Monatsberichte"
+ASANA_PARENT_TASK_ID = "1217454616756224"   # "Vergleichsmieten – Quartalsberichte"
 
 # Fehlende Secrets kommen in GitHub Actions als LEERER String an, deshalb wird
 # auf Inhalt und nicht auf Existenz geprüft.
@@ -419,7 +378,7 @@ PROPSTACK_MAX_PAGES = 200          # Schutz gegen Endlos-Paginierung
 #     ohne Sortierung        2013 / 2027 IDs, 107 bzw. 121 nur in einem Lauf
 #     sort_by=id&order=asc   2134 / 2134 IDs, identisch
 # Die instabile Variante verlor also rund 120 Einheiten pro Lauf – und jeden
-# Lauf andere. Für einen monatlichen Report wäre das Rauschen ohne
+# Lauf andere. Für einen Quartalsreport wäre das Rauschen ohne
 # Marktbewegung. `sort`/`order_by` werden ignoriert, nur `sort_by` greift.
 PROPSTACK_SORTIERUNG = {"sort_by": "id", "order": "asc"}
 
@@ -453,19 +412,19 @@ class Flaechenart:
 FLAECHENARTEN = (
     Flaechenart(
         "Halle/Lager",
-        miete_felder=("intern_mietpreis_hallenflache", "mietpreis_hallenflache"),
+        miete_felder=("mietpreis_hallenflache", "intern_mietpreis_hallenflache"),
         nk_felder=("nebenkosten",),
         flaeche_felder=("hallenflache", "lagerflache", "lagerflache_gesamt"),
     ),
     Flaechenart(
         "Büro",
-        miete_felder=("intern_mietpreis_buro", "mietpreis_buroflache"),
+        miete_felder=("mietpreis_buroflache", "intern_mietpreis_buro"),
         nk_felder=("nebenkosten",),
         flaeche_felder=("buroflache", "buroflache_gesamt"),
     ),
     Flaechenart(
         "Mezzanine",
-        miete_felder=("intern_mietpreis_mezzanine", "mietpreis_mezzanine"),
+        miete_felder=("mietpreis_mezzanine", "intern_mietpreis_mezzanine"),
         flaeche_felder=("mezzanineflache", "mezzanineflache_gesamt"),
     ),
 )

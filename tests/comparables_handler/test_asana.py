@@ -133,10 +133,7 @@ def test_no_write_schaltet_asana_ab(monkeypatch):
 # --- Namen (Idempotenz-Schlüssel) ------------------------------------------
 def test_namen_sind_aus_dem_stand_reproduzierbar():
     assert asana_gateway.aufgaben_name("August 2026") == "Vergleichsmieten August 2026"
-    assert asana_gateway.anhang_name("August 2026", config.VERTRAULICH_INTERN) \
-        == "Vergleichsmieten_August_2026.pdf"
-    assert asana_gateway.anhang_name("August 2026", config.VERTRAULICH_EXTERN) \
-        == "Vergleichsmieten_August_2026_extern.pdf"
+    assert asana_gateway.anhang_name("August 2026") == "Vergleichsmieten_August_2026.pdf"
 
 
 # --- Beschreibung ----------------------------------------------------------
@@ -149,9 +146,9 @@ def test_notiz_traegt_die_kennzahlen():
     assert "Halle/Lager" in notiz
     assert "6 Standorte" in notiz
     assert "Düsseldorf" in notiz
-    # Die Vertraulichkeits-Ansage muss in der Aufgabe stehen, nicht nur im PDF
-    assert "INTERN" in notiz
-    assert "Nicht nach außen geben" in notiz
+    # Die Verwendungsregel muss in der Aufgabe stehen, nicht nur im PDF
+    assert "Marktindex" in notiz
+    assert "angeboten wird" in notiz
 
 
 def test_notiz_sagt_wenn_es_keine_basis_gibt():
@@ -175,7 +172,7 @@ def test_no_write_ruehrt_asana_nicht_an(monkeypatch, scharf):
     stats, tabellen = _daten()
     url = asana_gateway.veroeffentliche(
         stats, RunReport(quelle="propstack"), "August 2026",
-        {config.VERTRAULICH_INTERN: "/tmp/x.pdf"}, tabellen)
+        "/tmp/x.pdf", tabellen)
 
     assert url is None
     assert aufrufe.requests == []
@@ -183,11 +180,9 @@ def test_no_write_ruehrt_asana_nicht_an(monkeypatch, scharf):
 
 
 # --- Anlegen und Aktualisieren --------------------------------------------
-def test_neue_unteraufgabe_mit_beiden_anhaengen(monkeypatch, scharf, tmp_path):
-    intern = tmp_path / "i.pdf"
-    intern.write_bytes(b"%PDF-1.4 intern")
-    extern = tmp_path / "e.pdf"
-    extern.write_bytes(b"%PDF-1.4 extern")
+def test_neue_unteraufgabe_mit_anhang(monkeypatch, scharf, tmp_path):
+    pdf = tmp_path / "i.pdf"
+    pdf.write_bytes(b"%PDF-1.4")
 
     aufrufe = _Aufrufe(subtasks=["Vergleichsmieten Juli 2026"])
     _verdrahte(monkeypatch, aufrufe)
@@ -195,17 +190,13 @@ def test_neue_unteraufgabe_mit_beiden_anhaengen(monkeypatch, scharf, tmp_path):
     stats, tabellen = _daten()
     url = asana_gateway.veroeffentliche(
         stats, RunReport(quelle="propstack"), "August 2026",
-        {config.VERTRAULICH_INTERN: str(intern), config.VERTRAULICH_EXTERN: str(extern)},
-        tabellen,
+        str(pdf), tabellen,
     )
 
     methoden = [(m, p) for m, p, _ in aufrufe.requests]
     assert ("POST", "/tasks") in methoden
     assert ("PUT", "/tasks/sub1") not in methoden      # Juli ist ein anderer Monat
-    assert aufrufe.uploads == [
-        "Vergleichsmieten_August_2026.pdf",
-        "Vergleichsmieten_August_2026_extern.pdf",
-    ]
+    assert aufrufe.uploads == ["Vergleichsmieten_August_2026.pdf"]
     assert url and "neu1" in url
 
 
@@ -223,7 +214,7 @@ def test_zweiter_lauf_im_selben_monat_legt_nichts_neu_an(monkeypatch, scharf, tm
     stats, tabellen = _daten()
     asana_gateway.veroeffentliche(
         stats, RunReport(quelle="propstack"), "August 2026",
-        {config.VERTRAULICH_INTERN: str(pdf)}, tabellen,
+        str(pdf), tabellen,
     )
 
     methoden = [(m, p) for m, p, _ in aufrufe.requests]
@@ -254,7 +245,7 @@ def test_alter_anhang_wird_erst_nach_dem_upload_entfernt(monkeypatch, scharf, tm
     stats, tabellen = _daten()
     asana_gateway.veroeffentliche(
         stats, RunReport(quelle="propstack"), "August 2026",
-        {config.VERTRAULICH_INTERN: str(pdf)}, tabellen)
+        str(pdf), tabellen)
 
     assert aufrufe.geloescht == [], "alter Anhang darf nach fehlgeschlagenem Upload bleiben"
 
@@ -267,7 +258,7 @@ def test_fehlender_anhang_bricht_den_lauf_nicht_ab(monkeypatch, scharf):
     report = RunReport(quelle="propstack")
     url = asana_gateway.veroeffentliche(
         stats, report, "August 2026",
-        {config.VERTRAULICH_INTERN: "/gibt/es/nicht.pdf"}, tabellen,
+        "/gibt/es/nicht.pdf", tabellen,
     )
 
     assert url is not None            # Aufgabe entsteht trotzdem
@@ -290,7 +281,7 @@ def test_upload_fehler_landet_im_report(monkeypatch, scharf, tmp_path):
     stats, tabellen = _daten()
     report = RunReport(quelle="propstack")
     asana_gateway.veroeffentliche(
-        stats, report, "August 2026", {config.VERTRAULICH_INTERN: str(pdf)}, tabellen)
+        stats, report, "August 2026", str(pdf), tabellen)
 
     assert any("Anhang" in f for f in report.fehler)
 
@@ -316,7 +307,7 @@ def test_upload_setzt_keinen_json_content_type(monkeypatch, scharf, tmp_path):
     stats, tabellen = _daten()
     asana_gateway.veroeffentliche(
         stats, RunReport(quelle="propstack"), "August 2026",
-        {config.VERTRAULICH_INTERN: str(pdf)}, tabellen)
+        str(pdf), tabellen)
 
     assert "Content-Type" not in gesehen
     assert gesehen["_data"] == {"parent": "neu1"}

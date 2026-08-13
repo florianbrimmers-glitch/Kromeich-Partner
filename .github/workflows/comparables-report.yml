@@ -2,8 +2,11 @@ name: Comparables Report
 
 on:
   schedule:
-    # Monatlich am 1. um 05:00 UTC (nach objekte 02:00, newsletter 03:00, events 03:30)
-    - cron: "0 5 1 * *"
+    # Quartalsweise am 1. Januar/April/Juli/Oktober um 05:00 UTC
+    # (nach objekte 02:00, newsletter 03:00, events 03:30).
+    # Mieten bewegen sich nicht monatlich – ein Quartal ist der Takt, in dem
+    # sich der Median überhaupt sichtbar ändert.
+    - cron: "0 5 1 1,4,7,10 *"
   # ACHTUNG: workflow_dispatch greift erst, wenn diese Datei auf dem
   # Default-Branch liegt – vorher antwortet die API mit 404. Für Läufe vom
   # Feature-Branch aus wurde vorübergehend ein push-Trigger genutzt
@@ -43,17 +46,8 @@ on:
         options:
           - "true"
           - "false"
-      vertraulichkeit:
-        description: "PDF-Fassung: intern (mit Objektliste), extern (nur Aggregate) oder beide"
-        required: false
-        default: "beide"
-        type: choice
-        options:
-          - "beide"
-          - "intern"
-          - "extern"
       asana_upload:
-        description: "Monatsbericht als Unteraufgabe in Asana ablegen (mit PDFs im Anhang)"
+        description: "Quartalsbericht als Unteraufgabe in Asana ablegen (mit PDFs im Anhang)"
         required: false
         default: "true"
         type: choice
@@ -129,11 +123,7 @@ jobs:
           DRY_RUN: ${{ github.event.inputs.dry_run || 'true' }}
           NO_WRITE: ${{ github.event.inputs.no_write || 'false' }}
           MAKE_PDF: ${{ github.event.inputs.make_pdf || 'true' }}
-          # Die Mieten stammen überwiegend aus intern gepflegten Feldern und
-          # dürfen einzeln nicht nach außen (Vorgabe K&P). Die externe Fassung
-          # zeigt deshalb nur Zeilen ab n=5 und keine Objektliste.
-          VERTRAULICHKEIT: ${{ github.event.inputs.vertraulichkeit || 'beide' }}
-          # Asana: eine Oberaufgabe "Vergleichsmieten – Monatsberichte" in
+          # Asana: eine Oberaufgabe "Vergleichsmieten – Quartalsberichte" in
           # 03. (VER) Vermietung / Leasingpaket, darunter je Lauf eine
           # Unteraufgabe mit beiden PDFs im Anhang. Der MCP-Connector kann
           # keine Dateien anhängen – der Upload braucht diesen PAT, dasselbe
@@ -167,7 +157,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add comparables_snapshots.json
-          git commit -m "chore(comparables): Monats-Snapshot der Mietmediane"
+          git commit -m "chore(comparables): Quartals-Snapshot der Mietmediane"
           for versuch in 1 2 3 4; do
             git pull --rebase origin main && git push origin HEAD:main && exit 0
             echo "Push-Versuch $versuch fehlgeschlagen, neuer Versuch …"
@@ -183,7 +173,6 @@ jobs:
           path: |
             comparables_dataset.csv
             comparables_report.pdf
-            comparables_report_extern.pdf
             comparables_decisions.jsonl
             comparables_snapshots.json
           if-no-files-found: ignore
