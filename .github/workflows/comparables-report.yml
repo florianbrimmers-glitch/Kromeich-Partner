@@ -9,8 +9,11 @@ on:
     - cron: "0 5 1 1,4,7,10 *"
   # ACHTUNG: workflow_dispatch greift erst, wenn diese Datei auf dem
   # Default-Branch liegt – vorher antwortet die API mit 404. Für Läufe vom
-  # Feature-Branch aus wurde vorübergehend ein push-Trigger genutzt
-  # (Läufe 31700073360 und 31700822006, 13.08.2026).
+  # Feature-Branch aus dient dieser push-Trigger; er wird nach dem Merge nach
+  # main entfernt (Läufe 31700073360, 31700822006, 13.08.2026).
+  push:
+    branches:
+      - claude/comparables-report-mietangebote-lg5ycy
   workflow_dispatch:
     inputs:
       quelle:
