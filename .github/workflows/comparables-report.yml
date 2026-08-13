@@ -39,6 +39,15 @@ on:
         options:
           - "true"
           - "false"
+      vertraulichkeit:
+        description: "PDF-Fassung: intern (mit Objektliste), extern (nur Aggregate) oder beide"
+        required: false
+        default: "beide"
+        type: choice
+        options:
+          - "beide"
+          - "intern"
+          - "extern"
       max_documents:
         description: "Kostenbremse: max. Dokumente (0 = alle)"
         required: false
@@ -108,6 +117,10 @@ jobs:
           DRY_RUN: ${{ github.event.inputs.dry_run || 'true' }}
           NO_WRITE: ${{ github.event.inputs.no_write || 'false' }}
           MAKE_PDF: ${{ github.event.inputs.make_pdf || 'true' }}
+          # Die Mieten stammen überwiegend aus intern gepflegten Feldern und
+          # dürfen einzeln nicht nach außen (Vorgabe K&P). Die externe Fassung
+          # zeigt deshalb nur Zeilen ab n=5 und keine Objektliste.
+          VERTRAULICHKEIT: ${{ github.event.inputs.vertraulichkeit || 'beide' }}
           MAX_DOCUMENTS: ${{ github.event.inputs.max_documents || '0' }}
           COMPARABLES_CHANNEL: ${{ github.event.inputs.channel }}
           DECISION_LOG_PATH: comparables_decisions.jsonl
@@ -146,6 +159,7 @@ jobs:
           path: |
             comparables_dataset.csv
             comparables_report.pdf
+            comparables_report_extern.pdf
             comparables_decisions.jsonl
             comparables_snapshots.json
           if-no-files-found: ignore

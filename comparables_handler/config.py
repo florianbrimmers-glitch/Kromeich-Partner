@@ -153,6 +153,53 @@ def aggregation() -> str:
     return wert
 
 
+# --- Vertraulichkeit --------------------------------------------------------
+# 163 der 225 Mieten stehen in `intern_mietpreis_*`: Konditionen, die K&P aus
+# Mandaten und Anfragen kennt und die der Vermieter NICHT veröffentlicht.
+# Vorgabe K&P (13.08.2026): solche Werte dürfen nicht nach außen kommuniziert
+# werden. Deshalb zwei Fassungen desselben Laufs:
+#
+# "intern":  vollständig – Einzelwerte (n=1), Objektliste, alles.
+# "extern":  nur Zeilen ab MIN_N_EXTERN, ohne Objektliste und ohne den
+#            Einzelwerte-Block. Bei n=1 wäre der ausgewiesene "Median" exakt
+#            die Miete EINES Objekts – das ist keine Statistik, das ist eine
+#            Weitergabe. Entscheidend ist die ZUORDENBARKEIT: ein Median über
+#            114 Standorte gehört keinem Objekt, eine Zeile mit n=1 schon.
+# "beide":   erzeugt in einem Lauf beide Dateien (Standard – die interne
+#            Fassung fürs Team, die externe fürs Kundengespräch).
+VERTRAULICH_INTERN = "intern"
+VERTRAULICH_EXTERN = "extern"
+VERTRAULICH_BEIDE = "beide"
+
+# Ab wie vielen Datenpunkten eine Zeile nach außen darf. 5 ist bewusst
+# deutlich höher als MIN_N_LEITREGION (3): der Median soll sich nicht auf ein
+# oder zwei Objekte zurückrechnen lassen.
+MIN_N_EXTERN = 5
+
+
+def vertraulichkeit() -> str:
+    wert = os.environ.get("VERTRAULICHKEIT", VERTRAULICH_BEIDE).strip().lower()
+    if wert not in (VERTRAULICH_INTERN, VERTRAULICH_EXTERN, VERTRAULICH_BEIDE):
+        raise RuntimeError(
+            f"VERTRAULICHKEIT={wert!r} unbekannt – erlaubt: "
+            f"{VERTRAULICH_INTERN}, {VERTRAULICH_EXTERN}, {VERTRAULICH_BEIDE}"
+        )
+    return wert
+
+
+def pdf_fassungen() -> tuple[str, ...]:
+    """Welche PDF-Fassungen dieser Lauf erzeugt.
+
+    Beide aus DERSELBEN Auswertung zu rendern ist billig (nur Layout) und
+    verhindert, dass interne und externe Zahlen aus zwei Läufen stammen und
+    auseinanderlaufen.
+    """
+    wert = vertraulichkeit()
+    if wert == VERTRAULICH_BEIDE:
+        return (VERTRAULICH_INTERN, VERTRAULICH_EXTERN)
+    return (wert,)
+
+
 # Spitzenmiete: oberes Perzentil statt des Maximums. Ein einzelner Ausreißer
 # soll das Spitzenniveau nicht bestimmen – und das Maximum ist über die
 # Spanne-Spalte ohnehin sichtbar. 1.0 ergibt das echte Maximum.
@@ -216,8 +263,18 @@ def cache_path() -> str:
     return os.environ.get("EXTRACTION_CACHE_PATH", "comparables_cache.jsonl")
 
 
-def pdf_path() -> str:
-    return os.environ.get("PDF_PATH", "comparables_report.pdf")
+def pdf_path(fassung: str = VERTRAULICH_INTERN) -> str:
+    """Zielpfad einer PDF-Fassung.
+
+    Die Fassung steht IM DATEINAMEN: eine Datei, an der man nicht sieht, ob sie
+    Einzelwerte enthält, landet irgendwann im falschen Anhang. PDF_PATH setzt
+    den Namen der internen Fassung; die externe hängt "_extern" an.
+    """
+    basis = os.environ.get("PDF_PATH", "comparables_report.pdf")
+    if fassung != VERTRAULICH_EXTERN:
+        return basis
+    stamm, punkt, endung = basis.rpartition(".")
+    return f"{stamm}_extern{punkt}{endung}" if punkt else f"{basis}_extern"
 
 
 def snapshot_path() -> str:

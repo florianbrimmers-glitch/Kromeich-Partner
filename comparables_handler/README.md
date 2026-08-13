@@ -75,6 +75,14 @@ Die instabile Variante verlor also rund **120 Einheiten pro Lauf** – und jeden
 
 Das kostet Datenpunkte (245 → 113 Standorte), ist aber der Unterschied zwischen gepflegten und erfundenen Zahlen.
 
+**Bereinigung im CRM** (`scripts/propstack_altimport_pruefen.py`, ausgeführt am 13.08.2026): 288 Werte in 113 Einheiten wurden gesichert und in drei Kategorien geteilt.
+
+- **A – unplausibel und ohne internen Mietpreis: 39 Werte in 21 Einheiten geleert.** Fast alle saßen auf Einheiten, deren Flächen ebenfalls zerschossen sind (1–57 m²), z.B. Stettiner Straße 2 Neuss 1,00 €/m², Hamborner Straße Duisburg Mezzanine 350,00, Heinrich-Hertz-Straße Erkrath NK 23,00.
+- **B – plausibel, interner Mietpreis vorhanden: unangetastet.** Redundant, der interne Wert gewinnt ohnehin.
+- **C – plausibel, kein interner Mietpreis: NICHT migriert** (Entscheidung K&P). Das sind interne Einschätzungen; sie dürfen nicht nach außen und gehören nicht in die Report-Basis.
+
+Bei der A-Bereinigung wurden **4 Einheiten zu viel geleert und wiederhergestellt**: bei Mezzanine- und Serviceflächen sind 2,00 €/m² ein normaler Preis, die 2,50er-Untergrenze gilt nur für Halle/Lager. Die Plausibilitätsprüfung im Skript misst deshalb Nebenkosten an NK-Grenzen und Mieten an Mietgrenzen (`ist_plausibel(feld, wert)`); eine flächenartabhängige Untergrenze fehlt noch – vor einem erneuten `--apply A` ist die CSV durchzusehen. Die Sicherung in `altimport_backup.json` macht jeden Schritt umkehrbar.
+
 Die Standardfelder sind ebenfalls unbrauchbar: `base_rent` ist in 6 von 1.978 Einheiten gefüllt und mischt €/m² (6,00) mit absoluten Monatsmieten (19.848) – ohne Unterscheidungsmerkmal nicht sicher normalisierbar, deshalb in `STANDARDFELDER_IGNORIERT`.
 
 **„Auf Anfrage" ist kein Ausschlussgrund.** K&P pflegt die publizierte Preisaussage im Custom Field `preisangabe` (nicht im Standard-Flag `price_on_inquiry`). 267 von 369 Einheiten mit hinterlegter Miete stehen dort auf „auf Anfrage" – öffentlich nicht genannt, intern bekannt ist genau der Normalfall. Ein Veto würde die wertvollsten Daten wegwerfen; das Feld fließt nur in die Zählung ein.
@@ -178,11 +186,28 @@ SNAPSHOT_PATH=/tmp/snap.json PROPSTACK_API_KEY=xxx NO_WRITE=true MAKE_PDF=true \
   python -m comparables_handler.main
 ```
 
+## Vertraulichkeit: interne und externe Fassung
+
+163 der 225 Mieten stehen in `intern_mietpreis_*` – Konditionen, die K&P aus Mandaten und Anfragen kennt und die der Vermieter **nicht veröffentlicht**. Vorgabe K&P (13.08.2026): solche Werte dürfen einzeln nicht nach außen. Der Report erzeugt deshalb aus **derselben Auswertung** zwei PDFs (`VERTRAULICHKEIT`, Default `beide`):
+
+| | `comparables_report.pdf` (intern) | `comparables_report_extern.pdf` |
+|---|---|---|
+| Zeilen unter `MIN_N_EXTERN` (5) | ja | **nein** |
+| Einzelwerte-Block (n < 3) | ja | **nein** |
+| Objektliste „Erfasste Objekte" | ja | **nein** |
+| Fußzeile | „nur zur internen Verwendung" | „Weitergabe nur an den Adressaten" |
+
+Maßstab ist die **Zuordenbarkeit**, nicht die Zahl selbst: ein Median über 114 Standorte gehört keinem Objekt, eine Zeile mit n=1 ist exakt die Miete eines Objekts. Deshalb fällt die Objektliste weg (sie ist der Schlüssel von Wert zu Objekt), während Spannen und Perzentile über den Gesamtbestand stehen bleiben.
+
+`MIN_N_EXTERN = 5` liegt bewusst über `MIN_N_LEITREGION = 3`. Am Stand 13.08.2026 unterdrückt das in der externen Fassung 44 Zeilen; München (n=1) und Leipzig/Halle (n=1) verschwinden, Berlin (n=5) bleibt.
+
+**Der Slack-Post ist immer die interne Fassung** – er geht in einen internen Kanal. Auch der CSV-Datensatz bleibt vollständig; er ist ein Arbeitsdatensatz, kein Weitergabe-Dokument.
+
 ## Betriebsmodi
 
 | Modus | Slack-Post | CSV + JSONL + PDF | Zweck |
 |---|---|---|---|
-| `NO_WRITE=true` | nein | ja | Testen mit echten Drive-Daten, beliebig wiederholbar |
+| `NO_WRITE=true` | nein | ja | Testen mit echten Daten, beliebig wiederholbar (schreibt die Zeitreihe nicht fort) |
 | `DRY_RUN=true` | nein (nur ins Log) | ja | Report inhaltlich prüfen, bevor das Team ihn sieht |
 | `DRY_RUN=false` | ja | ja | Normalbetrieb |
 
@@ -212,7 +237,8 @@ Danach im Workflow `DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}` setz
 | `DRY_RUN` | nein | `true` | Report bauen, aber nicht posten |
 | `NO_WRITE` | nein | `false` | Reiner Lese-/Loglauf |
 | `MAKE_PDF` | nein | `false` | K&P-PDF erzeugen |
-| `PDF_PATH` | nein | `comparables_report.pdf` | Ausgabepfad des PDF |
+| `VERTRAULICHKEIT` | nein | `beide` | `intern` / `extern` / `beide` – welche PDF-Fassung(en) entstehen |
+| `PDF_PATH` | nein | `comparables_report.pdf` | Ausgabepfad der internen Fassung; die externe hängt `_extern` an |
 | `KP_DESIGN_DIR` | nein | `~/.claude/skills/synced/kp-design` | Quelle der K&P-Schriften |
 | `MAX_DOCUMENTS` | nein | `0` | Kostenbremse (0 = alle); gekappte Dokumente werden als Fehler gemeldet |
 | `DATASET_PATH` | nein | `comparables_dataset.csv` | CSV-Datensatz |

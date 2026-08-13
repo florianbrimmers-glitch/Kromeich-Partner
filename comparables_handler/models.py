@@ -239,5 +239,6 @@ class RunReport(BaseModel):
     zeilen_ausgeschlossen: int = 0
     regionen: int = 0
     slack_gepostet: bool = False
-    pdf_erstellt: str | None = None
+    # Fassung ("intern"/"extern") -> Pfad. Ein Lauf kann beide erzeugen.
+    pdfs: dict[str, str] = Field(default_factory=dict)
     fehler: list[str] = Field(default_factory=list)

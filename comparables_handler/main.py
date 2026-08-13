@@ -241,9 +241,9 @@ def run_pipeline() -> RunReport:
         logger.info("=== DRY RUN – Report wird gebaut und geloggt, aber nicht gepostet ===")
 
     logger.info(
-        "Quelle: %s | Flächenarten: %s | Stand: %s | Zielkanal: %s",
+        "Quelle: %s | Flächenarten: %s | Stand: %s | Zielkanal: %s | PDF-Fassung: %s",
         report.quelle, ", ".join(config.ausgewertete_flaechenarten()),
-        stand, config.slack_channel(),
+        stand, config.slack_channel(), config.vertraulichkeit(),
     )
 
     zeilen: list[ComparableZeile] = []
@@ -282,9 +282,14 @@ def run_pipeline() -> RunReport:
     report.slack_gepostet = poste(text)
 
     if config.make_pdf():
-        report.pdf_erstellt = report_pdf.erzeuge_pdf(
-            stats, report, stand, config.pdf_path(), tabellen, stand_vorher,
-        )
+        # Beide Fassungen aus DENSELBEN Zahlen – siehe config.pdf_fassungen().
+        for fassung in config.pdf_fassungen():
+            pfad = report_pdf.erzeuge_pdf(
+                stats, report, stand, config.pdf_path(fassung), tabellen,
+                stand_vorher, fassung,
+            )
+            if pfad:
+                report.pdfs[fassung] = pfad
 
     _print_summary(report, stats)
     return report
@@ -323,7 +328,8 @@ def _print_summary(report: RunReport, stats: list) -> None:
     logger.info("    davon ausgeschlossen:     %d", report.zeilen_ausgeschlossen)
     logger.info("  Regionen ausgewiesen:       %d", report.regionen)
     logger.info("  Slack gepostet:             %s", report.slack_gepostet)
-    logger.info("  PDF:                        %s", report.pdf_erstellt or "–")
+    logger.info("  PDF-Fassungen:              %s",
+                ", ".join(f"{f}: {p}" for f, p in report.pdfs.items()) or "–")
     logger.info("  Fehler:                     %d", len(report.fehler))
     for fehler in report.fehler:
         logger.info("    - %s", fehler)

@@ -4,7 +4,7 @@ import logging
 import os
 
 from . import aggregate, config
-from .models import RegionStats, RunReport
+from .models import KennzahlenTabelle, RegionStats, RunReport
 from .slack_gateway import eur
 
 logger = logging.getLogger(__name__)
@@ -82,6 +82,48 @@ def _tabelle(kopf: list[str], zeilen: list[list[str]], breiten: list[float], fon
             stil.append(("BACKGROUND", (0, index), (-1, index), colors.HexColor(ZEBRA)))
     tabelle.setStyle(TableStyle(stil))
     return tabelle
+
+
+# --- Vertraulichkeitsstufe --------------------------------------------------
+# Die Mieten stammen überwiegend aus `intern_mietpreis_*`: Konditionen, die K&P
+# aus Mandaten und Anfragen kennt und die der Vermieter NICHT veröffentlicht.
+# Als Aggregat über viele Standorte ist das eine Marktaussage; bei n=1 ist die
+# ausgewiesene Zahl exakt die Miete EINES Objekts – dann gibt das Dokument
+# fremde Vertragskonditionen weiter. Für die externe Fassung fallen deshalb
+# alle Zeilen unter MIN_N_EXTERN weg, ebenso die Objektliste.
+
+
+def externe_kennzahlen(tabelle: KennzahlenTabelle) -> KennzahlenTabelle:
+    """Kennzahlen-Tabelle ohne rückrechenbare Zeilen.
+
+    Zwischen- und Gesamtsummen bleiben, solange sie selbst MIN_N_EXTERN
+    erreichen – sie sind über mehrere Märkte gebildet und geben keine
+    einzelne Kondition preis. Dass n sich dadurch nicht mehr zur Summe
+    addiert, ist gewollt und wird im PDF benannt.
+    """
+    gefiltert = tabelle.model_copy(deep=True)
+    gefiltert.zeilen = [z for z in tabelle.zeilen if z.n >= config.MIN_N_EXTERN]
+    if tabelle.gesamt is not None and tabelle.gesamt.n < config.MIN_N_EXTERN:
+        gefiltert.gesamt = None
+    # Anteile sind über den gesamten Datenbestand gebildet und nennen keine
+    # Miete – sie bleiben. Nur bei insgesamt zu kleiner Basis fallen sie weg.
+    if any(z.n < config.MIN_N_EXTERN for z in tabelle.anteile):
+        gefiltert.anteile = []
+    return gefiltert
+
+
+def externe_stats(stats: list[RegionStats]) -> list[RegionStats]:
+    """Regionsstatistiken ohne rückrechenbare Zeilen.
+
+    Einzelwerte (n < MIN_N_LEITREGION) fallen komplett weg – sie sind der Kern
+    des Problems: eine Zeile, ein Objekt, eine fremde Miete. Gesamtzeilen
+    bleiben immer, sie tragen die Datenbasis-Aussage.
+    """
+    return [
+        s for s in stats
+        if s.ebene == "gesamt"
+        or (s.ebene != "leitregion_einzel" and s.n >= config.MIN_N_EXTERN)
+    ]
 
 
 def _prozent(wert: float | None, punkte: bool = False) -> str:
@@ -231,7 +273,10 @@ def _stats_zeilen(stats: list[RegionStats], mit_effektiv: bool = True) -> list[l
                  eur(s.median_nebenkosten)]
         if mit_effektiv:
             zeile.append(eur(s.median_effektivmiete))
-        zeile += [str(s.n), str(s.n_objekte)]
+        # n IST die Zahl der Standorte (Aggregationsbasis) – deshalb hier
+        # daneben die Zahl der dahinterliegenden Einheiten und nicht noch
+        # einmal dieselbe Zahl unter anderem Namen.
+        zeile += [str(s.n), str(s.n_einheiten)]
         zeilen.append(zeile)
     return zeilen
 
@@ -239,8 +284,14 @@ def _stats_zeilen(stats: list[RegionStats], mit_effektiv: bool = True) -> list[l
 def erzeuge_pdf(
     stats: list[RegionStats], report: RunReport, stand: str, pfad: str,
     tabellen: list | None = None, stand_vorher: str | None = None,
+    fassung: str = config.VERTRAULICH_INTERN,
 ) -> str | None:
-    """K&P-PDF für Kundengespräche. Rückgabe: Pfad oder None bei Fehler."""
+    """K&P-PDF. Rückgabe: Pfad oder None bei Fehler.
+
+    `fassung` entscheidet über die Vertraulichkeitsstufe (siehe config) und ist
+    bewusst ein Parameter und keine Umgebungsvariable: derselbe Lauf rendert
+    beide Fassungen aus denselben Zahlen.
+    """
     try:
         from reportlab.lib import colors
         from reportlab.lib.pagesizes import A4
@@ -252,6 +303,23 @@ def erzeuge_pdf(
     except ImportError:
         logger.error("reportlab fehlt – PDF wird nicht erzeugt (pip install reportlab)")
         return None
+
+    extern = fassung == config.VERTRAULICH_EXTERN
+    if extern:
+        unterdrueckt = len([
+            s for s in stats
+            if s.ebene in ("leitregion", "leitregion_einzel", "zone")
+        ]) - len([
+            s for s in externe_stats(stats)
+            if s.ebene in ("leitregion", "zone")
+        ])
+        stats = externe_stats(stats)
+        tabellen = [externe_kennzahlen(t) for t in (tabellen or [])]
+        tabellen = [t for t in tabellen if t.zeilen or t.gesamt]
+        logger.info(
+            "Externe Fassung: %d Zeile(n) unter n=%d unterdrückt, keine Objektliste",
+            unterdrueckt, config.MIN_N_EXTERN,
+        )
 
     fonts = _registriere_fonts()
     seite_w, seite_h = A4
@@ -297,7 +365,10 @@ def erzeuge_pdf(
         canv.setFillColor(colors.HexColor("#8A8A8A"))
         canv.setFont(fonts["KP-Body"], 7.5)
         canv.drawRightString(seite_w - rand, 12 * mm, f"Seite {doc.page}")
-        canv.drawString(rand, 12 * mm, "Kromeich & Partner – Vertraulich, nur zur internen Verwendung")
+        fuss = ("Kromeich & Partner – Marktauswertung, Weitergabe nur an den Adressaten"
+                if extern else
+                "Kromeich & Partner – Vertraulich, nur zur internen Verwendung")
+        canv.drawString(rand, 12 * mm, fuss)
         canv.restoreState()
 
     doc = SimpleDocTemplate(
@@ -353,6 +424,15 @@ def erzeuge_pdf(
             "nicht bestimmen. Bei wenigen Datenpunkten nähert sich die Spitzenmiete "
             "zwangsläufig dem Maximum.",
         ]
+        if extern:
+            hinweise.append(
+                f"<b>Ausgewiesen werden nur Märkte mit mindestens "
+                f"{config.MIN_N_EXTERN} Datenpunkten.</b> Die Konditionen stammen aus "
+                "Mandaten und Anfragen und sind vom Vermieter nicht veröffentlicht; "
+                "einzelne Verträge werden deshalb nicht ausgewiesen. Aus demselben "
+                "Grund addiert sich n nicht zur Gesamtzahl – die Summenzeilen sind "
+                "über alle Datenpunkte gebildet, auch über die nicht gezeigten."
+            )
         if stand_vorher:
             hinweise.append(
                 f"Die Veränderung vergleicht den aktuellen Median mit dem Stand "
@@ -372,12 +452,12 @@ def erzeuge_pdf(
     flow.append(Paragraph("Datenbasis", titel_stil))
     if len(arten) == 1:
         flow.append(Paragraph(
-            f"Grundlage sind <b>{ges.n} belegte Mieten</b> an {ges.n_objekte} Standorten "
+            f"Grundlage sind <b>{ges.n_einheiten} belegte Mieten</b> an {ges.n} Standorten "
             f"für <b>{arten[0]}</b>.", body,
         ))
     else:
         flow.append(Paragraph(
-            f"Grundlage sind <b>{ges.n} belegte Mieten</b> an {ges.n_objekte} Standorten, "
+            f"Grundlage sind <b>{ges.n_einheiten} belegte Mieten</b> an {ges.n} Standorten, "
             f"aufgeteilt auf {len(arten)} Flächenarten.", body,
         ))
     flow.append(Paragraph(
@@ -386,6 +466,12 @@ def erzeuge_pdf(
         "Beratungsprojekten und konkreten Anfragen und sind damit belegte Konditionen, "
         "keine Schätzungen aus Marktberichten.", body,
     ))
+    if extern:
+        flow.append(Paragraph(
+            f"Weil diese Konditionen nicht öffentlich sind, weist diese Fassung nur "
+            f"Märkte mit mindestens <b>{config.MIN_N_EXTERN} Datenpunkten</b> aus. "
+            "Einzelne Objekte, ihre Mieten und die Objektliste bleiben intern.", body,
+        ))
     if len(arten) > 1:
         flow.append(Paragraph(
             "<b>Die Flächenarten werden getrennt ausgewertet.</b> Hallen- und Lagerflächen, "
@@ -409,9 +495,9 @@ def erzeuge_pdf(
         kopf.append("Effektiv")
         kopf_einzel.append("Effektiv")
         breiten.append(21 * mm)
-    kopf += ["n", "Objekte"]
-    kopf_einzel += ["n", "Objekte"]
-    breiten += [12 * mm, 16 * mm]
+    kopf += ["Standorte", "Einheiten"]
+    kopf_einzel += ["Standorte", "Einheiten"]
+    breiten += [19 * mm, 18 * mm]
     breiten[0] = inhalt_w - sum(breiten[1:])
 
     for art in arten:
@@ -422,7 +508,7 @@ def erzeuge_pdf(
         flow.append(Paragraph(art, titel_stil))
         flow.append(Paragraph(
             f"Median <b>{eur(art_ges.median_kaltmiete, '€/m²')}</b>{_spanne_text(art_ges)} – "
-            f"{art_ges.n} Datenpunkte an {art_ges.n_objekte} Standorten.", body,
+            f"{art_ges.n} Standorte mit {art_ges.n_einheiten} erfassten Einheiten.", body,
         ))
 
         leit = aggregate.leitregionen(stats, art)
@@ -448,13 +534,30 @@ def erzeuge_pdf(
 
     flow.append(PageBreak())
     flow.append(Paragraph("Methodik", titel_stil))
+
+    # Die Quellenbeschreibung muss zum Lauf passen: der Regelbetrieb liest
+    # Propstack, der Drive-Zweig ist die Ergänzung um Fremdangebote.
+    quellen = {
+        config.QUELLE_PROPSTACK:
+            "<b>Datenquelle:</b> die in Propstack gepflegten Mietkonditionen aller "
+            "Miet-Einheiten. Ausgelesen werden ausschließlich die in der Maske "
+            "geführten Mietpreis-Felder je Flächenart.",
+        config.QUELLE_DRIVE:
+            "<b>Datenquelle:</b> alle Mietangebote im Google Drive – Ordner „03. Leasing“ "
+            "und „Mietangebote“ sowie alle Dateien mit „Mietangebot“ im Titel. "
+            "Mehrfachablagen derselben Datei werden über eine Inhalts-Prüfsumme "
+            "zusammengefasst.",
+        config.QUELLE_BEIDE:
+            "<b>Datenquelle:</b> die in Propstack gepflegten Mietkonditionen, ergänzt um "
+            "die Mietangebote im Google Drive (Ordner „03. Leasing“ und „Mietangebote“ "
+            "sowie alle Dateien mit „Mietangebot“ im Titel).",
+    }
     for punkt in (
-        "<b>Datenquelle:</b> alle Mietangebote im Google Drive – Ordner „03. Leasing“ und "
-        "„Mietangebote“ sowie alle Dateien mit „Mietangebot“ im Titel. Mehrfachablagen "
-        "derselben Datei werden über eine Inhalts-Prüfsumme zusammengefasst.",
-        "<b>Eine Zeile pro Laufzeit-Option:</b> nennt ein Angebot je Laufzeit einen eigenen "
-        "Preis (Laufzeitstaffel), zählt jede Stufe als eigener Datenpunkt. Deshalb ist n "
-        "größer als die Zahl der Objekte.",
+        quellen.get(report.quelle or config.quelle(), quellen[config.QUELLE_PROPSTACK]),
+        "<b>Ein Datenpunkt je Standort (n):</b> die Einheiten einer Adresse werden zu "
+        "einem Wert zusammengefasst (Median). Ohne diesen Schritt würde ein Objekt mit "
+        "vierzehn gleich bepreisten Einheiten den Markt vierzehnmal bestimmen. Die Spalte "
+        "„Einheiten“ nennt die Zahl der dahinterliegenden Einzelwerte.",
         "<b>Normalisierung:</b> absolute Mieten werden über die Fläche in €/m²/Monat "
         "umgerechnet, Jahresmieten auf den Monat. Die Effektivmiete glättet die Kaltmiete "
         "um die mietfreie Zeit über die Laufzeit.",
@@ -471,11 +574,24 @@ def erzeuge_pdf(
     ):
         flow.append(Paragraph(punkt, body))
 
-    flow.append(Paragraph("Erfasste Objekte", titel_stil))
-    flow.append(Paragraph(
-        "Die Auswertung stützt sich auf folgende Objekte: " + "; ".join(ges.objekte) + ".", klein,
-    ))
-    flow.append(Spacer(1, 3 * mm))
+    if extern:
+        flow.append(Paragraph(
+            f"<b>Diese Fassung ist zur Weitergabe bestimmt.</b> Sie weist nur Märkte mit "
+            f"mindestens {config.MIN_N_EXTERN} Standorten aus und enthält keine Objektliste. "
+            "Die Konditionen einzelner Objekte sind uns aus Mandaten und Anfragen bekannt "
+            "und werden nicht weitergegeben.", body,
+        ))
+
+    # Die Objektliste ordnet jede Zeile einem konkreten Standort zu – zusammen
+    # mit einem Regions-Median bei kleinem n wäre die Miete eines einzelnen
+    # Objekts ableitbar. Sie bleibt der internen Fassung vorbehalten.
+    if not extern:
+        flow.append(Paragraph("Erfasste Objekte", titel_stil))
+        flow.append(Paragraph(
+            "Die Auswertung stützt sich auf folgende Objekte: "
+            + "; ".join(ges.objekte) + ".", klein,
+        ))
+        flow.append(Spacer(1, 3 * mm))
     flow.append(KeepTogether(Paragraph(
         "Die Angaben stammen aus indikativen Mietangeboten und sind keine abgeschlossenen "
         "Mietverträge. Sie dienen der Orientierung über das aktuelle Angebotsniveau und "
