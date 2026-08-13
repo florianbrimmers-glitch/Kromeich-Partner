@@ -8,12 +8,9 @@ on:
     # sich der Median überhaupt sichtbar ändert.
     - cron: "0 5 1 1,4,7,10 *"
   # ACHTUNG: workflow_dispatch greift erst, wenn diese Datei auf dem
-  # Default-Branch liegt – vorher antwortet die API mit 404. Für Läufe vom
-  # Feature-Branch aus dient dieser push-Trigger; er wird nach dem Merge nach
-  # main entfernt (Läufe 31700073360, 31700822006, 13.08.2026).
-  push:
-    branches:
-      - claude/comparables-report-mietangebote-lg5ycy
+  # Default-Branch liegt – vorher antwortet die API mit 404, auch mit Branch als
+  # Ref. Die Abnahmeläufe vom Feature-Branch aus liefen deshalb über einen
+  # vorübergehenden push-Trigger (13.08.2026).
   workflow_dispatch:
     inputs:
       quelle:
@@ -50,7 +47,7 @@ on:
           - "true"
           - "false"
       asana_upload:
-        description: "Quartalsbericht als Unteraufgabe in Asana ablegen (mit PDFs im Anhang)"
+        description: "Quartalsbericht als Unteraufgabe in Asana ablegen (mit PDF im Anhang)"
         required: false
         default: "true"
         type: choice
@@ -128,9 +125,9 @@ jobs:
           MAKE_PDF: ${{ github.event.inputs.make_pdf || 'true' }}
           # Asana: eine Oberaufgabe "Vergleichsmieten – Quartalsberichte" in
           # 03. (VER) Vermietung / Leasingpaket, darunter je Lauf eine
-          # Unteraufgabe mit beiden PDFs im Anhang. Der MCP-Connector kann
-          # keine Dateien anhängen – der Upload braucht diesen PAT, dasselbe
-          # Secret wie im events_handler.
+          # Unteraufgabe mit dem PDF im Anhang. Der MCP-Connector kann keine
+          # Dateien anhängen – der Upload braucht diesen PAT, dasselbe Secret
+          # wie im events_handler (dort gefüllt ist ASANA_TOKEN).
           ASANA_ACCESS_TOKEN: ${{ secrets.ASANA_ACCESS_TOKEN }}
           ASANA_TOKEN: ${{ secrets.ASANA_TOKEN }}
           ASANA_PAT: ${{ secrets.ASANA_PAT }}
@@ -147,7 +144,7 @@ jobs:
           PDF_PATH: comparables_report.pdf
         run: python -m comparables_handler.main
 
-      # Die Zeitreihe der Monats-Mediane ist die einzige Grundlage der
+      # Die Zeitreihe der Quartals-Mediane ist die einzige Grundlage der
       # Veränderungsspalte – Propstack führt keine Miethistorie. Sie wird
       # deshalb ins Repository zurückgeschrieben und nicht bloß gecacht.
       - name: Zeitreihe fortschreiben
