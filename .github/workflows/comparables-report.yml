@@ -48,6 +48,14 @@ on:
           - "beide"
           - "intern"
           - "extern"
+      asana_upload:
+        description: "Monatsbericht als Unteraufgabe in Asana ablegen (mit PDFs im Anhang)"
+        required: false
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
       max_documents:
         description: "Kostenbremse: max. Dokumente (0 = alle)"
         required: false
@@ -121,6 +129,18 @@ jobs:
           # dürfen einzeln nicht nach außen (Vorgabe K&P). Die externe Fassung
           # zeigt deshalb nur Zeilen ab n=5 und keine Objektliste.
           VERTRAULICHKEIT: ${{ github.event.inputs.vertraulichkeit || 'beide' }}
+          # Asana: eine Oberaufgabe "Vergleichsmieten – Monatsberichte" in
+          # 03. (VER) Vermietung / Leasingpaket, darunter je Lauf eine
+          # Unteraufgabe mit beiden PDFs im Anhang. Der MCP-Connector kann
+          # keine Dateien anhängen – der Upload braucht diesen PAT, dasselbe
+          # Secret wie im events_handler.
+          ASANA_ACCESS_TOKEN: ${{ secrets.ASANA_ACCESS_TOKEN }}
+          ASANA_TOKEN: ${{ secrets.ASANA_TOKEN }}
+          ASANA_PAT: ${{ secrets.ASANA_PAT }}
+          ASANA_API_KEY: ${{ secrets.ASANA_API_KEY }}
+          ASANA_API_TOKEN: ${{ secrets.ASANA_API_TOKEN }}
+          ASANA_PERSONAL_ACCESS_TOKEN: ${{ secrets.ASANA_PERSONAL_ACCESS_TOKEN }}
+          ASANA_UPLOAD: ${{ github.event.inputs.asana_upload || 'true' }}
           MAX_DOCUMENTS: ${{ github.event.inputs.max_documents || '0' }}
           COMPARABLES_CHANNEL: ${{ github.event.inputs.channel }}
           DECISION_LOG_PATH: comparables_decisions.jsonl

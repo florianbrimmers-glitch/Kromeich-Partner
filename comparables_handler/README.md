@@ -203,6 +203,29 @@ Maßstab ist die **Zuordenbarkeit**, nicht die Zahl selbst: ein Median über 114
 
 **Der Slack-Post ist immer die interne Fassung** – er geht in einen internen Kanal. Auch der CSV-Datensatz bleibt vollständig; er ist ein Arbeitsdatensatz, kein Weitergabe-Dokument.
 
+## Ablage in Asana
+
+Jeder Lauf legt den Monatsbericht als **Unteraufgabe** unter einer festen Oberaufgabe ab, mit beiden PDFs im Anhang:
+
+```
+03. (VER) Vermietung / Leasingpaket
+  └─ Vergleichsmieten – Monatsberichte              <- Oberaufgabe, 1217454616756224
+       ├─ Vergleichsmieten August 2026
+       │    ├─ Vergleichsmieten_August_2026.pdf         (intern)
+       │    └─ Vergleichsmieten_August_2026_extern.pdf  (freigegeben)
+       └─ Vergleichsmieten September 2026
+```
+
+Die Beschreibung der Unteraufgabe trägt die Kennzahlen (Median, Ø, Spitze, Mediane je Markt), die Quellenzählung, den Link auf den Actions-Lauf und den Hinweis, welche der beiden Dateien nach außen darf.
+
+**Der Asana-MCP-Connector kann keine Dateien anhängen** – es gibt dort nur ein Lese-Tool für Attachments. Der Upload läuft deshalb über die REST-API (`POST /attachments`, multipart) mit einem **Personal Access Token**: dasselbe Secret, das der `events_handler` nutzt (`ASANA_ACCESS_TOKEN`, Fallback-Namen siehe `config.ASANA_TOKEN_ENV_NAMES`). Ohne Token wird die Ablage übersprungen und der Grund geloggt; der Report selbst läuft weiter.
+
+**Idempotenz:** der Aufgabenname (`Vergleichsmieten <Monat> <Jahr>`) ist der Schlüssel. Läuft der Job im selben Monat erneut, wird die bestehende Unteraufgabe aktualisiert und es werden nur die noch fehlenden Anhänge hochgeladen – kein Duplikat, keine doppelte Datei.
+
+**`ASANA_UPLOAD` ist Opt-in (Default aus)** und bewusst **nicht** an `DRY_RUN` gekoppelt: `DRY_RUN` hält den Slack-Post zurück, bis der Report inhaltlich abgenommen ist, während die Asana-Ablage ein internes Archiv ist und schon vorher laufen soll. Umgekehrt darf ein lokaler Testlauf mit gesetztem Token nicht ungefragt Aufgaben anlegen. `NO_WRITE=true` schaltet auch Asana ab und loggt stattdessen die Beschreibung, die entstanden wäre.
+
+Der CSV-Datensatz wird **nicht** angehängt (`ASANA_ATTACH_DATASET=true` schaltet ihn zu): er enthält jede Einheit mit Adresse und Miete, und ein Anhang wandert leichter weiter als eine Zeile im Log.
+
 ## Betriebsmodi
 
 | Modus | Slack-Post | CSV + JSONL + PDF | Zweck |
@@ -240,6 +263,10 @@ Danach im Workflow `DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}` setz
 | `VERTRAULICHKEIT` | nein | `beide` | `intern` / `extern` / `beide` – welche PDF-Fassung(en) entstehen |
 | `PDF_PATH` | nein | `comparables_report.pdf` | Ausgabepfad der internen Fassung; die externe hängt `_extern` an |
 | `KP_DESIGN_DIR` | nein | `~/.claude/skills/synced/kp-design` | Quelle der K&P-Schriften |
+| `ASANA_UPLOAD` | nein | `false` | Monatsbericht als Asana-Unteraufgabe ablegen (Opt-in) |
+| `ASANA_ACCESS_TOKEN` | für Asana | – | Personal Access Token; Fallbacks: `ASANA_TOKEN`, `ASANA_PAT`, `ASANA_API_KEY`, `ASANA_API_TOKEN`, `ASANA_PERSONAL_ACCESS_TOKEN` |
+| `ASANA_PARENT_TASK_ID` | nein | `1217454616756224` | Oberaufgabe, unter der die Monatsberichte hängen |
+| `ASANA_ATTACH_DATASET` | nein | `false` | zusätzlich die CSV anhängen |
 | `MAX_DOCUMENTS` | nein | `0` | Kostenbremse (0 = alle); gekappte Dokumente werden als Fehler gemeldet |
 | `DATASET_PATH` | nein | `comparables_dataset.csv` | CSV-Datensatz |
 | `EXTRACTION_CACHE_PATH` | nein | `comparables_cache.jsonl` | Extraktions-Cache (leer = aus) |

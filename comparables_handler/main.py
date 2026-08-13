@@ -7,8 +7,8 @@ import uuid
 from datetime import datetime, timezone
 
 from . import (
-    aggregate, cache, config, drive_gateway, extractor, kennzahlen, logbuch,
-    normalize, propstack_gateway, report_pdf, snapshots,
+    aggregate, asana_gateway, cache, config, drive_gateway, extractor,
+    kennzahlen, logbuch, normalize, propstack_gateway, report_pdf, snapshots,
 )
 from .models import ComparableZeile, DecisionRecord, DriveDoc, Mietangebot, RunReport
 from .slack_gateway import MONATE, baue_nachricht, poste
@@ -291,6 +291,16 @@ def run_pipeline() -> RunReport:
             if pfad:
                 report.pdfs[fassung] = pfad
 
+    # Ablage in Asana: eine Unteraufgabe je Monat unter der Oberaufgabe.
+    # Läuft NACH dem PDF, weil die Dateien angehängt werden.
+    try:
+        report.asana_task_url = asana_gateway.veroeffentliche(
+            stats, report, stand, report.pdfs, tabellen, stand_vorher,
+        )
+    except Exception as e:
+        logger.exception("Asana-Ablage fehlgeschlagen")
+        report.fehler.append(f"Asana: {e}")
+
     _print_summary(report, stats)
     return report
 
@@ -330,6 +340,8 @@ def _print_summary(report: RunReport, stats: list) -> None:
     logger.info("  Slack gepostet:             %s", report.slack_gepostet)
     logger.info("  PDF-Fassungen:              %s",
                 ", ".join(f"{f}: {p}" for f, p in report.pdfs.items()) or "–")
+    logger.info("  Asana-Monatsbericht:        %s",
+                report.asana_task_url or f"– ({config.asana_grund() or 'nicht angelegt'})")
     logger.info("  Fehler:                     %d", len(report.fehler))
     for fehler in report.fehler:
         logger.info("    - %s", fehler)

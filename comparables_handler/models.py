@@ -241,4 +241,5 @@ class RunReport(BaseModel):
     slack_gepostet: bool = False
     # Fassung ("intern"/"extern") -> Pfad. Ein Lauf kann beide erzeugen.
     pdfs: dict[str, str] = Field(default_factory=dict)
+    asana_task_url: str | None = None
     fehler: list[str] = Field(default_factory=list)

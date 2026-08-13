@@ -291,6 +291,91 @@ def make_pdf() -> bool:
     return _env_bool("MAKE_PDF", "false")
 
 
+# --- Asana: Monatsbericht als Unteraufgabe ---------------------------------
+# Struktur (mit K&P festgelegt am 13.08.2026): eine Oberaufgabe im Projekt
+# "03. (VER) Vermietung", Abschnitt "Leasingpaket", darunter je Lauf eine
+# Unteraufgabe mit den PDFs im Anhang.
+#
+# ACHTUNG: Der Asana-MCP-Connector kann KEINE Dateien anhängen. Der Upload
+# braucht einen Personal Access Token – dasselbe Secret wie im events_handler.
+ASANA_PARENT_TASK_ID = "1217454616756224"   # "Vergleichsmieten – Monatsberichte"
+
+# Fehlende Secrets kommen in GitHub Actions als LEERER String an, deshalb wird
+# auf Inhalt und nicht auf Existenz geprüft.
+ASANA_TOKEN_ENV_NAMES = (
+    "ASANA_ACCESS_TOKEN",
+    "ASANA_TOKEN",
+    "ASANA_PAT",
+    "ASANA_API_KEY",
+    "ASANA_API_TOKEN",
+    "ASANA_PERSONAL_ACCESS_TOKEN",
+)
+
+
+def asana_token_env_name() -> str | None:
+    """Name der Env-Variable, die den Token liefert (für Logging/Diagnose)."""
+    for name in ASANA_TOKEN_ENV_NAMES:
+        if os.environ.get(name, "").strip():
+            return name
+    return None
+
+
+def asana_token() -> str:
+    name = asana_token_env_name()
+    if not name:
+        raise RuntimeError(
+            "Kein Asana-Token gefunden. Eines dieser Repository-Secrets füllen "
+            f"({', '.join(ASANA_TOKEN_ENV_NAMES)}) – "
+            "Settings -> Secrets and variables -> Actions."
+        )
+    return os.environ[name].strip()
+
+
+def asana_parent_task_id() -> str:
+    return os.environ.get("ASANA_PARENT_TASK_ID", "").strip() or ASANA_PARENT_TASK_ID
+
+
+def asana_upload() -> bool:
+    """Asana-Ablage aktiv? Bewusst OPT-IN (Default aus).
+
+    Absichtlich NICHT an DRY_RUN gekoppelt: DRY_RUN hält den Slack-Post
+    zurück, bis der Report inhaltlich abgenommen ist – die Asana-Ablage ist
+    aber ein internes Archiv und soll schon vorher laufen. Umgekehrt darf ein
+    lokaler Testlauf mit gesetztem Token nicht ungefragt Aufgaben anlegen,
+    deshalb muss diese Variable explizit gesetzt werden (im Workflow ist sie
+    es). NO_WRITE schaltet auch die Asana-Ablage ab.
+    """
+    return _env_bool("ASANA_UPLOAD", "false")
+
+
+def asana_dataset_anhaengen() -> bool:
+    """Auch den CSV-Datensatz anhängen?
+
+    Standard aus: die CSV enthält jede Einheit mit Adresse und Miete. Im
+    Asana-Workspace ist das intern, aber ein Anhang wandert leichter weiter als
+    eine Zeile im Log – wer ihn braucht, schaltet ihn bewusst ein.
+    """
+    return _env_bool("ASANA_ATTACH_DATASET", "false")
+
+
+def asana_grund() -> str:
+    """Warum die Asana-Ablage nicht läuft – für eine klare Log-Zeile."""
+    if not asana_upload():
+        return "ASANA_UPLOAD nicht gesetzt (Opt-in)"
+    if no_write():
+        return "NO_WRITE"
+    if not asana_token_env_name():
+        return ("kein Asana-Token gesetzt (eines von "
+                f"{', '.join(ASANA_TOKEN_ENV_NAMES)})")
+    if not asana_parent_task_id():
+        return "keine Oberaufgabe konfiguriert (ASANA_PARENT_TASK_ID)"
+    return ""
+
+
+def asana_aktiv() -> bool:
+    return not asana_grund()
+
+
 def max_documents() -> int:
     """Obergrenze extrahierter Dokumente pro Lauf (0 = unbegrenzt).
 
