@@ -220,7 +220,9 @@ Die Beschreibung der Unteraufgabe trägt die Kennzahlen (Median, Ø, Spitze, Med
 
 **Der Asana-MCP-Connector kann keine Dateien anhängen** – es gibt dort nur ein Lese-Tool für Attachments. Der Upload läuft deshalb über die REST-API (`POST /attachments`, multipart) mit einem **Personal Access Token**: dasselbe Secret, das der `events_handler` nutzt (`ASANA_ACCESS_TOKEN`, Fallback-Namen siehe `config.ASANA_TOKEN_ENV_NAMES`). Ohne Token wird die Ablage übersprungen und der Grund geloggt; der Report selbst läuft weiter.
 
-**Idempotenz:** der Aufgabenname (`Vergleichsmieten <Monat> <Jahr>`) ist der Schlüssel. Läuft der Job im selben Monat erneut, wird die bestehende Unteraufgabe aktualisiert und es werden nur die noch fehlenden Anhänge hochgeladen – kein Duplikat, keine doppelte Datei.
+**Idempotenz:** der Aufgabenname (`Vergleichsmieten <Monat> <Jahr>`) ist der Schlüssel. Läuft der Job im selben Monat erneut, wird die bestehende Unteraufgabe aktualisiert – kein Duplikat. Die Anhänge werden dabei **ersetzt**, nicht übersprungen: erst den neuen hochladen, dann den alten entfernen. Überspringen wäre falsch, weil ein Wiederholungslauf den neueren Stand trägt; am 13.08.2026 wäre so die nicht CI-treue Fassung unter dem Namen des aktuellen Monats liegengeblieben. Schlägt der Upload fehl, behält die Aufgabe den alten Stand statt keinen.
+
+**Nachgewiesen am 13.08.2026** (Läufe [31700073360](https://github.com/florianbrimmers-glitch/Kromeich-Partner/actions/runs/31700073360) und [31700822006](https://github.com/florianbrimmers-glitch/Kromeich-Partner/actions/runs/31700822006)): Unteraufgabe angelegt, beide PDFs hängen dran, beim zweiten Lauf ersetzt statt dupliziert. Das Secret heißt im Repository **`ASANA_TOKEN`** – `ASANA_ACCESS_TOKEN` ist leer, die Fallback-Liste deckt das ab.
 
 **`ASANA_UPLOAD` ist Opt-in (Default aus)** und bewusst **nicht** an `DRY_RUN` gekoppelt: `DRY_RUN` hält den Slack-Post zurück, bis der Report inhaltlich abgenommen ist, während die Asana-Ablage ein internes Archiv ist und schon vorher laufen soll. Umgekehrt darf ein lokaler Testlauf mit gesetztem Token nicht ungefragt Aufgaben anlegen. `NO_WRITE=true` schaltet auch Asana ab und loggt stattdessen die Beschreibung, die entstanden wäre.
 
@@ -233,6 +235,10 @@ Der CSV-Datensatz wird **nicht** angehängt (`ASANA_ATTACH_DATASET=true` schalte
 | `NO_WRITE=true` | nein | ja | Testen mit echten Daten, beliebig wiederholbar (schreibt die Zeitreihe nicht fort) |
 | `DRY_RUN=true` | nein (nur ins Log) | ja | Report inhaltlich prüfen, bevor das Team ihn sieht |
 | `DRY_RUN=false` | ja | ja | Normalbetrieb |
+
+### Lauf von Hand starten
+
+`workflow_dispatch` greift erst, wenn `comparables-report.yml` auf dem **Default-Branch** liegt – solange die Datei nur im Feature-Branch liegt, antwortet GitHub mit **404**, auch wenn man den Branch als Ref angibt. Für die Abnahmeläufe wurde deshalb vorübergehend ein `push`-Trigger auf dem Feature-Branch verwendet. Nach dem Merge nach `main` läuft *Actions → Comparables Report → Run workflow* normal.
 
 ### Scharfschalten
 
@@ -262,7 +268,7 @@ Danach im Workflow `DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}` setz
 | `MAKE_PDF` | nein | `false` | K&P-PDF erzeugen |
 | `VERTRAULICHKEIT` | nein | `beide` | `intern` / `extern` / `beide` – welche PDF-Fassung(en) entstehen |
 | `PDF_PATH` | nein | `comparables_report.pdf` | Ausgabepfad der internen Fassung; die externe hängt `_extern` an |
-| `KP_DESIGN_DIR` | nein | `~/.claude/skills/synced/kp-design` | Quelle der K&P-Schriften |
+| `KP_DESIGN_DIR` | nein | `~/.claude/skills/synced/kp-design` | Erste Suchstelle für die K&P-Schriften; fehlt sie, greift `assets/fonts` im Repository (siehe dortige README) |
 | `ASANA_UPLOAD` | nein | `false` | Monatsbericht als Asana-Unteraufgabe ablegen (Opt-in) |
 | `ASANA_ACCESS_TOKEN` | für Asana | – | Personal Access Token; Fallbacks: `ASANA_TOKEN`, `ASANA_PAT`, `ASANA_API_KEY`, `ASANA_API_TOKEN`, `ASANA_PERSONAL_ACCESS_TOKEN` |
 | `ASANA_PARENT_TASK_ID` | nein | `1217454616756224` | Oberaufgabe, unter der die Monatsberichte hängen |
