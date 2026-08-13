@@ -1,6 +1,6 @@
-"""Monatsbericht als Asana-Unteraufgabe.
+"""Quartalsbericht als Asana-Unteraufgabe.
 
-Der wichtigste Fall ist die Idempotenz: der Monatslauf kann wiederholt werden
+Der wichtigste Fall ist die Idempotenz: der Lauf kann wiederholt werden
 (Nachlauf, manueller Re-Run), und dabei darf keine zweite Unteraufgabe und
 kein doppelter Anhang entstehen.
 
@@ -73,10 +73,9 @@ class _Aufrufe:
 
 @pytest.fixture
 def scharf(monkeypatch):
-    """Token gesetzt, kein Dry-Run – der Zustand im Monatslauf."""
+    """Token gesetzt und Upload erlaubt – der Zustand im Quartalslauf."""
     monkeypatch.setenv("ASANA_ACCESS_TOKEN", "test-token")
     monkeypatch.setenv("ASANA_UPLOAD", "true")
-    monkeypatch.setenv("DRY_RUN", "false")
     monkeypatch.setenv("NO_WRITE", "false")
     monkeypatch.delenv("ASANA_ATTACH_DATASET", raising=False)
     monkeypatch.setenv("ASANA_PARENT_TASK_ID", PARENT)
@@ -99,7 +98,7 @@ def test_ohne_token_wird_uebersprungen(monkeypatch):
 
     stats, tabellen = _daten()
     assert asana_gateway.veroeffentliche(
-        stats, RunReport(quelle="propstack"), "August 2026", {}, tabellen) is None
+        stats, RunReport(quelle="propstack"), "August 2026", None, tabellen) is None
 
 
 def test_asana_ist_opt_in(monkeypatch):
@@ -113,12 +112,13 @@ def test_asana_ist_opt_in(monkeypatch):
     assert config.asana_aktiv() is True
 
 
-def test_dry_run_haelt_asana_nicht_auf(monkeypatch):
-    """DRY_RUN gilt dem Slack-Post; das interne Asana-Archiv laeuft weiter."""
+def test_asana_haengt_nicht_am_slack_post(monkeypatch):
+    """Der Slack-Post ist abgeschaltet – die Asana-Ablage läuft trotzdem."""
     monkeypatch.setenv("ASANA_ACCESS_TOKEN", "test-token")
     monkeypatch.setenv("ASANA_UPLOAD", "true")
-    monkeypatch.setenv("DRY_RUN", "true")
+    monkeypatch.delenv("SLACK_POST", raising=False)
     monkeypatch.setenv("NO_WRITE", "false")
+    assert config.slack_post() is False
     assert config.asana_aktiv() is True
 
 

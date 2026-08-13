@@ -111,14 +111,15 @@ MIN_N_LEITREGION = 3
 #
 # ACHTUNG: Marktgrenzen sind eine fachliche Festlegung, keine Naturkonstante.
 # Die Zuordnung unten folgt den PLZ-Leitregionen und ist bewusst hier
-# zentralisiert, damit K&P sie anpassen kann (z.B. ob Krefeld (47) zum
-# Ruhrgebiet oder zu Düsseldorf zählt, oder Aachen (52) zu Köln).
+# zentralisiert. Von K&P bestätigt am 13.08.2026: Krefeld (47) zählt zum
+# Ruhrgebiet, Aachen (52) zu Köln.
 MARKTGEBIETE_TOP = (
     ("Berlin", ("10", "12", "13", "14")),
     ("Düsseldorf", ("40", "41")),
     ("Frankfurt/Rhein-Main", ("60", "61", "63", "64", "65")),
     ("Hamburg", ("20", "21", "22", "25")),
-    ("Köln", ("50", "51")),
+    # Aachen (52) gehört zu Köln – Festlegung K&P, 13.08.2026.
+    ("Köln", ("50", "51", "52")),
     ("Leipzig/Halle", ("04", "06")),
     ("München", ("80", "81", "82", "85")),
 )
@@ -191,9 +192,19 @@ def _env_bool(name: str, default: str) -> bool:
     return os.environ.get(name, default).lower() in ("true", "1", "yes")
 
 
-def dry_run() -> bool:
-    """Default true (sicher): Report wird gebaut und geloggt, aber nicht gepostet."""
-    return _env_bool("DRY_RUN", "true")
+def slack_post() -> bool:
+    """Report in Slack posten? Bewusst OPT-IN, Default AUS.
+
+    Entscheidung K&P (13.08.2026): der Report wird NICHT in Slack gepostet. Er
+    landet als Asana-Unteraufgabe mit PDF – das ist der Ort, an dem er gebraucht
+    wird. Die Nachricht wird weiterhin gebaut und geloggt: sie ist die Grundlage
+    der Asana-Beschreibung und im Log die schnellste Kontrolle eines Laufs.
+
+    Ersetzt das frühere DRY_RUN dieses Handlers. Ein Flag, das nur den
+    Slack-Post steuert, soll auch so heißen – "Dry Run" las sich, als hielte es
+    den ganzen Lauf zurück, während Asana längst schrieb.
+    """
+    return _env_bool("SLACK_POST", "false")
 
 
 def no_write() -> bool:
@@ -297,12 +308,10 @@ def asana_parent_task_id() -> str:
 def asana_upload() -> bool:
     """Asana-Ablage aktiv? Bewusst OPT-IN (Default aus).
 
-    Absichtlich NICHT an DRY_RUN gekoppelt: DRY_RUN hält den Slack-Post
-    zurück, bis der Report inhaltlich abgenommen ist – die Asana-Ablage ist
-    aber ein internes Archiv und soll schon vorher laufen. Umgekehrt darf ein
-    lokaler Testlauf mit gesetztem Token nicht ungefragt Aufgaben anlegen,
-    deshalb muss diese Variable explizit gesetzt werden (im Workflow ist sie
-    es). NO_WRITE schaltet auch die Asana-Ablage ab.
+    Ein lokaler Testlauf mit gesetztem Token darf nicht ungefragt Aufgaben
+    anlegen, deshalb muss diese Variable explizit gesetzt werden (im Workflow
+    ist sie es). NO_WRITE schaltet auch die Asana-Ablage ab; SLACK_POST hat
+    damit nichts zu tun – die beiden Ausgabewege sind unabhängig.
     """
     return _env_bool("ASANA_UPLOAD", "false")
 

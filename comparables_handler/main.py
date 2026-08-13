@@ -237,8 +237,8 @@ def run_pipeline() -> RunReport:
 
     if config.no_write():
         logger.info("=== NO_WRITE – reiner Lese-/Loglauf, kein Slack-Post ===")
-    elif config.dry_run():
-        logger.info("=== DRY RUN – Report wird gebaut und geloggt, aber nicht gepostet ===")
+    elif not config.slack_post():
+        logger.info("=== Kein Slack-Post (Entscheidung K&P) – Report geht nach Asana ===")
 
     logger.info(
         "Quelle: %s | Flächenarten: %s | Stand: %s | Zielkanal: %s",

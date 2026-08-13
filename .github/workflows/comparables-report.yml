@@ -22,14 +22,14 @@ on:
           - "propstack"
           - "beide"
           - "drive"
-      dry_run:
-        description: "Dry run (Report bauen und loggen, aber NICHT in Slack posten)"
+      slack_post:
+        description: "Report zusätzlich in Slack posten (Standard: nein, Entscheidung K&P)"
         required: false
-        default: "true"
+        default: "false"
         type: choice
         options:
-          - "true"
           - "false"
+          - "true"
       no_write:
         description: "Nur lesen/loggen – kein Slack-Post"
         required: false
@@ -117,10 +117,10 @@ jobs:
           GOOGLE_REFRESH_TOKEN_DRIVE: ${{ secrets.GOOGLE_REFRESH_TOKEN_DRIVE }}
           GOOGLE_DRIVE_REFRESH_TOKEN: ${{ secrets.GOOGLE_DRIVE_REFRESH_TOKEN }}
           GOOGLE_REFRESH_TOKEN: ${{ secrets.GOOGLE_REFRESH_TOKEN }}
-          # Noch NICHT scharf: der Cron läuft bewusst im Dry-Run, bis der
-          # erste Report inhaltlich abgenommen und der Zielkanal bestätigt
-          # ist (siehe comparables_handler/README.md, "Scharfschalten").
-          DRY_RUN: ${{ github.event.inputs.dry_run || 'true' }}
+          # Kein Slack-Post (Entscheidung K&P, 13.08.2026): der Report landet
+          # als Asana-Unteraufgabe mit PDF. Das Bot-Token bleibt hinterlegt,
+          # damit der Weg ohne Code-Änderung offen ist.
+          SLACK_POST: ${{ github.event.inputs.slack_post || 'false' }}
           NO_WRITE: ${{ github.event.inputs.no_write || 'false' }}
           MAKE_PDF: ${{ github.event.inputs.make_pdf || 'true' }}
           # Asana: eine Oberaufgabe "Vergleichsmieten – Quartalsberichte" in

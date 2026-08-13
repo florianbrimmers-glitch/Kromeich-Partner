@@ -214,31 +214,31 @@ Die Beschreibung der Unteraufgabe trägt die Kennzahlen (Median, Ø, Spitze, Med
 
 **Nachgewiesen am 13.08.2026** (Läufe [31700073360](https://github.com/florianbrimmers-glitch/Kromeich-Partner/actions/runs/31700073360) und [31700822006](https://github.com/florianbrimmers-glitch/Kromeich-Partner/actions/runs/31700822006)): Unteraufgabe angelegt, beide PDFs hängen dran, beim zweiten Lauf ersetzt statt dupliziert. Das Secret heißt im Repository **`ASANA_TOKEN`** – `ASANA_ACCESS_TOKEN` ist leer, die Fallback-Liste deckt das ab.
 
-**`ASANA_UPLOAD` ist Opt-in (Default aus)** und bewusst **nicht** an `DRY_RUN` gekoppelt: `DRY_RUN` hält den Slack-Post zurück, bis der Report inhaltlich abgenommen ist, während die Asana-Ablage ein internes Archiv ist und schon vorher laufen soll. Umgekehrt darf ein lokaler Testlauf mit gesetztem Token nicht ungefragt Aufgaben anlegen. `NO_WRITE=true` schaltet auch Asana ab und loggt stattdessen die Beschreibung, die entstanden wäre.
+**`ASANA_UPLOAD` ist Opt-in (Default aus):** ein lokaler Testlauf mit gesetztem Token darf nicht ungefragt Aufgaben anlegen. Im Workflow ist die Variable gesetzt. `NO_WRITE=true` schaltet auch Asana ab und loggt stattdessen die Beschreibung, die entstanden wäre. Mit dem Slack-Post hat das nichts zu tun – die beiden Ausgabewege sind unabhängig.
 
 Der CSV-Datensatz wird **nicht** angehängt (`ASANA_ATTACH_DATASET=true` schaltet ihn zu): er enthält jede Einheit mit Adresse und Miete, und ein Anhang wandert leichter weiter als eine Zeile im Log.
 
 ## Betriebsmodi
 
-| Modus | Slack-Post | CSV + JSONL + PDF | Zweck |
-|---|---|---|---|
-| `NO_WRITE=true` | nein | ja | Testen mit echten Daten, beliebig wiederholbar (schreibt die Zeitreihe nicht fort) |
-| `DRY_RUN=true` | nein (nur ins Log) | ja | Report inhaltlich prüfen, bevor das Team ihn sieht |
-| `DRY_RUN=false` | ja | ja | Normalbetrieb |
+| Modus | Slack | Asana | CSV + JSONL + PDF | Zweck |
+|---|---|---|---|---|
+| Standard | nein | ja (mit `ASANA_UPLOAD=true`) | ja | Normalbetrieb |
+| `SLACK_POST=true` | ja | ja | ja | nur falls der Post doch gewünscht ist |
+| `NO_WRITE=true` | nein | nein (loggt die Beschreibung) | ja | Testen mit echten Daten, beliebig wiederholbar; schreibt die Zeitreihe nicht fort |
+
+**Kein Slack-Post** (Entscheidung K&P, 13.08.2026): der Report landet als Asana-Unteraufgabe mit PDF – dort wird er gebraucht. Die Nachricht wird weiterhin gebaut und ins Log geschrieben; sie ist die Grundlage der Asana-Beschreibung und die schnellste Kontrolle eines Laufs. `SLACK_POST=true` schaltet den Post ohne Code-Änderung zu, das Bot-Token bleibt im Workflow hinterlegt.
+
+Das frühere `DRY_RUN` dieses Handlers ist damit weg. Es steuerte am Ende nur noch den Slack-Post, las sich aber als „der ganze Lauf ist ein Trockenlauf" – während Asana längst schrieb. Ein Flag, das nur den Post steuert, heißt jetzt auch so. (Die anderen Handler behalten ihr `DRY_RUN` unverändert.)
 
 ### Lauf von Hand starten
 
 `workflow_dispatch` greift erst, wenn `comparables-report.yml` auf dem **Default-Branch** liegt – solange die Datei nur im Feature-Branch liegt, antwortet GitHub mit **404**, auch wenn man den Branch als Ref angibt. Für die Abnahmeläufe wurde deshalb vorübergehend ein `push`-Trigger auf dem Feature-Branch verwendet. Nach dem Merge nach `main` läuft *Actions → Comparables Report → Run workflow* normal.
 
-### Scharfschalten
+### Offene fachliche Punkte
 
-Der Cron läuft **bewusst noch im Dry-Run**. Drei Dinge sind vor dem Scharfschalten zu klären:
+Erledigt am 13.08.2026: Marktgrenzen bestätigt (Krefeld 47 → Ruhrgebiet, Aachen 52 → Köln), Slack-Post abgeschaltet, Takt auf Quartal.
 
-0. **Feldbelegung gegenprüfen** – `scripts/propstack_miet_audit.py` laufen lassen. Die Feldnamen in `config.FLAECHENARTEN` sind am 12.08.2026 gegen den echten Bestand verifiziert; kommen in Propstack neue Custom Fields dazu, gehören sie dort ergänzt.
-1. **Zielkanal.** Es gibt (Stand 12.08.2026) keinen Leasing-/Comparables-Kanal im Workspace; Default ist deshalb `#objekte` (`C07GH7AN80J`). Ein eigener Kanal ist sinnvoller – dann `COMPARABLES_CHANNEL` im Workflow setzen.
-2. **Inhaltliche Abnahme** des ersten Reports (Actions → *Comparables Report* → Run workflow, `dry_run: true`), insbesondere der extrahierten Kaltmieten gegen die Quell-PDFs.
-
-Danach im Workflow `DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}` setzen.
+Offen bleibt: `GOOGLE_REFRESH_TOKEN_DRIVE` mit Scope `drive.readonly`, falls der Drive-Zweig (`QUELLE=drive`/`beide`) genutzt werden soll – der Propstack-Zweig braucht ihn nicht.
 
 ## Umgebungsvariablen
 
@@ -251,9 +251,9 @@ Danach im Workflow `DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}` setz
 | `GOOGLE_CLIENT_SECRET` | für Drive | – | OAuth-Client |
 | `GOOGLE_REFRESH_TOKEN_DRIVE` | für Drive | – | Refresh-Token **mit `drive.readonly`** (siehe unten) |
 | `ANTHROPIC_API_KEY` | für Drive | – | Claude-Extraktion (Propstack braucht kein LLM) |
-| `SLACK_BOT_TOKEN` | nur scharf | – | Bot-Token für den Report-Post |
+| `SLACK_POST` | nein | `false` | Report zusätzlich in Slack posten (Opt-in, standardmäßig aus) |
+| `SLACK_BOT_TOKEN` | nur mit `SLACK_POST` | – | Bot-Token für den Report-Post |
 | `COMPARABLES_CHANNEL` | nein | `C07GH7AN80J` (#objekte) | Zielkanal |
-| `DRY_RUN` | nein | `true` | Report bauen, aber nicht posten |
 | `NO_WRITE` | nein | `false` | Reiner Lese-/Loglauf |
 | `MAKE_PDF` | nein | `false` | K&P-PDF erzeugen |
 | `PDF_PATH` | nein | `comparables_report.pdf` | Ausgabepfad des PDF |

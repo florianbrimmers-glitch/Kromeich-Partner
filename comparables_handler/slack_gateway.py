@@ -206,13 +206,14 @@ def baue_nachricht(
 def poste(text: str) -> bool:
     """Postet den Report in den Zielkanal.
 
-    Im DRY_RUN/NO_WRITE nur geloggt – ein Quartals-Post ist nicht
+    Ohne SLACK_POST bzw. im NO_WRITE nur geloggt – ein Quartals-Post ist nicht
     zurücknehmbar, deshalb ist der Default bewusst still.
     """
-    if config.no_write() or config.dry_run():
+    if config.no_write() or not config.slack_post():
         logger.info(
             "[%s] Würde in %s posten:\n%s",
-            "NO_WRITE" if config.no_write() else "DRY_RUN", config.slack_channel(), text,
+            "NO_WRITE" if config.no_write() else "SLACK_POST=false",
+            config.slack_channel(), text,
         )
         return False
     try:

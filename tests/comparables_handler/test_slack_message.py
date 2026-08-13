@@ -128,6 +128,7 @@ def test_run_url_wird_angehaengt(monkeypatch):
     assert "https://github.com/org/repo/actions/runs/42" in text
 
 
-def test_post_im_dry_run_unterbleibt(monkeypatch):
-    monkeypatch.setenv("DRY_RUN", "true")
+def test_ohne_slack_post_unterbleibt_der_post(monkeypatch):
+    """Entscheidung K&P: kein Slack-Post. SLACK_POST ist Opt-in."""
+    monkeypatch.delenv("SLACK_POST", raising=False)
     assert slack_gateway.poste("egal") is False
