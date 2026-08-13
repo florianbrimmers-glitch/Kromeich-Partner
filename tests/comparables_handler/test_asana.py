@@ -44,14 +44,18 @@ class _Aufrufe:
         self.anhaenge = list(anhaenge)
         self.requests: list[tuple[str, str, dict | None]] = []
         self.uploads: list[str] = []
+        self.geloescht: list[str] = []
 
     def request(self, method, url, **kw):
         pfad = url.replace(asana_gateway.ASANA_BASE_URL, "")
         self.requests.append((method, pfad, kw.get("json")))
+        if method == "DELETE":
+            self.geloescht.append(pfad)
         if method == "GET" and pfad.endswith("/subtasks"):
             daten = {"data": [{"gid": "sub1", "name": n} for n in self.subtasks]}
         elif method == "GET" and pfad == "/attachments":
-            daten = {"data": [{"gid": "att1", "name": n} for n in self.anhaenge]}
+            daten = {"data": [{"gid": f"att-alt-{i}", "name": n}
+                              for i, n in enumerate(self.anhaenge)]}
         elif method == "POST" and pfad == "/tasks":
             daten = {"data": {"gid": "neu1"}}
         else:
@@ -225,7 +229,34 @@ def test_zweiter_lauf_im_selben_monat_legt_nichts_neu_an(monkeypatch, scharf, tm
     methoden = [(m, p) for m, p, _ in aufrufe.requests]
     assert ("POST", "/tasks") not in methoden
     assert ("PUT", "/tasks/sub1") in methoden
-    assert aufrufe.uploads == [], "vorhandener Anhang darf nicht doppelt hochgeladen werden"
+    # Der Anhang wird ERSETZT: neu hochladen, alten entfernen. Sonst bliebe
+    # eine überholte Datei mit dem Namen des aktuellen Monats liegen.
+    assert aufrufe.uploads == ["Vergleichsmieten_August_2026.pdf"]
+    assert aufrufe.geloescht == ["/attachments/att-alt-0"]
+
+
+def test_alter_anhang_wird_erst_nach_dem_upload_entfernt(monkeypatch, scharf, tmp_path):
+    """Reihenfolge: schlägt der Upload fehl, behält die Aufgabe den alten Stand."""
+    pdf = tmp_path / "i.pdf"
+    pdf.write_bytes(b"%PDF-1.4")
+
+    aufrufe = _Aufrufe(
+        subtasks=["Vergleichsmieten August 2026"],
+        anhaenge=["Vergleichsmieten_August_2026.pdf"],
+    )
+    _verdrahte(monkeypatch, aufrufe)
+    monkeypatch.setattr(
+        asana_gateway.httpx, "post",
+        lambda url, **kw: httpx.Response(
+            403, text="Forbidden", request=httpx.Request("POST", url)),
+    )
+
+    stats, tabellen = _daten()
+    asana_gateway.veroeffentliche(
+        stats, RunReport(quelle="propstack"), "August 2026",
+        {config.VERTRAULICH_INTERN: str(pdf)}, tabellen)
+
+    assert aufrufe.geloescht == [], "alter Anhang darf nach fehlgeschlagenem Upload bleiben"
 
 
 def test_fehlender_anhang_bricht_den_lauf_nicht_ab(monkeypatch, scharf):

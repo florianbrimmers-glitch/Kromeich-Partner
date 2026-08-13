@@ -19,8 +19,11 @@ das der events_handler nutzt (`ASANA_ACCESS_TOKEN` u.a.). Ohne Token macht
 dieser Handler nichts und sagt es im Log; der Report selbst läuft weiter.
 
 Idempotenz: zwei Läufe im selben Monat dürfen nicht zwei Unteraufgaben
-erzeugen. Gesucht wird über den exakten Namen; existiert die Unteraufgabe,
-werden Beschreibung aktualisiert und nur die noch fehlenden Dateien angehängt.
+erzeugen. Gesucht wird über den exakten Namen; existiert die Unteraufgabe, wird
+ihre Beschreibung aktualisiert und die Anhänge werden ERSETZT (erst der neue
+hochgeladen, dann der alte entfernt). Überspringen wäre falsch: ein
+Wiederholungslauf trägt den neueren Stand, und eine überholte Datei mit dem
+Namen des aktuellen Monats bliebe sonst liegen.
 """
 from __future__ import annotations
 
@@ -104,12 +107,27 @@ def finde_unteraufgabe(parent_gid: str, name: str) -> str | None:
     return None
 
 
-def _anhang_namen(task_gid: str) -> set[str]:
-    """Namen der bereits hängenden Dateien – verhindert Doppel-Uploads."""
-    daten = _request("GET", f"/attachments", params={
+def vorhandene_anhaenge(task_gid: str) -> dict[str, str]:
+    """Dateiname -> Anhang-GID der bereits hängenden Dateien."""
+    daten = _request("GET", "/attachments", params={
         "parent": task_gid, "opt_fields": "name", "limit": 100,
     }).json()
-    return {(a.get("name") or "").strip() for a in (daten.get("data") or [])}
+    return {
+        (a.get("name") or "").strip(): a.get("gid")
+        for a in (daten.get("data") or []) if a.get("gid")
+    }
+
+
+def loesche_anhang(gid: str) -> bool:
+    """Alten Anhang entfernen, nachdem der neue hängt."""
+    try:
+        _request("DELETE", f"/attachments/{gid}")
+        return True
+    except Exception as e:
+        # Zwei Dateien gleichen Namens sind unschön, aber harmlos – die
+        # Aufgabe hat dann den neuen UND den alten Stand. Kein Abbruch.
+        logger.warning("Alter Anhang %s konnte nicht entfernt werden: %s", gid, e)
+        return False
 
 
 def haenge_datei_an(task_gid: str, pfad: str, name: str | None = None) -> str | None:
@@ -327,20 +345,28 @@ def veroeffentliche(
             return None
         logger.info("Asana-Unteraufgabe angelegt: %r (gid %s)", name, gid)
 
-    vorhanden = _anhang_namen(gid)
-    for fassung, pfad in _in_reihenfolge(pdfs):
-        dateiname = anhang_name(stand, fassung)
-        if dateiname in vorhanden:
-            logger.info("Anhang %s hängt bereits – übersprungen", dateiname)
-            continue
+    # Anhänge ERSETZEN, nicht überspringen: ein Wiederholungslauf findet
+    # gleichnamige Dateien vor, trägt aber den neueren Stand. Übersprungen
+    # bliebe eine überholte Datei mit dem Namen des aktuellen Monats liegen –
+    # genau so wäre am 13.08.2026 die nicht CI-treue Fassung stehengeblieben.
+    # Reihenfolge: erst hochladen, dann die alte löschen. Bricht der Upload ab,
+    # hat die Aufgabe weiterhin den alten Anhang statt keinen.
+    vorhanden = vorhandene_anhaenge(gid)
+    anzuhaengen = [(anhang_name(stand, f), p) for f, p in _in_reihenfolge(pdfs)]
+    if config.asana_dataset_anhaengen():
+        anzuhaengen.append((
+            f"Vergleichsmieten_{stand.replace(' ', '_')}_Datensatz.csv",
+            config.dataset_path(),
+        ))
+
+    for dateiname, pfad in anzuhaengen:
         if haenge_datei_an(gid, pfad, dateiname) is None:
             report.fehler.append(f"Asana: Anhang {dateiname} fehlgeschlagen")
-
-    if config.asana_dataset_anhaengen():
-        pfad = config.dataset_path()
-        dateiname = f"Vergleichsmieten_{stand.replace(' ', '_')}_Datensatz.csv"
-        if dateiname not in vorhanden:
-            haenge_datei_an(gid, pfad, dateiname)
+            continue
+        alt = vorhanden.get(dateiname)
+        if alt:
+            logger.info("Anhang %s ersetzt (alter Stand %s entfernt)", dateiname, alt)
+            loesche_anhang(alt)
 
     url = f"https://app.asana.com/0/0/{gid}"
     logger.info("Asana-Monatsbericht: %s", url)

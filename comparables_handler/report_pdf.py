@@ -30,16 +30,41 @@ _FONT_DATEIEN = {
 _FALLBACK = {"KP-Headline": "Times-Roman", "KP-Body": "Helvetica", "KP-Body-Bold": "Helvetica-Bold"}
 
 
+def _font_verzeichnisse() -> list[str]:
+    """Wo nach den K&P-Schriften gesucht wird, in dieser Reihenfolge.
+
+    1. Der kp-design-Skill – die Single Source of Truth des Corporate Designs.
+    2. assets/fonts im Repository – der Fallback für GitHub Actions, wo es
+       keinen Skill gibt. Ohne diesen Pfad rendert der Monatslauf mit
+       Helvetica/Times: gemessen am 13.08.2026 war die nach Asana geladene
+       Datei byte-identisch mit einem Lauf ohne Schriften (16.299 statt 53.615
+       Bytes). Inhaltlich richtig, aber nicht CI-treu – und genau diese Datei
+       geht ins Kundengespräch.
+    """
+    repo = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return [
+        os.path.join(config.kp_design_dir(), "assets", "fonts"),
+        os.path.join(repo, "assets", "fonts"),
+    ]
+
+
+def _finde_font(datei: str) -> str | None:
+    for verzeichnis in _font_verzeichnisse():
+        pfad = os.path.join(verzeichnis, datei)
+        if os.path.exists(pfad):
+            return pfad
+    return None
+
+
 def _registriere_fonts() -> dict[str, str]:
-    """Bettet die K&P-Schriften ein, wenn der kp-design-Skill vorliegt."""
+    """Bettet die K&P-Schriften ein, wenn sie irgendwo zu finden sind."""
     from reportlab.pdfbase import pdfmetrics
     from reportlab.pdfbase.ttfonts import TTFont
 
-    font_dir = os.path.join(config.kp_design_dir(), "assets", "fonts")
     namen: dict[str, str] = {}
     for logisch, datei in _FONT_DATEIEN.items():
-        pfad = os.path.join(font_dir, datei)
-        if not os.path.exists(pfad):
+        pfad = _finde_font(datei)
+        if pfad is None:
             namen[logisch] = _FALLBACK[logisch]
             continue
         try:
@@ -51,8 +76,9 @@ def _registriere_fonts() -> dict[str, str]:
 
     if any(v.startswith(("Times", "Helvetica")) for v in namen.values()):
         logger.warning(
-            "K&P-Schriften nicht gefunden (%s) – PDF nutzt Standardschriften. "
-            "KP_DESIGN_DIR auf den kp-design-Skill setzen für CI-Treue.", font_dir,
+            "K&P-Schriften nicht gefunden (gesucht in: %s) – PDF nutzt "
+            "Standardschriften und ist NICHT CI-treu.",
+            ", ".join(_font_verzeichnisse()),
         )
     return namen
 
