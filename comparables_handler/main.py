@@ -7,8 +7,8 @@ import uuid
 from datetime import datetime, timezone
 
 from . import (
-    aggregate, cache, config, drive_gateway, extractor, logbuch, normalize,
-    propstack_gateway, report_pdf,
+    aggregate, cache, config, drive_gateway, extractor, kennzahlen, logbuch,
+    normalize, propstack_gateway, report_pdf, snapshots,
 )
 from .models import ComparableZeile, DecisionRecord, DriveDoc, Mietangebot, RunReport
 from .slack_gateway import MONATE, baue_nachricht, poste
@@ -198,6 +198,37 @@ def _drive_zeilen(report: RunReport, run_id: str) -> list[ComparableZeile]:
     return zeilen
 
 
+def _kennzahlen(
+    zeilen: list[ComparableZeile], stats: list, report: RunReport
+) -> tuple[list, str | None]:
+    """Kennzahlen-Tabellen bauen und den Lauf als Snapshot fortschreiben.
+
+    Der Periodenvergleich entsteht ausschließlich aus dieser Ablage – Propstack
+    führt keine Miethistorie. Beim ersten Lauf bleibt die Veränderungsspalte
+    deshalb leer, statt eine erfundene Basis auszuweisen.
+    """
+    stand_kurz = snapshots.aktueller_stand()
+    verlauf = snapshots.laden(config.snapshot_path())
+    vergleich = snapshots.vergleichs_snapshot(
+        verlauf, stand_kurz, config.VERGLEICH_MONATE, config.VERGLEICH_TOLERANZ_MONATE,
+    )
+
+    tabellen = [
+        kennzahlen.baue_tabelle(zeilen, art, vergleich)
+        for art in aggregate.flaechenarten(stats)
+    ]
+    tabellen = [t for t in tabellen if t.zeilen]
+
+    if tabellen and not config.no_write():
+        verlauf = snapshots.anhaengen(
+            verlauf, stand_kurz, kennzahlen.snapshot_werte(tabellen))
+        snapshots.schreiben(config.snapshot_path(), verlauf)
+    elif config.no_write():
+        logger.info("[NO_WRITE] Snapshot %s wird nicht fortgeschrieben", stand_kurz)
+
+    return tabellen, (vergleich or {}).get("stand")
+
+
 def run_pipeline() -> RunReport:
     report = RunReport()
     run_id = uuid.uuid4().hex[:12]
@@ -240,12 +271,17 @@ def run_pipeline() -> RunReport:
     stats = aggregate.aggregiere(zeilen)
     report.regionen = len(aggregate.leitregionen(stats)) + len(aggregate.zonen(stats))
 
-    text = baue_nachricht(stats, report, stand)
+    # Kennzahlen-Tabellen im Marktbericht-Layout, inkl. Periodenvergleich
+    tabellen, stand_vorher = _kennzahlen(zeilen, stats, report)
+
+    text = baue_nachricht(stats, report, stand, tabellen, stand_vorher)
     logger.info("Report:\n%s", text)
     report.slack_gepostet = poste(text)
 
     if config.make_pdf():
-        report.pdf_erstellt = report_pdf.erzeuge_pdf(stats, report, stand, config.pdf_path())
+        report.pdf_erstellt = report_pdf.erzeuge_pdf(
+            stats, report, stand, config.pdf_path(), tabellen, stand_vorher,
+        )
 
     _print_summary(report, stats)
     return report

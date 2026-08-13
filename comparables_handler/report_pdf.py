@@ -84,6 +84,114 @@ def _tabelle(kopf: list[str], zeilen: list[list[str]], breiten: list[float], fon
     return tabelle
 
 
+def _prozent(wert: float | None, punkte: bool = False) -> str:
+    """12.4 -> '+12,4 %' bzw. '+12,4 %-Pkte.' – leer, wenn keine Basis."""
+    if wert is None:
+        return "–"
+    vorzeichen = "+" if wert > 0 else ""
+    text = f"{vorzeichen}{wert:.1f}".replace(".", ",")
+    return f"{text} %-Pkte." if punkte else f"{text} %"
+
+
+def kennzahlen_tabelle(tabelle, breiten: list[float], fonts: dict[str, str], stand_vorher: str | None):
+    """Kennzahlen im Marktbericht-Layout.
+
+    Gruppen-Kopfzeilen ohne Werte, Positionen eingerückt, Zwischensummen in
+    Grün, Gesamtsumme als volle grüne Zeile, Anteile darunter abgesetzt.
+    """
+    from reportlab.lib import colors
+    from reportlab.platypus import Table, TableStyle
+
+    vorher_kopf = stand_vorher or "Vorperiode"
+    daten: list[list[str]] = [["", "n", "Standorte", vorher_kopf, "aktuell", "VERÄNDERUNG"]]
+    stil: list = [
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(DUNKELGRUEN)),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTNAME", (0, 0), (-1, 0), fonts["KP-Body-Bold"]),
+        ("FONTSIZE", (0, 0), (-1, -1), 8.5),
+        ("FONTNAME", (0, 1), (-1, -1), fonts["KP-Body"]),
+        ("TEXTCOLOR", (0, 1), (-1, -1), colors.HexColor(DUNKELGRAU)),
+        ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
+        ("ALIGN", (0, 0), (0, -1), "LEFT"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("TOPPADDING", (0, 0), (-1, -1), 4),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("LEFTPADDING", (0, 0), (-1, -1), 6),
+    ]
+
+    zeile_index = 0
+    letzte_gruppe = None
+
+    def _werte(z, einrueckung: str = "") -> list[str]:
+        einheit = "%" if z.ist_prozentwert else ""
+        jetzt = (f"{z.median_jetzt:.1f}".replace(".", ",") + " %"
+                 if z.ist_prozentwert and z.median_jetzt is not None
+                 else eur(z.median_jetzt, einheit))
+        vorher = (f"{z.median_vorher:.1f}".replace(".", ",") + " %"
+                  if z.ist_prozentwert and z.median_vorher is not None
+                  else eur(z.median_vorher))
+        return [
+            einrueckung + z.label,
+            str(z.n) if not z.ist_prozentwert else "",
+            str(z.n_standorte) if not z.ist_prozentwert else "",
+            vorher,
+            jetzt,
+            _prozent(z.veraenderung_prozent, punkte=z.ist_prozentwert),
+        ]
+
+    for z in tabelle.zeilen:
+        # Gruppen-Kopfzeile einschieben (wie "Flächenumsatz bedeutende …")
+        if z.gruppe and z.gruppe != letzte_gruppe and z.ebene == "position":
+            zeile_index += 1
+            daten.append([z.gruppe, "", "", "", "", ""])
+            stil += [
+                ("FONTNAME", (0, zeile_index), (-1, zeile_index), fonts["KP-Body-Bold"]),
+                ("BACKGROUND", (0, zeile_index), (-1, zeile_index), colors.white),
+            ]
+            letzte_gruppe = z.gruppe
+
+        zeile_index += 1
+        if z.ebene == "zwischensumme":
+            daten.append(_werte(z))
+            stil += [
+                ("TEXTCOLOR", (0, zeile_index), (-1, zeile_index), colors.HexColor("#1E7A4E")),
+                ("FONTNAME", (0, zeile_index), (-1, zeile_index), fonts["KP-Body-Bold"]),
+                ("BACKGROUND", (0, zeile_index), (-1, zeile_index), colors.HexColor(ZEBRA)),
+                ("LINEABOVE", (0, zeile_index), (-1, zeile_index), 0.6,
+                 colors.HexColor(HAIRLINE)),
+            ]
+            letzte_gruppe = None
+        else:
+            daten.append(_werte(z, "   "))
+            if zeile_index % 2 == 0:
+                stil.append(("BACKGROUND", (0, zeile_index), (-1, zeile_index),
+                             colors.HexColor("#FAFAF7")))
+
+    if tabelle.gesamt:
+        zeile_index += 1
+        daten.append(_werte(tabelle.gesamt))
+        stil += [
+            ("BACKGROUND", (0, zeile_index), (-1, zeile_index), colors.HexColor(DUNKELGRUEN)),
+            ("TEXTCOLOR", (0, zeile_index), (-1, zeile_index), colors.white),
+            ("FONTNAME", (0, zeile_index), (-1, zeile_index), fonts["KP-Body-Bold"]),
+        ]
+
+    for z in tabelle.anteile:
+        zeile_index += 1
+        daten.append(_werte(z))
+        stil += [
+            ("TEXTCOLOR", (0, zeile_index), (-1, zeile_index), colors.HexColor("#1E7A4E")),
+            ("BACKGROUND", (0, zeile_index), (-1, zeile_index), colors.HexColor(ZEBRA)),
+        ]
+        if z is tabelle.anteile[0]:
+            stil.append(("LINEABOVE", (0, zeile_index), (-1, zeile_index), 0.6,
+                         colors.HexColor(HAIRLINE)))
+
+    t = Table(daten, colWidths=breiten, repeatRows=1, hAlign="LEFT")
+    t.setStyle(TableStyle(stil))
+    return t
+
+
 def _spanne_text(stat: RegionStats) -> str:
     """", Spanne 4,05 bis 4,90 €/m²" – leer bei nur einem Wert."""
     if (stat.min_kaltmiete is None or stat.max_kaltmiete is None
@@ -125,7 +233,10 @@ def _stats_zeilen(stats: list[RegionStats], mit_effektiv: bool = True) -> list[l
     return zeilen
 
 
-def erzeuge_pdf(stats: list[RegionStats], report: RunReport, stand: str, pfad: str) -> str | None:
+def erzeuge_pdf(
+    stats: list[RegionStats], report: RunReport, stand: str, pfad: str,
+    tabellen: list | None = None, stand_vorher: str | None = None,
+) -> str | None:
     """K&P-PDF für Kundengespräche. Rückgabe: Pfad oder None bei Fehler."""
     try:
         from reportlab.lib import colors
@@ -206,6 +317,45 @@ def erzeuge_pdf(stats: list[RegionStats], report: RunReport, stand: str, pfad: s
         return pfad
 
     arten = aggregate.flaechenarten(stats)
+
+    # --- Kennzahlen-Seite im Marktbericht-Layout --------------------------
+    if tabellen:
+        flow.append(Paragraph("Kennzahlen Mietniveau Deutschland", titel_stil))
+        flow.append(Paragraph(
+            "Nettokaltmiete in €/m² pro Monat (Median). Gegliedert nach den bedeutenden "
+            "Logistikmärkten und den sonstigen Standorten.", body,
+        ))
+        kz_breiten = [
+            inhalt_w - (16 + 20 + 26 + 24 + 30) * mm,
+            16 * mm, 20 * mm, 26 * mm, 24 * mm, 30 * mm,
+        ]
+        for tabelle in tabellen:
+            if not tabelle.zeilen:
+                continue
+            flow.append(Paragraph(tabelle.flaechenart, eyebrow))
+            flow.append(kennzahlen_tabelle(tabelle, kz_breiten, fonts, stand_vorher))
+            flow.append(Spacer(1, 5 * mm))
+
+        hinweise = [
+            "<b>n</b> ist die Zahl der belegten Mieten, <b>Standorte</b> die Zahl der "
+            "dahinterliegenden Adressen. n summiert sich über die Gruppen – der Median "
+            "nicht: er wird je Gruppe über alle Datenpunkte neu berechnet.",
+        ]
+        if stand_vorher:
+            hinweise.append(
+                f"Die Veränderung vergleicht den aktuellen Median mit dem Stand "
+                f"{stand_vorher}. Anteile werden in Prozentpunkten ausgewiesen."
+            )
+        else:
+            hinweise.append(
+                "<b>Die Veränderungsspalte ist noch leer:</b> sie vergleicht mit dem "
+                "Stand vor zwölf Monaten, und dieser Lauf ist der erste erfasste. "
+                "Propstack führt keine Miethistorie, die Zeitreihe entsteht ab jetzt "
+                "mit jedem Monatslauf."
+            )
+        for hinweis in hinweise:
+            flow.append(Paragraph(hinweis, klein))
+        flow.append(PageBreak())
 
     flow.append(Paragraph("Datenbasis", titel_stil))
     flow.append(Paragraph(

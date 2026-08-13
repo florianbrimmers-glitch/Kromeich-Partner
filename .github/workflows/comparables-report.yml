@@ -52,6 +52,11 @@ concurrency:
   group: comparables-report
   cancel-in-progress: false
 
+# contents: write nur für das Fortschreiben der Zeitreihe
+# (comparables_snapshots.json) – der Handler selbst liest ausschließlich.
+permissions:
+  contents: write
+
 jobs:
   comparables-report:
     runs-on: ubuntu-latest
@@ -108,8 +113,30 @@ jobs:
           DECISION_LOG_PATH: comparables_decisions.jsonl
           DATASET_PATH: comparables_dataset.csv
           EXTRACTION_CACHE_PATH: comparables_cache.jsonl
+          SNAPSHOT_PATH: comparables_snapshots.json
           PDF_PATH: comparables_report.pdf
         run: python -m comparables_handler.main
+
+      # Die Zeitreihe der Monats-Mediane ist die einzige Grundlage der
+      # Veränderungsspalte – Propstack führt keine Miethistorie. Sie wird
+      # deshalb ins Repository zurückgeschrieben und nicht bloß gecacht.
+      - name: Zeitreihe fortschreiben
+        if: github.ref == 'refs/heads/main' && github.event.inputs.no_write != 'true'
+        run: |
+          if git diff --quiet -- comparables_snapshots.json; then
+            echo "Keine Änderung an der Zeitreihe."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add comparables_snapshots.json
+          git commit -m "chore(comparables): Monats-Snapshot der Mietmediane"
+          for versuch in 1 2 3 4; do
+            git pull --rebase origin main && git push origin HEAD:main && exit 0
+            echo "Push-Versuch $versuch fehlgeschlagen, neuer Versuch …"
+            sleep $((2 ** versuch))
+          done
+          exit 1
 
       - name: Upload comparables dataset
         if: always()
@@ -120,5 +147,6 @@ jobs:
             comparables_dataset.csv
             comparables_report.pdf
             comparables_decisions.jsonl
+            comparables_snapshots.json
           if-no-files-found: ignore
           retention-days: 90

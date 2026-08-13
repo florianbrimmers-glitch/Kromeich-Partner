@@ -101,6 +101,48 @@ PROPSTACK_API_KEY=xxx python3 scripts/propstack_miet_audit.py --json audit.json
 7. **Aggregation** – Median, Spanne und n je Leitregion (2-stellige PLZ, ab n=3) und je Postleitzone (1-stellig, immer), plus Gesamtzeile.
 8. **Ausgabe** – Slack-Post in den Zielkanal, CSV-Datensatz und optional das K&P-PDF; jede Dokument-Entscheidung als JSONL-Zeile.
 
+## Kennzahlen-Tabelle (Marktbericht-Layout)
+
+Zusätzlich zur regionalen Auswertung baut der Report eine Kennzahlen-Tabelle im Stil der üblichen Logistik-Marktberichte – je Flächenart:
+
+```
+                                    n  Standorte   2025-08  aktuell  VERÄNDERUNG
+Bedeutende Logistikmärkte
+   Berlin                           8          6      9,55     9,72       +1,8 %
+   Düsseldorf                      79         63      5,75     7,00      +21,7 %
+   …
+Bedeutende Logistikmärkte gesamt   141        101      6,26     7,00      +11,8 %
+Sonstige Standorte
+   Ruhrgebiet                      109         69      6,16     6,50       +5,5 %
+   Übrige Logistikregionen          77         46      4,86     5,49      +13,0 %
+Sonstige Standorte gesamt          186        115      5,49     6,00       +9,3 %
+Gesamt                             327        216      6,15     6,45       +4,9 %
+Anteil intern bekannter Konditionen           46,7 %   48,0 %  +1,3 %-Pkte.
+Anteil bereits vermieteter Flächen             1,4 %    7,3 %  +5,9 %-Pkte.
+Anteil mit Nebenkosten-Angabe                  0,0 %    3,7 %  +3,7 %-Pkte.
+```
+
+**Lesart:** `n` addiert sich über die Gruppen, der **Median nicht** – er wird je Gruppe über alle Datenpunkte neu berechnet (anders als beim Flächenumsatz in den Marktberichten, wo die Zwischensumme wirklich eine Summe ist). Anteile werden in **Prozentpunkten** verändert ausgewiesen.
+
+Die Marktgrenzen stehen in `config.MARKTGEBIETE_TOP` und `MARKTGEBIET_RUHR` und sind eine **fachliche Festlegung, die K&P bestätigen sollte** – etwa ob Krefeld (PLZ 47) zum Ruhrgebiet oder zu Düsseldorf zählt und ob Aachen (52) zu Köln gehört. Märkte ohne Datenpunkt erscheinen nicht als Leerzeile; die Reihenfolge der Top-Märkte ist fest, damit die Tabelle monatlich gleich aussieht.
+
+### Zeitreihe (Voraussetzung der Veränderungsspalte)
+
+**Propstack führt keine Miethistorie.** Ein Periodenvergleich lässt sich daraus nicht ableiten – er entsteht nur, weil jeder Lauf seine Mediane in `comparables_snapshots.json` fortschreibt (`SNAPSHOT_PATH`).
+
+- Beim **ersten Lauf bleibt die Veränderungsspalte leer** und der Report sagt das auch. Es wird keine Basis erfunden.
+- Verglichen wird mit dem Stand vor `VERGLEICH_MONATE` (12) Monaten, Toleranz ±`VERGLEICH_TOLERANZ_MONATE` (3). Fehlt ein passender Stand, bleibt die Spalte leer statt gegen eine unpassende Basis zu rechnen.
+- Zwei Läufe im selben Monat ersetzen sich, statt zwei Stände zu erzeugen.
+- Die Datei wird vom Workflow **ins Repository zurückgeschrieben** (Schritt „Zeitreihe fortschreiben", nur auf `main`). Ein Actions-Cache reicht nicht: er kann evakuiert werden, und dann bricht die Zeitreihe ab.
+- `NO_WRITE=true` schreibt die Zeitreihe **nicht** fort – Testläufe verfälschen sie also nicht.
+
+Lokal testen ohne die echte Zeitreihe anzufassen:
+
+```bash
+SNAPSHOT_PATH=/tmp/snap.json PROPSTACK_API_KEY=xxx NO_WRITE=true MAKE_PDF=true \
+  python -m comparables_handler.main
+```
+
 ## Betriebsmodi
 
 | Modus | Slack-Post | CSV + JSONL + PDF | Zweck |

@@ -69,7 +69,44 @@ def _einzelzeile(stat: RegionStats) -> str:
     return f"• *{stat.key} {stat.label}*: {werte}{nk} – n={stat.n}"
 
 
-def baue_nachricht(stats: list[RegionStats], report: RunReport, stand: str) -> str:
+def _kennzahlen_block(tabellen: list, stand_vorher: str | None) -> list[str]:
+    """Kompakte Marktgebiets-Kennzahlen für Slack (Top-Märkte + Summen)."""
+    zeilen: list[str] = ["\n*Kennzahlen nach Marktgebiet* (Median Nettokaltmiete)"]
+    for tabelle in tabellen:
+        if not tabelle.zeilen:
+            continue
+        teile = []
+        for z in tabelle.zeilen:
+            if z.ebene != "position":
+                continue
+            veraenderung = ""
+            if z.veraenderung_prozent is not None:
+                vorzeichen = "+" if z.veraenderung_prozent > 0 else ""
+                veraenderung = (
+                    f" ({vorzeichen}{z.veraenderung_prozent:.1f}".replace(".", ",") + " %)"
+                )
+            teile.append(f"{z.label} {eur(z.median_jetzt)}{veraenderung} (n={z.n})")
+        gesamt = tabelle.gesamt
+        kopf = f"  *{tabelle.flaechenart}*"
+        if gesamt:
+            kopf += f" – gesamt {eur(gesamt.median_jetzt, '€/m²')}, n={gesamt.n}"
+        zeilen.append(kopf)
+        if teile:
+            zeilen.append("  " + " · ".join(teile))
+    if stand_vorher:
+        zeilen.append(f"  _Veränderung gegenüber Stand {stand_vorher}._")
+    else:
+        zeilen.append(
+            "  _Veränderung erst ab dem nächsten Vergleichsstand – "
+            "die Zeitreihe beginnt mit diesem Lauf._"
+        )
+    return zeilen
+
+
+def baue_nachricht(
+    stats: list[RegionStats], report: RunReport, stand: str,
+    tabellen: list | None = None, stand_vorher: str | None = None,
+) -> str:
     """Der monatliche Slack-Post. Reine Funktion – im Test ohne Netz prüfbar."""
     zeilen = [f"*Vergleichsmieten aus Mietangeboten – Stand {stand}*"]
 
@@ -123,6 +160,9 @@ def baue_nachricht(stats: list[RegionStats], report: RunReport, stand: str) -> s
         if not leit and not einzeln:
             zon = aggregate.zonen(stats, art)
             zeilen.extend("  " + _zeile(s) for s in zon)
+
+    if tabellen:
+        zeilen.extend(_kennzahlen_block(tabellen, stand_vorher))
 
     ps = report.propstack
     if ps.units_geladen:

@@ -100,6 +100,38 @@ CONFIDENCE_THRESHOLD = 0.5
 # nicht als "Median" auftreten.
 MIN_N_LEITREGION = 3
 
+# --- Marktgebiete für die Kennzahlen-Tabelle --------------------------------
+# Gliederung wie in den Marktberichten der großen Häuser: die bedeutenden
+# Logistikmärkte einzeln, das Ruhrgebiet als eigene Gruppe, alles Übrige
+# gebündelt – je mit Zwischensumme.
+#
+# ACHTUNG: Marktgrenzen sind eine fachliche Festlegung, keine Naturkonstante.
+# Die Zuordnung unten folgt den PLZ-Leitregionen und ist bewusst hier
+# zentralisiert, damit K&P sie anpassen kann (z.B. ob Krefeld (47) zum
+# Ruhrgebiet oder zu Düsseldorf zählt, oder Aachen (52) zu Köln).
+MARKTGEBIETE_TOP = (
+    ("Berlin", ("10", "12", "13", "14")),
+    ("Düsseldorf", ("40", "41")),
+    ("Frankfurt/Rhein-Main", ("60", "61", "63", "64", "65")),
+    ("Hamburg", ("20", "21", "22", "25")),
+    ("Köln", ("50", "51")),
+    ("Leipzig/Halle", ("04", "06")),
+    ("München", ("80", "81", "82", "85")),
+)
+MARKTGEBIET_RUHR = ("Ruhrgebiet", ("44", "45", "46", "47", "58", "59"))
+
+# Gruppenbezeichnungen der Tabelle
+GRUPPE_TOP = "Bedeutende Logistikmärkte"
+GRUPPE_SONSTIGE = "Sonstige Standorte"
+LABEL_UEBRIGE = "Übrige Logistikregionen"
+
+# Wie viele Monate zurück der Vergleichswert der Veränderungsspalte liegt.
+# 12 = Vorjahresvergleich; der nächstgelegene vorhandene Snapshot gewinnt.
+VERGLEICH_MONATE = 12
+# Toleranz bei der Snapshot-Suche (Monate)
+VERGLEICH_TOLERANZ_MONATE = 3
+
+
 # --- Slack ------------------------------------------------------------------
 # Kein eigener Leasing-/Comparables-Kanal vorhanden (Stand 12.08.2026), daher
 # #objekte als Ziel – dort läuft die operative Objekt-Kommunikation und der
@@ -153,6 +185,15 @@ def cache_path() -> str:
 
 def pdf_path() -> str:
     return os.environ.get("PDF_PATH", "comparables_report.pdf")
+
+
+def snapshot_path() -> str:
+    """Zeitreihe der Monats-Mediane – Basis der Veränderungsspalte.
+
+    Muss die Läufe ÜBERDAUERN, sonst gibt es nie einen Periodenvergleich
+    (siehe README, Abschnitt "Zeitreihe").
+    """
+    return os.environ.get("SNAPSHOT_PATH", "comparables_snapshots.json")
 
 
 def make_pdf() -> bool:

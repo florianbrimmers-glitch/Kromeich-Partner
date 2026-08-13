@@ -153,6 +153,34 @@ class RegionStats(BaseModel):
     objekte: list[str] = Field(default_factory=list)
 
 
+class KennzahlenZeile(BaseModel):
+    """Eine Zeile der Kennzahlen-Tabelle (Marktbericht-Layout)."""
+
+    label: str
+    gruppe: str = ""
+    # "position" | "zwischensumme" | "gesamtsumme" | "anteil"
+    ebene: str = "position"
+    n: int = 0
+    n_standorte: int = 0
+    median_jetzt: float | None = None
+    median_vorher: float | None = None
+    veraenderung_prozent: float | None = None   # bei Anteilen: Prozentpunkte
+    min_kaltmiete: float | None = None
+    max_kaltmiete: float | None = None
+    median_nebenkosten: float | None = None
+    ist_summe: bool = False
+    ist_prozentwert: bool = False
+
+
+class KennzahlenTabelle(BaseModel):
+    """Kennzahlen einer Flächenart: Marktzeilen, Zwischensummen, Anteile."""
+
+    flaechenart: str
+    zeilen: list[KennzahlenZeile] = Field(default_factory=list)
+    gesamt: KennzahlenZeile | None = None
+    anteile: list[KennzahlenZeile] = Field(default_factory=list)
+
+
 class DecisionRecord(BaseModel):
     """Eine JSONL-Zeile pro Dokument."""
 
