@@ -106,10 +106,16 @@ def propstack_zu_zeilen_einer_unit(
         confidence=1.0,   # strukturiertes Feld, keine LLM-Schätzung
     )
 
+    gewuenscht = config.ausgewertete_flaechenarten()
     zeilen: list[ComparableZeile] = []
     for art in config.FLAECHENARTEN:
         kaltmiete, miete_feld = propstack_gateway.hole_betrag(unit, art.miete_felder)
         if kaltmiete is None:
+            continue
+        if art.name not in gewuenscht:
+            # Nicht ausgewertete Flächenart (Standard: alles außer Halle/Lager).
+            # Gezählt, damit die Auslassung im Log sichtbar bleibt.
+            statistik.flaechenart_uebersprungen += 1
             continue
 
         miete_bis, _ = propstack_gateway.hole_betrag(unit, art.miete_bis_felder)
@@ -294,6 +300,21 @@ def effektivmiete(
     return round(kaltmiete * (laufzeit_monate - mietfreie_monate) / laufzeit_monate, 2)
 
 
+def normalisiere_nutzungsart(wert: str | None) -> str | None:
+    """Freitext-Nutzungsart auf die Flächenart-Vokabel bringen.
+
+    Das LLM liest aus den Drive-Angeboten "Logistik" oder "Halle", Propstack
+    führt "Halle/Lager". Ohne diese Abbildung stünden Drive- und
+    Propstack-Zeilen desselben Marktes in getrennten Abschnitten.
+    Unbekannte Werte bleiben unverändert – lieber ein eigener Abschnitt als
+    eine falsche Einordnung.
+    """
+    if not wert:
+        return wert
+    schluessel = _entumlauten(str(wert)).strip().lower()
+    return config.NUTZUNGSART_SYNONYME.get(schluessel, wert)
+
+
 def pruefe_flaeche(flaeche: float | None) -> tuple[float | None, str | None]:
     """Unplausible Fläche verwerfen – aber NICHT den Datenpunkt.
 
@@ -344,6 +365,14 @@ def zu_zeilen(doc: DriveDoc, angebot: Mietangebot) -> list[ComparableZeile]:
     leit = regions.leitregion(plz)
     zon = regions.zone(plz)
     eigen = ist_eigenes_angebot(angebot)
+    nutzungsart = normalisiere_nutzungsart(angebot.nutzungsart)
+    # Anders als bei Propstack werden nicht ausgewertete Flächenarten hier
+    # NICHT verworfen, sondern mit Grund im Datensatz behalten: Drive-Zeilen
+    # sind wenige und haben einen LLM-Call gekostet.
+    art_ausschluss = (
+        None if nutzungsart in config.ausgewertete_flaechenarten()
+        else f"Flächenart {nutzungsart or 'unbekannt'} nicht im Report"
+    )
 
     optionen = angebot.optionen or []
     if not optionen:
@@ -393,7 +422,7 @@ def zu_zeilen(doc: DriveDoc, angebot: Mietangebot) -> list[ComparableZeile]:
             datum=angebot.datum,
             eigenes_angebot=eigen,
             flaeche_qm=flaeche,
-            nutzungsart=angebot.nutzungsart,
+            nutzungsart=nutzungsart,
             laufzeit_monate=laufzeit,
             kaltmiete_eur_qm=kaltmiete,
             nebenkosten_eur_qm=nebenkosten,
@@ -405,7 +434,7 @@ def zu_zeilen(doc: DriveDoc, angebot: Mietangebot) -> list[ComparableZeile]:
             normalisiert_aus_absolut=aus_absolut,
             confidence=angebot.confidence,
         )
-        zeile.ausschluss_grund = _plausibilitaet(zeile)
+        zeile.ausschluss_grund = art_ausschluss or _plausibilitaet(zeile)
         if zeile.ausschluss_grund is None and not plz:
             zeile.ausschluss_grund = "keine PLZ – Region nicht zuordenbar"
         zeilen.append(zeile)

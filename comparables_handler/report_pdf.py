@@ -321,9 +321,14 @@ def erzeuge_pdf(
     # --- Kennzahlen-Seite im Marktbericht-Layout --------------------------
     if tabellen:
         flow.append(Paragraph("Kennzahlen Mietniveau Deutschland", titel_stil))
+        untertitel = (
+            f"Nettokaltmiete {arten[0]} in €/m² pro Monat (Median)."
+            if len(arten) == 1 else
+            "Nettokaltmiete in €/m² pro Monat (Median), je Flächenart."
+        )
         flow.append(Paragraph(
-            "Nettokaltmiete in €/m² pro Monat (Median). Gegliedert nach den bedeutenden "
-            "Logistikmärkten und den sonstigen Standorten.", body,
+            untertitel + " Gegliedert nach den bedeutenden Logistikmärkten "
+            "und den sonstigen Standorten.", body,
         ))
         kz_breiten = [
             inhalt_w - (16 + 20 + 26 + 24 + 30) * mm,
@@ -358,22 +363,35 @@ def erzeuge_pdf(
         flow.append(PageBreak())
 
     flow.append(Paragraph("Datenbasis", titel_stil))
-    flow.append(Paragraph(
-        f"Grundlage sind <b>{ges.n} belegte Mieten</b> an {ges.n_objekte} Standorten, "
-        f"aufgeteilt auf {len(arten)} Flächenart(en).", body,
-    ))
+    if len(arten) == 1:
+        flow.append(Paragraph(
+            f"Grundlage sind <b>{ges.n} belegte Mieten</b> an {ges.n_objekte} Standorten "
+            f"für <b>{arten[0]}</b>.", body,
+        ))
+    else:
+        flow.append(Paragraph(
+            f"Grundlage sind <b>{ges.n} belegte Mieten</b> an {ges.n_objekte} Standorten, "
+            f"aufgeteilt auf {len(arten)} Flächenarten.", body,
+        ))
     flow.append(Paragraph(
         "Mietkonditionen sind am Markt nicht öffentlich – Vermieter veröffentlichen sie "
         "in der Regel nicht. Die hier ausgewerteten Werte stammen aus eigenen Mandaten, "
         "Beratungsprojekten und konkreten Anfragen und sind damit belegte Konditionen, "
         "keine Schätzungen aus Marktberichten.", body,
     ))
-    flow.append(Paragraph(
-        "<b>Die Flächenarten werden getrennt ausgewertet.</b> Hallen- und Lagerflächen, "
-        "Büroflächen und Mezzanine liegen in grundlegend verschiedenen Preisniveaus; "
-        "ein gemeinsamer Median über alle Flächenarten würde keinen Markt beschreiben.",
-        body,
-    ))
+    if len(arten) > 1:
+        flow.append(Paragraph(
+            "<b>Die Flächenarten werden getrennt ausgewertet.</b> Hallen- und Lagerflächen, "
+            "Büroflächen und Mezzanine liegen in grundlegend verschiedenen Preisniveaus; "
+            "ein gemeinsamer Median über alle Flächenarten würde keinen Markt beschreiben.",
+            body,
+        ))
+    else:
+        flow.append(Paragraph(
+            f"Ausgewertet werden ausschließlich <b>{arten[0]}</b>. Andere Flächenarten "
+            "(Büro, Mezzanine, Service- und Kellerflächen) liegen in anderen Preisniveaus "
+            "und sind nicht Teil dieser Auswertung.", body,
+        ))
 
     mit_effektiv = hat_effektivmiete(stats)
     kopf = ["Region", "Median", "Spanne", "NK"]

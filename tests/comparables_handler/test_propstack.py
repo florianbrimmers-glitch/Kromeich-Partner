@@ -178,9 +178,11 @@ def test_qm_miete_wird_direkt_uebernommen():
     assert stat.miete_felder == {"custom_fields.intern_mietpreis_hallenflache": 1}
 
 
-def test_je_flaechenart_eine_eigene_zeile():
+def test_je_flaechenart_eine_eigene_zeile(monkeypatch):
     """Halle 6,00 und Büro 12,50 sind zwei Datenpunkte in zwei Märkten –
-    ein gemeinsamer Median wäre eine Phantasiezahl."""
+    ein gemeinsamer Median wäre eine Phantasiezahl. (Standardmäßig ist nur
+    Halle/Lager im Report, hier wird der Mechanismus geprüft.)"""
+    monkeypatch.setenv("FLAECHENARTEN", "Halle/Lager,Büro,Mezzanine")
     unit = _unit(custom={
         "intern_mietpreis_hallenflache": {"value": 6.00},
         "intern_mietpreis_buro": {"value": 12.50},
@@ -191,7 +193,8 @@ def test_je_flaechenart_eine_eigene_zeile():
     assert nach_art == {"Halle/Lager": 6.00, "Büro": 12.50, "Mezzanine": 3.25}
 
 
-def test_flaechenart_bekommt_ihre_eigene_flaeche():
+def test_flaechenart_bekommt_ihre_eigene_flaeche(monkeypatch):
+    monkeypatch.setenv("FLAECHENARTEN", "Halle/Lager,Büro")
     unit = _unit(custom={
         "intern_mietpreis_hallenflache": {"value": 6.00},
         "intern_mietpreis_buro": {"value": 12.50},
@@ -366,3 +369,60 @@ def test_unbekannte_quelle_faellt_auf(monkeypatch):
         assert "unbekannt" in str(e)
     else:
         raise AssertionError("hätte scheitern müssen")
+
+
+# --- Report-Filter der Flächenarten ---------------------------------------
+def test_standardmaessig_nur_halle_lager():
+    """Auf Wunsch 13.08.2026: Büro, Mezzanine, Service und Keller sind raus."""
+    stat = PropstackReport()
+    unit = _unit(custom={
+        "intern_mietpreis_hallenflache": {"value": 6.00},
+        "intern_mietpreis_buro": {"value": 12.50},
+        "intern_mietpreis_mezzanine": {"value": 3.25},
+        "serviceflache_miete_m_von": {"value": 5.00},
+        "keller_archivflache_miete_m_von": {"value": 4.00},
+    })
+    zeilen = normalize.propstack_zu_zeilen_einer_unit(unit, stat)
+    assert [z.nutzungsart for z in zeilen] == ["Halle/Lager"]
+    assert stat.flaechenart_uebersprungen == 4      # nicht still verschwunden
+    assert stat.mit_miete == 1
+
+
+def test_einheit_nur_mit_bueromiete_zaehlt_als_ohne_miete():
+    """Sie trägt eine Miete, aber keine im Report – der Zähler sagt beides."""
+    stat = PropstackReport()
+    unit = _unit(custom={
+        "intern_mietpreis_hallenflache": {"value": None},
+        "mietpreis_hallenflache": {"value": None},
+        "lagerflache_miete_m_von": {"value": None},
+        "intern_mietpreis_buro": {"value": 12.50},
+    })
+    assert normalize.propstack_zu_zeilen_einer_unit(unit, stat) == []
+    assert stat.flaechenart_uebersprungen == 1
+    assert stat.ohne_miete == 1
+
+
+def test_filter_ist_per_env_erweiterbar(monkeypatch):
+    monkeypatch.setenv("FLAECHENARTEN", "Halle/Lager,Büro")
+    unit = _unit(custom={
+        "intern_mietpreis_hallenflache": {"value": 6.00},
+        "intern_mietpreis_buro": {"value": 12.50},
+        "intern_mietpreis_mezzanine": {"value": 3.25},
+    })
+    zeilen = normalize.propstack_zu_zeilen_einer_unit(unit, PropstackReport())
+    assert {z.nutzungsart for z in zeilen} == {"Halle/Lager", "Büro"}
+
+
+# --- Nutzungsart-Synonyme (Drive) -----------------------------------------
+def test_drive_nutzungsarten_landen_in_derselben_gruppe():
+    """Das LLM schreibt 'Logistik', Propstack 'Halle/Lager' – ohne Abbildung
+    stünden sie in getrennten Abschnitten."""
+    for wert in ("Logistik", "Halle", "Lagerfläche", "logistikhalle", "LAGER"):
+        assert normalize.normalisiere_nutzungsart(wert) == "Halle/Lager"
+    assert normalize.normalisiere_nutzungsart("Büro") == "Büro"
+
+
+def test_unbekannte_nutzungsart_bleibt_unveraendert():
+    """Lieber ein eigener Abschnitt als eine falsche Einordnung."""
+    assert normalize.normalisiere_nutzungsart("Freifläche") == "Freifläche"
+    assert normalize.normalisiere_nutzungsart(None) is None

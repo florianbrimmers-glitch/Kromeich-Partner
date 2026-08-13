@@ -129,10 +129,9 @@ def baue_nachricht(
         return "\n".join(zeilen)
 
     arten = aggregate.flaechenarten(stats)
-    zeilen.append(
-        f"*{ges.n} bekannte Mieten* an {ges.n_objekte} Standort(en), "
-        f"{len(arten)} Flächenart(en)"
-    )
+    kopf = f"*{ges.n} bekannte Mieten* an {ges.n_objekte} Standort(en)"
+    zeilen.append(kopf + (f" – {arten[0]}" if len(arten) == 1
+                          else f", {len(arten)} Flächenarten"))
 
     # Getrennt je Flächenart: Hallen- und Büromieten liegen in ganz anderen
     # Größenordnungen, ein gemeinsamer Median wäre eine Phantasiezahl.

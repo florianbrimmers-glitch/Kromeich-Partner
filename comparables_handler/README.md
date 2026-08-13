@@ -35,12 +35,12 @@ Erhoben mit `scripts/propstack_miet_audit.py` und einem vollständigen Lauf:
 
 | | |
 |---|---|
-| Einheiten in Propstack | 2.046 |
-| davon Mietobjekte | 1.978 |
-| Einheiten mit mindestens einer Miete | 433 |
-| **belegte Mieten (Datenpunkte)** | **711** |
-| davon Halle/Lager · Büro · Mezzanine | 347 · 265 · 66 |
-| ausgeschlossen | 16 |
+| Einheiten in Propstack | ~2.050 |
+| davon Mietobjekte | ~1.980 |
+| **belegte Hallen-/Lagermieten (Datenpunkte)** | **333** |
+| davon an Standorten | 221 |
+| ausgeschlossen | 10 |
+| Mieten anderer Flächenarten (nicht im Report) | 335 |
 
 **Paginierung geklärt** – der Nebenbefund „`/units` liefert nur 20 Einheiten" lag am fehlenden Seitengrößen-Parameter, nicht am Key-Scope:
 
@@ -82,10 +82,22 @@ grep "Tausendertrennung" comparables_dataset.csv | cut -d';' -f3,29
 PROPSTACK_API_KEY=xxx python3 scripts/propstack_miet_audit.py --json audit.json
 ```
 
+## Flächenarten im Report
+
+**Ausgewertet wird nur `Halle/Lager`** (Stand 13.08.2026) – Büro, Mezzanine, Service- und Keller/Archivflächen sind bewusst draußen. Sie bleiben in `config.FLAECHENARTEN` definiert und lassen sich jederzeit wieder aufnehmen:
+
+```bash
+FLAECHENARTEN="Halle/Lager,Büro" python -m comparables_handler.main
+```
+
+Dauerhaft: `config.FLAECHENARTEN_STANDARD` erweitern. Die nicht ausgewerteten Mieten werden **gezählt und geloggt** („Flächenart nicht im Report"), damit die Auslassung sichtbar bleibt – im letzten Lauf 335 Datenpunkte.
+
+Freitext-Nutzungsarten aus den Drive-Angeboten („Logistik", „Halle", „Lagerfläche") werden über `config.NUTZUNGSART_SYNONYME` auf `Halle/Lager` abgebildet, damit Drive- und Propstack-Zeilen im selben Abschnitt landen. Unbekannte Bezeichnungen bleiben unverändert und fallen dann durch den Report-Filter – mit Grund im Datensatz, nicht still.
+
 ## Ablauf (Propstack)
 
 1. **Laden** – `GET /units` paginiert (`per` + `page`, `expand=1`, `marketing_type=RENT`), Kaufobjekte fallen raus.
-2. **Eine Zeile je Flächenart** – für jede Flächenart aus `config.FLAECHENARTEN` (Halle/Lager, Büro, Mezzanine, Service-, Frei-, Keller/Archivfläche) wird geprüft, ob eine Miete hinterlegt ist. Eine Einheit mit Hallen- **und** Büromiete liefert zwei Datenpunkte. Welches Feld gegriffen hat, steht als `miete_feld` in jeder Zeile.
+2. **Eine Zeile je Flächenart** – für jede Flächenart aus `config.FLAECHENARTEN` wird geprüft, ob eine Miete hinterlegt ist; anschließend filtert der Report auf die ausgewerteten Arten. Welches Feld gegriffen hat, steht als `miete_feld` in jeder Zeile.
 3. **Keine Umrechnung** – die Custom Fields stehen bereits in €/m²/Monat. Ein Betrag über 25 €/m² ist deshalb kein Umrechnungsfall, sondern ein Datenfehler (absolute Monatsmiete im €/m²-Feld) und wird **mit Grund** ausgeschlossen.
 4. **Fläche nur als Kontext** – eine unplausible Fläche verwirft das Flächenfeld, nicht den Datenpunkt.
 5. **Aggregation** – getrennt je Flächenart, dann je Region.

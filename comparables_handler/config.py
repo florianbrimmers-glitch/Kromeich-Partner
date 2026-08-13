@@ -307,6 +307,45 @@ FLAECHENARTEN = (
     ),
 )
 
+# Welche Flächenarten in den Report gehen. Standard: nur Halle/Lager – das ist
+# der Markt, um den es geht. Büro, Mezzanine, Service- und Keller/Archivfläche
+# werden nicht ausgewertet (auf Wunsch 13.08.2026). Sie bleiben in
+# FLAECHENARTEN definiert und lassen sich per FLAECHENARTEN-Env oder durch
+# Ergänzen dieser Liste jederzeit wieder aufnehmen.
+FLAECHENARTEN_STANDARD = ("Halle/Lager",)
+
+# Freitext-Nutzungsarten aus den Drive-Angeboten auf die Flächenarten mappen,
+# damit Drive- und Propstack-Zeilen im selben Abschnitt landen (das LLM
+# schreibt "Logistik", Propstack "Halle/Lager").
+NUTZUNGSART_SYNONYME = {
+    "logistik": "Halle/Lager",
+    "logistikhalle": "Halle/Lager",
+    "halle": "Halle/Lager",
+    "hallenflaeche": "Halle/Lager",
+    "hallenfläche": "Halle/Lager",
+    "lager": "Halle/Lager",
+    "lagerflaeche": "Halle/Lager",
+    "lagerfläche": "Halle/Lager",
+    "lagerhalle": "Halle/Lager",
+    "buero": "Büro",
+    "büro": "Büro",
+    "bueroflaeche": "Büro",
+    "bürofläche": "Büro",
+    "mezzanine": "Mezzanine",
+}
+
+
+def ausgewertete_flaechenarten() -> tuple[str, ...]:
+    """Flächenarten des Reports; per FLAECHENARTEN überschreibbar.
+
+    Beispiel: FLAECHENARTEN="Halle/Lager,Büro"
+    """
+    roh = os.environ.get("FLAECHENARTEN", "").strip()
+    if not roh:
+        return FLAECHENARTEN_STANDARD
+    return tuple(teil.strip() for teil in roh.split(",") if teil.strip())
+
+
 # BEWUSST NICHT ausgewertet – das sind Preise pro Stellplatz, nicht pro m².
 # Sie würden mit Werten von 20-70 € jeden €/m²-Median zerstören.
 STELLPLATZ_FELDER_IGNORIERT = (

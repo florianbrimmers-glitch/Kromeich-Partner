@@ -209,6 +209,7 @@ class PropstackReport(BaseModel):
     preis_auf_anfrage: int = 0
     ohne_flaeche: int = 0
     flaeche_unplausibel: int = 0
+    flaechenart_uebersprungen: int = 0   # Miete vorhanden, Flächenart nicht im Report
     aus_absolut_normalisiert: int = 0
     vermietet: int = 0
     miete_felder: dict[str, int] = Field(default_factory=dict)

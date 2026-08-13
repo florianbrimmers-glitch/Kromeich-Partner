@@ -240,8 +240,11 @@ def run_pipeline() -> RunReport:
     elif config.dry_run():
         logger.info("=== DRY RUN – Report wird gebaut und geloggt, aber nicht gepostet ===")
 
-    logger.info("Quelle: %s | Stand: %s | Zielkanal: %s",
-                report.quelle, stand, config.slack_channel())
+    logger.info(
+        "Quelle: %s | Flächenarten: %s | Stand: %s | Zielkanal: %s",
+        report.quelle, ", ".join(config.ausgewertete_flaechenarten()),
+        stand, config.slack_channel(),
+    )
 
     zeilen: list[ComparableZeile] = []
     if config.nutzt_propstack():
@@ -301,6 +304,7 @@ def _print_summary(report: RunReport, stats: list) -> None:
         logger.info("    ohne Flächenangabe:       %d", ps.ohne_flaeche)
         logger.info("    Fläche verworfen:         %d (Datenfehler in Propstack)",
                     ps.flaeche_unplausibel)
+        logger.info("    Flächenart nicht im Report:%d", ps.flaechenart_uebersprungen)
         logger.info("    als vermietet markiert:   %d", ps.vermietet)
         for feld, anzahl in sorted(ps.miete_felder.items(), key=lambda x: -x[1]):
             logger.info("    Miete aus %-22s %d", feld + ":", anzahl)
