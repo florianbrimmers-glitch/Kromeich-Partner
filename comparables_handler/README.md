@@ -52,18 +52,20 @@ Erhoben mit `scripts/propstack_miet_audit.py` und einem vollständigen Lauf:
 
 Der Listen-Endpoint respektiert also `per`. `objekte_handler/propstack.py` liegt damit **richtig**; hier ist nichts zu reparieren. Dieser Handler schickt beide Namen und paginiert über `page`.
 
-**Mieten stehen in Custom Fields, je Flächenart getrennt** und bereits als €/m²:
+**Mieten stehen in Custom Fields, je Flächenart getrennt** und bereits als €/m². Ausgewertet werden nur die Felder, die es in der Propstack-**Maske** gibt:
 
-| Feld | belegt |
-|---|---|
-| `intern_mietpreis_hallenflache` | 160 |
-| `lagerflache_miete_m_von` | 150 |
-| `buroflache_miete_m_von` | 147 |
-| `intern_mietpreis_buro` | 109 |
-| `mietpreis_hallenflache` | 62 |
-| `intern_mietpreis_mezzanine` | 42 |
+| Feld | belegt | Median |
+|---|---|---|
+| `intern_mietpreis_hallenflache` | 161 | 7,50 |
+| `mietpreis_hallenflache` | 62 | 6,45 |
 
-Die Standardfelder sind unbrauchbar: `base_rent` ist in 6 von 1.978 Einheiten gefüllt und mischt €/m² (6,00) mit absoluten Monatsmieten (19.848) – ohne Unterscheidungsmerkmal nicht sicher normalisierbar, deshalb in `STANDARDFELDER_IGNORIERT`.
+**`*_miete_m_von` / `_bis` werden NICHT gelesen** (`ALTIMPORT_FELDER_IGNORIERT`). Diese Felder existieren in der Maske nicht und werden von niemandem gepflegt – sie stammen aus einem Alt-Import. Nachgewiesen am 13.08.2026 an „Stettiner Straße 2, Neuss": in der Maske sind Kaltmiete und beide Intern-Mietpreis-Felder **leer**, `lagerflache_miete_m_von` trug dennoch **1,00 €/m²** – zusammen mit einer zerschossenen Flächenangabe („26.000 m²" als 26), `preisangabe = "auf Anfrage"` und `object_type = LIVING`. Über den Bestand lagen **119 von 128** Werten dieses Felds unter „auf Anfrage", Minimum 1,00 €/m².
+
+Das kostet Datenpunkte (245 → 113 Standorte), ist aber der Unterschied zwischen gepflegten und erfundenen Zahlen.
+
+Die Standardfelder sind ebenfalls unbrauchbar: `base_rent` ist in 6 von 1.978 Einheiten gefüllt und mischt €/m² (6,00) mit absoluten Monatsmieten (19.848) – ohne Unterscheidungsmerkmal nicht sicher normalisierbar, deshalb in `STANDARDFELDER_IGNORIERT`.
+
+**„Auf Anfrage" ist kein Ausschlussgrund.** K&P pflegt die publizierte Preisaussage im Custom Field `preisangabe` (nicht im Standard-Flag `price_on_inquiry`). 267 von 369 Einheiten mit hinterlegter Miete stehen dort auf „auf Anfrage" – öffentlich nicht genannt, intern bekannt ist genau der Normalfall. Ein Veto würde die wertvollsten Daten wegwerfen; das Feld fließt nur in die Zählung ein.
 
 **Drei Fallen, die im echten Datenbestand scharf sind:**
 

@@ -189,6 +189,10 @@ def hole_betrag(unit: dict, felder: tuple[str, ...]) -> tuple[float | None, str 
     """
     cf = custom_fields(unit)
     for feld in felder:
+        if feld in config.ALTIMPORT_FELDER_IGNORIERT:
+            # Schutz gegen Versehen: diese Felder gibt es in der Maske nicht.
+            logger.warning("Feld %s steht auf der Alt-Import-Sperrliste – übersprungen", feld)
+            continue
         # Custom Fields zuerst: dort pflegt K&P die Mieten.
         wert = zu_zahl(cf.get(feld)) if feld in cf else zu_zahl(unit.get(feld))
         if wert is not None and wert > 0:
@@ -221,14 +225,20 @@ def ist_mietobjekt(unit: dict) -> bool:
 
 
 def preis_auf_anfrage(unit: dict) -> bool:
-    """`price_on_inquiry` – im GET verschachtelt unter `furnishings`.
+    """Ist der Preis als "auf Anfrage" ausgewiesen?
 
-    Der Exposé-Workflow setzt das Flag bewusst, wenn die Miete unbekannt ist;
-    solche Einheiten sind also legitim ohne Preis und kein Datenfehler.
+    Drei Stellen, weil K&P das Custom Field `preisangabe` pflegt und nicht das
+    Standard-Flag: `price_on_inquiry` flach, dasselbe verschachtelt unter
+    `furnishings` (so kommt es im GET) und `custom_fields.preisangabe`.
+
+    ACHTUNG: Das ist eine Aussage über die VERÖFFENTLICHUNG, kein
+    Ausschlussgrund. Ein intern hinterlegter Mietpreis bleibt gültig – „nach
+    außen auf Anfrage, intern bekannt" ist bei K&P der Normalfall.
     """
     if skalar(unit.get("price_on_inquiry")) is True:
         return True
     moebel = unit.get("furnishings")
-    if isinstance(moebel, dict):
-        return skalar(moebel.get("price_on_inquiry")) is True
-    return False
+    if isinstance(moebel, dict) and skalar(moebel.get("price_on_inquiry")) is True:
+        return True
+    angabe = str(skalar(custom_fields(unit).get(config.PREISANGABE_FELD)) or "").lower()
+    return any(marker in angabe for marker in config.PREIS_AUF_ANFRAGE_MARKER)

@@ -290,10 +290,9 @@ MARKETING_TYPES_MIETE = ("RENT", "RENT_AND_BUY", "MIETE")
 class Flaechenart:
     """Eine Flächenart mit ihren Miet-, NK- und Flächenfeldern."""
 
-    def __init__(self, name, miete_felder, miete_bis_felder=(), nk_felder=(), flaeche_felder=()):
+    def __init__(self, name, miete_felder, nk_felder=(), flaeche_felder=()):
         self.name = name
         self.miete_felder = miete_felder
-        self.miete_bis_felder = miete_bis_felder
         self.nk_felder = nk_felder
         self.flaeche_felder = flaeche_felder
 
@@ -301,44 +300,49 @@ class Flaechenart:
 FLAECHENARTEN = (
     Flaechenart(
         "Halle/Lager",
-        miete_felder=("intern_mietpreis_hallenflache", "mietpreis_hallenflache",
-                      "lagerflache_miete_m_von"),
-        miete_bis_felder=("lagerflache_miete_m_bis",),
-        nk_felder=("lagerflache_nebenkosten_m_von", "lagerflache_nebenkosten_m_bis"),
-        flaeche_felder=("lagerflache", "lagerflache_gesamt"),
+        miete_felder=("intern_mietpreis_hallenflache", "mietpreis_hallenflache"),
+        nk_felder=("nebenkosten",),
+        flaeche_felder=("hallenflache", "lagerflache", "lagerflache_gesamt"),
     ),
     Flaechenart(
         "Büro",
-        miete_felder=("intern_mietpreis_buro", "mietpreis_buroflache", "buroflache_miete_m_von"),
-        miete_bis_felder=("buroflache_miete_m_bis",),
-        nk_felder=("buroflache_nebenkosten_m_von", "buroflache_nebenkosten_m_bis"),
+        miete_felder=("intern_mietpreis_buro", "mietpreis_buroflache"),
+        nk_felder=("nebenkosten",),
         flaeche_felder=("buroflache", "buroflache_gesamt"),
     ),
     Flaechenart(
         "Mezzanine",
-        miete_felder=("intern_mietpreis_mezzanine", "mietpreis_mezzanine",
-                      "mezzanineflache_miete_m_von"),
-        miete_bis_felder=("mezzanineflache_miete_m_bis",),
+        miete_felder=("intern_mietpreis_mezzanine", "mietpreis_mezzanine"),
         flaeche_felder=("mezzanineflache", "mezzanineflache_gesamt"),
     ),
-    Flaechenart(
-        "Servicefläche",
-        miete_felder=("serviceflache_miete_m_von",),
-        miete_bis_felder=("serviceflache_miete_m_bis",),
-        flaeche_felder=("serviceflache_gesamt",),
-    ),
-    Flaechenart(
-        "Freifläche",
-        miete_felder=("freiflache_miete_m_von",),
-        miete_bis_felder=("freiflache_miete_m_bis",),
-        flaeche_felder=("freiflache_gesamt",),
-    ),
-    Flaechenart(
-        "Keller/Archiv",
-        miete_felder=("keller_archivflache_miete_m_von",),
-        flaeche_felder=(),
-    ),
 )
+
+# BEWUSST NICHT ausgewertet – diese Felder existieren in der Propstack-MASKE
+# NICHT und werden von niemandem gepflegt. Sie stammen aus einem Alt-Import.
+# Nachgewiesen am 13.08.2026 an "Stettiner Straße 2, Neuss": in der Maske sind
+# Kaltmiete und beide Intern-Mietpreis-Felder LEER, `lagerflache_miete_m_von`
+# trug dennoch 1,00 – zusammen mit einer zerschossenen Flächenangabe
+# ("26.000 m²" als 26) und `preisangabe = "auf Anfrage"`.
+# Messung über den Gesamtbestand: 119 von 128 Werten in
+# `lagerflache_miete_m_von` lagen unter "auf Anfrage", Minimum 1,00 €/m².
+ALTIMPORT_FELDER_IGNORIERT = (
+    "lagerflache_miete_m_von", "lagerflache_miete_m_bis",
+    "buroflache_miete_m_von", "buroflache_miete_m_bis",
+    "mezzanineflache_miete_m_von", "mezzanineflache_miete_m_bis",
+    "serviceflache_miete_m_von", "serviceflache_miete_m_bis",
+    "freiflache_miete_m_von", "freiflache_miete_m_bis",
+    "keller_archivflache_miete_m_von",
+    "lagerflache_nebenkosten_m_von", "lagerflache_nebenkosten_m_bis",
+    "buroflache_nebenkosten_m_von", "buroflache_nebenkosten_m_bis",
+)
+
+# Custom Field, das die PUBLIZIERTE Preisaussage trägt ("auf Anfrage").
+# K&P nutzt dieses Feld, nicht das Standard-Flag price_on_inquiry.
+# WICHTIG: "auf Anfrage" ist KEIN Ausschlussgrund für einen intern
+# hinterlegten Mietpreis – öffentlich nicht genannt, intern bekannt ist genau
+# der Normalfall (267 von 369 Einheiten mit Miete stehen so im CRM).
+PREISANGABE_FELD = "preisangabe"
+PREIS_AUF_ANFRAGE_MARKER = ("anfrage",)
 
 # Welche Flächenarten in den Report gehen. Standard: nur Halle/Lager – das ist
 # der Markt, um den es geht. Büro, Mezzanine, Service- und Keller/Archivfläche

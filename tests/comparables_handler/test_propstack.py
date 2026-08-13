@@ -23,7 +23,7 @@ def _unit(custom=None, **kw) -> dict:
         "lagerflache": {"value": 5000.0, "pretty_value": "5.000 m²"},
         "buroflache": {"value": 400.0, "pretty_value": "400 m²"},
         "intern_mietpreis_hallenflache": {"value": 4.58, "pretty_value": "4,58 €"},
-        "lagerflache_nebenkosten_m_von": {"value": 2.15, "pretty_value": "2,15 €"},
+        "nebenkosten": {"value": 2.15, "pretty_value": "2,15 €"},
     }
     custom_fields.update(custom or {})
     basis = {
@@ -89,7 +89,6 @@ def test_interner_wert_hat_vorrang_vor_ausgeschriebenem():
     unit = _unit(custom={
         "intern_mietpreis_hallenflache": {"value": 4.58},
         "mietpreis_hallenflache": {"value": 5.50},
-        "lagerflache_miete_m_von": {"value": 5.00},
     })
     wert, feld = propstack_gateway.hole_betrag(unit, HALLE.miete_felder)
     assert (wert, feld) == (4.58, "custom_fields.intern_mietpreis_hallenflache")
@@ -110,7 +109,6 @@ def test_stellplatzmiete_wird_nie_als_qm_miete_gelesen():
     unit = _unit(custom={
         "intern_mietpreis_hallenflache": {"value": None},
         "mietpreis_hallenflache": {"value": None},
-        "lagerflache_miete_m_von": {"value": None},
         "stellplatzmiete": {"value": 30.0},
         "lkw_stellplatzmiete": {"value": 70.0},
     })
@@ -123,16 +121,14 @@ def test_standardfelder_werden_ignoriert():
     absoluten Monatsmieten – bewusst außen vor."""
     unit = _unit(base_rent={"label": "Kaltmiete", "value": 19848.0},
                  custom={"intern_mietpreis_hallenflache": {"value": None},
-                         "mietpreis_hallenflache": {"value": None},
-                         "lagerflache_miete_m_von": {"value": None}})
+                         "mietpreis_hallenflache": {"value": None}})
     assert normalize.propstack_zu_zeilen_einer_unit(unit, PropstackReport()) == []
 
 
 def test_null_betrag_gilt_als_nicht_gesetzt():
     """value=0 ist 'nicht erfasst', nicht 'Miete null'."""
     unit = _unit(custom={"intern_mietpreis_hallenflache": {"value": 0},
-                         "mietpreis_hallenflache": {"value": None},
-                         "lagerflache_miete_m_von": {"value": None}})
+                         "mietpreis_hallenflache": {"value": None}})
     assert propstack_gateway.hole_betrag(unit, HALLE.miete_felder)[0] is None
 
 
@@ -236,7 +232,7 @@ def test_einheit_ohne_miete_ergibt_keine_zeile():
     als Mangel gilt es nicht."""
     stat = PropstackReport()
     unit = _unit(custom={k: {"value": None} for k in (
-        "intern_mietpreis_hallenflache", "mietpreis_hallenflache", "lagerflache_miete_m_von",
+        "intern_mietpreis_hallenflache", "mietpreis_hallenflache",
     )}, furnishings={"price_on_inquiry": True})
     assert normalize.propstack_zu_zeilen_einer_unit(unit, stat) == []
     assert stat.ohne_miete == 1
@@ -258,16 +254,43 @@ def test_vermietete_einheit_wird_markiert():
     assert stat.vermietet == 1
 
 
-def test_mietspanne_landet_im_hinweis():
+def test_altimport_felder_werden_nie_gelesen():
+    """`lagerflache_miete_m_von` existiert in der Propstack-MASKE nicht und
+    wird von niemandem gepflegt. Nachgewiesen an "Stettiner Straße 2, Neuss":
+    Kaltmiete und beide Intern-Felder leer, das Alt-Feld trug 1,00 €/m².
+    Über den Bestand lagen 119 von 128 Werten unter "auf Anfrage"."""
     unit = _unit(custom={
         "intern_mietpreis_hallenflache": {"value": None},
         "mietpreis_hallenflache": {"value": None},
-        "lagerflache_miete_m_von": {"value": 5.0},
-        "lagerflache_miete_m_bis": {"value": 6.5},
+        "lagerflache_miete_m_von": {"value": 1.0},
+        "lagerflache_miete_m_bis": {"value": 1.0},
+        "preisangabe": {"value": "auf Anfrage"},
+    })
+    assert normalize.propstack_zu_zeilen_einer_unit(unit, PropstackReport()) == []
+
+
+def test_preisangabe_auf_anfrage_wird_erkannt():
+    """K&P pflegt das Custom Field `preisangabe`, nicht price_on_inquiry."""
+    assert propstack_gateway.preis_auf_anfrage(
+        _unit(custom={"preisangabe": {"value": "auf Anfrage"}}))
+    assert propstack_gateway.preis_auf_anfrage(
+        _unit(custom={"preisangabe": {"value": "Auf Anfrage"}}))
+    assert not propstack_gateway.preis_auf_anfrage(
+        _unit(custom={"preisangabe": {"value": "nach Mietpreisangabe"}}))
+
+
+def test_auf_anfrage_entwertet_keinen_internen_mietpreis():
+    """Öffentlich "auf Anfrage", intern bekannt – der Normalfall bei K&P
+    (267 von 369 Einheiten mit Miete). Ein Veto würde genau die Daten
+    wegwerfen, um die es in diesem Report geht."""
+    unit = _unit(custom={
+        "intern_mietpreis_hallenflache": {"value": 8.20},
+        "preisangabe": {"value": "auf Anfrage"},
     })
     zeile = _halle(unit)
-    assert zeile.kaltmiete_eur_qm == 5.0
-    assert "bis 6,50" in zeile.option_hinweis
+    assert zeile is not None
+    assert zeile.kaltmiete_eur_qm == 8.20
+    assert zeile.verwertbar
 
 
 def test_propstack_zeilen_gelten_als_eigene_angebote():
@@ -379,12 +402,10 @@ def test_standardmaessig_nur_halle_lager():
         "intern_mietpreis_hallenflache": {"value": 6.00},
         "intern_mietpreis_buro": {"value": 12.50},
         "intern_mietpreis_mezzanine": {"value": 3.25},
-        "serviceflache_miete_m_von": {"value": 5.00},
-        "keller_archivflache_miete_m_von": {"value": 4.00},
     })
     zeilen = normalize.propstack_zu_zeilen_einer_unit(unit, stat)
     assert [z.nutzungsart for z in zeilen] == ["Halle/Lager"]
-    assert stat.flaechenart_uebersprungen == 4      # nicht still verschwunden
+    assert stat.flaechenart_uebersprungen == 2      # nicht still verschwunden
     assert stat.mit_miete == 1
 
 
@@ -394,7 +415,6 @@ def test_einheit_nur_mit_bueromiete_zaehlt_als_ohne_miete():
     unit = _unit(custom={
         "intern_mietpreis_hallenflache": {"value": None},
         "mietpreis_hallenflache": {"value": None},
-        "lagerflache_miete_m_von": {"value": None},
         "intern_mietpreis_buro": {"value": 12.50},
     })
     assert normalize.propstack_zu_zeilen_einer_unit(unit, stat) == []

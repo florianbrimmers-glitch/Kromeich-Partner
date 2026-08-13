@@ -118,7 +118,6 @@ def propstack_zu_zeilen_einer_unit(
             statistik.flaechenart_uebersprungen += 1
             continue
 
-        miete_bis, _ = propstack_gateway.hole_betrag(unit, art.miete_bis_felder)
         nebenkosten, _ = propstack_gateway.hole_betrag(unit, art.nk_felder)
         flaeche, _ = propstack_gateway.hole_flaeche(unit, art.flaeche_felder)
         flaeche, flaechen_hinweis = pruefe_flaeche(flaeche)
@@ -134,8 +133,6 @@ def propstack_zu_zeilen_einer_unit(
             nebenkosten = None
 
         hinweis = []
-        if miete_bis is not None and miete_bis != kaltmiete:
-            hinweis.append(f"Spanne bis {miete_bis:.2f} €/m²".replace(".", ","))
         if vermietet:
             hinweis.append("vermietet")
         if flaechen_hinweis:
