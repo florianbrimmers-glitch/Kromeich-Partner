@@ -4,6 +4,13 @@ on:
   schedule:
     # Monatlich am 1. um 05:00 UTC (nach objekte 02:00, newsletter 03:00, events 03:30)
     - cron: "0 5 1 * *"
+  # TEMPORÄR: workflow_dispatch greift nur für Workflows, die auf dem
+  # Default-Branch liegen – diese Datei liegt noch nur im Feature-Branch.
+  # Der push-Trigger erlaubt den Abnahmelauf (Asana-Anhänge) von hier aus und
+  # wird nach dem Test wieder entfernt.
+  push:
+    branches:
+      - claude/comparables-report-mietangebote-lg5ycy
   workflow_dispatch:
     inputs:
       quelle:
