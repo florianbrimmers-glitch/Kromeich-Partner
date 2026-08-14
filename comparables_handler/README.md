@@ -238,7 +238,9 @@ Das frühere `DRY_RUN` dieses Handlers ist damit weg. Es steuerte am Ende nur no
 
 Erledigt am 13.08.2026: Marktgrenzen bestätigt (Krefeld 47 → Ruhrgebiet, Aachen 52 → Köln), Slack-Post abgeschaltet, Takt auf Quartal.
 
-Offen bleibt: `GOOGLE_REFRESH_TOKEN_DRIVE` mit Scope `drive.readonly`, falls der Drive-Zweig (`QUELLE=drive`/`beide`) genutzt werden soll – der Propstack-Zweig braucht ihn nicht.
+Ebenfalls entschieden: **Propstack ist die einzige Quelle.** Angebote aus dem Drive gehören ins CRM (Team-Regel). Der Drive-Zweig bleibt als Abgleich-Werkzeug erhalten, ist aber nicht Teil des Quartalslaufs; `GOOGLE_REFRESH_TOKEN_DRIVE` wird dafür nur gebraucht, wenn jemand die Lückenprüfung fahren will.
+
+Nicht abschließend geprüft: ob wirklich jedes im Drive abgelegte Angebot auch im CRM steht.
 
 ## Umgebungsvariablen
 
@@ -267,7 +269,11 @@ Offen bleibt: `GOOGLE_REFRESH_TOKEN_DRIVE` mit Scope `drive.readonly`, falls der
 | `EXTRACTION_CACHE_PATH` | nein | `comparables_cache.jsonl` | Extraktions-Cache (leer = aus) |
 | `DECISION_LOG_PATH` | nein | `comparables_decisions.jsonl` | Entscheidungslog |
 
-## Secrets-Setup: Drive-Zugang
+## Drive-Abgleich (optional, nicht Teil des Reports)
+
+`QUELLE=drive` bzw. `beide` liest die Mietangebote aus dem Drive und extrahiert die Konditionen per Claude. Das ist **nicht mehr die Datenquelle** – die Angebote gehören ins CRM –, sondern taugt als **Lückenprüfung**: ein Lauf mit `beide` zeigt im Datensatz (`comparables_dataset.csv`, Spalte `quelle`), welche Objekte nur aus dem Drive kommen und im CRM fehlen. Gemessen am 12.08.2026 lagen dort ~22 verschiedene Dokumente.
+
+**Ungeprüft:** ob die Drive-Angebote tatsächlich alle in Propstack stehen, ist bisher nicht verifiziert – dafür fehlt der Drive-Zugang (Token unten). „Sollten erfasst sein" ist eine Prozessregel, keine Messung.
 
 Nur nötig für `QUELLE=drive` oder `beide`. Der Propstack-Zweig nutzt das bestehende `PROPSTACK_API_KEY`.
 
@@ -328,8 +334,13 @@ jq -r 'select(.angebot.ist_mietangebot) | "\(.angebot.objekt): \(.angebot.option
 
 Die Auswertung ist nur so gut wie die Pflege:
 
-- **Propstack:** Miete und Fläche an der Einheit hinterlegen. Ist die Miete unbekannt, `price_on_inquiry` setzen – dann erscheint die Einheit als „auf Anfrage" statt als Datenlücke.
-- **Drive:** jedes ein- und ausgehende Mietangebot in den Leasing-Ordner ablegen (Team-Regel aus der Asana-Aufgabe). Angebote, die nur im Mail-Postfach liegen, sieht der Job nicht.
+**Propstack ist die einzige Quelle des Reports.** Team-Regel (K&P, 13.08.2026): **Angebote, die im Drive liegen, gehören ins CRM.** Wer ein Mietangebot ablegt, trägt die Kondition an der Einheit nach – sonst ist sie für die Auswertung nicht vorhanden.
+
+- Miete und Fläche an der Einheit hinterlegen. Ist die Miete unbekannt, `price_on_inquiry` setzen – dann erscheint die Einheit als „auf Anfrage" statt als Datenlücke.
+- Ist der Preis ausgeschrieben, gehört er in `mietpreis_*`; die interne Einschätzung in `intern_mietpreis_*`. Der ausgeschriebene Wert gewinnt.
+- Objekttyp korrekt setzen: 408 Miet-Einheiten sind am 13.08.2026 als `LIVING` typisiert, obwohl es Hallen sind.
+
+Der **Drive-Zweig ist damit kein Datenlieferant mehr**, sondern nur noch ein Abgleich-Werkzeug: er kann zeigen, welche abgelegten Angebote noch nicht im CRM stehen (siehe unten). Für den Report wird er nicht gebraucht.
 
 ## Bekannte Einschränkungen
 

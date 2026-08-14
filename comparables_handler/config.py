@@ -5,10 +5,13 @@ import os
 CLAUDE_MODEL = "claude-opus-4-8"
 
 # --- Datenquelle ------------------------------------------------------------
-# Propstack ist die primäre Quelle: dort werden die Mieten gepflegt, die Daten
-# sind strukturiert und brauchen keine LLM-Extraktion. Der Drive-Pfad liefert
-# ergänzend die ERHALTENEN Fremdangebote (Mileway, HIH, Westcore …), die in
-# Propstack nicht stehen, weil sie keine eigenen Mandate sind.
+# Propstack ist die EINZIGE Quelle des Reports: dort werden die Mieten gepflegt,
+# die Daten sind strukturiert und brauchen keine LLM-Extraktion.
+#
+# Team-Regel K&P (13.08.2026): Angebote, die im Drive liegen, gehören ins CRM.
+# Der Drive-Zweig ist deshalb kein Datenlieferant mehr, sondern ein
+# Abgleich-Werkzeug – ein Lauf mit QUELLE=beide zeigt über die Spalte `quelle`
+# im Datensatz, welche Objekte nur im Drive stehen und im CRM fehlen.
 QUELLE_PROPSTACK = "propstack"
 QUELLE_DRIVE = "drive"
 QUELLE_BEIDE = "beide"
