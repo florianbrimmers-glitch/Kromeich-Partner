@@ -17,10 +17,12 @@ MAX_ATTEMPTS = 4
 def build_task(event: Event, quelle_link: str) -> tuple[str, str]:
     """Baut (Aufgaben-Name, Beschreibung) für ein Event.
 
-    Name folgt der Konvention des Abschnitts 'Events' (z.B. '24.-26.03 LogiMat'):
-    '<Datum> <Event-Name>'. Die Wertungen 'Funktion KP'/'Spannend für' kommen
-    NICHT in die Beschreibung – die füllt ein Mensch."""
-    name = " ".join(p for p in ((event.datum or "").strip(), (event.event_name or "").strip()) if p)
+    Name: '<Datum kompakt> <Event-Name>', z.B. '08./09.09.2026 Zukunftskongress
+    Logistik'. Bevorzugt wird das einheitliche deutsche Kurzformat; nur falls es
+    fehlt, wird auf die Originalschreibweise zurückgefallen. Die Wertungen
+    'Funktion KP'/'Spannend für' kommen NICHT in die Beschreibung – die füllt ein Mensch."""
+    datum = (event.datum_kompakt or event.datum or "").strip()
+    name = " ".join(p for p in (datum, (event.event_name or "").strip()) if p)
     name = name or "Event (ohne Namen)"
 
     zeilen: list[str] = []
@@ -79,39 +81,65 @@ def _request(method: str, path: str, *, json: dict | None = None, params: dict |
 def list_section_tasks() -> list[dict]:
     """Namen der Aufgaben im Ziel-Abschnitt – Grundlage für den Dublettencheck.
 
+    Gelesen wird über das PROJEKT und anschließend nach Abschnitts-Zugehörigkeit
+    gefiltert: der Abschnitts-Endpunkt (/sections/:id/tasks) lieferte in der
+    Praxis unvollständige Listen (einzelne Aufgaben fehlten, obwohl ihre
+    memberships den Abschnitt nennen). Ein unvollständiger Bestand würde still
+    zu Doppeleinträgen führen.
+
     Reiner GET, läuft auch unter NO_WRITE/DRY_RUN. Bei fehlendem Token/Fehler
     entscheidet der Aufrufer, wie er damit umgeht."""
+    section = config.section_id()
     tasks: list[dict] = []
+    gesamt = 0
     offset: str | None = None
     while True:
-        params: dict = {"opt_fields": "name", "limit": 100}
+        params: dict = {
+            "project": config.project_id(),
+            "opt_fields": "name,memberships.section.gid",
+            "limit": 100,
+        }
         if offset:
             params["offset"] = offset
-        data = _request("GET", f"/sections/{config.section_id()}/tasks", params=params).json()
+        data = _request("GET", "/tasks", params=params).json()
         for t in data.get("data", []):
-            if isinstance(t, dict) and t.get("gid"):
+            if not isinstance(t, dict) or not t.get("gid"):
+                continue
+            gesamt += 1
+            in_section = any(
+                ((m or {}).get("section") or {}).get("gid") == section
+                for m in (t.get("memberships") or [])
+            )
+            if in_section:
                 tasks.append({"gid": t["gid"], "name": t.get("name") or ""})
         next_page = data.get("next_page") or {}
         if not next_page.get("offset"):
             break
         offset = next_page["offset"]
-    logger.info("%d bestehende Aufgabe(n) im Abschnitt %s", len(tasks), config.section_id())
+    logger.info("%d bestehende Aufgabe(n) im Abschnitt %s (von %d im Projekt)",
+                len(tasks), section, gesamt)
     return tasks
 
 
-def create_event_task(name: str, notes: str) -> str | None:
+def create_event_task(name: str, notes: str, due_on: str | None = None) -> str | None:
     """Legt eine Aufgabe im Marketing-Projekt an und schiebt sie in den 'Events'-Abschnitt.
 
-    Gibt die Permalink-URL der Aufgabe zurück (None im NO_WRITE-Lauf)."""
+    due_on = Starttag des Events (YYYY-MM-DD); macht den Abschnitt chronologisch
+    sortierbar. Gibt die Permalink-URL der Aufgabe zurück (None im NO_WRITE-Lauf)."""
     if config.no_write():
-        logger.info("[NO_WRITE] Würde Asana-Aufgabe anlegen: %r im Abschnitt %s", name, config.section_id())
+        logger.info("[NO_WRITE] Würde Asana-Aufgabe anlegen: %r (due %s) im Abschnitt %s",
+                    name, due_on or "-", config.section_id())
         return None
+
+    payload: dict = {"name": name, "notes": notes, "projects": [config.project_id()]}
+    if due_on:
+        payload["due_on"] = due_on
 
     # 1. Aufgabe im Projekt anlegen
     created = _request(
         "POST", "/tasks",
         params={"opt_fields": "permalink_url"},
-        json={"data": {"name": name, "notes": notes, "projects": [config.project_id()]}},
+        json={"data": payload},
     ).json()["data"]
     task_gid = created["gid"]
 

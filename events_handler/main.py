@@ -148,7 +148,7 @@ def _process_message(msg: dict, run_id: str, report: RunReport, existing: list[d
             continue
 
         try:
-            url = create_event_task(name, notes)
+            url = create_event_task(name, notes, due_on=event.datum_iso)
             record.asana_task_url = url
             record.in_asana = url is not None
             if url:

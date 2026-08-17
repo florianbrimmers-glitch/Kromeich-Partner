@@ -6,10 +6,12 @@ import os
 EVENTS_CHANNEL = "C07N95AQRB2"
 CLAUDE_MODEL = "claude-opus-4-8"
 
-# Ziel: Asana-Projekt "Marketing", bestehender Abschnitt "Events"
-# (mit Marlene abgestimmt – die Events-Liste zieht von Google Sheets nach Asana um).
-MARKETING_PROJECT_ID = "1211638618946856"
-EVENTS_SECTION_ID = "1211803155426815"
+# Ziel: Asana-Projekt "08. (MKT) Maketing" (Schreibweise wie im Projektnamen),
+# Abschnitt "Events". Der Handler schrieb zunächst versehentlich in das
+# gleichnamige Alt-Projekt "Marketing" – die dort angelegten Aufgaben wurden
+# am 17.08. hierher übertragen.
+MARKETING_PROJECT_ID = "1212632642056791"
+EVENTS_SECTION_ID = "1212657377620278"
 
 CHECK_EMOJI = "white_check_mark"
 CONFIDENCE_THRESHOLD = 0.6
