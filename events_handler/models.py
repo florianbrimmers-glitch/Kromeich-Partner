@@ -10,6 +10,8 @@ class Event(BaseModel):
 
     ist_event: bool = False        # False = Werbung/Newsletter ohne konkreten Termin
     datum: str | None = None        # wie im Original, z.B. "04.10.2026" oder "16./17.06"
+    datum_kompakt: str | None = None  # einheitlich deutsch für den Aufgaben-Namen: "08./09.09.2026"
+    datum_iso: str | None = None      # Startdatum YYYY-MM-DD für das Asana-Fälligkeitsdatum
     event_name: str | None = None
     branche: str | None = None
     ort: str | None = None

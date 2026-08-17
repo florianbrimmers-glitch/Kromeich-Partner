@@ -34,10 +34,21 @@ Extrahiere je Event (null wenn nicht vorhanden):
   DES MONATS, auf den sich der Beitrag bezieht, im Format "01.MM.JJJJ"
   (z.B. Newsletter-Ausgabe "07/26" mit "heute" -> "01.07.2026"). Ein konkret
   genannter Termin hat immer Vorrang.
-- event_name: Name der Veranstaltung
+- datum_kompakt: dasselbe Datum in EINHEITLICH DEUTSCHER Kurzform für den Aufgaben-Namen,
+  immer mit Punkt-Trennung und vierstelligem Jahr. Muster:
+  ein Tag -> "20.08.2026" · zwei Tage -> "08./09.09.2026" · Zeitraum -> "24.-26.03.2026".
+  Monatsnamen ausschreiben ist NICHT erlaubt ("3. und 4. September 2026" -> "03./04.09.2026"),
+  englische Formate ebenfalls nicht ("14 and 15 October 2026" -> "14./15.10.2026").
+  Fehlt die Jahresangabe, ergänze das Jahr, in das der Termin fällt.
+- datum_iso: NUR der ERSTE Tag des Termins als "JJJJ-MM-TT" (z.B. "2026-09-08");
+  null, wenn kein eindeutiger Starttag ableitbar ist.
+- event_name: Name der Veranstaltung – OHNE Datum (das steht in datum_kompakt)
 - branche: thematische Einordnung, z.B. "Logistik", "Immobilien", "Einkauf", "Fashion" (kurz)
 - ort: Stadt/Ort bzw. "virtuell"/"digital"
-- kosten: z.B. "kostenlos", "260 Eur", "tba" – null wenn nicht genannt
+- kosten: NUR eine echte Preisangabe, z.B. "kostenlos", "260 Eur", "490 statt 980 (Mitglieder)".
+  Steht kein Preis im Text, gib null – Formulierungen wie "Early Bird Ticket",
+  "Preis auf Anfrage" oder "Preis nicht genannt" sind KEINE Kostenangabe.
+  "tba" nur, wenn der Text den Preis ausdrücklich als noch offen bezeichnet.
 - anmeldelink: Registrierungs-/Info-Link aus der Einladung, falls vorhanden
 - confidence: 0.0-1.0
 - begruendung: 1 kurzer Satz
@@ -48,6 +59,8 @@ Antworte ausschließlich mit einem JSON-Objekt:
     {{
       "ist_event": true,
       "datum": "..." | null,
+      "datum_kompakt": "..." | null,
+      "datum_iso": "JJJJ-MM-TT" | null,
       "event_name": "..." | null,
       "branche": "..." | null,
       "ort": "..." | null,

@@ -5,8 +5,9 @@ PERMALINK = "https://slack.example/permalink"
 
 
 def test_name_follows_section_convention():
-    """Der Abschnitt 'Events' benennt Aufgaben als '<Datum> <Event>' (z.B. '24.-26.03 LogiMat')."""
-    event = Event(ist_event=True, datum="04.10.2026", event_name="Alpenländisch meets Real Estate",
+    """Aufgaben heißen '<Datum> <Event>' – Datum im einheitlichen deutschen Kurzformat."""
+    event = Event(ist_event=True, datum="04.10.2026", datum_kompakt="04.10.2026",
+                  event_name="Alpenländisch meets Real Estate",
                   branche="Immobilien", ort="Tegernsee", kosten="kostenlos", confidence=0.9)
     name, notes = build_task(event, PERMALINK)
 
@@ -49,3 +50,28 @@ def test_anmeldelink_in_notes():
                   anmeldelink="https://logimat.example/anmeldung", confidence=0.9)
     _, notes = build_task(event, PERMALINK)
     assert "https://logimat.example/anmeldung" in notes
+
+
+def test_kompaktes_datum_gewinnt_gegen_originalschreibweise():
+    """Die Liste soll einheitlich sein: '3. und 4. September 2026' bzw.
+    '14 and 15 October 2026' dürfen nicht im Namen landen."""
+    event = Event(ist_event=True, datum="3. und 4. September 2026",
+                  datum_kompakt="03./04.09.2026", datum_iso="2026-09-03",
+                  event_name="Summer Camp 2026 – Reinventing Germany", confidence=0.9)
+    name, _ = build_task(event, PERMALINK)
+    assert name == "03./04.09.2026 Summer Camp 2026 – Reinventing Germany"
+
+    englisch = Event(ist_event=True, datum="14 and 15 October 2026",
+                     datum_kompakt="14./15.10.2026", datum_iso="2026-10-14",
+                     event_name="Handelsblatt Conference „Corporate Climate Adaptation“",
+                     confidence=0.9)
+    name, _ = build_task(englisch, PERMALINK)
+    assert name.startswith("14./15.10.2026 ")
+    assert "October" not in name
+
+
+def test_fallback_auf_originaldatum_wenn_kompakt_fehlt():
+    """Liefert die KI kein Kurzformat, ist die Originalschreibweise besser als kein Datum."""
+    event = Event(ist_event=True, datum="16./17.06", event_name="Real Estate Arena", confidence=0.8)
+    name, _ = build_task(event, PERMALINK)
+    assert name == "16./17.06 Real Estate Arena"
