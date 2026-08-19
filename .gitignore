@@ -16,3 +16,6 @@ env/
 # Objekte-Handler Entscheidungslog (wird als Actions-Artefakt hochgeladen)
 objekte_decisions.jsonl
 .pytest_cache/
+
+# Bericht des SessionStart-Hooks (Laufzeitartefakt)
+.claude/hooks/letzte-spiegelung.log
