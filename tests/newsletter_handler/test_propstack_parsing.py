@@ -30,6 +30,6 @@ def test_custom_field_dicts_unwrapped():
 
 
 def test_broker_nested_object():
-    unit = _to_unit({"id": 3, "broker": {"id": 254958, "name": "Oguzhan"}})
+    unit = _to_unit({"id": 3, "broker": {"id": 254958, "name": "Lena Klinnert"}})
     assert unit.broker_id == 254958
-    assert unit.broker_name == "Oguzhan"
+    assert unit.broker_name == "Lena Klinnert"

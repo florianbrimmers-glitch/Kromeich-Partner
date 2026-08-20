@@ -65,7 +65,8 @@ def test_fall_2_viersen_kleine_einheit(monkeypatch, live_mode):
 
 
 def test_fall_3_landau_fehlt_in_ps(live_mode):
-    """"Das Objekt Landau von Nvelop fehlt in Propstack" -> Aufgabe an Oguzhan"""
+    """"Das Objekt Landau von Nvelop fehlt in Propstack" -> Aufgabe an den
+    Review-Fallback (Sitz 254958, heute Lena Klinnert)"""
     cls = Classification(
         typ=MessageType.FEHLT_IN_PS,
         objekt_name="Landau von Nvelop",

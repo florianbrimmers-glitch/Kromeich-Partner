@@ -5,11 +5,10 @@ import os
 # Oguzhan Sahin – Empfänger der Wochenreport-DM
 REPORT_RECIPIENT = "U087H2UMREF"
 
-# Broker, dessen Aufgaben als "Prüfaufgaben" gelten. 254958 ist die ID, auf der die
-# Prüfaufgaben tatsächlich gepflegt werden (317 Aufgaben, davon 25 abgeschlossen);
-# 387451 (Marek) trägt nur einen Bruchteil. Bewusst neutral benannt: der Kommentar in
-# objekte_handler/config.py nennt 254958 "Oguzhan", GET /v1/brokers liefert dafür
-# "Lena Klinnert" – der Widerspruch soll sich hier nicht fortschreiben.
+# Broker, dessen Aufgaben als "Prüfaufgaben" gelten. Auf 254958 werden sie tatsächlich
+# gepflegt (317 Aufgaben, davon 25 abgeschlossen); 387451 (Marek) trägt nur einen
+# Bruchteil. Der Sitz 254958 lief früher auf Oguzhan Sahin und ist auf Lena Klinnert
+# umgestellt – deshalb kein Personenname im Konstantennamen.
 DEFAULT_PRUEFER_BROKER_IDS = "254958"
 
 # Deep-Links in der Slack-Nachricht (Host abgeleitet aus public_expose_url).

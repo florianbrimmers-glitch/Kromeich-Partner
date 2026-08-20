@@ -29,7 +29,7 @@ Ergebnisse aus direkten Tests gegen die Propstack-API (20.08.2026). Das Repo hat
 | `GET /v1/activities?item_type=reminder` | ✅ mit `done`, `original_created_at`, `updated_at`, `broker_id` |
 | `…&original_created_at_from/to=` | ✅ funktioniert |
 | `…&updated_at_from/to=` | ❌ **wird ignoriert** → sortieren statt filtern |
-| `…&broker_id=254958` | ✅ funktioniert |
+| `…&broker_id=254958` | ✅ funktioniert (317 Aufgaben, 25× `done=true`) |
 | Unit-Payload `project` (auch mit `expand=1`) | ❌ ist `null` → Projekt-Titel separat holen |
 
 **Bekannte Grenzen** (stehen auch als Fußnote in der Slack-Nachricht):
@@ -48,7 +48,7 @@ Ergebnisse aus direkten Tests gegen die Propstack-API (20.08.2026). Das Repo hat
 | davon `done = true` | **25** | 6 |
 | jüngste abgeschlossene | 17.08.2026 | 03.08.2026 |
 
-Die Konstante ist bewusst neutral benannt: `objekte_handler/config.py` kommentiert `254958` als „Oguzhan", `GET /v1/brokers` liefert für diese ID aber **Lena Klinnert**. Der Widerspruch soll sich hier nicht fortschreiben. Weitere Broker lassen sich kommagetrennt dazuschalten, ohne Code zu ändern.
+Der Sitz `254958` lief früher auf Oguzhan Sahin und ist auf **Lena Klinnert** umgestellt – die Konstante trägt deshalb keinen Personennamen. Ältere Aufgaben auf dieser ID stammen entsprechend noch aus Oguzhans Zeit. Weitere Broker lassen sich kommagetrennt dazuschalten, ohne Code zu ändern.
 
 Das Feld `done` wird nur auf dieser ID gepflegt (25 von 317). Sollte der Report zu dünn werden, schaltet `REPORT_INCLUDE_TOUCHED=true` einen zweiten Block „bearbeitet, aber offen" dazu (`updated_at > original_created_at`).
 

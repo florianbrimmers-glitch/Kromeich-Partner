@@ -49,7 +49,19 @@ def test_ignorieren(live_mode):
 def test_fehlt_in_ps_immer_stufe_b(live_mode):
     decision = decide(_cls(typ=MessageType.FEHLT_IN_PS, aktion=None), None)
     assert decision.tier == Tier.B
-    assert str(config.BROKER_OGUZHAN) in decision.geplante_aktionen[0]
+    assert str(config.BROKER_REVIEW_FALLBACK) in decision.geplante_aktionen[0]
+
+
+def test_fehlt_in_ps_nennt_aktuellen_fallback_namen(live_mode):
+    """Die Aktion landet über main.py im Propstack-Aufgabentext und in der
+    Slack-Antwort – dort darf kein veralteter Name stehen.
+
+    Der Sitz 254958 lief früher auf Oguzhan Sahin und ist auf Lena Klinnert umgestellt.
+    Name und ID standen in verschiedenen Dateien und liefen deshalb auseinander; dieser
+    Test hält sie beim nächsten Sitzwechsel zusammen."""
+    aktion = decide(_cls(typ=MessageType.FEHLT_IN_PS, aktion=None), None).geplante_aktionen[0]
+    assert config.BROKER_REVIEW_FALLBACK_NAME in aktion
+    assert "Oguzhan" not in aktion
 
 
 def test_flaechenupdate_immer_stufe_b(live_mode):
