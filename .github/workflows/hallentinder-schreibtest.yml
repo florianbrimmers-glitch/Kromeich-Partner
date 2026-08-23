@@ -1,15 +1,33 @@
 name: Hallentinder Schreibtest
 
-# EINMALIGER Lauf: verifiziert das Payload-Schema der Deal-Anlage
-# (POST /client_properties) gegen die Live-API. Legt einen deutlich
-# markierten Testkontakt plus Deals an und löscht sie anschließend wieder.
+# Verifiziert das Payload-Schema der Deal-Anlage (POST /client_properties)
+# gegen die Live-API. Modus "ja" legt einen markierten Testkontakt plus Deals
+# an; Modus "pruefen" legt nichts an, sondern räumt Datensätze eines früheren
+# Laufs nach.
 #
-# HINWEIS: Der push-Trigger ist temporär, damit der Lauf ohne Merge in main
-# starten kann, und wird direkt nach der Auswertung zurückgebaut.
+# ACHTUNG: Modus "ja" schreibt in das Produktiv-CRM. Deals lassen sich per API
+# NICHT wieder löschen (DELETE liefert 404) – sie verschwinden nur, wenn der
+# zugehörige Kontakt gelöscht wird, und auch das nicht zuverlässig. Nur
+# starten, wenn das Schema wirklich neu geprüft werden muss.
 on:
-  push:
-    branches: [claude/hallentinder-matching-app-vo3p6p]
   workflow_dispatch:
+    inputs:
+      modus:
+        description: "ja = anlegen und prüfen (schreibt!), pruefen = nur nachräumen"
+        required: true
+        default: "pruefen"
+        type: choice
+        options:
+          - "pruefen"
+          - "ja"
+      altlasten:
+        description: "Nachzuräumende Deals als 'deal_id:property_id,…'"
+        required: false
+        default: ""
+      altkontakt:
+        description: "Zu prüfende Kontakt-ID aus einem früheren Lauf"
+        required: false
+        default: ""
 
 concurrency:
   group: hallentinder-schreibtest
@@ -37,9 +55,9 @@ jobs:
         env:
           PROPSTACK_API_KEY: ${{ secrets.PROPSTACK_API_KEY }}
           PROPSTACK_KEY_OBJEKTE: ${{ secrets.PROPSTACK_KEY_OBJEKTE }}
-          HALLENTINDER_SCHREIBTEST: "pruefen"
-          HALLENTINDER_ALTLASTEN: "96585187:2777827,96585188:2777828"
-          HALLENTINDER_ALTKONTAKT: "35754265"
+          HALLENTINDER_SCHREIBTEST: ${{ github.event.inputs.modus }}
+          HALLENTINDER_ALTLASTEN: ${{ github.event.inputs.altlasten }}
+          HALLENTINDER_ALTKONTAKT: ${{ github.event.inputs.altkontakt }}
           NO_WRITE: "false"
         run: python -m hallentinder.schreibtest | tee hallentinder_schreibtest.txt
 

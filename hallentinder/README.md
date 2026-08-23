@@ -123,7 +123,11 @@ Zwei Punkte lassen sich nur gegen die Live-API klären und sind gekapselt, damit
 
 **Erledigt** (Diagnoseläufe vom 23.08.2026): Bestandsabruf ohne `q` paginiert korrekt über 23 Seiten und ist mit `sort_by=id` stabil, der Kontakt-Endpunkt ist lesend erreichbar, Bild-URLs kommen über `images`, `ramp`/`crane_runway` sind Booleans, und der Kategoriefilter ist gegen die tatsächlich vorkommenden Enums geprüft.
 
-**Offen:** die **Deal-Anlage** `POST /client_properties` mit `{"client_property": {"client_id", "property_id", "note"}}` (`propstack.create_deal`). Das Payload-Schema ist die einzige verbliebene Annahme und lässt sich nur mit einem echten Schreibtest bestätigen – am besten mit einem Testkontakt, der danach wieder entfernt wird.
+**Ebenfalls erledigt:** die **Deal-Anlage**. Ein Schreibtest gegen die Live-API (`python -m hallentinder.schreibtest`) hat bestätigt: `POST /client_properties` mit `{"client_property": {"client_id", "property_id", "note"}}` antwortet mit **HTTP 201** und `{"id": …, "ok": true}` – genau das, was `propstack.create_deal` sendet.
+
+⚠️ **Deals lassen sich per API nicht löschen.** `DELETE /client_properties/{id}` und `DELETE /deals/{id}` liefern beide 404. Beim Löschen des zugehörigen Kontakts verschwinden Deals teilweise mit, aber nicht zuverlässig – im Schreibtest blieb einer von zweien stehen. Das ist beim Testen mit echten Objekten zu bedenken: **jeder angelegte Deal bleibt, bis ihn jemand in Propstack von Hand entfernt.** Für die App selbst ist das unkritisch (sie legt Deals nur bei echten Anfragen an), für Testläufe aber der Grund, `NO_WRITE=true` zu nutzen.
+
+Es bleibt damit keine unverifizierte Annahme mehr im Code.
 
 ## Nicht enthalten
 
