@@ -51,12 +51,12 @@ def test_wohnimmobilien_fliegen_raus():
 
 def test_buero_und_ladenflaechen_fliegen_raus():
     """Gewerbe, aber keine Halle – gehört nicht in einen Hallentinder."""
-    for kategorie in ("OFFICE_SPACE", "OFFICE", "RETAIL_SPACE", "SALES_AREA", "ROOF_STOREY"):
+    for kategorie in ("OFFICE_SPACE", "OFFICE", "RETAIL_SPACE", "SALES_AREA", "ROOF_STOREY", "MAISONETTE"):
         assert catalog.ist_verfuegbare_halle(unit(rs_category=kategorie)) is False, kategorie
 
 
 def test_hallenkategorien_bleiben_drin():
-    for kategorie in ("HALL", "STORAGE_HALL", "INDUSTRY_HALL", "STORAGE_AREA", "TRADE_SITE"):
+    for kategorie in ("HALL", "STORAGE_HALL", "INDUSTRY_HALL", "STORAGE_AREA", "TRADE_SITE", "REPAIR_SHOP"):
         assert catalog.ist_verfuegbare_halle(unit(rs_category=kategorie)) is True, kategorie
 
 
