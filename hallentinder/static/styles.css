@@ -174,3 +174,17 @@ dialog dd { margin: 0; }
 dialog a { color: var(--neongruen); }
 
 .leer { text-align: center; padding: 40px 10px; color: #D7E3D4; }
+
+.fuss {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 8px 16px 32px;
+  text-align: center;
+  font-size: .76rem;
+  color: var(--hellgruen);
+}
+.fuss a { color: var(--hellgruen); text-decoration: underline; }
+.fuss span { margin: 0 6px; opacity: .5; }
+.fuss p { margin: 10px 0 0; color: #9FB39C; line-height: 1.5; }
+
+.check a { color: var(--neongruen); }

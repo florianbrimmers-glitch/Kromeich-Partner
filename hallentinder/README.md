@@ -20,8 +20,10 @@ Eigenständiges Paket – **kein Code-Sharing** mit `src/` oder den Slack-Handle
 
 | Modus | Propstack-Writes | Zweck |
 |---|---|---|
-| `NO_WRITE=true` | keine (Kontakt und Deals werden nur geloggt) | Testen mit echtem Bestand, beliebig wiederholbar |
-| `NO_WRITE=false` (**Default**) | Kontakt + Deals | Normalbetrieb |
+| `NO_WRITE=true` (**Default**) | keine (Kontakt und Deals werden nur geloggt) | Testen mit echtem Bestand, beliebig wiederholbar |
+| `NO_WRITE=false` | Kontakt + Deals | Echtbetrieb – muss im Deployment explizit gesetzt werden |
+
+**Warum der sichere Default:** Deals lassen sich über die Propstack-API **nicht löschen** (`DELETE` liefert 404). Ein versehentlich angelegter Deal bleibt stehen, bis ihn jemand in Propstack von Hand entfernt. Deshalb ist `NO_WRITE=true` der Ausgangszustand – wie `DRY_RUN=true` bei den Slack-Handlern – und der Echtbetrieb setzt es bewusst auf `false`. Beim Start sagt das Log in beiden Richtungen deutlich, welcher Modus läuft; `/healthz` gibt ihn ebenfalls aus.
 
 Der Bestand wird in beiden Modi live gelesen – `PROPSTACK_API_KEY` ist also immer nötig.
 
@@ -31,7 +33,7 @@ Der Bestand wird in beiden Modi live gelesen – `PROPSTACK_API_KEY` ist also im
 |---|---|---|---|
 | `PROPSTACK_API_KEY` | ja | – | Propstack-v1-Key (units, contacts, client_properties) – dasselbe Secret wie die anderen Pipelines |
 | `PROPSTACK_KEY_OBJEKTE` | nein | – | Optionaler Override: separater Key für units/deals |
-| `NO_WRITE` | nein | `false` | Reiner Lese-/Loglauf |
+| `NO_WRITE` | nein | `true` | Reiner Lese-/Loglauf; für den Echtbetrieb auf `false` setzen |
 | `HALLENTINDER_HOST` | nein | `0.0.0.0` | Bind-Adresse |
 | `HALLENTINDER_PORT` | nein | `8080` | Port |
 | `HALLENTINDER_CACHE_TTL` | nein | `3600` | Bestands-Cache in Sekunden |
@@ -86,6 +88,24 @@ Objekte ohne Koordinaten lassen sich nicht in den Umkreis einordnen und rutschen
 - **Einwilligung:** Ohne gesetzte Checkbox wird nichts geschrieben.
 - **Keine externen Requests im Frontend:** keine Google Fonts, keine CDNs, kein Tracking. Die Schriften des Styleguides (Jomolhari, Poppins) werden genutzt, wenn sie lokal vorhanden sind, sonst greift ein System-Fallback.
 - **Missbrauchsschutz:** IP-Rate-Limit, Honeypot-Feld, Längenlimits auf allen Eingaben.
+
+## Interner Test
+
+Für eine Testrunde im Team braucht es kein Hosting. Ein Rechner startet die App, die anderen öffnen sie im selben WLAN:
+
+```bash
+pip install -r requirements.txt
+PROPSTACK_API_KEY=xxx python -m hallentinder.main
+```
+
+Die App lauscht auf `0.0.0.0:8080` – Kollegen erreichen sie über `http://<IP-des-Rechners>:8080`, auch am Handy. `NO_WRITE` ist per Default `true`, es entsteht also nichts in Propstack; im Log stehen die Anfragen, die im Echtbetrieb entstanden wären.
+
+Worauf beim Testen zu achten ist – das sind die Punkte, die der Diagnoselauf als schwach gepflegt gemeldet hat:
+
+- **Reihenfolge des Decks:** Kommen die naheliegenden, passenden Hallen zuerst? 17 % der Hallen haben keine Koordinaten und landen deshalb am Ende, 15 % keine Flächenangabe.
+- **Suchorte ohne Bestand:** Ein Ort, an dem nichts vorhanden ist – wird der Umkreis sinnvoll erweitert, oder kommen unpassende Treffer?
+- **Karteninhalt:** Reichen Bild, Ort, Fläche und die Merkmale für eine Ja/Nein-Entscheidung? Ein Viertel der Hallen hat kein Bild.
+- **Ortsnamen statt PLZ:** „Osnabrück" wird über den eigenen Bestand aufgelöst, nicht über einen Geodienst – bei Orten ohne eigene Objekte greift kein Umkreisfilter.
 
 ## Diagnose gegen die Live-API
 

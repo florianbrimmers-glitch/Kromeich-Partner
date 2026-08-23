@@ -22,8 +22,13 @@ def _env_bool(name: str, default: str) -> bool:
 
 
 def no_write() -> bool:
-    """Reiner Lese-/Loglauf: keine Propstack-Writes (Kontakte, Deals)."""
-    return _env_bool("NO_WRITE", "false")
+    """Reiner Lese-/Loglauf: keine Propstack-Writes (Kontakte, Deals).
+
+    Default true – bewusst der sichere Zustand: Deals lassen sich per API NICHT
+    wieder löschen (DELETE liefert 404), ein versehentlich angelegter bleibt
+    also stehen. Das Deployment setzt NO_WRITE=false explizit, analog zum
+    DRY_RUN-Muster der Slack-Handler."""
+    return _env_bool("NO_WRITE", "true")
 
 
 def propstack_key() -> str:

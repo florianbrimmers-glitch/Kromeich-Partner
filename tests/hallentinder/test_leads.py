@@ -34,7 +34,15 @@ def lead(**overrides) -> LeadPayload:
 
 @pytest.fixture(autouse=True)
 def kein_no_write(monkeypatch):
+    """NO_WRITE ist per Default true – für die Write-Pfade hier abschalten."""
     monkeypatch.setenv("NO_WRITE", "false")
+
+
+def test_no_write_ist_der_default(monkeypatch):
+    """Deals sind per API nicht löschbar – der Ausgangszustand muss sicher sein."""
+    monkeypatch.delenv("NO_WRITE", raising=False)
+    from hallentinder import config
+    assert config.no_write() is True
 
 
 def test_bestehender_kontakt_wird_wiederverwendet(monkeypatch):
