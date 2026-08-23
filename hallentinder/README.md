@@ -98,7 +98,11 @@ pip install -r requirements.txt
 PROPSTACK_API_KEY=xxx python -m hallentinder.main
 ```
 
-Die App lauscht auf `0.0.0.0:8080` – Kollegen erreichen sie über `http://<IP-des-Rechners>:8080`, auch am Handy. `NO_WRITE` ist per Default `true`, es entsteht also nichts in Propstack; im Log stehen die Anfragen, die im Echtbetrieb entstanden wären.
+Die App nennt beim Start selbst die Adresse für die Kollegen (`Für Kollegen im gleichen WLAN: http://…:8080`) – dort öffnen sie sie im Browser, auch am Handy. **Wichtig:** Der Bestand wird beim Start geladen, das dauert rund zwei Minuten. Bereit ist die App, sobald `Bestand im Cache: … vermietbare Hallen` im Log steht. Vorher zeigt sie „Der Objektbestand ist gerade nicht erreichbar".
+
+`NO_WRITE` ist per Default `true`, es entsteht also nichts in Propstack; im Log stehen die Anfragen, die im Echtbetrieb entstanden wären. **Für eine Vorführung nicht auf `false` stellen** – angelegte Deals lassen sich per API nicht mehr löschen.
+
+Fehlt der Key, bricht der Start mit einer Meldung ab, die sagt, wo er zu finden ist.
 
 Worauf beim Testen zu achten ist – das sind die Punkte, die der Diagnoselauf als schwach gepflegt gemeldet hat:
 
