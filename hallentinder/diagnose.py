@@ -53,6 +53,18 @@ def _quote(anzahl: int, gesamt: int) -> str:
     return f"{anzahl:>5} / {gesamt} ({anzahl / gesamt * 100:4.1f} %)"
 
 
+def _wertform(value) -> str:
+    """Wert typgerecht darstellen – Strings gekürzt, damit das Log lesbar bleibt."""
+    roh = catalog._scalar(value)
+    typ = type(roh).__name__
+    if roh is None:
+        return "None"
+    if isinstance(roh, str):
+        gekuerzt = roh[:40] + ("…" if len(roh) > 40 else "")
+        return f"{typ}: {gekuerzt!r}"
+    return f"{typ}: {roh!r}"
+
+
 def _ablehnungsgrund(raw: dict) -> str:
     if catalog._scalar(raw.get("rented")):
         return "vermietet"
@@ -107,6 +119,18 @@ def felder_pruefen(rohdaten: list[dict], karten: list[HallCard]) -> None:
 
     unbekannt = sorted(set(vorhanden) - set(interessant))
     print(f"\nWeitere befüllte Felder ({len(unbekannt)}): {', '.join(unbekannt[:40])}")
+
+    _titel("3b. Welche WERTE stehen in den Kategorie- und Ausstattungsfeldern?")
+    print("Technische Enums/Flags – entscheidet, wie sauber gefiltert und angezeigt werden kann.\n")
+    for feld in ("marketing_type", "rs_category", "rs_type", "object_type",
+                 "ramp", "crane_runway", "hall_height", "rented"):
+        werte = Counter(_wertform(raw.get(feld)) for raw in rohdaten)
+        print(f"  {feld}:")
+        for wert, anzahl in werte.most_common(12):
+            print(f"      {anzahl:>5}  {wert}")
+        if len(werte) > 12:
+            print(f"      … {len(werte) - 12} weitere Ausprägungen")
+        print()
 
 
 def ranking_pruefen(karten: list[HallCard]) -> None:
