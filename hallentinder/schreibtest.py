@@ -5,8 +5,13 @@ Annahme, die sich lesend nicht klären lässt. Legt dafür einen deutlich
 markierten Testkontakt und ein bis zwei Deals an und räumt anschließend
 wieder auf.
 
-Läuft nur mit HALLENTINDER_SCHREIBTEST=ja, damit er nicht versehentlich
-gestartet wird. NO_WRITE muss aus sein – sonst gäbe es nichts zu prüfen.
+Zwei Modi über HALLENTINDER_SCHREIBTEST:
+
+    ja       – vollständiger Test (legt an, prüft, räumt auf)
+    pruefen  – räumt nur nach: prüft, ob Datensätze aus einem früheren Lauf
+               noch existieren, und versucht sie zu entfernen
+
+Ohne diese Variable passiert nichts; bei NO_WRITE=true bricht der Lauf ab.
 
     HALLENTINDER_SCHREIBTEST=ja PROPSTACK_API_KEY=xxx python -m hallentinder.schreibtest
 """
@@ -134,15 +139,108 @@ def aufraeumen(kontakt_id: int, deal_ids: list[int]) -> None:
         print(f"  Bitte manuell entfernen: {TEST_EMAIL}")
 
 
+def deal_existiert(deal_id: int, property_id: int) -> dict | None:
+    """Propstack kennt keinen GET auf einen einzelnen Deal – über die Liste
+    der Deals des Objekts suchen.
+
+    Bewusst nicht über propstack.get_open_deals: das filtert abgeschlossene
+    Deals weg, und ein Testdatensatz mit Status 'lost' wäre dann unsichtbar,
+    obwohl er noch existiert."""
+    seite = 1
+    while seite <= 10:
+        antwort = propstack._request(
+            "GET", "/client_properties",
+            key=config.propstack_key_objekte(),
+            params={"property_id": property_id, "page": seite, "per": 100},
+        )
+        eintraege = propstack._items(antwort.json())
+        if not eintraege:
+            return None
+        for deal in eintraege:
+            if deal.get("id") == deal_id:
+                return deal
+        if len(eintraege) < 100:
+            return None
+        seite += 1
+    return None
+
+
+def loeschversuche(deal_id: int) -> bool:
+    """Der naheliegende Pfad liefert 404 – weitere Varianten durchprobieren."""
+    pfade = [
+        ("DELETE", f"/client_properties/{deal_id}"),
+        ("DELETE", f"/deals/{deal_id}"),
+    ]
+    for methode, pfad in pfade:
+        try:
+            propstack._request(methode, pfad, key=config.propstack_key_objekte())
+            print(f"    {methode} {pfad}: erfolgreich")
+            return True
+        except Exception as e:
+            print(f"    {methode} {pfad}: {_fehlertext(e)}")
+    return False
+
+
+def nachraeumen() -> None:
+    """Prüft Datensätze eines früheren Laufs und versucht sie zu entfernen.
+
+    IDs über HALLENTINDER_ALTLASTEN als 'deal_id:property_id,…',
+    Kontakt über HALLENTINDER_ALTKONTAKT."""
+    _titel("Nachräumen eines früheren Schreibtests")
+
+    roh = os.environ.get("HALLENTINDER_ALTLASTEN", "").strip()
+    paare = []
+    for eintrag in roh.split(","):
+        if ":" in eintrag:
+            deal, prop = eintrag.split(":", 1)
+            paare.append((int(deal.strip()), int(prop.strip())))
+    if not paare:
+        print("Keine IDs übergeben (HALLENTINDER_ALTLASTEN).")
+
+    offen = []
+    for deal_id, property_id in paare:
+        deal = deal_existiert(deal_id, property_id)
+        if deal is None:
+            print(f"\n  Deal {deal_id} (Objekt {property_id}): existiert nicht mehr –")
+            print("    beim Löschen des Testkontakts mit entfernt worden.")
+            continue
+        print(f"\n  Deal {deal_id} (Objekt {property_id}): EXISTIERT NOCH")
+        print(f"    Status/Kategorie: {deal.get('category')!r}, Kontakt: {deal.get('client_id')}")
+        if not loeschversuche(deal_id):
+            offen.append((deal_id, property_id))
+
+    kontakt = os.environ.get("HALLENTINDER_ALTKONTAKT", "").strip()
+    if kontakt:
+        try:
+            antwort = propstack._request("GET", f"/contacts/{kontakt}", key=config.propstack_key())
+            print(f"\n  Testkontakt {kontakt}: existiert noch – {antwort.json().get('name')!r}")
+        except Exception as e:
+            print(f"\n  Testkontakt {kontakt}: nicht mehr abrufbar ({_fehlertext(e)[:60]}) – gelöscht.")
+
+    _titel("Ergebnis")
+    if offen:
+        print("Diese Testdatensätze konnten NICHT per API entfernt werden und müssen")
+        print("in Propstack von Hand gelöscht werden:")
+        for deal_id, property_id in offen:
+            print(f"  Deal {deal_id} am Objekt {property_id}")
+    else:
+        print("Keine Testdatensätze mehr vorhanden.")
+
+
 def main() -> None:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
-    if os.environ.get("HALLENTINDER_SCHREIBTEST", "").lower() != "ja":
-        raise SystemExit("Abbruch: HALLENTINDER_SCHREIBTEST=ja setzen (dieser Lauf schreibt in Propstack).")
+    modus = os.environ.get("HALLENTINDER_SCHREIBTEST", "").lower()
+    if modus not in ("ja", "pruefen"):
+        raise SystemExit("Abbruch: HALLENTINDER_SCHREIBTEST=ja oder =pruefen setzen.")
     if not os.environ.get("PROPSTACK_API_KEY"):
         raise SystemExit("FEHLER: PROPSTACK_API_KEY nicht gesetzt.")
     if config.no_write():
         raise SystemExit("Abbruch: NO_WRITE=true – dann gäbe es nichts zu verifizieren.")
+
+    if modus == "pruefen":
+        nachraeumen()
+        return
 
     print("SCHREIBTEST – legt einen markierten Testkontakt und Deals an und löscht sie wieder.\n")
 
