@@ -1,0 +1,50 @@
+name: Hallentinder Schreibtest
+
+# EINMALIGER Lauf: verifiziert das Payload-Schema der Deal-Anlage
+# (POST /client_properties) gegen die Live-API. Legt einen deutlich
+# markierten Testkontakt plus Deals an und löscht sie anschließend wieder.
+#
+# HINWEIS: Der push-Trigger ist temporär, damit der Lauf ohne Merge in main
+# starten kann, und wird direkt nach der Auswertung zurückgebaut.
+on:
+  push:
+    branches: [claude/hallentinder-matching-app-vo3p6p]
+  workflow_dispatch:
+
+concurrency:
+  group: hallentinder-schreibtest
+  cancel-in-progress: false
+
+jobs:
+  schreibtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Schreibtest gegen Propstack
+        env:
+          PROPSTACK_API_KEY: ${{ secrets.PROPSTACK_API_KEY }}
+          PROPSTACK_KEY_OBJEKTE: ${{ secrets.PROPSTACK_KEY_OBJEKTE }}
+          HALLENTINDER_SCHREIBTEST: "ja"
+          NO_WRITE: "false"
+        run: python -m hallentinder.schreibtest | tee hallentinder_schreibtest.txt
+
+      - name: Upload Bericht
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hallentinder-schreibtest-${{ github.run_id }}
+          path: hallentinder_schreibtest.txt
+          if-no-files-found: ignore
