@@ -76,22 +76,45 @@ def _items(data) -> list[dict]:
 
 
 def list_units(per: int = 100) -> list[dict]:
-    """GET /units – gesamter Bestand, paginiert. Rohdaten; Filterung/Whitelist in catalog.py."""
+    """GET /units – gesamter Bestand, paginiert. Rohdaten; Filterung/Whitelist in catalog.py.
+
+    Der Durchlauf dauert rund zwei Minuten. Wird in dieser Zeit ein Objekt in
+    Propstack bearbeitet und die Standardsortierung ist die Änderungszeit, dann
+    wandert es nach vorn und verschiebt alles dahinter – Objekte kämen doppelt,
+    andere gar nicht. Deshalb explizit nach id sortieren und zusätzlich lokal
+    deduplizieren: die Sortierung verhindert die Drift, die Deduplizierung
+    schützt auch dann, wenn der Parameter serverseitig ignoriert wird."""
     units: list[dict] = []
+    gesehen: set = set()
+    duplikate = 0
+
     for page in range(1, MAX_PAGES + 1):
         response = _request(
             "GET", "/units",
             key=config.propstack_key_objekte(),
-            params={"expand": 1, "page": page, "per": per},
+            params={"expand": 1, "page": page, "per": per, "sort_by": "id", "order": "asc"},
         )
         batch = _items(response.json())
-        units.extend(u for u in batch if u.get("id"))
+        for unit in batch:
+            unit_id = unit.get("id")
+            if not unit_id:
+                continue
+            if unit_id in gesehen:
+                duplikate += 1
+                continue
+            gesehen.add(unit_id)
+            units.append(unit)
         if len(batch) < per:
             break
         time.sleep(0.5)
     else:
         logger.warning("Bestandsabruf bei %d Seiten abgebrochen – Bestand evtl. unvollständig", MAX_PAGES)
 
+    if duplikate:
+        logger.warning(
+            "Bestandsabruf: %d doppelt gelieferte Objekte verworfen – die Seitenabfrage "
+            "driftet, es fehlen entsprechend viele andere Objekte", duplikate,
+        )
     logger.info("Propstack-Bestand geladen: %d Objekte", len(units))
     return units
 

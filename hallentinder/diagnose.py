@@ -128,15 +128,26 @@ def paginierung_pruefen() -> None:
         "ohne Sortierung": {"expand": 1, "page": 2, "per": 100},
         "sort_by=id": {"expand": 1, "page": 2, "per": 100, "sort_by": "id", "order": "asc"},
     }
+    ergebnisse: dict[str, list[int]] = {}
     for label, params in varianten.items():
         try:
             erste, zweite = seite(params), seite(params)
         except Exception as e:
             print(f"  {label:<18} Fehler: {e}")
             continue
+        ergebnisse[label] = erste
         gleich = erste == zweite
         ueberlappung = len(set(erste) & set(zweite))
-        print(f"  {label:<18} identisch: {gleich}, gemeinsame IDs: {ueberlappung}/{len(erste)}")
+        print(f"  {label:<18} zweimal identisch: {gleich}, gemeinsame IDs: {ueberlappung}/{len(erste)}")
+
+    if len(ergebnisse) == 2:
+        ohne, mit = ergebnisse["ohne Sortierung"], ergebnisse["sort_by=id"]
+        if ohne == mit:
+            print("\n  sort_by=id ändert nichts – entweder ignoriert die API den Parameter,")
+            print("  oder die Standardsortierung ist bereits die id.")
+        else:
+            aufsteigend = mit == sorted(mit)
+            print(f"\n  sort_by=id wirkt (andere Reihenfolge), aufsteigend sortiert: {aufsteigend}")
 
 
 def felder_pruefen(rohdaten: list[dict], karten: list[HallCard]) -> None:
@@ -259,6 +270,15 @@ def main() -> None:
     ranking_pruefen(karten)
     kontakt_lesen_pruefen()
     lead_simulieren(karten)
+
+    _titel("Kurzfassung")
+    ids = [r.get("id") for r in rohdaten if isinstance(r, dict)]
+    print(f"  Objekte geladen:           {len(ids)}")
+    print(f"  davon eindeutige IDs:      {len(set(ids))}  (Differenz = Drift der Seitenabfrage)")
+    print(f"  vermietbare Hallen:        {len(karten)}")
+    print(f"  mit Koordinaten:           {sum(1 for k in karten if k.lat is not None)}")
+    print(f"  mit Flächenangabe:         {sum(1 for k in karten if k.flaeche is not None)}")
+    print(f"  mit Bild:                  {sum(1 for k in karten if k.bild_url)}")
 
     _titel("Offen bleibt")
     print("POST /client_properties (Deal-Anlage) – nur mit einem echten Schreibtest zu")

@@ -41,6 +41,39 @@ def test_list_units_paginiert_bis_zur_letzten_seite(monkeypatch):
     assert aufrufe == [1, 2]
 
 
+def test_list_units_verwirft_doppelt_gelieferte_objekte(monkeypatch):
+    """Der Abruf dauert ~2 Minuten; driftet die Seitenabfrage, kommen Objekte
+    doppelt – im Deck stünde dieselbe Halle dann zweimal."""
+    seiten = {
+        1: [{"id": i} for i in range(1, 101)],
+        2: [{"id": i} for i in range(95, 195)],   # 6 Überschneidungen durch Drift
+        3: [{"id": 195}],
+    }
+    monkeypatch.setattr(propstack, "_request",
+                        lambda *a, **k: FakeResponse(seiten.get(k["params"]["page"], [])))
+    monkeypatch.setattr(propstack.time, "sleep", lambda s: None)
+    monkeypatch.setenv("PROPSTACK_API_KEY", "test")
+
+    units = propstack.list_units()
+    ids = [u["id"] for u in units]
+
+    assert len(ids) == len(set(ids)), "keine Duplikate im Ergebnis"
+    assert ids == sorted(ids) and ids[0] == 1 and ids[-1] == 195
+
+
+def test_list_units_sortiert_stabil(monkeypatch):
+    """Ohne feste Sortierung wandern Objekte während des Durchlaufs zwischen den Seiten."""
+    gesendet = []
+    monkeypatch.setattr(propstack, "_request",
+                        lambda *a, **k: gesendet.append(k["params"]) or FakeResponse([]))
+    monkeypatch.setenv("PROPSTACK_API_KEY", "test")
+
+    propstack.list_units()
+
+    assert gesendet[0]["sort_by"] == "id"
+    assert gesendet[0]["order"] == "asc"
+
+
 def test_dublettencheck_prueft_die_adresse_lokal(monkeypatch):
     """Die Volltextsuche trifft auch Teilstrings – nur exakte Adressen zählen."""
     monkeypatch.setenv("PROPSTACK_API_KEY", "test")
