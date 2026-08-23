@@ -57,8 +57,19 @@ function baueKarte(karte) {
 
   const bild = document.createElement("div");
   bild.className = "bild";
-  if (karte.bild_url) {
-    bild.style.backgroundImage = "url('" + encodeURI(karte.bild_url) + "')";
+  // Als <img>, nicht als CSS-background: die URL wird als Property gesetzt statt in
+  // einen CSS-String gebaut. Kein Escaping nötig (encodeURI würde bereits kodierte
+  // URLs zerstören: %20 -> %2520) und kein Weg, aus der URL heraus CSS einzuschmuggeln.
+  if (karte.bild_url && /^https?:\/\/|^data:image\//i.test(karte.bild_url)) {
+    const foto = document.createElement("img");
+    foto.alt = "";
+    foto.loading = "lazy";
+    foto.addEventListener("error", () => {
+      foto.remove();
+      bild.textContent = "K&P";
+    });
+    foto.src = karte.bild_url;
+    bild.appendChild(foto);
   } else {
     bild.textContent = "K&P";
   }

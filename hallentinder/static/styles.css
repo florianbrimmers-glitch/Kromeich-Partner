@@ -110,9 +110,17 @@ button { font: inherit; cursor: pointer; }
 .karte.wandert { transition: transform .28s ease, opacity .28s ease; }
 .karte .bild {
   flex: 1;
-  background: var(--dunkelgruen) center/cover no-repeat;
+  position: relative;
+  overflow: hidden;
+  background: var(--dunkelgruen);
   display: flex; align-items: center; justify-content: center;
   font-family: var(--serif); font-size: 3rem; color: var(--hellgruen);
+}
+.karte .bild img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+  pointer-events: none;  /* das Wischen gehört der Karte, nicht dem Bild */
 }
 .karte .text { padding: 14px 16px 18px; background: rgba(25, 55, 44, .96); }
 .karte h3 { margin: 0 0 4px; font-family: var(--serif); font-size: 1.12rem; line-height: 1.25; }
@@ -171,7 +179,11 @@ dialog h3 { font-family: var(--serif); margin: 0 0 10px; }
 dialog dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: .88rem; margin: 0; }
 dialog dt { color: var(--hellgruen); }
 dialog dd { margin: 0; }
-dialog a { color: var(--neongruen); }
+dialog a {
+  display: inline-block;
+  margin-top: 16px;
+  color: var(--neongruen);
+}
 
 .leer { text-align: center; padding: 40px 10px; color: #D7E3D4; }
 
