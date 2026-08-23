@@ -43,7 +43,26 @@ def test_vermietete_objekte_fliegen_raus():
 
 
 def test_wohnimmobilien_fliegen_raus():
-    assert catalog.ist_verfuegbare_halle(unit(rs_category="Wohnung", title="Wohnung")) is False
+    """Der Bestand markiert Wohnungen über object_type LIVING bzw. rs_type APARTMENT."""
+    assert catalog.ist_verfuegbare_halle(unit(object_type="LIVING")) is False
+    assert catalog.ist_verfuegbare_halle(unit(rs_type="APARTMENT")) is False
+    assert catalog.ist_verfuegbare_halle(unit(rs_category="APARTMENT", title="3-Zimmer-Wohnung")) is False
+
+
+def test_buero_und_ladenflaechen_fliegen_raus():
+    """Gewerbe, aber keine Halle – gehört nicht in einen Hallentinder."""
+    for kategorie in ("OFFICE_SPACE", "OFFICE", "RETAIL_SPACE", "SALES_AREA", "ROOF_STOREY"):
+        assert catalog.ist_verfuegbare_halle(unit(rs_category=kategorie)) is False, kategorie
+
+
+def test_hallenkategorien_bleiben_drin():
+    for kategorie in ("HALL", "STORAGE_HALL", "INDUSTRY_HALL", "STORAGE_AREA", "TRADE_SITE"):
+        assert catalog.ist_verfuegbare_halle(unit(rs_category=kategorie)) is True, kategorie
+
+
+def test_objekte_ohne_kategorie_bleiben_drin():
+    """688 Objekte im Bestand haben rs_category=None – die sind meist INDUSTRY."""
+    assert catalog.ist_verfuegbare_halle(unit(rs_category=None, rs_type="INDUSTRY")) is True
 
 
 def test_reine_kaufobjekte_fliegen_raus():
@@ -58,6 +77,19 @@ def test_unklare_kategorie_bleibt_drin_ausser_bei_strict(monkeypatch):
     assert config.strict_halle() is True
     assert catalog.ist_verfuegbare_halle(unklar) is False
     assert catalog.ist_verfuegbare_halle(unit(rs_category=None, hall_height=8.5, title="Objekt", name="Objekt")) is True
+
+
+def test_ausstattung_ist_ein_flag_kein_text():
+    """ramp/crane_runway sind Booleans – als Text stünde 'Rampe: False' auf der Karte."""
+    ohne = catalog.to_card(unit(ramp=False, crane_runway=False))
+    assert ohne.rampe is False and ohne.kranbahn is False
+    mit = catalog.to_card(unit(ramp=True, crane_runway=True))
+    assert mit.rampe is True and mit.kranbahn is True
+    # tolerant gegenüber anderen Schreibweisen
+    assert catalog._flag("ja") is True
+    assert catalog._flag({"label": "Rampe", "value": True}) is True
+    assert catalog._flag(0) is False
+    assert catalog._flag(None) is False
 
 
 def test_build_cards_ueberspringt_kaputte_eintraege():

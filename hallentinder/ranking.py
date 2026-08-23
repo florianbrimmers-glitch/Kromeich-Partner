@@ -98,8 +98,9 @@ def _sortiere(karten: list[HallCard], profil: SearchProfile) -> list[HallCard]:
 
     def schluessel(karte: HallCard) -> tuple[float, int]:
         entfernung = karte.entfernung_km if karte.entfernung_km is not None else STRAFE_OHNE_KOORDINATEN
-        # 20 km Aufschlag pro 100 % Flächenabweichung: Lage schlägt Fläche, aber nicht beliebig
-        score = entfernung + _flaechen_abweichung(karte, minimum, maximum) * 20.0
+        # 40 km Aufschlag pro 100 % Flächenabweichung. Der Diagnoselauf zeigte
+        # sonst 10.000-m²-Hallen vor der exakt passenden 6.800er ein paar km weiter.
+        score = entfernung + _flaechen_abweichung(karte, minimum, maximum) * 40.0
         return (score, karte.id)  # id als Tiebreaker → deterministische Reihenfolge
 
     return sorted(karten, key=schluessel)

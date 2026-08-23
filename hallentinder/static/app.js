@@ -39,8 +39,8 @@ function merkmale(karte) {
     liste.push(karte.entfernung_km < 1 ? "direkt vor Ort" : zahl(karte.entfernung_km) + " km entfernt");
   }
   if (karte.hallenhoehe) liste.push(karte.hallenhoehe.toString().replace(".", ",") + " m Höhe");
-  if (karte.rampen) liste.push("Rampe: " + karte.rampen);
-  if (karte.kranbahn) liste.push("Kranbahn: " + karte.kranbahn);
+  if (karte.rampe) liste.push("Rampe");
+  if (karte.kranbahn) liste.push("Kranbahn");
   if (karte.baujahr) liste.push("Baujahr " + karte.baujahr);
   return liste;
 }
@@ -214,8 +214,8 @@ function detailZeigen() {
       ? null
       : (karte.entfernung_km < 1 ? "direkt vor Ort" : zahl(karte.entfernung_km) + " km")],
     ["Hallenhöhe", karte.hallenhoehe ? String(karte.hallenhoehe).replace(".", ",") + " m" : null],
-    ["Rampen", karte.rampen],
-    ["Kranbahn", karte.kranbahn],
+    ["Rampe", karte.rampe ? "vorhanden" : null],
+    ["Kranbahn", karte.kranbahn ? "vorhanden" : null],
     ["Baujahr", karte.baujahr],
   ];
   zeilen.forEach(([label, wert]) => {

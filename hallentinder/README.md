@@ -7,7 +7,7 @@ Eigenständiges Paket – **kein Code-Sharing** mit `src/` oder den Slack-Handle
 ## Ablauf
 
 1. **Onboarding:** Ort/PLZ, Flächenbedarf von–bis, Nutzung, Zeithorizont, Umkreis.
-2. **Bestand:** `GET /v1/units` paginiert, im Prozess gecacht (Default 15 min). Vermietete Objekte, reine Kaufobjekte und erkennbare Wohnimmobilien fliegen raus.
+2. **Bestand:** `GET /v1/units` paginiert, im Prozess gecacht (Default 1 h). Vermietete Objekte (`rented`), reine Kaufobjekte (`marketing_type=BUY`), Wohnimmobilien (`object_type=LIVING` bzw. `rs_type=APARTMENT`) und Nicht-Hallen-Gewerbe (`rs_category` Büro/Laden/Gastro/Praxis) fliegen raus.
 3. **Ranking:** harter Flächenfilter (Toleranz 0,6× bis 1,6× um den Wunschbereich) und Umkreisfilter über `lat/lng` (Haversine). Sortierung nach Entfernung plus Flächenabweichung, deterministisch. Bleiben unter 5 Treffer, wird der Radius stufenweise verdoppelt (max. 400 km), statt ein leeres Deck auszuliefern.
 4. **Swipen:** Likes/Dislikes landen nur in der Server-Session (Token, TTL 2 h). **Kein** Propstack-Write beim Swipen.
 5. **Absenden:** Dublettencheck per E-Mail → bestehenden Kontakt nutzen oder `POST /v1/contacts` → je gelikter Halle `POST /v1/client_properties` mit Notiz (Suchprofil + Objekt + Nachricht). Ein fehlgeschlagener Deal stoppt die übrigen nicht. Dislikes werden nie geschrieben.
@@ -34,7 +34,7 @@ Der Bestand wird in beiden Modi live gelesen – `PROPSTACK_API_KEY` ist also im
 | `NO_WRITE` | nein | `false` | Reiner Lese-/Loglauf |
 | `HALLENTINDER_HOST` | nein | `0.0.0.0` | Bind-Adresse |
 | `HALLENTINDER_PORT` | nein | `8080` | Port |
-| `HALLENTINDER_CACHE_TTL` | nein | `900` | Bestands-Cache in Sekunden |
+| `HALLENTINDER_CACHE_TTL` | nein | `3600` | Bestands-Cache in Sekunden |
 | `HALLENTINDER_RADIUS_KM` | nein | `50` | Default-Umkreis, wenn das Formular keinen sendet |
 | `HALLENTINDER_ALLOWED_ORIGINS` | nein | leer | CORS-Whitelist (kommagetrennt); leer = keine Cross-Origin-Freigabe |
 | `HALLENTINDER_STRICT_HALLE` | nein | `false` | `true` = nur Objekte mit erkennbarem Hallen-/Logistik-Merkmal ins Deck |
@@ -50,6 +50,32 @@ Der Bestand wird in beiden Modi live gelesen – `PROPSTACK_API_KEY` ist also im
 | `GET /api/likes?token=` | aktuelle Auswahl |
 | `POST /api/lead` | Kontakt + Deals in Propstack anlegen |
 | `GET /healthz` | Status, Cache-Alter, Session-Zahl, `no_write` |
+
+## Warum der Bestand gecacht wird
+
+Der vollständige Abruf dauert live rund **zwei Minuten** (2205 Objekte, 23 Seiten à 100). Deshalb:
+
+- Beim Start der App wird der Bestand in einem Hintergrund-Thread vorgeladen.
+- Ist der Cache abgelaufen, bekommt der Besucher **sofort den alten Stand**; erneuert wird im Hintergrund, und nur ein Ladevorgang gleichzeitig.
+- Blockierend ist nur der allererste Abruf, wenn noch gar kein Bestand da ist.
+
+## Was der Bestand hergibt
+
+Ermittelt mit `python -m hallentinder.diagnose` gegen die Live-API (Stand 23.08.2026):
+
+| | |
+|---|---|
+| Objekte gesamt | 2205 |
+| davon vermietbare Hallen | ~1450 |
+| aussortiert | ~530 Wohnen, ~125 vermietet, 50 Kauf, ~40 Büro/Laden |
+| Koordinaten (Umkreissuche) | 83 % |
+| Fläche | 87 % |
+| Bild | 75 % |
+| Hallenhöhe | 43 % |
+| Rampe / Kranbahn | Boolean – 140 Objekte mit Rampe, Kranbahn im ganzen Bestand nirgends gesetzt |
+| Exposé-Link | 100 % |
+
+Objekte ohne Koordinaten lassen sich nicht in den Umkreis einordnen und rutschen ans Ende des Decks; Objekte ohne Fläche überstehen den Flächenfilter, werden aber nachrangig sortiert.
 
 ## Datenschutz
 
@@ -84,10 +110,9 @@ docker run -p 8080:8080 -e PROPSTACK_API_KEY=xxx -e NO_WRITE=true hallentinder
 
 Zwei Punkte lassen sich nur gegen die Live-API klären und sind gekapselt, damit eine Korrektur lokal bleibt:
 
-1. **Deal-Anlage:** `POST /client_properties` mit `{"client_property": {"client_id", "property_id", "note"}}` (`propstack.create_deal`). Beim ersten echten Schreibtest mit einem Testkontakt gegenprüfen und den Testdatensatz danach entfernen.
-2. **Bestandsabruf:** ob `GET /units` ohne `q` den ganzen Bestand paginiert liefert (`propstack.list_units`, max. 50 Seiten à 100).
+**Erledigt** (Diagnoselauf vom 23.08.2026): Bestandsabruf ohne `q` paginiert korrekt über 23 Seiten, der Kontakt-Endpunkt ist lesend erreichbar, Bild-URLs kommen über `images`.
 
-Ebenfalls offen: ob die Unit-Response Bild-URLs mitliefert (`catalog._bild_url` deckt die üblichen Formen ab). Ohne Bild zeigt die Karte einen K&P-Platzhalter – die App funktioniert auch dann.
+**Offen:** die **Deal-Anlage** `POST /client_properties` mit `{"client_property": {"client_id", "property_id", "note"}}` (`propstack.create_deal`). Das Payload-Schema ist die einzige verbliebene Annahme und lässt sich nur mit einem echten Schreibtest bestätigen – am besten mit einem Testkontakt, der danach wieder entfernt wird.
 
 ## Nicht enthalten
 

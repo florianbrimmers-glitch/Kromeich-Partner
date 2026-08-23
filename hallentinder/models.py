@@ -56,8 +56,9 @@ class HallCard(BaseModel):
     lng: float | None = None
     flaeche: float | None = None
     hallenhoehe: float | None = None
-    rampen: str | None = None
-    kranbahn: str | None = None
+    # Propstack liefert diese beiden als Boolean, nicht als Text
+    rampe: bool = False
+    kranbahn: bool = False
     baujahr: int | None = None
     expose_url: str | None = None
     bild_url: str | None = None

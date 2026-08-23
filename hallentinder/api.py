@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
@@ -18,7 +19,16 @@ logger = logging.getLogger(__name__)
 
 STATIC_DIR = Path(__file__).parent / "static"
 
-app = FastAPI(title="Hallentinder", docs_url=None, redoc_url=None, openapi_url=None)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Bestand beim Boot laden, damit der erste Besucher nicht auf die
+    ~2 Minuten des vollen Propstack-Abrufs wartet."""
+    catalog.vorwaermen()
+    yield
+
+
+app = FastAPI(title="Hallentinder", docs_url=None, redoc_url=None, openapi_url=None,
+              lifespan=lifespan)
 
 if config.allowed_origins():
     app.add_middleware(

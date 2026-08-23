@@ -89,7 +89,7 @@ def verarbeite(session: Session, lead: LeadPayload) -> LeadResult:
 
     if config.no_write():
         for karte in likes:
-            propstack.create_deal(kontakt_id or 0, karte.id, _deal_notiz(session.profil, karte, lead.nachricht))
+            propstack.create_deal(kontakt_id, karte.id, _deal_notiz(session.profil, karte, lead.nachricht))
         ergebnis.deals_geplant = len(likes)
         session.lead_gesendet = True
         return ergebnis

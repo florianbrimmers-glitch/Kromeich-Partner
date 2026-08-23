@@ -10,14 +10,27 @@ from .models import HallCard
 
 logger = logging.getLogger(__name__)
 
-# Objekte mit diesen Merkmalen sind keine Halle und gehören nicht ins Deck
+# Die Propstack-Enums des Bestands (Stand des Diagnoselaufs, hallentinder.diagnose):
+# object_type COMMERCIAL/LIVING, rs_type INDUSTRY/APARTMENT/TRADE_SITE/OFFICE/…,
+# rs_category HALL (1433), None (688), OFFICE_SPACE, TRADE_SITE, STORAGE_HALL, …
+AUSSCHLUSS_OBJECT_TYPE = {"LIVING"}
+AUSSCHLUSS_RS_TYPE = {"APARTMENT"}
+# Gewerbe, aber keine Halle – gehört nicht in einen Hallentinder
+AUSSCHLUSS_RS_CATEGORY = {
+    "OFFICE", "OFFICE_SPACE", "OFFICE_BUILDING", "OFFICE_FLOOR", "OFFICE_CENTRE",
+    "RETAIL_SPACE", "SALES_AREA", "SHOP", "STORE", "SHOWROOM", "KIOSK",
+    "GASTRONOMY", "RESTAURANT", "HOTEL", "PRACTICE", "PRACTICE_FLOOR", "PRACTICE_HOUSE",
+    "ROOF_STOREY", "LIVING_AND_COMMERCIAL_BUILDING",
+}
+# Kategorien mit eindeutigem Hallen-/Lagerbezug (für HALLENTINDER_STRICT_HALLE)
+HALLE_RS_CATEGORY = {
+    "HALL", "STORAGE_HALL", "INDUSTRY_HALL", "STORAGE_AREA", "HIGH_LIFT_WAREHOUSE",
+    "INDUSTRY_AREA", "PRODUCTION_HALL", "SERVICE_AREA", "TRADE_SITE",
+}
+# Zusätzliche Textkeywords – greifen nur, wenn die Enums nichts hergeben
 AUSSCHLUSS_KEYWORDS = (
-    "wohn", "apartment", "appartement", "zimmer", "einfamilien", "mehrfamilien",
-    "penthouse", "villa", "reihenhaus", "doppelhaus", "praxis", "laden",
-)
-# Positive Hallen-/Logistik-Merkmale
-HALLE_KEYWORDS = (
-    "halle", "logistik", "lager", "industrie", "produktion", "gewerbe", "werkstatt", "umschlag",
+    "wohnung", "appartement", "einfamilien", "mehrfamilien",
+    "penthouse", "villa", "reihenhaus", "doppelhaus",
 )
 # Vermarktungsarten, die nur Kauf bedeuten
 KAUF_KEYWORDS = ("buy", "kauf", "sale", "verkauf")
@@ -70,6 +83,27 @@ def _zahl(value) -> float | None:
         return None
 
 
+def _enum(raw: dict, feld: str) -> str:
+    """Enum-Wert normalisiert (Großbuchstaben, ohne Custom-Field-Hülle)."""
+    wert = _scalar(raw.get(feld))
+    if isinstance(wert, dict):
+        wert = wert.get("name") or wert.get("label")
+    return str(wert).strip().upper() if wert else ""
+
+
+def _flag(value) -> bool:
+    """Ausstattungsmerkmal als Ja/Nein. Propstack liefert hier Booleans;
+    Strings und Zahlen werden trotzdem toleriert."""
+    wert = _scalar(value)
+    if isinstance(wert, bool):
+        return wert
+    if isinstance(wert, (int, float)):
+        return wert > 0
+    if isinstance(wert, str):
+        return wert.strip().lower() in ("true", "ja", "yes", "1", "vorhanden")
+    return False
+
+
 def _kategorie_text(raw: dict) -> str:
     felder = [
         raw.get("rs_category"), raw.get("rs_type"), raw.get("object_type"),
@@ -99,17 +133,26 @@ def ist_verfuegbare_halle(raw: dict) -> bool:
         if not any(k in vermarktung for k in ("rent", "miet", "lease")):
             return False
 
-    kategorie = _kategorie_text(raw)
-    if any(k in kategorie for k in AUSSCHLUSS_KEYWORDS):
+    # Wohnimmobilien: zwei unabhängige Felder, die das sauber ausdrücken
+    if _enum(raw, "object_type") in AUSSCHLUSS_OBJECT_TYPE:
+        return False
+    if _enum(raw, "rs_type") in AUSSCHLUSS_RS_TYPE:
         return False
 
-    hat_hallen_signal = (
-        any(k in kategorie for k in HALLE_KEYWORDS)
-        or _zahl(raw.get("hall_height")) is not None
-        or _zahl(raw.get("industrial_area")) is not None
-    )
-    if config.strict_halle() and not hat_hallen_signal:
+    rs_category = _enum(raw, "rs_category")
+    if rs_category in AUSSCHLUSS_RS_CATEGORY:
         return False
+    if any(k in _kategorie_text(raw) for k in AUSSCHLUSS_KEYWORDS):
+        return False
+
+    if config.strict_halle():
+        hat_hallen_signal = (
+            rs_category in HALLE_RS_CATEGORY
+            or _zahl(raw.get("hall_height")) is not None
+            or _zahl(raw.get("industrial_area")) is not None
+        )
+        if not hat_hallen_signal:
+            return False
     return True
 
 
@@ -165,8 +208,8 @@ def to_card(raw: dict) -> HallCard:
         lng=_zahl(raw.get("lng")),
         flaeche=_flaeche(raw),
         hallenhoehe=_zahl(raw.get("hall_height")),
-        rampen=_text(raw.get("ramp")),
-        kranbahn=_text(raw.get("crane_runway")),
+        rampe=_flag(raw.get("ramp")),
+        kranbahn=_flag(raw.get("crane_runway")),
         baujahr=int(baujahr) if baujahr else None,
         expose_url=_text(raw.get("public_expose_url")),
         bild_url=_bild_url(raw),
@@ -188,32 +231,65 @@ def build_cards(rohdaten: list[dict]) -> list[HallCard]:
 
 
 class _Cache:
-    """Bestand im Prozess halten – kein Propstack-Call pro Swipe."""
+    """Bestand im Prozess halten – kein Propstack-Call pro Swipe.
+
+    Der volle Abruf dauert bei ~2200 Objekten rund zwei Minuten (23 Seiten).
+    Deshalb blockiert nur der allererste Aufruf: ist der Cache abgelaufen,
+    wird der veraltete Stand sofort ausgeliefert und im Hintergrund erneuert."""
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
         self._karten: list[HallCard] = []
         self._geladen_um: float = 0.0
+        self._laedt = False
 
-    def get(self, force: bool = False) -> list[HallCard]:
-        with self._lock:
-            aktuell = self._karten and (time.time() - self._geladen_um) < config.cache_ttl()
-            if aktuell and not force:
-                return list(self._karten)
-        try:
-            karten = build_cards(propstack.list_units())
-        except Exception as e:  # Bestand darf nie die ganze App killen
-            logger.error("Bestandsabruf fehlgeschlagen: %s", e)
-            with self._lock:
-                if self._karten:
-                    logger.warning("Nutze veralteten Bestand aus dem Cache (%d Karten)", len(self._karten))
-                    return list(self._karten)
-            raise
+    def _laden(self) -> list[HallCard]:
+        karten = build_cards(propstack.list_units())
         with self._lock:
             self._karten = karten
             self._geladen_um = time.time()
-            logger.info("Bestand im Cache: %d vermietbare Hallen", len(karten))
-            return list(karten)
+        logger.info("Bestand im Cache: %d vermietbare Hallen", len(karten))
+        return karten
+
+    def _hintergrund_erneuern(self) -> None:
+        try:
+            self._laden()
+        except Exception as e:
+            logger.error("Hintergrund-Aktualisierung des Bestands fehlgeschlagen: %s", e)
+        finally:
+            with self._lock:
+                self._laedt = False
+
+    def get(self, force: bool = False) -> list[HallCard]:
+        with self._lock:
+            vorhanden = list(self._karten)
+            veraltet = (time.time() - self._geladen_um) >= config.cache_ttl()
+            if vorhanden and not veraltet and not force:
+                return vorhanden
+            starte_hintergrund = bool(vorhanden) and not self._laedt
+            if starte_hintergrund:
+                self._laedt = True
+
+        if vorhanden:
+            if starte_hintergrund:
+                threading.Thread(target=self._hintergrund_erneuern, daemon=True).start()
+            return vorhanden
+
+        try:
+            return self._laden()
+        except Exception as e:  # Bestand darf nie die ganze App killen
+            logger.error("Bestandsabruf fehlgeschlagen: %s", e)
+            raise
+
+    def vorwaermen(self) -> None:
+        """Beim Start anstoßen, damit der erste Besucher nicht wartet."""
+        threading.Thread(target=self._sicher_laden, daemon=True).start()
+
+    def _sicher_laden(self) -> None:
+        try:
+            self._laden()
+        except Exception as e:
+            logger.error("Vorwärmen des Bestands fehlgeschlagen: %s", e)
 
     def stand(self) -> tuple[int, float]:
         with self._lock:
@@ -229,3 +305,7 @@ def cards(force: bool = False) -> list[HallCard]:
 
 def stand() -> tuple[int, float]:
     return _cache.stand()
+
+
+def vorwaermen() -> None:
+    _cache.vorwaermen()

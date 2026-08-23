@@ -35,8 +35,8 @@ PFLEGE_FELDER = {
     "Stadt": lambda k: bool(k.stadt),
     "PLZ": lambda k: bool(k.plz),
     "Hallenhöhe": lambda k: k.hallenhoehe is not None,
-    "Rampen": lambda k: bool(k.rampen),
-    "Kranbahn": lambda k: bool(k.kranbahn),
+    "Rampe vorhanden": lambda k: k.rampe,
+    "Kranbahn vorhanden": lambda k: k.kranbahn,
     "Baujahr": lambda k: k.baujahr is not None,
     "Bild": lambda k: bool(k.bild_url),
     "Exposé-Link": lambda k: bool(k.expose_url),
@@ -66,15 +66,22 @@ def _wertform(value) -> str:
 
 
 def _ablehnungsgrund(raw: dict) -> str:
+    """Spiegelt die Reihenfolge in catalog.ist_verfuegbare_halle wider."""
     if catalog._scalar(raw.get("rented")):
         return "vermietet"
     vermarktung = str(catalog._text(raw.get("marketing_type")) or "").lower()
     if vermarktung and any(k in vermarktung for k in catalog.KAUF_KEYWORDS):
         if not any(k in vermarktung for k in ("rent", "miet", "lease")):
             return f"nur Kauf ({vermarktung})"
-    kategorie = catalog._kategorie_text(raw)
-    if any(k in kategorie for k in catalog.AUSSCHLUSS_KEYWORDS):
-        return "keine Halle (Kategorie)"
+    if catalog._enum(raw, "object_type") in catalog.AUSSCHLUSS_OBJECT_TYPE:
+        return "Wohnimmobilie (object_type LIVING)"
+    if catalog._enum(raw, "rs_type") in catalog.AUSSCHLUSS_RS_TYPE:
+        return "Wohnimmobilie (rs_type APARTMENT)"
+    rs_category = catalog._enum(raw, "rs_category")
+    if rs_category in catalog.AUSSCHLUSS_RS_CATEGORY:
+        return f"keine Halle (rs_category {rs_category})"
+    if any(k in catalog._kategorie_text(raw) for k in catalog.AUSSCHLUSS_KEYWORDS):
+        return "keine Halle (Textkeyword)"
     return "kein Hallen-Signal (strict)"
 
 
@@ -125,12 +132,29 @@ def felder_pruefen(rohdaten: list[dict], karten: list[HallCard]) -> None:
     for feld in ("marketing_type", "rs_category", "rs_type", "object_type",
                  "ramp", "crane_runway", "hall_height", "rented"):
         werte = Counter(_wertform(raw.get(feld)) for raw in rohdaten)
+        # Enums vollständig zeigen – sonst bleiben seltene Kategorien unentdeckt
+        grenze = 12 if feld == "hall_height" else 40
         print(f"  {feld}:")
-        for wert, anzahl in werte.most_common(12):
+        for wert, anzahl in werte.most_common(grenze):
             print(f"      {anzahl:>5}  {wert}")
-        if len(werte) > 12:
-            print(f"      … {len(werte) - 12} weitere Ausprägungen")
+        if len(werte) > grenze:
+            print(f"      … {len(werte) - grenze} weitere Ausprägungen")
         print()
+
+
+def unbekannte_kategorien(rohdaten: list[dict]) -> None:
+    _titel("3c. Kategorien, die weder ausgeschlossen noch als Halle bekannt sind")
+    bekannt = catalog.AUSSCHLUSS_RS_CATEGORY | catalog.HALLE_RS_CATEGORY
+    offen = Counter(
+        catalog._enum(raw, "rs_category") for raw in rohdaten
+        if catalog._enum(raw, "rs_category") and catalog._enum(raw, "rs_category") not in bekannt
+    )
+    if not offen:
+        print("Keine – alle vorkommenden Kategorien sind eingeordnet.")
+        return
+    print("Diese landen aktuell im Deck (bzw. fallen bei STRICT_HALLE raus):")
+    for kategorie, anzahl in offen.most_common():
+        print(f"  {anzahl:>5}  {kategorie}")
 
 
 def ranking_pruefen(karten: list[HallCard]) -> None:
@@ -195,6 +219,7 @@ def main() -> None:
     print(f"NO_WRITE = {config.no_write()}  |  STRICT_HALLE = {config.strict_halle()}")
     rohdaten, karten = bestand_pruefen()
     felder_pruefen(rohdaten, karten)
+    unbekannte_kategorien(rohdaten)
     ranking_pruefen(karten)
     kontakt_lesen_pruefen()
     lead_simulieren(karten)

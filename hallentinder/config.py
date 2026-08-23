@@ -44,7 +44,9 @@ def host() -> str:
 
 
 def cache_ttl() -> int:
-    return int(os.environ.get("HALLENTINDER_CACHE_TTL", "900"))
+    """1 h: der volle Bestandsabruf dauert rund zwei Minuten, deshalb selten
+    und im Hintergrund (siehe catalog._Cache)."""
+    return int(os.environ.get("HALLENTINDER_CACHE_TTL", "3600"))
 
 
 def default_radius_km() -> int:

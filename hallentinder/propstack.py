@@ -145,7 +145,7 @@ def create_contact(lead: LeadPayload) -> int | None:
     return int(contact_id) if contact_id else None
 
 
-def create_deal(client_id: int, property_id: int, note: str | None = None) -> int | None:
+def create_deal(client_id: int | None, property_id: int, note: str | None = None) -> int | None:
     """POST /client_properties – verknüpft Interessent und Objekt zu einem Deal.
 
     Im Repo bisher nur lesend genutzt; das Payload-Schema ist beim ersten
@@ -155,8 +155,14 @@ def create_deal(client_id: int, property_id: int, note: str | None = None) -> in
         deal["note"] = note
 
     if config.no_write():
-        logger.info("[NO_WRITE] Würde Deal anlegen: %s", deal)
+        vorschau = dict(deal)
+        if client_id is None:
+            vorschau["client_id"] = "<id des neu anzulegenden Kontakts>"
+        logger.info("[NO_WRITE] Würde Deal anlegen: %s", vorschau)
         return None
+
+    if client_id is None:
+        raise ValueError("create_deal ohne client_id")
 
     response = _request(
         "POST", "/client_properties",
