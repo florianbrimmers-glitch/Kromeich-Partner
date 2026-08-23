@@ -93,14 +93,12 @@ def bestand_pruefen() -> tuple[list[dict], list[HallCard]]:
     if len(rohdaten) >= propstack.MAX_PAGES * 100:
         print("WARNUNG: Seitenlimit erreicht – MAX_PAGES erhöhen, der Bestand ist unvollständig.")
 
-    ids = [r.get("id") for r in rohdaten if isinstance(r, dict)]
-    eindeutig = set(ids)
-    print(f"Eindeutige IDs:              {len(eindeutig)}")
-    if len(eindeutig) != len(ids):
-        doppelt = Counter(ids)
-        mehrfach = {i: n for i, n in doppelt.items() if n > 1}
-        print(f"ACHTUNG: {len(ids) - len(eindeutig)} Duplikate über {len(mehrfach)} IDs –")
-        print("die Seitenabfrage ist nicht stabil sortiert, es fehlen entsprechend viele andere Objekte.")
+    if propstack.letzte_duplikate:
+        print(f"\nACHTUNG: {propstack.letzte_duplikate} doppelt gelieferte Objekte verworfen.")
+        print("Die Seitenabfrage driftet während des Durchlaufs – es fehlen entsprechend")
+        print("viele andere Objekte im Bestand.")
+    else:
+        print("Doppelt gelieferte Objekte:  keine (Seitenabfrage war über den ganzen Lauf stabil)")
 
     karten = catalog.build_cards(rohdaten)
     print(f"Davon vermietbare Hallen:    {_quote(len(karten), len(rohdaten))}")
@@ -272,9 +270,8 @@ def main() -> None:
     lead_simulieren(karten)
 
     _titel("Kurzfassung")
-    ids = [r.get("id") for r in rohdaten if isinstance(r, dict)]
-    print(f"  Objekte geladen:           {len(ids)}")
-    print(f"  davon eindeutige IDs:      {len(set(ids))}  (Differenz = Drift der Seitenabfrage)")
+    print(f"  Objekte geladen:           {len(rohdaten)}")
+    print(f"  Duplikate verworfen:       {propstack.letzte_duplikate}  (>0 = Bestand unvollständig)")
     print(f"  vermietbare Hallen:        {len(karten)}")
     print(f"  mit Koordinaten:           {sum(1 for k in karten if k.lat is not None)}")
     print(f"  mit Flächenangabe:         {sum(1 for k in karten if k.flaeche is not None)}")

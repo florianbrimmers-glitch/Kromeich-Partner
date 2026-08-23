@@ -16,6 +16,10 @@ PROPSTACK_BASE_URL = "https://api.propstack.de/v1"
 MAX_ATTEMPTS = 4
 MAX_PAGES = 50
 
+# Wie viele doppelt gelieferte Objekte der letzte Bestandsabruf verworfen hat.
+# Jedes Duplikat bedeutet, dass ein anderes Objekt gar nicht geliefert wurde.
+letzte_duplikate = 0
+
 
 def _request(
     method: str,
@@ -84,6 +88,7 @@ def list_units(per: int = 100) -> list[dict]:
     andere gar nicht. Deshalb explizit nach id sortieren und zusätzlich lokal
     deduplizieren: die Sortierung verhindert die Drift, die Deduplizierung
     schützt auch dann, wenn der Parameter serverseitig ignoriert wird."""
+    global letzte_duplikate
     units: list[dict] = []
     gesehen: set = set()
     duplikate = 0
@@ -110,6 +115,7 @@ def list_units(per: int = 100) -> list[dict]:
     else:
         logger.warning("Bestandsabruf bei %d Seiten abgebrochen – Bestand evtl. unvollständig", MAX_PAGES)
 
+    letzte_duplikate = duplikate
     if duplikate:
         logger.warning(
             "Bestandsabruf: %d doppelt gelieferte Objekte verworfen – die Seitenabfrage "
