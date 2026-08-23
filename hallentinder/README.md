@@ -61,21 +61,24 @@ Der vollständige Abruf dauert live rund **zwei Minuten** (2205 Objekte, 23 Seit
 
 ## Was der Bestand hergibt
 
-Ermittelt mit `python -m hallentinder.diagnose` gegen die Live-API (Stand 23.08.2026):
+Ermittelt mit `python -m hallentinder.diagnose` gegen die Live-API (Stand 23.08.2026, zwei Läufe mit identischem Ergebnis):
 
 | | |
 |---|---|
 | Objekte gesamt | 2205 |
-| davon vermietbare Hallen | ~1450 |
-| aussortiert | ~530 Wohnen, ~125 vermietet, 50 Kauf, ~40 Büro/Laden |
-| Koordinaten (Umkreissuche) | 83 % |
-| Fläche | 87 % |
-| Bild | 75 % |
-| Hallenhöhe | 43 % |
-| Rampe / Kranbahn | Boolean – 140 Objekte mit Rampe, Kranbahn im ganzen Bestand nirgends gesetzt |
+| davon vermietbare Hallen | 1458 |
+| aussortiert | ~570 Wohnen, ~125 vermietet, ~50 Kauf, ~33 Büro/Laden |
+| Koordinaten (Umkreissuche) | 1214 (83 %) |
+| Fläche | 1244 (85 %) |
+| Bild | 1101 (76 %) |
+| Hallenhöhe | 44 % |
+| Rampe | Boolean, bei ~120 Hallen gesetzt |
+| Kranbahn | Boolean, im gesamten Bestand nirgends gesetzt |
 | Exposé-Link | 100 % |
 
 Objekte ohne Koordinaten lassen sich nicht in den Umkreis einordnen und rutschen ans Ende des Decks; Objekte ohne Fläche überstehen den Flächenfilter, werden aber nachrangig sortiert.
+
+**Warum nach `id` sortiert wird:** Der Durchlauf zieht 23 Seiten über rund zwei Minuten. Ohne feste Sortierung wandern Objekte in dieser Zeit zwischen den Seiten – über mehrere Diagnoseläufe schwankte die Kategorieverteilung dadurch um bis zu 80 Objekte bei konstanter Gesamtzahl. Mit `sort_by=id` liefern aufeinanderfolgende Läufe identische Zahlen und null Duplikate. Die zusätzliche lokale Deduplizierung greift auch dann, wenn die API den Parameter einmal ignorieren sollte; verworfene Duplikate landen als Warnung im Log, weil sie bedeuten, dass ebenso viele andere Objekte fehlen.
 
 ## Datenschutz
 
@@ -83,6 +86,14 @@ Objekte ohne Koordinaten lassen sich nicht in den Umkreis einordnen und rutschen
 - **Einwilligung:** Ohne gesetzte Checkbox wird nichts geschrieben.
 - **Keine externen Requests im Frontend:** keine Google Fonts, keine CDNs, kein Tracking. Die Schriften des Styleguides (Jomolhari, Poppins) werden genutzt, wenn sie lokal vorhanden sind, sonst greift ein System-Fallback.
 - **Missbrauchsschutz:** IP-Rate-Limit, Honeypot-Feld, Längenlimits auf allen Eingaben.
+
+## Diagnose gegen die Live-API
+
+```bash
+PROPSTACK_API_KEY=xxx NO_WRITE=true python -m hallentinder.diagnose
+```
+
+Read-only. Prüft Bestandsabruf und Duplikate, Wirkung des Filters, Pflegegrad der Felder, meldet Kategorien, die weder ausgeschlossen noch als Halle bekannt sind, fährt das Ranking gegen echte Daten und simuliert einen Lead. Läuft auch als GitHub-Action `Hallentinder Diagnose` (manuell startbar), Bericht als Artefakt.
 
 ## Lokale Ausführung
 
@@ -110,7 +121,7 @@ docker run -p 8080:8080 -e PROPSTACK_API_KEY=xxx -e NO_WRITE=true hallentinder
 
 Zwei Punkte lassen sich nur gegen die Live-API klären und sind gekapselt, damit eine Korrektur lokal bleibt:
 
-**Erledigt** (Diagnoselauf vom 23.08.2026): Bestandsabruf ohne `q` paginiert korrekt über 23 Seiten, der Kontakt-Endpunkt ist lesend erreichbar, Bild-URLs kommen über `images`.
+**Erledigt** (Diagnoseläufe vom 23.08.2026): Bestandsabruf ohne `q` paginiert korrekt über 23 Seiten und ist mit `sort_by=id` stabil, der Kontakt-Endpunkt ist lesend erreichbar, Bild-URLs kommen über `images`, `ramp`/`crane_runway` sind Booleans, und der Kategoriefilter ist gegen die tatsächlich vorkommenden Enums geprüft.
 
 **Offen:** die **Deal-Anlage** `POST /client_properties` mit `{"client_property": {"client_id", "property_id", "note"}}` (`propstack.create_deal`). Das Payload-Schema ist die einzige verbliebene Annahme und lässt sich nur mit einem echten Schreibtest bestätigen – am besten mit einem Testkontakt, der danach wieder entfernt wird.
 

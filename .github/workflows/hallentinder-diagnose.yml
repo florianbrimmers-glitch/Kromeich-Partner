@@ -3,12 +3,10 @@ name: Hallentinder Diagnose
 # Read-only-Lauf gegen die Live-Propstack-API: prüft Bestandsabruf, Filter,
 # Feldpflege und Ranking. Schreibt nichts (NO_WRITE=true).
 #
-# HINWEIS: Der push-Trigger auf dem Feature-Branch ist temporär, damit der
-# erste Diagnoselauf ohne Merge in main starten kann – analog zum Vorgehen
-# beim newsletter-Handler. Nach der Auswertung wird er zurückgebaut.
+# Manuell zu starten – sinnvoll nach Änderungen am Bestandsfilter, am Ranking
+# oder wenn sich die Datenpflege in Propstack geändert hat. Der temporäre
+# push-Trigger der ersten Läufe ist zurückgebaut.
 on:
-  push:
-    branches: [claude/hallentinder-matching-app-vo3p6p]
   workflow_dispatch:
 
 concurrency:
