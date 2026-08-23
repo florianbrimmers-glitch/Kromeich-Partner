@@ -93,6 +93,15 @@ def bestand_pruefen() -> tuple[list[dict], list[HallCard]]:
     if len(rohdaten) >= propstack.MAX_PAGES * 100:
         print("WARNUNG: Seitenlimit erreicht – MAX_PAGES erhöhen, der Bestand ist unvollständig.")
 
+    ids = [r.get("id") for r in rohdaten if isinstance(r, dict)]
+    eindeutig = set(ids)
+    print(f"Eindeutige IDs:              {len(eindeutig)}")
+    if len(eindeutig) != len(ids):
+        doppelt = Counter(ids)
+        mehrfach = {i: n for i, n in doppelt.items() if n > 1}
+        print(f"ACHTUNG: {len(ids) - len(eindeutig)} Duplikate über {len(mehrfach)} IDs –")
+        print("die Seitenabfrage ist nicht stabil sortiert, es fehlen entsprechend viele andere Objekte.")
+
     karten = catalog.build_cards(rohdaten)
     print(f"Davon vermietbare Hallen:    {_quote(len(karten), len(rohdaten))}")
 
@@ -102,6 +111,32 @@ def bestand_pruefen() -> tuple[list[dict], list[HallCard]]:
         for grund, anzahl in gruende.most_common():
             print(f"  {anzahl:>5}  {grund}")
     return rohdaten, karten
+
+
+def paginierung_pruefen() -> None:
+    """Liefert dieselbe Seite zweimal dasselbe? Ohne stabile Sortierung
+    wandern Objekte zwischen den Seiten – dann fehlen bei jedem Laden andere."""
+    _titel("1b. Ist die Seitenabfrage stabil?")
+
+    def seite(params: dict) -> list[int]:
+        antwort = propstack._request(
+            "GET", "/units", key=config.propstack_key_objekte(), params=params
+        )
+        return [u.get("id") for u in propstack._items(antwort.json())]
+
+    varianten = {
+        "ohne Sortierung": {"expand": 1, "page": 2, "per": 100},
+        "sort_by=id": {"expand": 1, "page": 2, "per": 100, "sort_by": "id", "order": "asc"},
+    }
+    for label, params in varianten.items():
+        try:
+            erste, zweite = seite(params), seite(params)
+        except Exception as e:
+            print(f"  {label:<18} Fehler: {e}")
+            continue
+        gleich = erste == zweite
+        ueberlappung = len(set(erste) & set(zweite))
+        print(f"  {label:<18} identisch: {gleich}, gemeinsame IDs: {ueberlappung}/{len(erste)}")
 
 
 def felder_pruefen(rohdaten: list[dict], karten: list[HallCard]) -> None:
@@ -218,6 +253,7 @@ def main() -> None:
 
     print(f"NO_WRITE = {config.no_write()}  |  STRICT_HALLE = {config.strict_halle()}")
     rohdaten, karten = bestand_pruefen()
+    paginierung_pruefen()
     felder_pruefen(rohdaten, karten)
     unbekannte_kategorien(rohdaten)
     ranking_pruefen(karten)
