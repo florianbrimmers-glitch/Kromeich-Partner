@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Hallentinder – Kromeich &amp; Partner</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2319372C'/%3E%3Cpath d='M6 20 16 11l10 9v6H6z' fill='%23BCED09'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<header class="kopf">
+  <span class="marke">Kromeich &amp; Partner</span>
+  <h1>Hallentinder</h1>
+</header>
+
+<main>
+  <!-- 1: Onboarding -->
+  <section id="screen-profil" class="screen aktiv">
+    <p class="intro">Vier Angaben – danach zeigen wir dir passende Hallen aus unserem Bestand. Nach rechts, was dich interessiert.</p>
+    <form id="profil-form" novalidate>
+      <label>Wo suchst du?
+        <input name="ort" type="text" inputmode="text" autocomplete="off" placeholder="PLZ oder Ort, z. B. 49076 oder Osnabrück" required maxlength="120">
+      </label>
+      <div class="zeile">
+        <label>Fläche ab (m²)
+          <input name="flaeche_min" type="number" min="0" max="1000000" step="100" placeholder="2000">
+        </label>
+        <label>Fläche bis (m²)
+          <input name="flaeche_max" type="number" min="0" max="1000000" step="100" placeholder="8000">
+        </label>
+      </div>
+      <label>Nutzung
+        <select name="nutzung">
+          <option value="lager">Lager</option>
+          <option value="produktion">Produktion</option>
+          <option value="umschlag">Umschlag</option>
+          <option value="egal" selected>Noch offen</option>
+        </select>
+      </label>
+      <label>Wann brauchst du die Fläche?
+        <select name="zeithorizont">
+          <option value="sofort">Sofort</option>
+          <option value="3_monate">In 3 Monaten</option>
+          <option value="6_monate">In 6 Monaten</option>
+          <option value="flexibel" selected>Flexibel</option>
+        </select>
+      </label>
+      <label>Umkreis
+        <select name="radius_km">
+          <option value="25">25 km</option>
+          <option value="50" selected>50 km</option>
+          <option value="100">100 km</option>
+          <option value="200">200 km</option>
+        </select>
+      </label>
+      <button type="submit" class="primaer">Hallen ansehen</button>
+      <p id="profil-fehler" class="fehler" hidden></p>
+    </form>
+  </section>
+
+  <!-- 2: Deck -->
+  <section id="screen-deck" class="screen">
+    <p id="deck-info" class="intro"></p>
+    <div id="deck" class="deck"></div>
+    <div class="aktionen">
+      <button type="button" id="btn-nein" class="rund nein" aria-label="Passt nicht">✕</button>
+      <button type="button" id="btn-detail" class="rund detail" aria-label="Details">i</button>
+      <button type="button" id="btn-ja" class="rund ja" aria-label="Interessant">♥</button>
+    </div>
+    <p class="zaehler"><span id="zaehler-likes">0</span> vorgemerkt · <span id="zaehler-rest">0</span> übrig</p>
+    <button type="button" id="btn-fertig" class="sekundaer" hidden>Auswahl abschließen</button>
+  </section>
+
+  <!-- 3: Kontakt -->
+  <section id="screen-lead" class="screen">
+    <h2>Deine Auswahl</h2>
+    <ul id="lead-liste" class="auswahl"></ul>
+    <form id="lead-form" novalidate>
+      <div class="zeile">
+        <label>Vorname<input name="vorname" type="text" autocomplete="given-name" maxlength="100"></label>
+        <label>Nachname*<input name="nachname" type="text" autocomplete="family-name" maxlength="100" required></label>
+      </div>
+      <label>E-Mail*<input name="email" type="email" autocomplete="email" maxlength="200" required></label>
+      <label>Telefon<input name="telefon" type="tel" autocomplete="tel" maxlength="50"></label>
+      <label>Unternehmen<input name="firma" type="text" autocomplete="organization" maxlength="200"></label>
+      <label>Nachricht<textarea name="nachricht" rows="3" maxlength="2000"></textarea></label>
+      <label class="hp" aria-hidden="true">Website<input name="website" type="text" tabindex="-1" autocomplete="off"></label>
+      <label class="check">
+        <input name="einwilligung" type="checkbox" required>
+        <span>Ich bin damit einverstanden, dass Kromeich &amp; Partner meine Angaben zur Bearbeitung meiner Anfrage speichert und mich dazu kontaktiert.</span>
+      </label>
+      <button type="submit" class="primaer">Anfrage senden</button>
+      <p id="lead-fehler" class="fehler" hidden></p>
+    </form>
+  </section>
+
+  <!-- 4: Danke -->
+  <section id="screen-danke" class="screen">
+    <h2>Danke!</h2>
+    <p id="danke-text"></p>
+    <button type="button" id="btn-neu" class="sekundaer">Neue Suche starten</button>
+  </section>
+</main>
+
+<dialog id="detail">
+  <div id="detail-inhalt"></div>
+  <button type="button" id="detail-zu" class="sekundaer">Schließen</button>
+</dialog>
+
+<script src="/static/app.js"></script>
+</body>
+</html>

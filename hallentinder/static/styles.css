@@ -1,0 +1,176 @@
+/* Kromeich & Partner – Styleguide: Dunkelgrün #19372C, Neongrün #BCED09,
+   Hellgrün #C2D076, Dunkelgrau #191919. Schriften lokal, keine externen
+   Requests (Datenschutz), mit systemnahen Fallbacks. */
+:root {
+  --dunkelgruen: #19372C;
+  --mittelgruen: #275443;
+  --hellgruen: #C2D076;
+  --neongruen: #BCED09;
+  --dunkelgrau: #191919;
+  --weiss: #FFFFFF;
+  --flaeche: #F2F7EC;
+  --linie: rgba(255, 255, 255, .18);
+  --radius: 18px;
+  --serif: "Jomolhari", Georgia, "Times New Roman", serif;
+  --sans: "Poppins", "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100dvh;
+  font-family: var(--sans);
+  color: var(--weiss);
+  background: linear-gradient(160deg, var(--dunkelgruen), var(--dunkelgrau));
+  -webkit-font-smoothing: antialiased;
+}
+
+.kopf { padding: 22px 20px 6px; text-align: center; }
+.marke {
+  display: block;
+  font-size: .68rem;
+  letter-spacing: .17em;
+  text-transform: uppercase;
+  color: var(--hellgruen);
+}
+.kopf h1 { font-family: var(--serif); font-size: 1.7rem; margin: 6px 0 0; }
+
+main { max-width: 520px; margin: 0 auto; padding: 12px 16px 40px; }
+
+.screen { display: none; }
+.screen.aktiv { display: block; }
+
+h2 { font-family: var(--serif); font-size: 1.3rem; margin: 0 0 12px; }
+.intro { color: #D7E3D4; font-size: .92rem; line-height: 1.5; margin: 8px 0 18px; }
+
+label { display: block; margin-bottom: 14px; font-size: .82rem; color: var(--hellgruen); }
+.zeile { display: flex; gap: 12px; }
+.zeile label { flex: 1; }
+
+input, select, textarea {
+  width: 100%;
+  margin-top: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--linie);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .06);
+  color: var(--weiss);
+  font: inherit;
+  font-size: 1rem;
+}
+input:focus, select:focus, textarea:focus {
+  outline: 2px solid var(--neongruen);
+  outline-offset: 1px;
+}
+select option { color: var(--dunkelgrau); }
+
+.check { display: flex; gap: 10px; align-items: flex-start; color: #D7E3D4; font-size: .8rem; line-height: 1.45; }
+.check input { width: auto; margin-top: 3px; flex: 0 0 auto; }
+.hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+
+button { font: inherit; cursor: pointer; }
+.primaer {
+  width: 100%;
+  padding: 15px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--neongruen);
+  color: var(--dunkelgrau);
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+.sekundaer {
+  width: 100%;
+  margin-top: 14px;
+  padding: 13px;
+  border: 1px solid var(--hellgruen);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--hellgruen);
+}
+.primaer:disabled, .sekundaer:disabled { opacity: .5; cursor: default; }
+
+.fehler { margin-top: 12px; color: #F5E0D0; font-size: .85rem; }
+
+/* Deck */
+.deck { position: relative; height: 62vh; min-height: 380px; margin-bottom: 16px; }
+.karte {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius);
+  overflow: hidden;
+  background: var(--mittelgruen);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, .35);
+  display: flex;
+  flex-direction: column;
+  touch-action: pan-y;
+  user-select: none;
+}
+.karte.wandert { transition: transform .28s ease, opacity .28s ease; }
+.karte .bild {
+  flex: 1;
+  background: var(--dunkelgruen) center/cover no-repeat;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--serif); font-size: 3rem; color: var(--hellgruen);
+}
+.karte .text { padding: 14px 16px 18px; background: rgba(25, 55, 44, .96); }
+.karte h3 { margin: 0 0 4px; font-family: var(--serif); font-size: 1.12rem; line-height: 1.25; }
+.karte .ort { margin: 0 0 10px; font-size: .84rem; color: var(--hellgruen); }
+.merkmale { display: flex; flex-wrap: wrap; gap: 6px; }
+.merkmal {
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: rgba(188, 237, 9, .14);
+  color: var(--neongruen);
+  font-size: .74rem;
+}
+.stempel {
+  position: absolute; top: 18px;
+  padding: 6px 12px; border-radius: 8px;
+  font-weight: 700; font-size: .85rem; letter-spacing: .08em;
+  opacity: 0; transition: opacity .12s;
+}
+.stempel.ja { left: 18px; border: 2px solid var(--neongruen); color: var(--neongruen); transform: rotate(-8deg); }
+.stempel.nein { right: 18px; border: 2px solid #F5E0D0; color: #F5E0D0; transform: rotate(8deg); }
+
+.aktionen { display: flex; justify-content: center; gap: 18px; }
+.rund {
+  width: 62px; height: 62px;
+  border-radius: 50%;
+  border: 1px solid var(--linie);
+  background: rgba(255, 255, 255, .07);
+  color: var(--weiss);
+  font-size: 1.4rem;
+}
+.rund.ja { border-color: var(--neongruen); color: var(--neongruen); }
+.rund.nein { border-color: #F5E0D0; color: #F5E0D0; }
+.rund.detail { width: 46px; height: 46px; align-self: center; font-size: 1rem; }
+
+.zaehler { text-align: center; color: var(--hellgruen); font-size: .8rem; margin: 14px 0 0; }
+
+.auswahl { list-style: none; padding: 0; margin: 0 0 18px; }
+.auswahl li {
+  padding: 11px 14px;
+  margin-bottom: 8px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .06);
+  font-size: .88rem;
+}
+.auswahl li span { display: block; color: var(--hellgruen); font-size: .78rem; margin-top: 2px; }
+
+dialog {
+  width: min(460px, 92vw);
+  border: 0; border-radius: var(--radius);
+  padding: 22px;
+  background: var(--dunkelgruen);
+  color: var(--weiss);
+}
+dialog::backdrop { background: rgba(0, 0, 0, .6); }
+dialog h3 { font-family: var(--serif); margin: 0 0 10px; }
+dialog dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: .88rem; margin: 0; }
+dialog dt { color: var(--hellgruen); }
+dialog dd { margin: 0; }
+dialog a { color: var(--neongruen); }
+
+.leer { text-align: center; padding: 40px 10px; color: #D7E3D4; }
