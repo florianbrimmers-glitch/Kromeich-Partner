@@ -117,13 +117,37 @@ button { font: inherit; cursor: pointer; }
   font-family: var(--serif); font-size: 3rem; color: var(--hellgruen);
 }
 .karte .bild img {
+  position: absolute;
+  inset: 0;
   width: 100%; height: 100%;
   object-fit: cover;
   display: block;
   pointer-events: none;  /* das Wischen gehört der Karte, nicht dem Bild */
 }
+/* MUSS nach der Regel oben stehen: display:block würde das hidden-Attribut
+   sonst überstimmen (Klassenselektor schlägt die Browser-Regel für [hidden]),
+   und dann lägen alle Bilder gleichzeitig übereinander. */
+.karte .bild img[hidden] { display: none; }
 .karte .text { padding: 14px 16px 18px; background: rgba(25, 55, 44, .96); }
-.karte h3 { margin: 0 0 4px; font-family: var(--serif); font-size: 1.12rem; line-height: 1.25; }
+.kopfzeile { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+.einheit {
+  flex: 0 0 auto;
+  padding: 3px 9px;
+  border-radius: 6px;
+  background: var(--neongruen);
+  color: var(--dunkelgrau);
+  font-size: .72rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.karte h3 {
+  margin: 0;
+  font-family: var(--serif); font-size: 1.12rem; line-height: 1.25;
+  /* lange Objektnamen dürfen die Karte nicht auffressen – die Merkmale
+     darunter sind für die Entscheidung wichtiger */
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+  overflow: hidden;
+}
 .karte .ort { margin: 0 0 10px; font-size: .84rem; color: var(--hellgruen); }
 .merkmale { display: flex; flex-wrap: wrap; gap: 6px; }
 .merkmal {
@@ -133,6 +157,26 @@ button { font: inherit; cursor: pointer; }
   color: var(--neongruen);
   font-size: .74rem;
 }
+/* Merkmal, das laut Propstack NICHT vorhanden ist – gedämpft, aber sichtbar */
+.merkmal.aus {
+  background: rgba(255, 255, 255, .07);
+  color: #9FB39C;
+}
+
+/* Bildzähler wie bei Tinder: ein Segment pro Bild, oben über dem Foto */
+.punkte {
+  position: absolute; top: 8px; left: 10px; right: 10px;
+  display: flex; gap: 4px;
+  pointer-events: none;
+}
+.punkte span {
+  flex: 1;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, .28);
+}
+.punkte span.aktiv { background: var(--neongruen); }
+.kein-bild { font-family: var(--serif); font-size: 3rem; color: var(--hellgruen); }
 .stempel {
   position: absolute; top: 18px;
   padding: 6px 12px; border-radius: 8px;

@@ -49,6 +49,7 @@ class HallCard(BaseModel):
 
     id: int
     titel: str
+    einheit: str | None = None      # z.B. "Einheit 3" – aus dem Objektnamen gelöst
     stadt: str | None = None
     plz: str | None = None
     strasse: str | None = None
@@ -61,7 +62,7 @@ class HallCard(BaseModel):
     kranbahn: bool = False
     baujahr: int | None = None
     expose_url: str | None = None
-    bild_url: str | None = None
+    bilder: list[str] = Field(default_factory=list)
     entfernung_km: float | None = None
 
     def adresse(self) -> str:

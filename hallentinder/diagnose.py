@@ -38,7 +38,9 @@ PFLEGE_FELDER = {
     "Rampe vorhanden": lambda k: k.rampe,
     "Kranbahn vorhanden": lambda k: k.kranbahn,
     "Baujahr": lambda k: k.baujahr is not None,
-    "Bild": lambda k: bool(k.bild_url),
+    "Bild": lambda k: bool(k.bilder),
+    "mehr als ein Bild": lambda k: len(k.bilder) > 1,
+    "Einheitennummer im Namen": lambda k: bool(k.einheit),
     "Exposé-Link": lambda k: bool(k.expose_url),
 }
 
@@ -275,7 +277,9 @@ def main() -> None:
     print(f"  vermietbare Hallen:        {len(karten)}")
     print(f"  mit Koordinaten:           {sum(1 for k in karten if k.lat is not None)}")
     print(f"  mit Flächenangabe:         {sum(1 for k in karten if k.flaeche is not None)}")
-    print(f"  mit Bild:                  {sum(1 for k in karten if k.bild_url)}")
+    print(f"  mit Bild:                  {sum(1 for k in karten if k.bilder)}")
+    bilder_gesamt = sum(len(k.bilder) for k in karten)
+    print(f"  Bilder im Schnitt:         {bilder_gesamt / len(karten):.1f}" if karten else "")
 
     _titel("Offen bleibt")
     print("POST /client_properties (Deal-Anlage) – nur mit einem echten Schreibtest zu")

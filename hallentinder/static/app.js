@@ -39,10 +39,18 @@ function merkmale(karte) {
     liste.push(karte.entfernung_km < 1 ? "direkt vor Ort" : zahl(karte.entfernung_km) + " km entfernt");
   }
   if (karte.hallenhoehe) liste.push(karte.hallenhoehe.toString().replace(".", ",") + " m Höhe");
-  if (karte.rampe) liste.push("Rampe");
   if (karte.kranbahn) liste.push("Kranbahn");
   if (karte.baujahr) liste.push("Baujahr " + karte.baujahr);
   return liste;
+}
+
+// Rampe wird immer gezeigt – ob vorhanden oder nicht, ist eine Entscheidungsinfo.
+// Die gedämpfte Variante sagt: laut Propstack nicht angekreuzt.
+function rampenChip(karte) {
+  const chip = document.createElement("span");
+  chip.className = karte.rampe ? "merkmal" : "merkmal aus";
+  chip.textContent = karte.rampe ? "Rampe" : "keine Rampe";
+  return chip;
 }
 
 function ortszeile(karte) {
@@ -60,24 +68,61 @@ function baueKarte(karte) {
   // Als <img>, nicht als CSS-background: die URL wird als Property gesetzt statt in
   // einen CSS-String gebaut. Kein Escaping nötig (encodeURI würde bereits kodierte
   // URLs zerstören: %20 -> %2520) und kein Weg, aus der URL heraus CSS einzuschmuggeln.
-  if (karte.bild_url && /^https?:\/\/|^data:image\//i.test(karte.bild_url)) {
-    const foto = document.createElement("img");
-    foto.alt = "";
-    foto.loading = "lazy";
-    foto.addEventListener("error", () => {
-      foto.remove();
-      bild.textContent = "K&P";
+  const urls = (karte.bilder || []).filter((u) => /^https?:\/\/|^data:image\//i.test(u));
+  if (urls.length) {
+    const platzhalter = document.createElement("span");
+    platzhalter.className = "kein-bild";
+    platzhalter.textContent = "K&P";
+    platzhalter.hidden = true;
+    bild.appendChild(platzhalter);
+
+    urls.forEach((url, i) => {
+      const foto = document.createElement("img");
+      foto.alt = "";
+      foto.loading = i === 0 ? "eager" : "lazy";
+      foto.hidden = i !== 0;
+      foto.addEventListener("error", () => {
+        foto.dataset.kaputt = "1";
+        if (bild.querySelectorAll("img:not([data-kaputt])").length === 0) {
+          platzhalter.hidden = false;
+        }
+      });
+      foto.src = url;
+      bild.appendChild(foto);
     });
-    foto.src = karte.bild_url;
-    bild.appendChild(foto);
+
+    if (urls.length > 1) {
+      const punkte = document.createElement("div");
+      punkte.className = "punkte";
+      urls.forEach((_, i) => {
+        const punkt = document.createElement("span");
+        if (i === 0) punkt.className = "aktiv";
+        punkte.appendChild(punkt);
+      });
+      bild.appendChild(punkte);
+    }
+    el._bildAnzahl = urls.length;
+    el._bildIndex = 0;
   } else {
     bild.textContent = "K&P";
+    el._bildAnzahl = 0;
   }
 
   const text = document.createElement("div");
   text.className = "text";
+
+  const kopf = document.createElement("div");
+  kopf.className = "kopfzeile";
+  if (karte.einheit) {
+    const marke = document.createElement("span");
+    marke.className = "einheit";
+    marke.textContent = karte.einheit;
+    kopf.appendChild(marke);
+  }
   const titel = document.createElement("h3");
   titel.textContent = karte.titel;
+  kopf.appendChild(titel);
+
   const ort = document.createElement("p");
   ort.className = "ort";
   ort.textContent = ortszeile(karte);
@@ -89,7 +134,8 @@ function baueKarte(karte) {
     chip.textContent = m;
     chips.appendChild(chip);
   });
-  text.append(titel, ort, chips);
+  chips.appendChild(rampenChip(karte));
+  text.append(kopf, ort, chips);
 
   const ja = document.createElement("span");
   ja.className = "stempel ja";
@@ -170,6 +216,17 @@ function wegAnimieren(el, richtung) {
   el.style.opacity = "0";
 }
 
+function blaettern(el, richtung) {
+  const bilder = [...el.querySelectorAll(".bild img")];
+  if (bilder.length < 2) return;
+  const punkte = [...el.querySelectorAll(".punkte span")];
+  const neu = Math.min(Math.max(el._bildIndex + richtung, 0), bilder.length - 1);
+  if (neu === el._bildIndex) return;
+  bilder.forEach((b, i) => { b.hidden = i !== neu; });
+  punkte.forEach((p, i) => { p.className = i === neu ? "aktiv" : ""; });
+  el._bildIndex = neu;
+}
+
 function zieheGeste(el) {
   let startX = 0, startY = 0, dx = 0, dy = 0, aktiv = false;
 
@@ -190,9 +247,22 @@ function zieheGeste(el) {
     el.querySelector(".stempel.nein").style.opacity = dx < -40 ? String(Math.min(-dx / 120, 1)) : "0";
   });
 
-  const ende = () => {
+  const ende = (e) => {
     if (!aktiv) return;
     aktiv = false;
+
+    // Kurzer Tipp statt Wischen: in den Bildern blättern (rechts weiter, links zurück)
+    if (Math.abs(dx) < 10 && Math.abs(dy) < 10) {
+      el.style.transform = "";
+      el.querySelectorAll(".stempel").forEach((s) => { s.style.opacity = "0"; });
+      if (e && typeof e.clientX === "number") {
+        const box = el.getBoundingClientRect();
+        blaettern(el, (e.clientX - box.left) / box.width > 0.45 ? 1 : -1);
+      }
+      dx = 0; dy = 0;
+      return;
+    }
+
     if (Math.abs(dx) > 110) {
       const richtung = dx > 0 ? "like" : "dislike";
       wegAnimieren(el, richtung);
@@ -216,7 +286,7 @@ function detailZeigen() {
   inhalt.textContent = "";
 
   const titel = document.createElement("h3");
-  titel.textContent = karte.titel;
+  titel.textContent = karte.einheit ? karte.einheit + " · " + karte.titel : karte.titel;
   const dl = document.createElement("dl");
   const zeilen = [
     ["Adresse", ortszeile(karte)],
@@ -225,7 +295,7 @@ function detailZeigen() {
       ? null
       : (karte.entfernung_km < 1 ? "direkt vor Ort" : zahl(karte.entfernung_km) + " km")],
     ["Hallenhöhe", karte.hallenhoehe ? String(karte.hallenhoehe).replace(".", ",") + " m" : null],
-    ["Rampe", karte.rampe ? "vorhanden" : null],
+    ["Rampe", karte.rampe ? "vorhanden" : "nicht angegeben"],
     ["Kranbahn", karte.kranbahn ? "vorhanden" : null],
     ["Baujahr", karte.baujahr],
   ];

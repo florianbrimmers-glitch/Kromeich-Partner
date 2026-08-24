@@ -156,27 +156,62 @@ def ist_verfuegbare_halle(raw: dict) -> bool:
     return True
 
 
-def _bild_url(raw: dict) -> str | None:
-    """Bild-URL aus den in Propstack üblichen Formen ziehen; None ist erlaubt."""
-    for key in ("title_picture", "picture", "image"):
-        wert = raw.get(key)
-        if isinstance(wert, dict):
-            for url_key in ("big_url", "original_url", "url", "medium_url"):
-                if wert.get(url_key):
-                    return str(wert[url_key])
-        elif isinstance(wert, str) and wert.startswith("http"):
-            return wert
+MAX_BILDER = 8
 
-    bilder = raw.get("images") or raw.get("pictures")
-    if isinstance(bilder, list):
-        for bild in bilder:
-            if isinstance(bild, dict):
-                for url_key in ("big_url", "original_url", "url", "medium_url"):
-                    if bild.get(url_key):
-                        return str(bild[url_key])
-            elif isinstance(bild, str) and bild.startswith("http"):
-                return bild
+# "Unit 3", "Einheit 2a", "WE 4", "Halle 1" – Propstack führt die Einheit im Namen
+EINHEIT_MUSTER = re.compile(
+    r"\b(unit|einheit|we|halle)\s*[-.:]?\s*(\d+\s*[a-z]?)\b", re.IGNORECASE
+)
+EINHEIT_BEZEICHNUNG = {"unit": "Einheit", "einheit": "Einheit", "we": "Einheit", "halle": "Halle"}
+
+
+def _eine_url(wert) -> str | None:
+    """Eine Bild-URL aus den in Propstack üblichen Formen ziehen."""
+    if isinstance(wert, dict):
+        for url_key in ("big_url", "original_url", "url", "medium_url"):
+            if wert.get(url_key):
+                return str(wert[url_key])
+    elif isinstance(wert, str) and wert.startswith("http"):
+        return wert
     return None
+
+
+def _bilder(raw: dict) -> list[str]:
+    """Alle Bilder eines Objekts, Titelbild zuerst, ohne Duplikate.
+
+    Im Deck lässt sich durch sie blättern, deshalb reicht nicht das erste."""
+    urls: list[str] = []
+
+    def merken(kandidat) -> None:
+        url = _eine_url(kandidat)
+        if url and url not in urls:
+            urls.append(url)
+
+    for key in ("title_picture", "picture", "image"):
+        merken(raw.get(key))
+    for key in ("images", "pictures"):
+        liste = raw.get(key)
+        if isinstance(liste, list):
+            for eintrag in liste:
+                merken(eintrag)
+
+    return urls[:MAX_BILDER]
+
+
+def _einheit_und_titel(titel: str) -> tuple[str | None, str]:
+    """Einheitenbezeichnung aus dem Namen lösen.
+
+    Propstack führt sie im Objektnamen ("… - Unit 3"). Auf der Karte gehört sie
+    als eigenes Kennzeichen hin, nicht in eine lange Titelzeile."""
+    treffer = EINHEIT_MUSTER.search(titel)
+    if not treffer:
+        return None, titel
+
+    wort = EINHEIT_BEZEICHNUNG[treffer.group(1).lower()]
+    nummer = re.sub(r"\s+", "", treffer.group(2)).upper()
+    rest = (titel[: treffer.start()] + " " + titel[treffer.end() :]).strip()
+    rest = re.sub(r"\s{2,}", " ", rest).strip(" -–—,;:·|")
+    return f"{wort} {nummer}", rest or titel
 
 
 def _strasse(raw: dict) -> str | None:
@@ -196,11 +231,13 @@ def _flaeche(raw: dict) -> float | None:
 
 def to_card(raw: dict) -> HallCard:
     """Rohobjekt → Karte. Alles, was hier nicht auftaucht, verlässt den Server nicht."""
-    titel = _text(raw.get("title")) or _text(raw.get("name")) or f"Objekt {raw.get('id')}"
+    roh_titel = _text(raw.get("title")) or _text(raw.get("name")) or f"Objekt {raw.get('id')}"
+    einheit, titel = _einheit_und_titel(roh_titel)
     baujahr = _zahl(raw.get("construction_year"))
     return HallCard(
         id=int(raw["id"]),
         titel=titel,
+        einheit=einheit,
         stadt=_text(raw.get("city")),
         plz=_text(raw.get("zip_code")),
         strasse=_strasse(raw),
@@ -212,7 +249,7 @@ def to_card(raw: dict) -> HallCard:
         kranbahn=_flag(raw.get("crane_runway")),
         baujahr=int(baujahr) if baujahr else None,
         expose_url=_text(raw.get("public_expose_url")),
-        bild_url=_bild_url(raw),
+        bilder=_bilder(raw),
     )
 
 

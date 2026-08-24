@@ -22,3 +22,17 @@ def test_zugangshinweis_ohne_netzwerk(monkeypatch):
 def test_lan_adresse_verschickt_nichts_und_wirft_nicht():
     ergebnis = main._lan_adresse()
     assert ergebnis is None or ergebnis.count(".") == 3
+
+
+def test_css_versteckt_nicht_aktive_bilder():
+    """Regressionswächter für einen CSS-Konflikt, den kein Python-Test sieht:
+
+    `.karte .bild img { display: block }` überstimmt das hidden-Attribut, weil ein
+    Klassenselektor die Browser-Regel für [hidden] schlägt. Ohne die explizite
+    Gegenregel liegen alle Bilder einer Karte gleichzeitig übereinander."""
+    from pathlib import Path
+
+    css = (Path(__file__).parents[2] / "hallentinder" / "static" / "styles.css").read_text()
+    assert "img[hidden]" in css, "Regel .karte .bild img[hidden] { display: none } fehlt"
+    assert css.index("img[hidden]") > css.index(".karte .bild img {"), \
+        "die Gegenregel muss NACH der display:block-Regel stehen"

@@ -97,7 +97,51 @@ def test_build_cards_ueberspringt_kaputte_eintraege():
     assert [k.id for k in karten] == [1]
 
 
-def test_bild_url_aus_verschiedenen_formen():
-    assert catalog._bild_url({"images": [{"big_url": "https://x/1.jpg"}]}) == "https://x/1.jpg"
-    assert catalog._bild_url({"title_picture": {"url": "https://x/2.jpg"}}) == "https://x/2.jpg"
-    assert catalog._bild_url({}) is None
+def test_bilder_aus_verschiedenen_formen():
+    assert catalog._bilder({"images": [{"big_url": "https://x/1.jpg"}]}) == ["https://x/1.jpg"]
+    assert catalog._bilder({"title_picture": {"url": "https://x/2.jpg"}}) == ["https://x/2.jpg"]
+    assert catalog._bilder({}) == []
+
+
+def test_alle_bilder_titelbild_zuerst_ohne_duplikate():
+    """Im Deck wird durch die Bilder geblättert – das erste allein reicht nicht."""
+    roh = {
+        "title_picture": {"big_url": "https://x/titel.jpg"},
+        "images": [
+            {"big_url": "https://x/titel.jpg"},   # Dublette des Titelbilds
+            {"big_url": "https://x/2.jpg"},
+            {"url": "https://x/3.jpg"},
+            {"kein": "url"},
+        ],
+    }
+    assert catalog._bilder(roh) == ["https://x/titel.jpg", "https://x/2.jpg", "https://x/3.jpg"]
+
+
+def test_bilder_werden_begrenzt():
+    viele = {"images": [{"big_url": f"https://x/{i}.jpg"} for i in range(30)]}
+    assert len(catalog._bilder(viele)) == catalog.MAX_BILDER
+
+
+def test_einheitennummer_wird_aus_dem_namen_geloest():
+    """Propstack führt die Einheit im Objektnamen – auf der Karte gehört sie
+    als eigenes Kennzeichen hin, nicht in eine lange Titelzeile."""
+    faelle = {
+        "Unit 3 Mellinghofer Straße": ("Einheit 3", "Mellinghofer Straße"),
+        "Business Park OSNA Osnabrück - Unit 1": ("Einheit 1", "Business Park OSNA Osnabrück"),
+        "Logistikhalle Einheit 2a": ("Einheit 2A", "Logistikhalle"),
+        "Halle 4, Gewerbepark Nord": ("Halle 4", "Gewerbepark Nord"),
+        "WE 7 Musterstraße": ("Einheit 7", "Musterstraße"),
+    }
+    for name, erwartet in faelle.items():
+        assert catalog._einheit_und_titel(name) == erwartet, name
+
+
+def test_ohne_einheitennummer_bleibt_der_titel_unangetastet():
+    for name in ("Logistikhalle mit Rampe", "Hallenfläche Mülheim", "Gewerbepark Süd"):
+        assert catalog._einheit_und_titel(name) == (None, name), name
+
+
+def test_einheit_landet_auf_der_karte():
+    karte = catalog.to_card(unit(title="Gewerbepark Nord - Unit 12"))
+    assert karte.einheit == "Einheit 12"
+    assert karte.titel == "Gewerbepark Nord"
