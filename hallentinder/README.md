@@ -91,7 +91,11 @@ Objekte ohne Koordinaten lassen sich nicht in den Umkreis einordnen und rutschen
 
 ## Interner Test
 
-Für eine Testrunde im Team braucht es kein Hosting. Ein Rechner startet die App, die anderen öffnen sie im selben WLAN:
+Für eine Testrunde im Team braucht es kein Hosting. Ein Rechner startet die App, die anderen öffnen sie im selben WLAN.
+
+**Windows:** Doppelklick auf `Hallentinder starten.bat` im Projektordner. Das Skript prüft Python, installiert fehlende Abhängigkeiten, fragt den Propstack-Key ab (wird nicht gespeichert) und startet die App.
+
+**macOS/Linux:**
 
 ```bash
 pip install -r requirements.txt
