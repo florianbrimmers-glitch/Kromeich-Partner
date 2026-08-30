@@ -20,14 +20,35 @@ const CELL := 96
 const FACTION_DIRS := ["waldvolk", "menschen", "totenreich", "orks"]
 const Obst := preload("res://scripts/core/BattleObstacles.gd")
 
+# Vertikaler Versatz des Gitters innerhalb der Vorschau-Flaeche.
+var _grid_offset_y: int = 0
+
 # Aufstellung wie im Spiel: Spieler Spalte 1, Gegner Spalte COLS-2.
 const PLAYER := ["men_spearman", "men_archer", "men_griffin", "men_angel"]
 const ENEMY := ["nec_skeleton", "nec_lich", "nec_blackknight", "nec_bonedragon"]
 
 
 func _init() -> void:
-	var canvas := Image.create(COLS * CELL, ROWS * CELL, false, Image.FORMAT_RGBA8)
-	canvas.fill(Color(0.10, 0.12, 0.16, 1.0))
+	# Flaeche wie im Spiel: Gitter zentriert auf einem Schlachtfeld-
+	# Hintergrund, nicht mehr auf Schwarz (Iteration 16).
+	var pad_y: int = 160
+	var canvas := Image.create(COLS * CELL, ROWS * CELL + pad_y * 2, false, Image.FORMAT_RGBA8)
+	var ground := Color(0.18, 0.28, 0.16, 1.0)   # Gras, wie TERRAIN_GROUND[0]
+	var h_total: int = ROWS * CELL + pad_y * 2
+	for y in range(h_total):
+		var t: float = float(y) / float(h_total - 1)
+		var col := ground.darkened(0.55).lerp(ground.darkened(0.25), t)
+		for x in range(COLS * CELL):
+			canvas.set_pixel(x, y, col)
+	# Kampffeld-Boden mit Schachbrett-Nuance.
+	for cx in range(COLS):
+		for cy in range(ROWS):
+			var shade: float = 0.04 if (cx + cy) % 2 == 0 else 0.0
+			var cc := ground.lightened(shade)
+			for px in range(CELL):
+				for py in range(CELL):
+					canvas.set_pixel(cx * CELL + px, pad_y + cy * CELL + py, cc)
+	_grid_offset_y = pad_y
 	_draw_grid_lines(canvas)
 	# Belagerung (M9): Mauer-Reihe mit Tor-Luecke, ein Segment
 	# angeschlagen - so sieht der Spieler die Bresche kommen.
@@ -60,7 +81,7 @@ func _row(i: int, n: int) -> int:
 # Rissen.
 func _draw_wall(canvas: Image, cell: Vector2i, damaged: bool) -> void:
 	var x0: int = cell.x * CELL
-	var y0: int = cell.y * CELL
+	var y0: int = _grid_offset_y + cell.y * CELL
 	var stone := Color(0.52, 0.50, 0.46, 1.0)
 	var edge := Color(0.24, 0.23, 0.22, 1.0)
 	for x in range(int(CELL * 0.06), int(CELL * 0.94)):
@@ -90,17 +111,17 @@ func _draw_grid_lines(canvas: Image) -> void:
 	for col in range(COLS + 1):
 		var x: int = mini(col * CELL, COLS * CELL - 1)
 		for y in range(ROWS * CELL):
-			canvas.set_pixel(x, y, lc)
+			canvas.set_pixel(x, _grid_offset_y + y, lc)
 	for row in range(ROWS + 1):
 		var y2: int = mini(row * CELL, ROWS * CELL - 1)
 		for x2 in range(COLS * CELL):
-			canvas.set_pixel(x2, y2, lc)
+			canvas.set_pixel(x2, _grid_offset_y + y2, lc)
 
 
 # Seiten-Scheibe + Ring + Token, wie _draw_token im echten Screen.
 func _place(canvas: Image, uid: String, cx: int, cy: int,
 		fill: Color, ring: Color) -> void:
-	var ctr := Vector2i(cx * CELL + CELL / 2, cy * CELL + CELL / 2)
+	var ctr := Vector2i(cx * CELL + CELL / 2, _grid_offset_y + cy * CELL + CELL / 2)
 	var r: float = float(CELL) * 0.40
 	# Wie im Screen: dunkle Scheibe, Seite steckt im Ring.
 	fill = fill.darkened(0.72)

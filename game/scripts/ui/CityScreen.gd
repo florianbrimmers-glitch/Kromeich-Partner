@@ -23,7 +23,7 @@ signal garrison_move_requested(unit_id: String, to_city: bool, all: bool)
 signal closed()
 
 const LAYOUT_PATH := "res://data/city_layout.json"
-const HUD_TOP := 150.0
+const HUD_TOP := 250.0
 const HUD_BOTTOM := 180.0
 
 # Art-Pipeline: Pfade nach Konvention. Liegt ein PNG oder SVG dort, wird
@@ -49,6 +49,11 @@ const FACTION_DIRS := ["waldvolk", "menschen", "totenreich", "orks"]
 # ctx wird von WorldMapScreen.open()/refresh() befuellt, siehe dort.
 var _ctx: Dictionary = {}
 var _layout: Dictionary = {}
+# Layout fuer Fraktionen OHNE gemalten Hintergrund: gleiche Plots, aber
+# ueber die ganze Buehne verteilt. Das Haupt-Layout sitzt im Innenhof der
+# gemalten Menschen-Ringmauer und laesst dort keinen Platz fuer zwei
+# Textzeilen je Plot.
+var _layout_plain: Dictionary = {}
 var _plots: Array = []   # zuletzt berechnete Hotspots fuer Treffer-Tests
 
 # Cache fuer geladene Texturen: pfad -> Texture2D oder null (nicht gefunden,
@@ -96,9 +101,11 @@ func _load_layout() -> void:
 	var raw: Variant = JSON.parse_string(f.get_as_text())
 	if typeof(raw) == TYPE_DICTIONARY and (raw as Dictionary).has("buildings"):
 		_layout = (raw as Dictionary)["buildings"]
+		_layout_plain = (raw as Dictionary).get("buildings_plain", _layout)
 	else:
 		push_warning("CityScreen: city_layout.json ohne 'buildings'")
 		_layout = {}
+		_layout_plain = {}
 
 
 func _build_hud() -> void:
@@ -141,7 +148,7 @@ func _build_hud() -> void:
 	gar_btn.anchor_left = 1.0
 	gar_btn.anchor_right = 1.0
 	gar_btn.offset_left = -240
-	gar_btn.offset_top = 130
+	gar_btn.offset_top = 140
 	gar_btn.offset_right = -20
 	gar_btn.pressed.connect(_open_garrison_panel)
 	add_child(gar_btn)
@@ -242,8 +249,7 @@ func _draw() -> void:
 	if bg_tex != null:
 		draw_texture_rect(bg_tex, stage, false)
 	else:
-		draw_rect(stage, Color(0.12, 0.14, 0.13), true)
-		_draw_ground_grid(stage)
+		_draw_placeholder_stage(stage)
 	if has_wall and not walled_bg_used:
 		var wall_tex: Texture2D = _texture_with_ext(ART_WALL_OVERLAY % _faction_dir())
 		if wall_tex != null:
@@ -252,6 +258,33 @@ func _draw() -> void:
 	_plots = _compute_plots(stage)
 	for p in _plots:
 		_draw_plot(p)
+
+
+# PLATZHALTER-Buehne fuer Fraktionen ohne gemalten Hintergrund.
+# Bewusst schlicht und in Code statt als Asset: sobald gemalte
+# Hintergruende (bg.png je Fraktion, siehe assets/city/ART_SPEC.md)
+# vorliegen, faellt dieser Zweig weg. Vorher war hier eine einzelne
+# Volltonflaeche - der Grund fuer die "leere schwarze Stadt".
+func _draw_placeholder_stage(stage: Rect2) -> void:
+	var fcolors: Array = _ctx.get("faction_colors", [])
+	var fid: int = _faction_id()
+	var accent: Color = fcolors[fid] if fid >= 0 and fid < fcolors.size() else Color(0.6, 0.6, 0.6)
+	# Vertikaler Verlauf Himmel -> Boden, leicht in Fraktionsfarbe getoent.
+	var sky := Color(0.10, 0.12, 0.17).lerp(accent, 0.10)
+	var ground := Color(0.15, 0.16, 0.13).lerp(accent, 0.05)
+	var bands: int = 24
+	for i in range(bands):
+		var t: float = float(i) / float(bands - 1)
+		var band := Rect2(
+			stage.position + Vector2(0.0, stage.size.y * float(i) / float(bands)),
+			Vector2(stage.size.x, stage.size.y / float(bands) + 1.0))
+		draw_rect(band, sky.lerp(ground, t), true)
+	# Horizont-Linie auf ~38 % Hoehe, damit die Buehne Tiefe bekommt.
+	var hy: float = stage.position.y + stage.size.y * 0.38
+	draw_line(Vector2(stage.position.x, hy),
+		Vector2(stage.position.x + stage.size.x, hy),
+		Color(accent.r, accent.g, accent.b, 0.18), 2.0)
+	_draw_ground_grid(stage)
 
 
 func _draw_ground_grid(stage: Rect2) -> void:
@@ -371,38 +404,66 @@ func _draw_diamond_outline(c: Vector2, hw: float, hh: float, col: Color, wdt: fl
 	]), col, wdt)
 
 
+# Hoehe des Beschriftungs-Blocks je Plot. Zwei Zeilen - die dritte
+# (Effekt-Text) stand frueher hier und lief regelmaessig in den Namen des
+# naechsten Plots; sie erscheint jetzt beim Antippen in der Statuszeile
+# (siehe _act_on_plot). Die Konstante nutzt auch der Kollisions-Test.
+const LABEL_LINE1_SIZE := 26
+const LABEL_LINE2_SIZE := 22
+const LABEL_BLOCK_H := 56.0
+
+
 func _plot_label(p: Dictionary, at: Vector2) -> void:
-	# Drei Zeilen pro Plot:
+	# Zwei Zeilen pro Plot:
 	#   1) Gebaeude-Name
 	#   2) Zustand: Kosten / Voraussetzung / Vorrat / "fertig"
-	#   3) Effekt-Beschreibung (was tut das Gebaeude?) - klein und dezent,
-	#      aber immer sichtbar, damit man auch ungebaute Gebaeude einschaetzen
-	#      kann. War im alten Button-Panel automatisch im Button-Text drin.
-	var line1: String = String(p["name"])
+	# Der Effekt-Text kommt beim Tap in die Statuszeile, damit die Bauplaetze
+	# sich nicht gegenseitig ueberschreiben.
+	var max_w: float = float(p["hw"]) * 1.9
+	_centered_text(String(p["name"]), at, LABEL_LINE1_SIZE, Color(0.95, 0.95, 0.98), max_w)
 	var line2: String = String(p["sub"])
-	var line3: String = String(p["effect"])
-	_centered_text(line1, at, 26, Color(0.95, 0.95, 0.98))
-	var y_off := 30.0
 	if line2 != "":
-		_centered_text(line2, at + Vector2(0, y_off), 22, p["sub_col"])
-		y_off += 26.0
-	if line3 != "":
-		_centered_text(line3, at + Vector2(0, y_off), 20, Color(0.78, 0.82, 0.90, 0.85))
+		_centered_text(line2, at + Vector2(0, 30.0), LABEL_LINE2_SIZE, p["sub_col"], max_w)
 
 
-func _centered_text(txt: String, at: Vector2, fsize: int, col: Color) -> void:
-	var w := _font.get_string_size(txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fsize).x
+# Zeichnet zentrierten Text mit Schlagschatten. max_w > 0 kuerzt zu lange
+# Zeilen mit "..." statt sie in den Nachbar-Plot laufen zu lassen.
+func _centered_text(txt: String, at: Vector2, fsize: int, col: Color,
+		max_w: float = 0.0) -> void:
+	var shown: String = txt
+	var w := _font.get_string_size(shown, HORIZONTAL_ALIGNMENT_LEFT, -1, fsize).x
+	if max_w > 0.0 and w > max_w:
+		while shown.length() > 1 and w > max_w:
+			shown = shown.substr(0, shown.length() - 1)
+			w = _font.get_string_size(shown + "...", HORIZONTAL_ALIGNMENT_LEFT, -1, fsize).x
+		shown += "..."
+		w = _font.get_string_size(shown, HORIZONTAL_ALIGNMENT_LEFT, -1, fsize).x
 	var pos := Vector2(at.x - w * 0.5, at.y)
-	draw_string(_font, pos + Vector2(1.5, 1.5), txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fsize, Color(0, 0, 0, 0.8))
-	draw_string(_font, pos, txt, HORIZONTAL_ALIGNMENT_LEFT, -1, fsize, col)
+	draw_string(_font, pos + Vector2(1.5, 1.5), shown, HORIZONTAL_ALIGNMENT_LEFT, -1, fsize, Color(0, 0, 0, 0.8))
+	draw_string(_font, pos, shown, HORIZONTAL_ALIGNMENT_LEFT, -1, fsize, col)
 
 
 # --- Hotspot-Berechnung (geteilt von _draw und _gui_input) ---
+
+# Hat diese Fraktion ueberhaupt einen gemalten Hintergrund? Danach
+# richtet sich sowohl der Buehnen-Hintergrund als auch die Plot-Verteilung.
+func _has_painted_bg() -> bool:
+	return _texture_with_ext(ART_BG % _faction_dir()) != null \
+		or _texture_with_ext(ART_BG_WALLED % _faction_dir()) != null
+
+
+# Aktives Layout: der gemalte Innenhof nur dort, wo es auch ein Bild gibt.
+func _active_layout() -> Dictionary:
+	if _has_painted_bg():
+		return _layout
+	return _layout_plain if not _layout_plain.is_empty() else _layout
+
 
 func _compute_plots(stage: Rect2) -> Array:
 	var out: Array = []
 	if _layout.is_empty():
 		_load_layout()
+	var layout: Dictionary = _active_layout()
 	var city: Dictionary = _ctx.get("city", {})
 	if city.is_empty():
 		return out
@@ -416,9 +477,9 @@ func _compute_plots(stage: Rect2) -> Array:
 
 	for def in defs:
 		var bid: String = String(def["id"])
-		if not _layout.has(bid):
+		if not layout.has(bid):
 			continue
-		var lp: Dictionary = _layout[bid]
+		var lp: Dictionary = layout[bid]
 		var center := stage.position + Vector2(
 			float(lp.get("x", 0.5)) * stage.size.x,
 			float(lp.get("y", 0.5)) * stage.size.y)

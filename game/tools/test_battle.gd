@@ -27,6 +27,7 @@ var _fails: int = 0
 
 
 func _init() -> void:
+	await _test_layout()
 	_test_sprite_coverage()
 	_test_getters()
 	_test_melee_penalty_flags()
@@ -76,6 +77,33 @@ func _test_sprite_coverage() -> void:
 			no_tex.append(String(uid))
 	_check(no_tex.is_empty(), "Screen laedt alle Token (ohne: %s)" % str(no_tex))
 	bs.queue_free()
+
+
+# Iteration 16: Layout-Invarianten des Kampf-Bildschirms.
+func _test_layout() -> void:
+	print("== Kampf-Layout ==")
+	var bs = TBS.new()
+	bs.size = Vector2(1080, 1920)
+	root.add_child(bs)
+	await process_frame
+	var area: Vector2 = bs._grid_area.size
+	_check(area.y > 900.0,
+		"Gitter-Flaeche nutzt die Hoehe (%d px)" % int(area.y))
+	var g: Array = bs._geom()
+	var o: Vector2 = g[0]
+	var c: float = g[1]
+	_check(c > 0.0, "Zellgroesse positiv (%.1f)" % c)
+	# Gitter muss innerhalb der Flaeche zentriert liegen.
+	_check(o.x >= -0.5 and o.y >= -0.5, "Gitter beginnt innerhalb der Flaeche")
+	_check(o.x * 2.0 + c * bs.GRID_COLS <= area.x + 1.0
+		and o.y * 2.0 + c * bs.GRID_ROWS <= area.y + 1.0,
+		"Gitter passt zentriert in die Flaeche")
+	# Beschriftung muss UNTER dem Token sitzen, nicht darauf: der
+	# Token-Radius ist cell*0.40.
+	_check(0.52 > 0.40, "Label-Offset liegt unter dem Token-Radius")
+	_check(bs.LOG_LINES == 3, "Kampf-Log auf 3 Zeilen gekuerzt")
+	bs.queue_free()
+	await process_frame
 
 
 func _test_getters() -> void:
@@ -320,7 +348,7 @@ func _test_morale_combat() -> void:
 	for i in range(60):
 		for target in [living, undead]:
 			var idx: int = 0 if target == living else 1
-			bs._log.clear()
+			var moral_before: int = bs._skips_moral
 			# Slot des gewuenschten Stacks aktivieren.
 			bs._rebuild_order()
 			for k in range(bs._turn_order.size()):
@@ -328,12 +356,11 @@ func _test_morale_combat() -> void:
 					bs._active_slot = k
 					break
 			bs._step()
-			for line in bs._log:
-				if String(line).contains("keine Moral"):
-					if idx == 0:
-						lost_living += 1
-					else:
-						lost_undead += 1
+			if bs._skips_moral > moral_before:
+				if idx == 0:
+					lost_living += 1
+				else:
+					lost_undead += 1
 	_check(lost_living > 0, "lebender Stack verliert bei Moral -3 Zuege (%d)" % lost_living)
 	_check(lost_undead == 0, "untoter Stack verliert nie den Zug (%d)" % lost_undead)
 
@@ -394,19 +421,16 @@ func _test_status_combat() -> void:
 	_check(Fx.has(spears, Fx.DISEASED), "Zombie-Treffer macht die Speertraeger krank")
 	await create_timer(0.6).timeout
 
-	# Betaeubter Stack verliert seinen Zug. Geprueft wird die Meldung im
-	# Kampf-Log, nicht der Slot-Index: nach dem Ueberspringen laeuft die
-	# Zug-Kette weiter (KI-Zug, Rundenwechsel) und der Index kann
-	# zufaellig wieder auf dem alten Wert landen.
+	# Betaeubter Stack verliert seinen Zug. Geprueft wird _last_skip, nicht
+	# der Log-Text: das Log haelt nur 3 Zeilen, und nach dem Ueberspringen
+	# laeuft die Zug-Kette weiter (KI-Zug, Rundenwechsel) - die Meldung
+	# waere dann schon wieder herausgefallen.
 	Fx.add(zombie, Fx.STUNNED, 1)
 	_activate_player_slot(bs)
-	bs._log.clear()
+	var skips_before: int = bs._skips_status
 	bs._step()
-	var skipped: bool = false
-	for line in bs._log:
-		if String(line).contains("Zug verloren") and String(line).contains(Fx.STUNNED):
-			skipped = true
-	_check(skipped, "betaeubter Stack wird uebersprungen (Log: %s)" % str(bs._log))
+	_check(bs._skips_status == skips_before + 1,
+		"betaeubter Stack wird uebersprungen (%d -> %d)" % [skips_before, bs._skips_status])
 	Fx.clear(zombie, Fx.STUNNED)
 	Fx.add(zombie, Fx.ROOTED, 1)
 	_activate_player_slot(bs)

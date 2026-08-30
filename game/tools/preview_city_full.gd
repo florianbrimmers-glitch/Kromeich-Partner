@@ -23,10 +23,13 @@ const STAGE_W_FRAC := 0.15
 func _init() -> void:
 	_render(true,  "user://city-full-built.png")
 	_render(false, "user://city-full-construction.png")
+	# Iteration 16: so sieht eine Fraktion OHNE gemalten Hintergrund aus -
+	# Platzhalter-Verlauf plus das weiter verteilte "plain"-Layout.
+	_render(false, "user://city-plain-preview.png", true)
 	quit(0)
 
 
-func _render(all_built: bool, out_path: String) -> void:
+func _render(all_built: bool, out_path: String, plain: bool = false) -> void:
 	var canvas := Image.create(W, H, false, Image.FORMAT_RGBA8)
 	canvas.fill(Color(0.07, 0.08, 0.11, 1.0))
 	# HUD-Streifen oben/unten
@@ -35,11 +38,13 @@ func _render(all_built: bool, out_path: String) -> void:
 	# Stage-Backdrop, mirror der CityScreen-Logik: all_built nutzt
 	# bg_walled falls vorhanden, sonst bg (.png oder .svg), sonst Plateau.
 	var bg_path := ""
-	if all_built:
+	if plain:
+		bg_path = ""
+	elif all_built:
 		bg_path = _first_existing([
 			"res://assets/city/menschen/bg_walled.png",
 			"res://assets/city/menschen/bg_walled.svg"])
-	if bg_path == "":
+	if bg_path == "" and not plain:
 		bg_path = _first_existing([
 			"res://assets/city/menschen/bg.svg",
 			"res://assets/city/menschen/bg.png"])
@@ -54,9 +59,17 @@ func _render(all_built: bool, out_path: String) -> void:
 		bg_img.resize(W, H - HUD_TOP - HUD_BOTTOM, Image.INTERPOLATE_LANCZOS)
 		canvas.blend_rect(bg_img, Rect2i(0, 0, W, H - HUD_TOP - HUD_BOTTOM), Vector2i(0, HUD_TOP))
 	else:
-		_fill_rect(canvas, 0, HUD_TOP, W, H - HUD_TOP - HUD_BOTTOM, Color(0.12, 0.14, 0.13))
+		# Spiegelt CityScreen._draw_placeholder_stage: Verlauf Himmel ->
+		# Boden, leicht in Fraktionsfarbe (hier Totenreich-Violett).
+		var accent := Color(0.70, 0.45, 0.90)
+		var sky := Color(0.10, 0.12, 0.17).lerp(accent, 0.10)
+		var grnd := Color(0.15, 0.16, 0.13).lerp(accent, 0.05)
+		var sh: int = H - HUD_TOP - HUD_BOTTOM
+		for yy in range(sh):
+			var t: float = float(yy) / float(sh - 1)
+			_fill_rect(canvas, 0, HUD_TOP + yy, W, 1, sky.lerp(grnd, t))
 
-	var layout: Dictionary = _load_layout()
+	var layout: Dictionary = _load_layout(plain)
 	var stage_x: float = 0.0
 	var stage_y: float = float(HUD_TOP)
 	var stage_w: float = float(W)
@@ -105,11 +118,14 @@ func _render(all_built: bool, out_path: String) -> void:
 	print("save_err=%d -> %s" % [save_err, ProjectSettings.globalize_path(out_path)])
 
 
-func _load_layout() -> Dictionary:
+func _load_layout(plain: bool = false) -> Dictionary:
 	var f := FileAccess.open("res://data/city_layout.json", FileAccess.READ)
 	var raw: Variant = JSON.parse_string(f.get_as_text())
 	if typeof(raw) == TYPE_DICTIONARY:
-		return (raw as Dictionary)["buildings"]
+		var d: Dictionary = raw as Dictionary
+		if plain and d.has("buildings_plain"):
+			return d["buildings_plain"]
+		return d["buildings"]
 	return {}
 
 

@@ -1,14 +1,98 @@
 {
-	"_comment": "Iteration 5 (gemalte Canva-Hintergruende): Hotspots in den Innenhof der gemalten Ringmauer (bg_walled.png) gelegt - Band y 0.48..0.74, x 0.22..0.78. Plaza/Brunnen liegt bei (0.50, 0.60) und bleibt frei. Mauer-Hotspot am Tor unten. Positionen passen auch fuer das offene Dorf (bg.png), da beide Bilder dieselbe Plaza-Komposition haben.",
+	"_comment": "Iteration 5 (gemalte Canva-Hintergruende): Hotspots in den Innenhof der gemalten Ringmauer (bg_walled.png) gelegt - Band y 0.48..0.74, x 0.22..0.78. Plaza/Brunnen liegt bei (0.50, 0.60) und bleibt frei. Mauer-Hotspot am Tor unten. Positionen passen auch fuer das offene Dorf (bg.png), da beide Bilder dieselbe Plaza-Komposition haben. Iteration 16: Kapelle/Zitadelle auf x 0.33/0.67 auseinandergerueckt - bei 0.42/0.58 liefen ihre Beschriftungen ineinander (siehe test_city_screen).",
 	"buildings": {
-		"kapelle":  { "x": 0.42, "y": 0.475, "z": 0 },
-		"zitadelle": { "x": 0.58, "y": 0.475, "z": 0 },
-		"schmiede": { "x": 0.29, "y": 0.535, "z": 0 },
-		"reiterei": { "x": 0.71, "y": 0.535, "z": 0 },
-		"markt":    { "x": 0.23, "y": 0.645, "z": 0 },
-		"wachturm": { "x": 0.77, "y": 0.645, "z": 0 },
-		"kaserne":  { "x": 0.36, "y": 0.72, "z": 0 },
-		"spaeher":  { "x": 0.64, "y": 0.72, "z": 0 },
-		"mauer":    { "x": 0.50, "y": 0.80, "z": 0 }
+		"kapelle": {
+			"x": 0.33,
+			"y": 0.475,
+			"z": 0
+		},
+		"zitadelle": {
+			"x": 0.67,
+			"y": 0.475,
+			"z": 0
+		},
+		"schmiede": {
+			"x": 0.29,
+			"y": 0.535,
+			"z": 0
+		},
+		"reiterei": {
+			"x": 0.71,
+			"y": 0.535,
+			"z": 0
+		},
+		"markt": {
+			"x": 0.23,
+			"y": 0.645,
+			"z": 0
+		},
+		"wachturm": {
+			"x": 0.77,
+			"y": 0.645,
+			"z": 0
+		},
+		"kaserne": {
+			"x": 0.36,
+			"y": 0.72,
+			"z": 0
+		},
+		"spaeher": {
+			"x": 0.64,
+			"y": 0.72,
+			"z": 0
+		},
+		"mauer": {
+			"x": 0.5,
+			"y": 0.8,
+			"z": 0
+		}
+	},
+	"_comment_plain": "buildings_plain: Layout fuer Fraktionen OHNE gemalten Hintergrund. Der Satz 'buildings' sitzt im Innenhof der gemalten Menschen-Ringmauer (Band y 0.48-0.80) - ohne Bild wirkt die obere Haelfte leer und die Beschriftungen (Name + Zustand) kollidieren, weil die Reihen nur ~95 px auseinander liegen. 'plain' verteilt dieselben 9 Plots ueber y 0.14-0.86 mit ~0.12 Zeilenabstand, das reicht fuer zwei Textzeilen je Plot.",
+	"buildings_plain": {
+		"kapelle": {
+			"x": 0.26,
+			"y": 0.14,
+			"z": 0
+		},
+		"zitadelle": {
+			"x": 0.74,
+			"y": 0.14,
+			"z": 0
+		},
+		"schmiede": {
+			"x": 0.26,
+			"y": 0.32,
+			"z": 0
+		},
+		"reiterei": {
+			"x": 0.74,
+			"y": 0.32,
+			"z": 0
+		},
+		"markt": {
+			"x": 0.26,
+			"y": 0.5,
+			"z": 0
+		},
+		"wachturm": {
+			"x": 0.74,
+			"y": 0.5,
+			"z": 0
+		},
+		"kaserne": {
+			"x": 0.26,
+			"y": 0.68,
+			"z": 0
+		},
+		"spaeher": {
+			"x": 0.74,
+			"y": 0.68,
+			"z": 0
+		},
+		"mauer": {
+			"x": 0.5,
+			"y": 0.86,
+			"z": 0
+		}
 	}
 }

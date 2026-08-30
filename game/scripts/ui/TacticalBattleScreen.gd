@@ -34,6 +34,13 @@ var _p_luck: int = 0
 var _e_luck: int = 0
 # Ergebnis des letzten Glueckswurfs fuer das Kampf-Log.
 var _last_luck: float = 1.0
+# Zaehler fuer uebersprungene Zuege, getrennt nach Ursache. Bewusst
+# Zaehler und kein "letzter Wert": ein Zug-Ueberspringen loest sofort die
+# naechste Aktion aus, ein Einzelwert waere im selben Aufruf schon wieder
+# ueberschrieben - und das 3-zeilige Kampf-Log verliert die Meldung
+# ebenfalls. Die Tests messen damit Differenzen.
+var _skips_status: int = 0
+var _skips_moral: int = 0
 # Belagerung (M9). _siege = Mauer steht auf dem Feld; _wall_hp haelt die
 # Restpunkte je Segment-Position. Verteidiger ist immer Seite 1 (die
 # Stadt), Angreifer der Spieler - KI-Angriffe auf eigene Staedte laufen
@@ -62,7 +69,7 @@ var _flee_btn: Button
 
 # Kampf-Log: die letzten LOG_LINES Aktionen, damit Spieler sehen kann,
 # was in den Zuegen davor passiert ist (Schaden, Verluste, Bewegungen).
-const LOG_LINES := 5
+const LOG_LINES := 3
 var _log: Array = []
 
 
@@ -337,6 +344,7 @@ func _step() -> void:
 	var st: Dictionary = _active_stack()
 	if not st.is_empty() and Fx.blocks_turn(st):
 		var who: String = "Held" if int(slot["side"]) == 0 else "Feind"
+		_skips_status += 1
 		_set_action("%s %s ist %s - Zug verloren." % [
 			who, UnitType.short_of(String(st["type"])), Fx.marker_name(st)])
 		_advance()
@@ -346,6 +354,7 @@ func _step() -> void:
 		var mor: int = _p_morale if int(slot["side"]) == 0 else _e_morale
 		if Mor.rolls_freeze(mor, _rng):
 			var who2: String = "Held" if int(slot["side"]) == 0 else "Feind"
+			_skips_moral += 1
 			_set_action("%s %s: keine Moral - Zug verloren." % [
 				who2, UnitType.short_of(String(st["type"]))])
 			_advance()
@@ -511,43 +520,48 @@ func _build_ui() -> void:
 	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(bg)
 
+	# Kopfzeile schlank halten: Titel und Info in einer Zeile. Frueher
+	# frassen Titel (70 px), Info (70 px) und ein 5-zeiliges Log (140 px)
+	# zusammen 330 px, waehrend unter dem Gitter Platz frei blieb.
 	var title := Label.new()
 	title.text = "KAMPF"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	title.offset_top = 30.0
-	title.offset_bottom = 100.0
-	title.add_theme_font_size_override("font_size", 52)
+	title.offset_top = 20.0
+	title.offset_bottom = 70.0
+	title.add_theme_font_size_override("font_size", 36)
 	title.add_theme_color_override("font_color", Color(0.95, 0.85, 0.40))
 	add_child(title)
 
 	_info_lbl = Label.new()
 	_info_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_info_lbl.set_anchors_preset(Control.PRESET_TOP_WIDE)
-	_info_lbl.offset_top = 105.0
-	_info_lbl.offset_bottom = 175.0
-	_info_lbl.add_theme_font_size_override("font_size", 28)
+	_info_lbl.offset_top = 68.0
+	_info_lbl.offset_bottom = 118.0
+	_info_lbl.add_theme_font_size_override("font_size", 26)
 	_info_lbl.add_theme_color_override("font_color", Color(0.9, 0.92, 0.96))
 	add_child(_info_lbl)
 
+	# Kampf-Log UNTER das Gitter, in die frueher leere Zone ueber den
+	# Buttons. Drei Zeilen reichen fuer den Verlauf einer Runde.
 	_action_lbl = Label.new()
 	_action_lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
 	_action_lbl.vertical_alignment = VERTICAL_ALIGNMENT_TOP
-	_action_lbl.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	_action_lbl.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
 	_action_lbl.offset_left = 40.0
 	_action_lbl.offset_right = -40.0
-	_action_lbl.offset_top = 178.0
-	_action_lbl.offset_bottom = 318.0
+	_action_lbl.offset_top = -300.0
+	_action_lbl.offset_bottom = -180.0
 	_action_lbl.add_theme_font_size_override("font_size", 22)
 	_action_lbl.add_theme_color_override("font_color", Color(0.80, 0.88, 1.0))
 	add_child(_action_lbl)
 
 	_grid_area = Control.new()
 	_grid_area.set_anchors_preset(Control.PRESET_FULL_RECT)
-	_grid_area.offset_left = 30.0
-	_grid_area.offset_right = -30.0
-	_grid_area.offset_top = 330.0
-	_grid_area.offset_bottom = -220.0
+	_grid_area.offset_left = 20.0
+	_grid_area.offset_right = -20.0
+	_grid_area.offset_top = 125.0
+	_grid_area.offset_bottom = -310.0
 	_grid_area.mouse_filter = Control.MOUSE_FILTER_STOP
 	_grid_area.draw.connect(_draw_grid)
 	_grid_area.resized.connect(func(): _grid_area.queue_redraw())
@@ -596,13 +610,54 @@ func _cell_at(p: Vector2) -> Vector2i:
 	return Vector2i(cx, cy)
 
 
+# Grundfarben je Terrain der Weltkarte (MapGen.TILE_*: 0=Gras, 1=Wald,
+# 2=Wasser/Kueste, 3=Gebirge, 4=Sand, 5=Sumpf). Bis hierhin bestimmte das
+# Terrain nur die Hindernis-Auswahl - der Boden war immer dasselbe
+# Dunkelgrau, was jeden Kampf gleich aussehen liess.
+const TERRAIN_GROUND := [
+	Color(0.18, 0.28, 0.16),   # Gras
+	Color(0.13, 0.22, 0.14),   # Wald
+	Color(0.16, 0.23, 0.30),   # Wasser/Kueste
+	Color(0.26, 0.25, 0.24),   # Gebirge
+	Color(0.34, 0.30, 0.20),   # Sand
+	Color(0.20, 0.23, 0.16),   # Sumpf
+]
+
+
+func _ground_color() -> Color:
+	if _terrain_id >= 0 and _terrain_id < TERRAIN_GROUND.size():
+		return TERRAIN_GROUND[_terrain_id]
+	return TERRAIN_GROUND[0]
+
+
 func _draw_grid() -> void:
 	var g: Array = _geom()
 	var o: Vector2 = g[0]; var c: float = g[1]
 	if c <= 0.0: return
 	var gw := c * GRID_COLS; var gh := c * GRID_ROWS
+	var ground: Color = _ground_color()
 
-	_grid_area.draw_rect(Rect2(o, Vector2(gw, gh)), Color(0.10, 0.12, 0.16), true)
+	# Schlachtfeld-Hintergrund ueber die GANZE Flaeche: das Gitter ist
+	# breitenbegrenzt (10 Spalten), oben und unten blieb sonst schwarze
+	# Leere stehen. Verlauf von dunkel (hinten) nach hell (vorne).
+	var area := Vector2(_grid_area.size)
+	var bands: int = 16
+	for i in range(bands):
+		var t: float = float(i) / float(bands - 1)
+		_grid_area.draw_rect(Rect2(
+			Vector2(0.0, area.y * float(i) / float(bands)),
+			Vector2(area.x, area.y / float(bands) + 1.0)),
+			ground.darkened(0.55).lerp(ground.darkened(0.25), t), true)
+
+	# Kampffeld-Boden: Schachbrett-Nuance, damit Felder zaehlbar bleiben.
+	for cx in range(GRID_COLS):
+		for cy in range(GRID_ROWS):
+			var shade: float = 0.04 if (cx + cy) % 2 == 0 else 0.0
+			_grid_area.draw_rect(Rect2(
+				o + Vector2(float(cx) * c, float(cy) * c), Vector2(c, c)),
+				ground.lightened(shade), true)
+	# Rahmen um das Feld.
+	_grid_area.draw_rect(Rect2(o, Vector2(gw, gh)), ground.darkened(0.6), false, 4.0)
 
 	_draw_obstacles(o, c)
 
@@ -811,7 +866,7 @@ func _draw_hp_bar(ctr: Vector2, cell: float, top_hp: int, max_hp: int) -> void:
 	var frac: float = clampf(float(top_hp) / float(max_hp), 0.0, 1.0)
 	var w: float = cell * 0.70
 	var h: float = max(4.0, cell * 0.08)
-	var top_left := Vector2(ctr.x - w * 0.5, ctr.y + cell * 0.32)
+	var top_left := Vector2(ctr.x - w * 0.5, ctr.y + cell * 0.28)
 	_grid_area.draw_rect(Rect2(top_left, Vector2(w, h)), Color(0.15, 0.05, 0.05), true)
 	var fill_col := Color(0.85, 0.25, 0.20)
 	if frac > 0.66:
@@ -825,13 +880,17 @@ func _draw_hp_bar(ctr: Vector2, cell: float, top_hp: int, max_hp: int) -> void:
 func _draw_lbl(ctr: Vector2, txt: String, cell: float) -> void:
 	var font: Font = get_theme_default_font()
 	if font == null: return
-	var fs: int = int(max(16.0, cell * 0.38))
+	var fs: int = int(max(15.0, cell * 0.30))
 	var sz: Vector2 = font.get_string_size(txt, HORIZONTAL_ALIGNMENT_CENTER, -1.0, fs)
 	# Seit die Token-Scheibe dunkel ist (M10), braucht die Beschriftung
 	# helle Schrift mit dunklem Schlagschatten - sonst verschwindet sie
 	# auf der Scheibe. Sie sitzt leicht unterhalb der Mitte, damit Kopf
 	# und Hoerner der Silhouette frei bleiben.
-	var pos := Vector2(ctr.x - sz.x * 0.5, ctr.y + cell * 0.22)
+	# Unterhalb der Scheibe statt mitten auf dem Sprite - vorher lag der
+	# Text ("Sk3") direkt auf der Silhouette und beide waren schlecht
+	# lesbar. Der Token-Radius ist cell*0.40, also sitzt cell*0.52 knapp
+	# darunter.
+	var pos := Vector2(ctr.x - sz.x * 0.5, ctr.y + cell * 0.52)
 	_grid_area.draw_string(font, pos + Vector2(1.5, 1.5),
 		txt, HORIZONTAL_ALIGNMENT_CENTER, -1.0, fs, Color(0, 0, 0, 0.85))
 	_grid_area.draw_string(font, pos,

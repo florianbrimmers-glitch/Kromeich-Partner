@@ -119,6 +119,62 @@ func _init() -> void:
 	ok = _check(_got_plaza.contains("Menschen") and _got_plaza.contains("gebaut"),
 		"Plaza-Tap emittiert Stadt-Statistik (war '%s')" % _got_plaza) and ok
 
+	# 7) Layout-Wahl + Beschriftungen kollidieren nicht (Iteration 16).
+	#    Die Test-Stadt ist Fraktion 1 (Menschen). Ob deren gemalter
+	#    Hintergrund im Build liegt, entscheidet welches Layout gilt -
+	#    geprueft wird deshalb die Konsistenz, nicht ein fixes Layout.
+	var painted: bool = cs._has_painted_bg()
+	var expected: Dictionary = cs._layout if painted else cs._layout_plain
+	ok = _check(cs._active_layout() == expected,
+		"Layout passt zum Hintergrund (gemalt=%s)" % str(painted)) and ok
+	ok = _check(not cs._layout_plain.is_empty(),
+		"Plain-Layout aus city_layout.json geladen (%d Plots)" % cs._layout_plain.size()) and ok
+
+	# Beschriftungs-Boxen: zwei Zeilen ab center + hh + 18, Breite = hw*1.9.
+	# Ueberlappen sich zwei Boxen, laufen die Texte im Spiel ineinander -
+	# genau der Fehler aus dem Nutzer-Screenshot.
+	var boxes: Array = []
+	for p2 in plots:
+		var c2: Vector2 = p2["center"]
+		var hw2: float = float(p2["hw"])
+		var hh2: float = float(p2["hh"])
+		boxes.append({
+			"id": String(p2["id"]),
+			"rect": Rect2(Vector2(c2.x - hw2 * 0.95, c2.y + hh2 + 18.0),
+				Vector2(hw2 * 1.9, CityScreen.LABEL_BLOCK_H)),
+		})
+	var clashes: Array = []
+	for i in range(boxes.size()):
+		for j in range(i + 1, boxes.size()):
+			if (boxes[i]["rect"] as Rect2).intersects(boxes[j]["rect"] as Rect2):
+				clashes.append("%s/%s" % [boxes[i]["id"], boxes[j]["id"]])
+	ok = _check(clashes.is_empty(),
+		"keine Text-Kollisionen im aktiven Layout (%s)" % str(clashes)) and ok
+
+	# Dasselbe fuer das jeweils ANDERE Layout - beide muessen sauber sein,
+	# je nachdem ob eine Fraktion einen gemalten Hintergrund hat.
+	var other: Dictionary = cs._layout_plain if painted else cs._layout
+	var saved: Dictionary = cs._layout
+	cs._layout = other
+	cs._layout_plain = other
+	var plots2: Array = cs._compute_plots(cs._stage_rect())
+	var clashes2: Array = []
+	for i2 in range(plots2.size()):
+		for j2 in range(i2 + 1, plots2.size()):
+			var a2: Dictionary = plots2[i2]
+			var b2: Dictionary = plots2[j2]
+			var ra := Rect2(Vector2(a2["center"].x - float(a2["hw"]) * 0.95,
+				a2["center"].y + float(a2["hh"]) + 18.0),
+				Vector2(float(a2["hw"]) * 1.9, CityScreen.LABEL_BLOCK_H))
+			var rb := Rect2(Vector2(b2["center"].x - float(b2["hw"]) * 0.95,
+				b2["center"].y + float(b2["hh"]) + 18.0),
+				Vector2(float(b2["hw"]) * 1.9, CityScreen.LABEL_BLOCK_H))
+			if ra.intersects(rb):
+				clashes2.append("%s/%s" % [String(a2["id"]), String(b2["id"])])
+	cs._layout = saved
+	ok = _check(clashes2.is_empty(),
+		"keine Text-Kollisionen im zweiten Layout (%s)" % str(clashes2)) and ok
+
 	print("")
 	if ok:
 		print("CityScreen-Smoke-Test: ALLE CHECKS GRUEN")
