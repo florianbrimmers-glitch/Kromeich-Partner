@@ -23,12 +23,17 @@ const Abil := preload("res://scripts/core/Abilities.gd")
 const Fx := preload("res://scripts/core/StatusFx.gd")
 const Mor := preload("res://scripts/core/Morale.gd")
 
+# Geraetegroesse (Portrait, wie im Export) fuer die Geometrie-Messung.
+const DEVICE_W := 1080
+const DEVICE_H := 1920
+
 var _fails: int = 0
 var _done: Array = []
 
 
 func _init() -> void:
 	await _test_layout()
+	await _test_button_row()
 	_test_sprite_coverage()
 	_test_getters()
 	_test_melee_penalty_flags()
@@ -173,8 +178,14 @@ func _test_layout() -> void:
 	# Effekte aus (It. 17): mit fx_speed > 0 wartet die Zugkette auf
 	# Animationen, die headless nie ankommen -> Test haengt.
 	bs.fx_speed = 0.0
-	bs.size = Vector2(1080, 1920)
 	root.add_child(bs)
+	await process_frame
+	# _ready verankert den Screen auf die volle Flaeche - headless ist das
+	# die FENSTERgroesse des Test-Rechners, nicht das Handy. Fuer jede
+	# Messung in Geraetegroesse erst die Verankerung loesen, dann die
+	# Groesse setzen, dann einen Frame warten (It. 42).
+	bs.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	bs.size = Vector2(DEVICE_W, DEVICE_H)
 	await process_frame
 	var area: Vector2 = bs._grid_area.size
 	_check(area.y > 900.0,
@@ -195,6 +206,76 @@ func _test_layout() -> void:
 	bs.queue_free()
 	await process_frame
 	_done.append("_test_layout")
+
+
+# Die untere Knopfreihe (It. 42). Vier Knoepfe teilen sich eine Zeile -
+# vorher hatte jeder eigene Pixel-Offsets, und "Zauber" (500-624) lag auf
+# dem Geraet 24 Pixel unter "Fliehen" (600-1030): der spaeter eingehaengte
+# Knopf hat in der Ueberdeckung den Tap gefressen. Headless sieht man das
+# nicht, gemessen schon.
+func _test_button_row() -> void:
+	print("== Knopfreihe im Kampf ==")
+	var bs = TBS.new()
+	bs.fx_speed = 0.0
+	root.add_child(bs)
+	await process_frame
+	# _ready verankert den Screen auf die volle Flaeche - headless ist das
+	# die FENSTERgroesse des Test-Rechners, nicht das Handy. Fuer jede
+	# Messung in Geraetegroesse erst die Verankerung loesen, dann die
+	# Groesse setzen, dann einen Frame warten (It. 42).
+	bs.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	bs.size = Vector2(DEVICE_W, DEVICE_H)
+	await process_frame
+	# Kapitulieren ist nur mit Erlaubnis sichtbar - fuer die Messung an.
+	bs._allow_flee = true
+	bs._allow_surrender = true
+	bs._surrender_cost = 1234
+	bs._refresh_surrender_button()
+	await process_frame
+
+	var row: Array = []
+	for ch in bs.get_children():
+		if ch is Button and (ch as Button).visible:
+			row.append({"text": String((ch as Button).text).split("\n")[0],
+				"rect": (ch as Control).get_rect(), "btn": ch})
+	_check(row.size() == bs.BTN_SLOTS,
+		"%d Knoepfe sichtbar (sind %d)" % [bs.BTN_SLOTS, row.size()])
+
+	var clashes: Array = []
+	for i in range(row.size()):
+		for j in range(i + 1, row.size()):
+			if (row[i]["rect"] as Rect2).intersects(row[j]["rect"] as Rect2):
+				clashes.append("%s/%s" % [row[i]["text"], row[j]["text"]])
+	_check(clashes.is_empty(), "keine zwei Knoepfe ueberdecken sich (%s)" % str(clashes))
+
+	# Ganz auf dem Schirm, und NICHT auf dem Gitter: ein Knopf ueber dem
+	# Spielfeld frisst den Tap auf ein Feld.
+	var screen := Rect2(Vector2.ZERO, Vector2(DEVICE_W, DEVICE_H))
+	var grid := Rect2(bs._grid_area.position, bs._grid_area.size)
+	var bad: Array = []
+	for b in row:
+		var r: Rect2 = b["rect"] as Rect2
+		if not screen.encloses(r) or r.intersects(grid):
+			bad.append("%s %s" % [b["text"], str(r)])
+	_check(bad.is_empty(), "jeder Knopf liegt auf dem Schirm und unter dem Gitter (%s)" % str(bad))
+
+	# Und die Beschriftung muss hineinpassen - ein abgeschnittenes
+	# "Kapituliere..." waere schlimmer als kein Knopf.
+	var tight: Array = []
+	for b in row:
+		var btn: Button = b["btn"] as Button
+		var fs: int = btn.get_theme_font_size("font_size")
+		var fnt: Font = btn.get_theme_font("font")
+		for ln in String(btn.text).split("\n"):
+			var w: float = fnt.get_string_size(String(ln),
+				HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+			if w > (b["rect"] as Rect2).size.x - 8.0:
+				tight.append("%s (%d > %d)" % [ln, int(w), int((b["rect"] as Rect2).size.x)])
+	_check(tight.is_empty(), "jede Beschriftung passt in ihren Knopf (%s)" % str(tight))
+
+	bs.queue_free()
+	await process_frame
+	_done.append("_test_button_row")
 
 
 func _test_getters() -> void:

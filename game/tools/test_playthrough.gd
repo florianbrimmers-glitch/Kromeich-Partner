@@ -21,6 +21,7 @@ extends SceneTree
 # steht, sonst hinlaufen, sonst warten) - sie soll den Kampf ZU ENDE
 # bringen, nicht gut spielen.
 
+const DEBUG_BATTLES := false
 const MAX_TURNS := 40
 const MAX_BATTLE_STEPS := 400
 # Zwei Seeds fuer die CI (rund 5 s). Breiter pruefen von Hand: SEEDS auf
@@ -35,6 +36,9 @@ var _done: Array = []
 var _battles: int = 0
 var _battle_wins: int = 0
 var _outcomes: Array = []
+# Flucht/Kapitulation (It. 42) - kein Sieg, aber auch keine Niederlage.
+var _retreats: int = 0
+var _tot_retreats: int = 0
 var _deadlocks: Array = []
 # Kaempfe, die die KI angefangen hat (Pflichtkampf gegen den Helden ODER
 # Verteidigung der eigenen Stadt). Hiess zuerst _defense_battles - das war
@@ -129,6 +133,7 @@ func _play(seed_value: int) -> void:
 	_battles = 0
 	_battle_wins = 0
 	_outcomes.clear()
+	_retreats = 0
 	_ai_initiated = 0
 	# Pro Seed leeren: sonst schleppt der Bericht die Meldungen des
 	# vorherigen Seeds mit und man sucht den Fehler an der falschen Stelle.
@@ -172,8 +177,8 @@ func _play(seed_value: int) -> void:
 	print("        %d Zuege, %d Kaempfe (%d gewonnen: %s), Ausgang: %s"
 		% [turns_played, _battles, _battle_wins, str(_outcomes),
 			"Sieg" if won else ("Niederlage" if lost else "laeuft")])
-	print("        davon %d von der KI angefangen (Pflichtkampf oder Stadtangriff)"
-		% _ai_initiated)
+	print("        davon %d von der KI angefangen (Stadtangriff oder Ueberfall), %d Mal ausgewichen"
+		% [_ai_initiated, _retreats])
 
 	# 1. Die Kette darf nicht haengen: jeder Zug muss durchgelaufen sein.
 	_check(turns_played >= MAX_TURNS or won or lost,
@@ -203,9 +208,26 @@ func _play(seed_value: int) -> void:
 	_tot_wins += _battle_wins
 	_tot_xp += (xp1 - xp0)
 	_tot_ai += _ai_initiated
+	_tot_retreats += _retreats
 
 	wm.queue_free()
 	await process_frame
+
+
+func _stack_text(stacks: Array) -> String:
+	var parts: Array = []
+	for st in stacks:
+		parts.append("%dx%s" % [int(st["count"]), String(st["type"])])
+	return "[" + ", ".join(parts) + "]"
+
+
+# Goldwert einer Stack-Liste des Kampf-Screens. Gold ist das Mass fuer
+# Kampfkraft (It. 38), nicht die Kopfzahl.
+func _stack_gold(stacks: Array) -> int:
+	var n: int = 0
+	for st in stacks:
+		n += UnitType.cost_of(String(st["type"])) * int(st["count"])
+	return n
 
 
 # Summen ueber alle lebenden Helden des Spielers.
@@ -340,6 +362,39 @@ func _resolve_overlay(wm, seed_value: int, turn: int) -> void:
 	# Niederlage, Flucht), also ist der Knoten hinterher weg. Der erste
 	# Anlauf zaehlte deshalb 0 Siege, auch wenn welche dabei waren.
 	bs.battle_finished.connect(_on_battle_done)
+	# AUSSICHTSLOS? Dann raus (It. 42). Genau dafuer gibt es Flucht und
+	# Kapitulation: der Pflichtkampf gegen einen ueberlegenen KI-Helden hat
+	# vorher in 3 von 6 Seeds das Spiel in Woche 1 beendet. Kapitulieren
+	# ist die bessere Wahl (die Armee bleibt), Fliehen der Notausgang.
+	var own_gold: int = _stack_gold(bs.get("_p_stacks"))
+	var foe_gold: int = _stack_gold(bs.get("_e_stacks"))
+	var safe: float = float(wm.get("THREAT_SAFE_FACTOR"))
+	if DEBUG_BATTLES:
+		print("        [Kampf] eigen=%d G %s  gegner=%d G %s  flucht=%s/kap=%s"
+			% [own_gold, _stack_text(bs.get("_p_stacks")),
+				foe_gold, _stack_text(bs.get("_e_stacks")),
+				str(bs.get("_allow_flee")), str(bs.get("_allow_surrender"))])
+	if foe_gold > int(float(own_gold) * safe):
+		if bool(bs.get("_allow_surrender")):
+			bs.call("_on_surrender")
+			_retreats += 1
+			await process_frame
+			return
+		if bool(bs.get("_allow_flee")):
+			bs.call("_on_flee")
+			_retreats += 1
+			await process_frame
+			return
+	# AUFSTELLUNGSPHASE (Taktik, M7 Teil 2). Ohne diesen Aufruf steht der
+	# Kampf still: sobald der Held den Skill hat, oeffnet JEDER Kampf in
+	# der Aufstellung und wartet auf "Kampf beginnen". Der Test hat
+	# stattdessen 400 Mal versucht anzugreifen und den Kampf als
+	# haengengeblieben gemeldet - Runde 1, beide Armeen vollzaehlig. Die
+	# Aufstellung selbst wird nicht genutzt (Standardposition reicht), aber
+	# die Phase MUSS beendet werden.
+	if bool(bs.get("_tactics_phase")):
+		bs.call("_end_tactics")
+		await process_frame
 	var steps: int = 0
 	# is_instance_valid ist Pflicht: verliert der Spieler, raeumt der
 	# Weltkarten-Screen das Overlay im Callback ab (Niederlage-Panel), und
@@ -358,16 +413,34 @@ func _resolve_overlay(wm, seed_value: int, turn: int) -> void:
 			# wenn die Kette haengt.
 			await process_frame
 			continue
+		# Zustand VOR der Aktion merken. Der Screen darf eine Aktion
+		# ablehnen (z.B. "Ausser Reichweite", ohne den Zug zu verbrauchen);
+		# fuer einen Menschen ist das richtig, fuer eine Schleife toedlich.
+		# Aendert sich nichts, wird gewartet - das verbraucht den Zug
+		# garantiert.
+		var before_slot: int = int(bs.get("_active_slot"))
+		var before_pos: Variant = (bs.call("_active_stack") as Dictionary).get("pos", null)
+		var before_round: int = int(bs.get("_round"))
 		if not _player_acts(bs):
 			bs.call("_on_wait")
 		await process_frame
+		if is_instance_valid(bs) and not bool(bs.get("_finished")) \
+				and int(bs.get("_active_slot")) == before_slot \
+				and int(bs.get("_round")) == before_round \
+				and (bs.call("_active_stack") as Dictionary).get("pos", null) == before_pos:
+			bs.call("_on_wait")
+			await process_frame
 	if not is_instance_valid(bs):
 		# Normalfall: der Weltkarten-Trichter hat das Overlay nach dem
 		# Signal abgeraeumt.
 		return
 	if not bool(bs.get("_finished")):
-		_deadlocks.append("Seed %d Zug %d: Kampf nach %d Schritten offen"
-			% [seed_value, turn, steps])
+		# Mit Armeen und Runde: ohne die beiden Angaben ist ein
+		# haengengebliebener Kampf nicht zu diagnostizieren (It. 42 - die
+		# Meldung "Runde 1, beide Armeen vollzaehlig" war der Hinweis).
+		_deadlocks.append("Seed %d Zug %d: Kampf nach %d Schritten offen (Runde %d) eigen=%s gegner=%s"
+			% [seed_value, turn, steps, int(bs.get("_round")),
+				_stack_text(bs.get("_p_stacks")), _stack_text(bs.get("_e_stacks"))])
 		# Nicht haengen lassen: fliehen beendet den Kampf regulaer.
 		bs.call("_on_flee")
 		await process_frame
@@ -396,8 +469,15 @@ func _player_acts(bs) -> bool:
 		if int(es["count"]) <= 0:
 			continue
 		var epos: Vector2i = es["pos"]
-		var adj: bool = abs(epos.x - apos.x) <= 1 and abs(epos.y - apos.y) <= 1
-		if adj or bool(bs.call("_can_shoot", active)):
+		# NACHBARSCHAFT AUS DEM SCREEN, keine eigene Kopie. Der Test hatte
+		# hier `abs(dx) <= 1 and abs(dy) <= 1` - also mit Diagonalen -,
+		# waehrend _adj im Kampf orthogonal rechnet (|dx| + |dy| == 1). Bei
+		# einem diagonal stehenden Gegner hat der Test deshalb "angreifen"
+		# gesagt, der Screen "ausser Reichweite" - und der Zug wurde NICHT
+		# verbraucht. Ergebnis: 400 Schleifendurchlaeufe in Runde 1 und die
+		# Meldung "Kampf haengt". Dieselbe Fehlerart wie die doppelten
+		# Zahlen in den Vorschau-Werkzeugen (It. 36/37).
+		if bool(bs.call("_adj", apos, epos)) or bool(bs.call("_can_shoot", active)):
 			bs.call("_try_attack_enemy", i)
 			return true
 	# 2. Sonst auf das Feld ziehen, das dem naechsten Gegner am naechsten

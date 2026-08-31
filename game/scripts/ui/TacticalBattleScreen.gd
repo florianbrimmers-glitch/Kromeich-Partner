@@ -89,7 +89,22 @@ var _casts_left: int = 0
 var _pending_spell: String = ""
 var _spell_btn: Button = null
 var _spell_panel: Panel = null
+# Untere Knopfreihe (It. 42). Vier Plaetze: Warten, Zauber, Fliehen,
+# Kapitulieren. BTN_TOP/BOTTOM sind Offsets vom UNTEREN Rand, deshalb
+# negativ; die Reihe liegt damit in dem Band, das _grid_area unten frei
+# laesst (offset_bottom -310).
+const BTN_SLOTS := 4
+const BTN_PAD := 14.0
+const BTN_TOP := -170.0
+const BTN_BOTTOM := -50.0
+const BTN_FONT := 28
+
 var _allow_flee: bool = true
+# Kapitulieren: Gold gegen die eigene Armee (HoMM3-Regel). Preis und
+# Erlaubnis kommen von aussen - der Kampf-Screen kennt keinen Geldbeutel.
+var _allow_surrender: bool = false
+var _surrender_cost: int = 0
+var _surrender_btn: Button = null
 var _rng: RandomNumberGenerator
 var _art_seed: int = 42
 var _finished: bool = false
@@ -174,6 +189,8 @@ func set_battle(ctx: Dictionary) -> void:
 	_tactics_cols = clampi(int(ctx.get("player_tactics", 0)), 0, GRID_COLS - 4)
 	_tactics_pick = -1
 	_allow_flee  = bool(ctx.get("allow_flee", true))
+	_allow_surrender = bool(ctx.get("allow_surrender", false))
+	_surrender_cost = int(ctx.get("surrender_cost", 0))
 	_rng = RandomNumberGenerator.new()
 	_rng.seed = int(ctx.get("seed", 42))
 	# Eigene Kopie fuer die Boden-Varianten: das Zeichnen darf _rng NICHT
@@ -218,6 +235,7 @@ func set_battle(ctx: Dictionary) -> void:
 	_active_slot = 0
 	if _flee_btn != null:
 		_flee_btn.visible = _allow_flee
+	_refresh_surrender_button()
 	_refresh_spell_button()
 	_refresh()
 	# Taktik zuerst: die Zugkette startet erst, wenn der Spieler fertig
@@ -435,6 +453,8 @@ func _begin_tactics() -> void:
 		_wait_btn.visible = false
 	if _flee_btn != null:
 		_flee_btn.visible = false
+	if _surrender_btn != null:
+		_surrender_btn.visible = false
 	if _spell_btn != null:
 		_spell_btn.visible = false
 	_set_action("Taktik: Stack antippen, dann Zielfeld (%d Spalten)."
@@ -453,6 +473,7 @@ func _end_tactics() -> void:
 		_wait_btn.visible = true
 	if _flee_btn != null:
 		_flee_btn.visible = _allow_flee
+	_refresh_surrender_button()
 	_refresh_spell_button()
 	_set_action("Aufstellung steht.")
 	# Reihenfolge neu, damit ein leer gelaufener Slot nicht haengt; die
@@ -862,53 +883,68 @@ func _build_ui() -> void:
 
 	_wait_btn = Button.new()
 	_wait_btn.text = "Warten"
-	_wait_btn.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
-	_wait_btn.offset_left = 50.0
-	_wait_btn.offset_top = -170.0
-	_wait_btn.offset_right = 480.0
-	_wait_btn.offset_bottom = -50.0
-	_wait_btn.add_theme_font_size_override("font_size", 38)
+	_wait_btn.add_theme_font_size_override("font_size", BTN_FONT)
 	_wait_btn.pressed.connect(_on_wait)
+	_place_btn(_wait_btn, 0)
 	add_child(_wait_btn)
 
-	# Zauber-Knopf (M8). Sitzt mittig zwischen Warten und Fliehen; ohne
-	# wirkbare Zauber bleibt er unsichtbar, damit die Zeile nicht mit einem
-	# toten Knopf zugestellt ist.
 	_spell_btn = Button.new()
 	_spell_btn.text = "Zauber"
-	_spell_btn.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	_spell_btn.offset_left = 500.0
-	_spell_btn.offset_right = -500.0
-	_spell_btn.offset_top = -170.0
-	_spell_btn.offset_bottom = -50.0
-	_spell_btn.add_theme_font_size_override("font_size", 34)
+	_spell_btn.add_theme_font_size_override("font_size", BTN_FONT)
 	_spell_btn.pressed.connect(_on_spell_button)
+	_place_btn(_spell_btn, 1)
 	add_child(_spell_btn)
 
-	# Taktik-Knopf (M7 Teil 2). Liegt ueber der Knopfzeile und ist nur
-	# waehrend der Aufstellungsphase sichtbar - er beendet sie.
+	_flee_btn = Button.new()
+	_flee_btn.text = "Fliehen"
+	_flee_btn.add_theme_font_size_override("font_size", BTN_FONT)
+	_flee_btn.pressed.connect(_on_flee)
+	_place_btn(_flee_btn, 2)
+	add_child(_flee_btn)
+
+	# Kapitulieren (It. 42): Gold gegen die eigene Armee. Der Preis steht
+	# auf dem Knopf, sonst ist es ein Blindkauf.
+	_surrender_btn = Button.new()
+	_surrender_btn.text = "Kapitulieren"
+	_surrender_btn.add_theme_font_size_override("font_size", BTN_FONT)
+	_surrender_btn.pressed.connect(_on_surrender)
+	_place_btn(_surrender_btn, 3)
+	add_child(_surrender_btn)
+
+	# "Kampf beginnen" liegt allein in derselben Reihe (die vier oben sind
+	# in der Aufstellungsphase unsichtbar) und darf deshalb die ganze
+	# Breite haben.
 	_tactics_btn = Button.new()
 	_tactics_btn.text = "Kampf beginnen"
 	_tactics_btn.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
-	_tactics_btn.offset_left = 50.0
-	_tactics_btn.offset_right = -50.0
-	_tactics_btn.offset_top = -170.0
-	_tactics_btn.offset_bottom = -50.0
+	_tactics_btn.offset_left = BTN_PAD
+	_tactics_btn.offset_right = -BTN_PAD
+	_tactics_btn.offset_top = BTN_TOP
+	_tactics_btn.offset_bottom = BTN_BOTTOM
 	_tactics_btn.add_theme_font_size_override("font_size", 38)
 	_tactics_btn.visible = false
 	_tactics_btn.pressed.connect(_end_tactics)
 	add_child(_tactics_btn)
 
-	_flee_btn = Button.new()
-	_flee_btn.text = "Fliehen"
-	_flee_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
-	_flee_btn.offset_left = -480.0
-	_flee_btn.offset_top = -170.0
-	_flee_btn.offset_right = -50.0
-	_flee_btn.offset_bottom = -50.0
-	_flee_btn.add_theme_font_size_override("font_size", 38)
-	_flee_btn.pressed.connect(_on_flee)
-	add_child(_flee_btn)
+
+# Ein Platz von BTN_SLOTS in der unteren Knopfreihe, ueber BRUCH-ANKER -
+# damit haengt die Reihe an KEINER Bildschirmzahl und teilt sich auf jedem
+# Geraet gleich auf.
+#
+# Vorher hatte jeder der vier Knoepfe eigene Offsets in Pixeln, und genau
+# daran lagen "Zauber" (500-624) und "Fliehen" (600-1030) auf dem Geraet 24
+# Pixel uebereinander: der spaeter eingehaengte Fliehen-Knopf hat in der
+# Ueberdeckung den Tap gefressen. Gefunden durch MESSEN, nicht durch
+# Hinsehen (It. 42) - deshalb prueft test_battle die Reihe jetzt.
+func _place_btn(btn: Button, slot: int) -> void:
+	btn.anchor_top = 1.0
+	btn.anchor_bottom = 1.0
+	btn.anchor_left = float(slot) / float(BTN_SLOTS)
+	btn.anchor_right = float(slot + 1) / float(BTN_SLOTS)
+	btn.offset_left = BTN_PAD
+	btn.offset_right = -BTN_PAD
+	btn.offset_top = BTN_TOP
+	btn.offset_bottom = BTN_BOTTOM
 
 
 func _geom() -> Array:
@@ -2207,11 +2243,7 @@ func _check_end() -> bool:
 		if int(s["count"]) > 0: e_alive = true; break
 	if p_alive and e_alive: return false
 	_finished = true
-	var cas: Dictionary = {}
-	for s in _p_stacks:
-		var uid: String = String(s["type"])
-		var lost: int = int(s.get("count_start", 0)) - int(s["count"])
-		if lost > 0: cas[uid] = int(cas.get(uid, 0)) + lost
+	var cas: Dictionary = _own_casualties()
 	# Ueberlebende BEIDER Seiten mitgeben: eine gescheiterte Belagerung
 	# soll die Stadt-Garnison geschwaecht zuruecklassen, und bei einem
 	# Verteidigungskampf um die eigene Stadt braucht der Aufrufer die
@@ -2274,8 +2306,47 @@ func _on_wait() -> void:
 	_step()
 
 
+# Der Preis steht auf dem Knopf - sonst ist Kapitulieren ein Blindkauf.
+func _refresh_surrender_button() -> void:
+	if _surrender_btn == null:
+		return
+	_surrender_btn.visible = _allow_surrender
+	_surrender_btn.text = "Kapitulieren\n%d G" % _surrender_cost
+
+
 func _on_flee() -> void:
 	if _finished or not _allow_flee: return
+	# Flucht KOSTET die Armee (HoMM3-Regel) - der Aufrufer setzt sie auf
+	# leer. Die Verluste werden trotzdem mitgegeben, damit die Meldung auf
+	# der Karte stimmt.
 	_finished = true
-	battle_finished.emit({"outcome": "flee", "casualties": {},
-		"mana_left": _p_mana})
+	battle_finished.emit({"outcome": "flee", "casualties": _own_casualties(),
+		"mana_left": _p_mana,
+		"player_remaining": _remaining_of(_p_stacks),
+		"enemy_remaining": _remaining_of(_e_stacks)})
+
+
+# Kapitulieren: Gold gegen die UEBERLEBENDE Armee. Der Held behaelt sie,
+# der Aufrufer zieht das Gold ab und schickt ihn in die naechste eigene
+# Stadt. Anders als bei der Flucht ist das die teure, aber verlustfreie
+# Tuer aus einem Kampf, den man nicht gewinnen kann.
+func _on_surrender() -> void:
+	if _finished or not _allow_surrender: return
+	_finished = true
+	battle_finished.emit({"outcome": "surrender", "casualties": _own_casualties(),
+		"mana_left": _p_mana,
+		"surrender_cost": _surrender_cost,
+		"player_remaining": _remaining_of(_p_stacks),
+		"enemy_remaining": _remaining_of(_e_stacks)})
+
+
+# Eigene Verluste bis JETZT. _check_end rechnet dasselbe; herausgezogen,
+# weil Flucht und Kapitulation es auch brauchen.
+func _own_casualties() -> Dictionary:
+	var cas: Dictionary = {}
+	for st in _p_stacks:
+		var uid: String = String(st["type"])
+		var lost: int = int(st.get("count_start", 0)) - int(st["count"])
+		if lost > 0:
+			cas[uid] = int(cas.get(uid, 0)) + lost
+	return cas

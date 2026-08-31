@@ -26,6 +26,7 @@ const Move := preload("res://scripts/core/Movement.gd")
 # Kreatur-Sprites fuers Heldenblatt (It. 29) - dieselben 28 SVGs wie im
 # Kampf, aufgeloest in core/UnitArt.gd.
 const UnitArt := preload("res://scripts/core/UnitArt.gd")
+const Abil := preload("res://scripts/core/Abilities.gd")
 
 # Weltkarten-Screen. Rendert eine deterministische Zufallskarte per
 # _draw() und erlaubt den Helden per Tap zu bewegen. Dijkstra berechnet
@@ -119,6 +120,23 @@ const MONSTER_GOLD_PER_STRENGTH := 60
 # Startarmee ausloescht. Der Test in test_new_game haelt das jetzt fest.
 const MONSTER_GOLD_TOLERANCE := 1.0
 const MONSTER_MAX_COUNT := 20
+# Ein REGENERIERENDER Gegner darf nie als Einzelgaenger dastehen (It. 42).
+#
+# Der Grund ist gemessen: ein einzelnes Gespenst fuer 170 Gold hat die
+# 320-Gold-Startarmee 4 von 4 Mal ausgeloescht und erst gegen 480 Gold
+# verloren. Abilities.regen_hp heilt einen Anteil der max-HP der OBERSTEN
+# EINHEIT - das einzelne Gespenst holt 7 von 25 HP pro Runde zurueck (28
+# %), und eine kleine Armee macht weniger Schaden als das. Sie kann es
+# damit GAR NICHT toeten, egal wie lange sie draufschlaegt. Bei drei
+# Gespenstern gilt dieselbe Heilung fuer 75 HP, also ein Drittel so viel,
+# und der Kampf ist wieder eine Frage von Kraft statt von Unbesiegbarkeit.
+#
+# NUR fuer Regenerierer, nicht fuer alle: der erste Anlauf hat die
+# Untergrenze auf JEDE Kreatur gelegt, und prompt kostete das schwaechste
+# Monster (Staerke 1, Budget 60) drei Goblins = 120 Gold - doppeltes
+# Budget, und test_new_game war zu Recht rot. Der Befund war die
+# Regeneration, also gehoert die Regel auch dorthin.
+const MONSTER_MIN_COUNT := 3
 # Kandidaten fuer wandernde Monster: bewusst aus allen vier Fraktionen,
 # aber nur Kreaturen, die als Wildnis-Begegnung taugen (keine Engel,
 # keine Zitadellen-Einheiten).
@@ -209,6 +227,23 @@ const RESOURCE_COLORS := {
 # Bewusst hoeher als ein Monster, weil er sich bewegt und zurueckschlaegt.
 const ENEMY_DEFEAT_GOLD := 300
 const ENEMY_DEFEAT_XP := 50
+
+# Flucht und Kapitulation (It. 42) - die HoMM3-Tuer aus einem Kampf, den
+# man nicht gewinnen kann. Der Durchspiel-Test hat gezeigt, warum sie
+# fehlte: in 3 von 6 Seeds war das Spiel in Woche 1-2 vorbei, immer im
+# gleichen Muster - ein KI-Held stellt den Startheld mit drei Einheiten und
+# der Pflichtkampf war nicht ausschlagbar.
+#
+# FLUCHT ist kostenlos, kostet aber die GANZE Armee (HoMM3: der Held
+# landet in der Taverne, seine Truppen sind weg). KAPITULATION kostet Gold
+# in Hoehe des Armeewerts, dafuer behaelt der Held seine Truppen. Beides
+# setzt eine eigene Stadt voraus - ohne Ziel gibt es kein Entkommen, und
+# das ist die letzte Schlacht.
+#
+# Der Faktor auf den Armeewert ist die Stellschraube: 1.0 heisst "die
+# Rettung kostet so viel wie die Armee neu zu kaufen".
+const SURRENDER_COST_FACTOR := 1.0
+const SURRENDER_COST_MIN := 250
 
 # Stadt-Wachen: jede neutrale Stadt hat eine zufaellige Wache. Sie muss
 # vor der Einnahme besiegt werden (selbe Combat-Formel wie Monster).
@@ -1488,7 +1523,7 @@ func _draw_map() -> void:
 			if cdist <= MONSTER_VIEW_RANGE:
 				gtxt = str(garrison)
 				gcol = _threat_color(eff_gold,
-					_army_gold(city.get("garrison_army", {}) as Dictionary))
+					_threat_gold(city.get("garrison_army", {}) as Dictionary))
 			else:
 				gtxt = "?"
 				gcol = Color(0.75, 0.75, 0.75)
@@ -1627,7 +1662,7 @@ func _draw_map() -> void:
 				for gk in g_army.keys():
 					g_cnt += int(g_army[gk])
 				otxt = str(maxi(1, g_cnt))
-				ocol = _threat_color(eff_gold, _army_gold(g_army))
+				ocol = _threat_color(eff_gold, _threat_gold(g_army))
 			else:
 				otxt = "?"
 				ocol = Color(0.75, 0.75, 0.75)
@@ -2144,7 +2179,8 @@ func _handle_tap(pos: Vector2) -> void:
 	if ai_at_target >= 0:
 		var eh_t: Hero = _enemies[ai_at_target]["hero"] as Hero
 		var ai_idx_cap: int = ai_at_target
-		_open_battle("Gegner-Held", eh_t.total_count(), false, battle_terrain, func(r: Dictionary) -> void:
+		# allow_flee=true seit It. 42: auch der Angreifer darf abbrechen.
+		_open_battle("Gegner-Held", eh_t.total_count(), true, battle_terrain, func(r: Dictionary) -> void:
 			_on_enemy_hero_result(r, target, cost, target_city_idx, ai_idx_cap)
 		)
 		return
@@ -2334,7 +2370,10 @@ func _pick_monster_unit(strength: int, h: int) -> String:
 	var fits: Array = []
 	for uid in MONSTER_POOL:
 		var price: int = UnitType.cost_of(String(uid))
-		if price > 0 and float(price) <= budget * MONSTER_GOLD_TOLERANCE:
+		# Ein Regenerierer muss MONSTER_MIN_COUNT Mal ins Budget passen,
+		# alle anderen wie bisher einmal.
+		var need: int = MONSTER_MIN_COUNT if Abil.regenerates(String(uid)) else 1
+		if price > 0 and float(price * need) <= budget * MONSTER_GOLD_TOLERANCE:
 			fits.append(String(uid))
 	if fits.is_empty():
 		return "ork_goblin"
@@ -2349,11 +2388,104 @@ func _monster_count(m: Dictionary) -> int:
 	# ABRUNDEN, nicht runden: mit round() ergaben 60 Gold Budget bei einem
 	# 40-Gold-Goblin zwei Goblins (80 Gold) - ein Drittel ueber Budget.
 	# Aufgerundet wird nur die Untergrenze von einer Kreatur.
-	return clampi(int(floor(float(budget) / float(price))), 1, MONSTER_MAX_COUNT)
+	# Untergrenze 1 wie bisher - ausser bei Regenerierern, die durch die
+	# Auswahl oben ohnehin nur mit genug Budget vorkommen.
+	var floor_n: int = MONSTER_MIN_COUNT if Abil.regenerates(uid) else 1
+	return clampi(int(floor(float(budget) / float(price))),
+		floor_n, MONSTER_MAX_COUNT)
 
 
 # Gold-Wert einer Armee - das Kraftmass des Spiels (die Preise sind
 # balanciert, siehe data/balance_notes.md). Basis fuer die Prognose-Farbe.
+# Fuehrt Flucht oder Kapitulation aus. EIN Ort fuer alle Kampf-Ausgaenge,
+# aufgerufen aus dem battle_finished-Trichter in _open_battle.
+func _apply_retreat(h: Hero, result: Dictionary) -> void:
+	var surrendered: bool = String(result.get("outcome", "")) == "surrender"
+	var survivors: Dictionary = SaveCodec.int_dict(result.get("player_remaining", {}))
+	if surrendered:
+		var cost: Dictionary = {"gold": int(result.get("surrender_cost", 0))}
+		if _purse.can_afford(cost):
+			_purse.pay(cost)
+		else:
+			# Der Knopf war gesperrt, das darf nicht vorkommen. Wenn doch,
+			# wird daraus eine Flucht - besser als eine Gratis-Rettung.
+			surrendered = false
+	if not _retreat_hero(h, surrendered, survivors):
+		# Kein Rueckzugsziel. Der Knopf war dann unsichtbar, also
+		# unerreichbar; die Armee ist trotzdem verloren.
+		if h != null:
+			h.army = {}
+		_set_combat("Rueckzug ohne Ziel - Armee verloren")
+		_update_labels()
+		_request_redraw()
+		return
+	if surrendered:
+		_set_combat("KAPITULIERT: -%d G, Armee gerettet, Rueckzug in die Stadt"
+			% int(result.get("surrender_cost", 0)))
+		_set_status("Kapituliert - Rueckzug in die Stadt")
+	else:
+		_set_combat("GEFLOHEN: Armee verloren, Held in Sicherheit")
+		_set_status("Geflohen - die Armee ist verloren")
+	Sound.play("ui_tap")
+
+
+# Preis einer Kapitulation: der Wert der Armee, die dabei gerettet wird.
+# Mindestpreis, damit ein Held mit zwei Goblins nicht fuer 80 Gold aus
+# jedem Kampf spazieren kann.
+func _surrender_cost_of(h: Hero) -> int:
+	if h == null:
+		return SURRENDER_COST_MIN
+	return maxi(SURRENDER_COST_MIN,
+		int(round(float(_army_gold(h.army)) * SURRENDER_COST_FACTOR)))
+
+
+# Index der eigenen Stadt, die dem Punkt am naechsten liegt, oder -1.
+# Chebyshev-Abstand und nicht der echte Weg: die Flucht ist kein Marsch,
+# der Held taucht dort wieder auf.
+func _nearest_own_city(from: Vector2i) -> int:
+	var best: int = -1
+	var best_d: int = 1 << 30
+	for i in range(_cities.size()):
+		if int(_cities[i]["owner"]) != OWNER_HERO:
+			continue
+		var cp: Vector2i = Vector2i(_cities[i]["pos"])
+		var d: int = maxi(absi(cp.x - from.x), absi(cp.y - from.y))
+		if d < best_d:
+			best_d = d
+			best = i
+	return best
+
+
+# Kann dieser Held ueberhaupt fliehen? Ohne eigene Stadt gibt es kein Ziel.
+func _can_retreat(h: Hero) -> bool:
+	return h != null and _nearest_own_city(h.position) >= 0
+
+
+# EIN Ort fuer Flucht und Kapitulation. Der Held taucht in der naechsten
+# eigenen Stadt auf, sein Tag ist zu Ende (mp = 0). `keep_army` trennt die
+# beiden Faelle: Flucht verliert die Truppen, Kapitulation bezahlt sie.
+#
+# Reihenfolge ist wichtig: erst die Stadt suchen (sie haengt an der ALTEN
+# Position), dann versetzen.
+func _retreat_hero(h: Hero, keep_army: bool, survivors: Dictionary) -> bool:
+	if h == null:
+		return false
+	var ci: int = _nearest_own_city(h.position)
+	if ci < 0:
+		return false
+	h.army = survivors.duplicate() if keep_army else {}
+	h.position = Vector2i(_cities[ci]["pos"])
+	h.mp = 0
+	# PFLICHT nach jeder Positionsaenderung eines eigenen Helden: Nebel und
+	# Reichweite. Der Held steht jetzt woanders, und ohne das zeigt die
+	# Karte die Reichweite von seinem alten Feld aus.
+	_recompute_fog_player()
+	_recompute_costs()
+	_update_labels()
+	_request_redraw()
+	return true
+
+
 func _army_gold(army: Dictionary) -> int:
 	var total: int = 0
 	for uid in army.keys():
@@ -2372,8 +2504,43 @@ func _player_gold_power() -> int:
 
 # Verteidigungswert eines Feldes in Gold. Monster und Objekt-Wachen
 # rechnen ueber ihre Kreatur, Staedte ueber ihre echte Garnison.
+# Bedrohung einer fremden Armee in Gold - das ist NICHT einfach ihr
+# Kaufpreis. Ein regenerierender Stack ist deutlich mehr wert, als er
+# kostet, weil er pro Runde einen Teil seiner Trefferpunkte zurueckholt:
+# eine Armee, die weniger Schaden pro Runde macht als die Heilung, kann ihn
+# GAR NICHT toeten, egal wie lange sie draufschlaegt.
+#
+# GEMESSEN, nicht geschaetzt (It. 42): ein EINZELNES Gespenst (170 Gold,
+# regeneration_if_half_hp) hat 4 von 4 Kaempfen gegen 320 Gold Startarmee
+# gewonnen und 0 von 4 gegen 480 Gold. Der Umschlagpunkt liegt bei etwa
+# 2,4 - deshalb der Zuschlag 1 + 1,5 = 2,5 bei Stackgroesse 1. Ohne ihn hat
+# die Karte genau diesen Kampf GRUEN gefaerbt, der Durchspiel-Test hat ihn
+# genommen und das ganze Heer verloren: dieselbe Fehlerart wie It. 38, nur
+# eine Ebene tiefer.
+#
+# WARUM DER ZUSCHLAG MIT DER STACKGROESSE FAELLT: Abilities.regen_hp heilt
+# einen Anteil der max-HP der OBERSTEN EINHEIT, nicht des ganzen Stacks.
+# Ein einzelnes Gespenst holt damit 7 von 25 HP pro Runde zurueck (28 %),
+# zehn Gespenster dieselben 7 von 250 (3 %). Die Regeneration verduennt
+# sich also - und der Zuschlag muss das mitmachen, sonst ueberschaetzt die
+# Karte einen grossen Stack genauso stark wie den einzelnen.
+const THREAT_REGEN_BONUS := 1.5
+
+func _threat_gold(army: Dictionary) -> int:
+	var total: int = 0
+	for uid in army.keys():
+		var u: String = String(uid)
+		var cnt: int = int(army[uid])
+		var price: int = UnitType.cost_of(u) * cnt
+		if cnt > 0 and Abil.regenerates(u):
+			price = int(round(float(price)
+				* (1.0 + THREAT_REGEN_BONUS / float(cnt))))
+		total += price
+	return total
+
+
 func _threat_gold_of_monster(m: Dictionary) -> int:
-	return _army_gold(_monster_army(m))
+	return _threat_gold(_monster_army(m))
 
 
 func _monster_army(m: Dictionary) -> Dictionary:
@@ -2432,12 +2599,24 @@ func _open_battle(opp_name: String, opp_army: int, allow_flee: bool, terrain_id:
 	# nur dem Helden, wenn er selbst in der Stadt stand.
 	var hero_fought: bool = (not siege_ctx.has("player_army")) \
 		or bool(siege_ctx.get("hero_present", false))
+	# DER Held, der jetzt kaempft - nicht `_hero` im Callback. Mit mehreren
+	# Helden kann der aktive zwischen Kampfbeginn und Callback wechseln
+	# (M13a-Falle, hier zum ersten Mal wirklich noetig: der Rueckzug
+	# versetzt einen bestimmten Helden).
+	var fighting_hero: Hero = _hero
 	overlay.connect("battle_finished", func(result: Dictionary) -> void:
 		# Verbrauchtes Mana zuerst uebernehmen - EIN Ort fuer alle
 		# Kampf-Ausgaenge (Sieg, Niederlage, Flucht), statt in jedem der
 		# fuenf Callbacks daran zu denken.
 		if result.has("mana_left"):
 			_hero.mana = clampi(int(result["mana_left"]), 0, _hero_max_mana())
+		# Flucht und Kapitulation an EINEM Ort (It. 42): Held versetzen,
+		# Armee bzw. Gold verrechnen. Der Callback laeuft danach TROTZDEM -
+		# er muss die KI-Phase fortsetzen, sonst friert sie ein (die Falle
+		# aus It. 38).
+		var oc: String = String(result.get("outcome", ""))
+		if oc == "flee" or oc == "surrender":
+			_apply_retreat(fighting_hero, result)
 		on_result.call(result)
 		# Totenerweckung NACH dem Callback: der Verteidigungskampf verteilt
 		# dort die Ueberlebenden neu und SETZT _hero.army komplett neu -
@@ -2488,7 +2667,14 @@ func _open_battle(opp_name: String, opp_army: int, allow_flee: bool, terrain_id:
 				Skills.wisdom_tier(_hero.skills)),
 			"enemy_name": opp_name,
 			"enemy_stacks": e_stacks,
-			"allow_flee": allow_flee,
+			# Flucht/Kapitulation nur mit einer eigenen Stadt als Ziel
+			# (It. 42). Beim Verteidigungskampf um die eigene Stadt gibt
+			# der Aufrufer allow_flee=false - man kann nicht aus der
+			# eigenen Mauer fliehen (HoMM3-Regel).
+			"allow_flee": allow_flee and _can_retreat(_hero),
+			"allow_surrender": allow_flee and _can_retreat(_hero) \
+				and _purse.get_amount("gold") >= _surrender_cost_of(_hero),
+			"surrender_cost": _surrender_cost_of(_hero),
 			"seed": _seed,
 			"terrain_id": terrain_id,
 			"player_luck": _player_luck(),
@@ -2684,8 +2870,10 @@ func _on_battle_defeat(fallen_idx: int = -1) -> void:
 
 func _on_monster_result(result: Dictionary, mon_pos: Vector2i, target: Vector2i, cost: int) -> void:
 	var outcome: String = String(result.get("outcome", "flee"))
-	if outcome == "flee":
-		_set_combat("Kampf abgebrochen (geflohen)")
+	if outcome == "flee" or outcome == "surrender":
+		# Rueckzug ist im Trichter (_apply_retreat) schon erledigt: der Held
+		# steht in seiner Stadt. Hier bleibt nichts zu tun - kein Zug, kein
+		# Gold, kein XP, und das Monster bleibt stehen.
 		return
 	if outcome == "defeat":
 		_apply_casualties(result)
@@ -2715,9 +2903,9 @@ func _on_monster_result(result: Dictionary, mon_pos: Vector2i, target: Vector2i,
 
 func _on_enemy_hero_result(result: Dictionary, target: Vector2i, cost: int, target_city_idx: int, ai_idx: int = 0) -> void:
 	var outcome: String = String(result.get("outcome", "flee"))
-	if outcome == "flee":
-		# Gegner-Held-Kampf ist Pflicht; allow_flee=false. Fallback: keine Aktion.
-		_set_combat("Kampf abgebrochen")
+	if outcome == "flee" or outcome == "surrender":
+		# Seit It. 42 ausschlagbar: der Rueckzug ist im Trichter erledigt,
+		# der Gegner-Held bleibt stehen und behaelt seine Armee.
 		return
 	if outcome == "defeat":
 		_apply_casualties(result)
@@ -2751,8 +2939,9 @@ func _on_enemy_hero_result(result: Dictionary, target: Vector2i, cost: int, targ
 
 func _on_object_result(result: Dictionary, obj_pos: Vector2i, target: Vector2i, cost: int) -> void:
 	var outcome: String = String(result.get("outcome", "flee"))
-	if outcome == "flee":
-		_set_combat("Kampf abgebrochen (geflohen)")
+	if outcome == "flee" or outcome == "surrender":
+		# Rueckzug im Trichter erledigt; die Wache bleibt stehen und das
+		# Objekt bleibt unangetastet.
 		return
 	if outcome == "defeat":
 		_apply_casualties(result)
@@ -2795,8 +2984,10 @@ func _on_object_result(result: Dictionary, obj_pos: Vector2i, target: Vector2i, 
 
 func _on_city_result(result: Dictionary, city_idx: int, target: Vector2i, cost: int) -> void:
 	var outcome: String = String(result.get("outcome", "flee"))
-	if outcome == "flee":
-		_set_combat("Kampf abgebrochen (geflohen)")
+	if outcome == "flee" or outcome == "surrender":
+		# Abgebrochene Belagerung. Der Rueckzug ist im Trichter erledigt;
+		# die Garnison bleibt ungeschwaecht stehen, denn ihre Verluste
+		# gehoeren zum Kampf, den der Spieler nicht durchgezogen hat.
 		return
 	if outcome == "defeat":
 		_apply_casualties(result)
@@ -4078,7 +4269,8 @@ func _run_enemy_turn_for(idx: int) -> bool:
 			var battle_terrain: int = int(tiles[best_next.y * MAP_WIDTH + best_next.x])
 			var ai_total: int = eh.total_count()
 			var next_idx: int = idx + 1
-			_open_battle("Gegner-Held", ai_total, false, battle_terrain, func(r: Dictionary) -> void:
+			# allow_flee=true seit It. 42 - DER Kampf, der vorher Pflicht war.
+			_open_battle("Gegner-Held", ai_total, true, battle_terrain, func(r: Dictionary) -> void:
 				_on_ai_attack_result(r, idx, next_idx)
 			)
 			return false
@@ -4384,8 +4576,16 @@ func _on_ai_attack_result(result: Dictionary, ai_idx: int, next_idx: int) -> voi
 	# Callback nach Pflicht-Kampf KI-greift-Spieler-an.
 	# outcome == "defeat": Spieler gefallen, Spiel verloren.
 	# outcome == "victory": Spieler gewinnt, die angreifende KI ist weg.
-	# "flee" ist hier nicht moeglich (allow_flee=false).
+	# outcome == "flee"/"surrender": seit It. 42 moeglich - genau dieser
+	# Kampf war vorher nicht ausschlagbar und hat in 3 von 6 Seeds des
+	# Durchspiel-Tests das Spiel in Woche 1 beendet.
 	var outcome: String = String(result.get("outcome", "flee"))
+	if outcome == "flee" or outcome == "surrender":
+		# Rueckzug schon erledigt. Die angreifende KI lebt weiter und
+		# behaelt ihre Armee - aber die KI-PHASE MUSS WEITERLAUFEN, sonst
+		# friert sie ein (It. 38).
+		_advance_ai_phase(next_idx)
+		return
 	if outcome == "defeat":
 		_apply_casualties(result)
 		_update_labels()
@@ -4410,6 +4610,15 @@ func _on_ai_attack_result(result: Dictionary, ai_idx: int, next_idx: int) -> voi
 # der Code griff auf `_hero` zu - mit mehreren Helden waere das der falsche.
 func _on_city_defense_result(result: Dictionary, city_idx: int, ai_idx: int,
 		next_idx: int, def_hero_idx: int) -> void:
+	# Aus der eigenen Mauer flieht man nicht (HoMM3-Regel, allow_flee=false
+	# an der Aufrufstelle). Der Riegel steht hier trotzdem: ein
+	# durchgereichtes "flee" wuerde unten in den else-Zweig laufen und die
+	# Stadt verlieren lassen.
+	var oc_def: String = String(result.get("outcome", "defeat"))
+	if oc_def == "flee" or oc_def == "surrender":
+		_set_combat("Aus der eigenen Stadt gibt es keinen Rueckzug")
+		_advance_ai_phase(next_idx)
+		return
 	var hero_joined: bool = def_hero_idx >= 0 and def_hero_idx < _heroes.size()
 	var def_hero: Hero = _heroes[def_hero_idx] as Hero if hero_joined else null
 	var outcome: String = String(result.get("outcome", "defeat"))

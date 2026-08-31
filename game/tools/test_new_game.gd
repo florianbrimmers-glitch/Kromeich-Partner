@@ -10,6 +10,8 @@ extends SceneTree
 # Fraktion (-1) startet weiterhin, und derselbe Seed liefert dieselbe
 # Karte unabhaengig von der Fraktionswahl (Determinismus-Invariante).
 
+const Abil := preload("res://scripts/core/Abilities.gd")
+
 var _fails: int = 0
 var _done: Array = []
 
@@ -278,6 +280,46 @@ func _test_monsters(wm) -> void:
 			heavy3.append(u4)
 	_check(heavy3.is_empty(),
 		"auch Staerke 3 bleibt im Budget (%s)" % str(heavy3))
+
+	# EIN REGENERIERENDER EINZELGAENGER DARF NIE VORKOMMEN (It. 42).
+	#
+	# Gemessen: ein einzelnes Gespenst (170 Gold) hat die 320-Gold-
+	# Startarmee 4 von 4 Mal ausgeloescht und erst gegen 480 Gold verloren.
+	# Es heilt 7 von 25 HP pro Runde, und wer weniger Schaden macht als
+	# das, kann es GAR NICHT toeten - der Kampf ist nicht schwer, er ist
+	# unmoeglich. Die Karte hatte ihn gruen gefaerbt.
+	var lone_regen: Array = []
+	for st in range(1, 21):
+		for h3 in range(24):
+			var u5: String = String(wm.call("_pick_monster_unit", st, h3 * 4093))
+			if not Abil.regenerates(u5):
+				continue
+			var n5: int = int(wm.call("_monster_count",
+				{"pos": Vector2i(2, 2), "strength": st, "unit": u5}))
+			if n5 < int(wm.get("MONSTER_MIN_COUNT")):
+				lone_regen.append("%s x%d bei Staerke %d" % [u5, n5, st])
+	_check(lone_regen.is_empty(),
+		"kein regenerierender Gegner in Kleingruppe (%s)" % str(lone_regen))
+
+	# Und die BEDROHUNGSANZEIGE muss den Zuschlag kennen: derselbe Stack
+	# ist als Bedrohung mehr wert als sein Kaufpreis, und der Zuschlag
+	# faellt mit der Stackgroesse (regen_hp heilt die oberste Einheit).
+	var one_wight: Dictionary = {"nec_wight": 1}
+	var ten_wight: Dictionary = {"nec_wight": 10}
+	var g1: int = int(wm.call("_threat_gold", one_wight))
+	var g10: int = int(wm.call("_threat_gold", ten_wight))
+	var p1: int = int(wm.call("_army_gold", one_wight))
+	var p10: int = int(wm.call("_army_gold", ten_wight))
+	_check(g1 > p1 * 2, "ein Gespenst zaehlt als Bedrohung mehr als doppelt (%d vs %d)"
+		% [g1, p1])
+	_check(float(g10) / float(p10) < float(g1) / float(p1),
+		"und der Zuschlag faellt mit der Stackgroesse (%.2f vs %.2f)"
+		% [float(g10) / float(p10), float(g1) / float(p1)])
+	# Der konkrete Kampf, der den Befund ausgeloest hat, darf nicht gruen
+	# sein: 320 Gold Startarmee gegen ein Gespenst.
+	var green: Color = Color(0.45, 1.0, 0.45)
+	_check(wm.call("_threat_color", 320, g1) != green,
+		"320 Gold gegen ein Gespenst ist NICHT gruen")
 
 	# ALTER SPIELSTAND ohne "unit": Kreatur wird abgeleitet, bleibt aber
 	# ueber Aufrufe stabil - sonst wechselte das Monsterbild bei jedem

@@ -128,6 +128,15 @@ static func hate_bonus_pct(attacker_uid: String, defender_uid: String) -> int:
 	return 0
 
 
+# Heilt sich dieser Stack von selbst? Die Weltkarte braucht das fuer ihre
+# Bedrohungsanzeige: ein regenerierender Gegner ist mehr wert als sein
+# Kaufpreis (siehe THREAT_REGEN_FACTOR im WorldMapScreen). Die
+# Ability-NAMEN bleiben damit hier, wo sie hingehoeren.
+static func regenerates(uid: String) -> bool:
+	return UnitType.has_ability(uid, "regeneration_per_turn") \
+		or UnitType.has_ability(uid, "regeneration_if_half_hp")
+
+
 static func drain_fraction(uid: String) -> float:
 	return LIFE_DRAIN_FRACTION if UnitType.has_ability(uid, "life_drain_50pct") else 0.0
 

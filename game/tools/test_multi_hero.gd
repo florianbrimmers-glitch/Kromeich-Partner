@@ -47,6 +47,7 @@ func _init() -> void:
 	_test_hire()
 	_test_defeat_keeps_playing()
 	_test_city_defense_any_hero()
+	_test_retreat()
 
 	var missing: Array = []
 	for m in get_method_list():
@@ -447,6 +448,69 @@ func _test_city_defense_any_hero() -> void:
 	_check(rest[0] == heroes[0], "und zwar er, nicht der aktive")
 	_check(not bool(_wm.get("_game_lost")), "das Spiel laeuft weiter")
 	_done.append("_test_city_defense_any_hero")
+
+
+func _test_retreat() -> void:
+	print("")
+	print("== Flucht und Kapitulation (It. 42) ==")
+	_wm.call("_start", 4711, 1)
+	var cities: Array = _wm.get("_cities")
+	var city_idx: int = -1
+	for i in range(cities.size()):
+		if int(cities[i]["owner"]) == int(_wm.get("OWNER_HERO")):
+			city_idx = i
+			break
+	_check(city_idx >= 0, "eigene Stadt gefunden")
+	var city_pos: Vector2i = Vector2i(cities[city_idx]["pos"])
+	var h: Hero = (_wm.get("_heroes") as Array)[0] as Hero
+	h.position = city_pos + Vector2i(4, 2)
+	h.army = {"men_spearman": 3}
+	h.mp = h.max_mp
+	var purse: Wallet = _wm.get("_purse")
+
+	# 1) Preis: Wert der Armee, mit Mindestpreis.
+	var cost: int = int(_wm.call("_surrender_cost_of", h))
+	_check(cost >= int(_wm.get("SURRENDER_COST_MIN")),
+		"Kapitulationspreis hat einen Mindestwert (%d)" % cost)
+
+	# 2) FLUCHT: Held lebt, steht in der Stadt, Armee ist weg, Tag zu Ende.
+	purse.set_amount("gold", 10000)
+	var gold_before: int = purse.get_amount("gold")
+	_wm.call("_apply_retreat", h, {"outcome": "flee",
+		"player_remaining": {"men_spearman": 2}})
+	_check(h.position == city_pos, "geflohen: Held steht in seiner Stadt %s" % str(h.position))
+	_check(h.total_count() == 0, "geflohen: die Armee ist verloren (%d)" % h.total_count())
+	_check(int(h.mp) == 0, "geflohen: der Tag ist zu Ende")
+	_check(purse.get_amount("gold") == gold_before, "geflohen: kostet kein Gold")
+	_check(not bool(_wm.get("_game_lost")), "geflohen: das Spiel laeuft weiter")
+
+	# 3) KAPITULATION: Armee bleibt (die Ueberlebenden), Gold ist weg.
+	h.position = city_pos + Vector2i(4, 2)
+	h.army = {"men_spearman": 3}
+	h.mp = h.max_mp
+	var cost2: int = 800
+	gold_before = purse.get_amount("gold")
+	_wm.call("_apply_retreat", h, {"outcome": "surrender",
+		"surrender_cost": cost2,
+		"player_remaining": {"men_spearman": 2}})
+	_check(h.position == city_pos, "kapituliert: Held steht in seiner Stadt")
+	_check(h.count_of("men_spearman") == 2,
+		"kapituliert: die Ueberlebenden bleiben (%d)" % h.count_of("men_spearman"))
+	_check(purse.get_amount("gold") == gold_before - cost2,
+		"kapituliert: Gold ist bezahlt (%d)" % purse.get_amount("gold"))
+
+	# 4) OHNE EIGENE STADT gibt es kein Entkommen - der Knopf muss weg sein.
+	for c in cities:
+		c["owner"] = 1
+	_check(not bool(_wm.call("_can_retreat", h)),
+		"ohne eigene Stadt kein Rueckzug")
+	# Und dann verliert die Flucht die Armee, ohne den Helden zu versetzen.
+	h.army = {"men_spearman": 3}
+	var pos_before: Vector2i = h.position
+	_wm.call("_apply_retreat", h, {"outcome": "flee", "player_remaining": {}})
+	_check(h.position == pos_before and h.total_count() == 0,
+		"Rueckzug ohne Ziel: Armee weg, Held bleibt stehen")
+	_done.append("_test_retreat")
 
 
 # Wie viele Felder sind aufgedeckt? (Nur fuer den Nebel-Check beim
