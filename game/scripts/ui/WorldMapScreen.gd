@@ -4115,25 +4115,25 @@ func _move_garrison(city_idx: int, unit_id: String, to_city: bool, all: bool) ->
 		_set_status("Held muss in der Stadt stehen")
 		return
 	var gar: Dictionary = city.get("garrison_army", {}) as Dictionary
+	# Beide Richtungen ueber DEN Umschlag-Trichter (Garrison.transfer, It.
+	# 44): er zaehlt richtig ab und respektiert das Slot-Limit der
+	# Zielseite. Die Garnison hat keins (max_slots 0), der Held hat sechs.
+	#
+	# Vorher stand die Buchung hier zweimal von Hand, und der Armee-Tausch
+	# zwischen zwei Helden waere eine DRITTE Kopie geworden.
 	if to_city:
-		var have: int = _hero.count_of(unit_id)
-		if have <= 0:
+		var n: int = _hero.count_of(unit_id) if all else 1
+		if int(Garrison.transfer(_hero.army, gar, unit_id, n, 0)) <= 0:
 			return
-		var n: int = have if all else 1
-		_hero.remove_units(unit_id, n)
-		Garrison.add(gar, unit_id, n)
 		_set_status("%d %s -> Garnison" % [n, UnitType.short_of(unit_id)])
 	else:
-		var in_city: int = int(gar.get(unit_id, 0))
-		if in_city <= 0:
+		var n2: int = int(gar.get(unit_id, 0)) if all else 1
+		if int(Garrison.transfer(gar, _hero.army, unit_id, n2,
+				Hero.MAX_ARMY_SLOTS)) <= 0:
+			# Kein Platz mehr: das ist der haeufige Grund, also sagen.
+			if not _hero.can_add_unit(unit_id):
+				_set_status("Armee voll - max %d Stacks" % Hero.MAX_ARMY_SLOTS)
 			return
-		# Slot-Limit des Helden respektieren (max 6 Typen).
-		if not _hero.can_add_unit(unit_id):
-			_set_status("Armee voll - max %d Stacks" % Hero.MAX_ARMY_SLOTS)
-			return
-		var n2: int = in_city if all else 1
-		Garrison.remove(gar, unit_id, n2)
-		_hero.add_units(unit_id, n2)
 		_set_status("%d %s -> Held" % [n2, UnitType.short_of(unit_id)])
 	city["garrison_army"] = gar
 	_update_labels()

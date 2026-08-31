@@ -53,6 +53,8 @@ var _tot_battles: int = 0
 var _tot_wins: int = 0
 var _tot_xp: int = 0
 var _tot_ai: int = 0
+# Seeds, die wirklich GEWONNEN wurden (It. 45).
+var _tot_games_won: int = 0
 
 
 func _init() -> void:
@@ -89,6 +91,19 @@ func _test_totals() -> void:
 	_check(_tot_wins > 0, "Kaempfe sind gewinnbar (%d von %d gewonnen)"
 		% [_tot_wins, _tot_battles])
 	_check(_tot_xp > 0, "der Held hat XP verdient (%d)" % _tot_xp)
+	# DIE END-ZU-ENDE-EIGENSCHAFT: das Spiel ist GEWINNBAR, und zwar ueber
+	# die echte Kette - erobern, KI-Helden schlagen, Siegprüfung am
+	# Tagesende, Sieg-Panel. Keine Suite hat das vorher geprueft; bis It. 45
+	# lief kein einziger Durchlauf jemals in einen Sieg, und niemand haette
+	# gemerkt, wenn er unerreichbar geworden waere.
+	#
+	# In den SUMMEN und nicht pro Seed, aus demselben Grund wie "es wurde
+	# gekaempft": ob ein einzelner Seed gewinnbar ist, haengt an der
+	# Kartenverteilung. Wird das hier rot, ist die Frage nicht "welcher
+	# Seed", sondern "kann man das Spiel noch beenden".
+	_check(_tot_games_won > 0,
+		"mindestens ein Spiel wurde GEWONNEN (%d von %d Seeds)"
+		% [_tot_games_won, SEEDS.size()])
 	_done.append("_test_totals")
 
 
@@ -177,6 +192,23 @@ func _play(seed_value: int) -> void:
 	print("        %d Zuege, %d Kaempfe (%d gewonnen: %s), Ausgang: %s"
 		% [turns_played, _battles, _battle_wins, str(_outcomes),
 			"Sieg" if won else ("Niederlage" if lost else "laeuft")])
+	# Endstand der Gegenseite: die eine Zahl, die sagt, ob das Spiel noch
+	# offen ist. Der Sieg braucht 0 Staedte UND 0 Helden bei der KI.
+	var ai_cities: int = 0
+	var ai_heroes: int = 0
+	var ai_power: int = 0
+	for c9 in (wm.get("_cities") as Array):
+		if int(c9["owner"]) > 0:
+			ai_cities += 1
+	for e9 in (wm.get("_enemies") as Array):
+		if e9["hero"] != null:
+			ai_heroes += 1
+			ai_power += int(wm.call("_threat_gold", (e9["hero"] as Hero).army))
+	var own_power: int = 0
+	for h9 in (wm.get("_heroes") as Array):
+		own_power += int(wm.call("_threat_gold", (h9 as Hero).army))
+	print("        KI-Rest: %d Staedte, %d Helden (%d G) - eigene Helden %d G"
+		% [ai_cities, ai_heroes, ai_power, own_power])
 	print("        davon %d von der KI angefangen (Stadtangriff oder Ueberfall), %d Mal ausgewichen"
 		% [_ai_initiated, _retreats])
 
@@ -208,6 +240,8 @@ func _play(seed_value: int) -> void:
 	_tot_wins += _battle_wins
 	_tot_xp += (xp1 - xp0)
 	_tot_ai += _ai_initiated
+	if won:
+		_tot_games_won += 1
 	_tot_retreats += _retreats
 
 	wm.queue_free()
@@ -228,6 +262,19 @@ func _stack_gold(stacks: Array) -> int:
 	for st in stacks:
 		n += UnitType.cost_of(String(st["type"])) * int(st["count"])
 	return n
+
+
+# Gibt es in dieser Stadt etwas zu rekrutieren, das der Spieler bezahlen
+# kann? Genau die Frage, die einen Heimweg lohnend macht.
+func _has_affordable_recruit(wm, city: Dictionary) -> bool:
+	var purse: Wallet = wm.get("_purse")
+	var pools: Dictionary = city.get("pools", {}) as Dictionary
+	for uid in pools.keys():
+		if int(pools[uid]) <= 0:
+			continue
+		if purse.can_afford(UnitType.cost_dict_of(String(uid))):
+			return true
+	return false
 
 
 # Summen ueber alle lebenden Helden des Spielers.
@@ -273,6 +320,32 @@ func _manage_city(wm) -> void:
 		wm.set("_selected_city", idx)
 		wm.call("_on_hire_hero")
 		wm.set("_selected_city", keep)
+	# GARNISON MITNEHMEN (It. 45). Was in der Stadt steht, kaempft nicht -
+	# und der Langlauf hat gezeigt, was das kostet: der Test-Spieler stand
+	# nach 200 Zuegen mit 406 Einheiten da, aber sein aktiver Held trug nur
+	# 3920 Gold davon; gegen einen KI-Helden mit 6295 kam er damit nie auf
+	# den doppelten Vorsprung, den er fuer einen Angriff verlangt. Ein
+	# Mensch sammelt fuer den Schlussangriff ein - also tut der Test es
+	# auch, ueber den ECHTEN Weg (_move_garrison).
+	#
+	# ARBEITSTEILUNG (It. 45): Held 0 ist die HAUPTARMEE und nimmt alles
+	# mit, was in der Stadt steht. Die anderen legen ihre Truppen dort ab.
+	# Damit sammelt sich die Kraft an einem Ort, statt sich auf drei
+	# gleich schwache Helden zu verteilen - der Langlauf hatte 75.800 Gold
+	# Armee, aber nur 3.920 davon beim aktiven Helden, und griff deshalb
+	# einen KI-Helden mit 6.295 nie an.
+	#
+	# Beides laeuft ueber den ECHTEN Weg (_move_garrison), damit der Test
+	# den Umschlag prueft, den der Spieler auch benutzt.
+	var gar: Dictionary = (city.get("garrison_army", {}) as Dictionary).duplicate()
+	if int(wm.get("_active_hero")) == 0:
+		for guid in gar.keys():
+			wm.call("_move_garrison", idx, String(guid), false, true)
+	else:
+		var own: Dictionary = (wm.get("_hero").army as Dictionary).duplicate()
+		for huid in own.keys():
+			wm.call("_move_garrison", idx, String(huid), true, true)
+
 
 
 # Naechstes sinnvolles Ziel antippen und einen entstehenden Kampf
@@ -282,6 +355,9 @@ func _move_and_fight(wm, seed_value: int, turn: int) -> void:
 	var costs: Dictionary = wm.get("_costs")
 	var target := Vector2i(-1, -1)
 	var best: int = 1 << 30
+	# Bestes Ziel AUSSERHALB der Tagesreichweite - fuer den Marsch (It. 45).
+	var far_goal := Vector2i(-1, -1)
+	var far_best: int = 1 << 30
 
 	# Ziele nach Vorliebe: Bonus-Objekt/Truhe/Mine, dann Monster, dann
 	# fremde Stadt. Immer das billigste erreichbare.
@@ -293,15 +369,23 @@ func _move_and_fight(wm, seed_value: int, turn: int) -> void:
 	for c in (wm.get("_cities") as Array):
 		if int(c["owner"]) != int(wm.get("OWNER_HERO")):
 			candidates.append(c["pos"])
-	# Heimweg: mit Gold fuer einen Helden und einem freien Platz ist die
-	# EIGENE Stadt ein Ziel - dort wird angeworben. Ohne diese Regel lief
-	# der Test-Spieler nie wieder nach Hause, und der Anwerbe-Pfad kam in
-	# der echten Zugkette nie vor (M13b).
-	if (wm.get("_purse") as Wallet).can_afford(wm.get("HERO_HIRE_COST") as Dictionary) \
-			and (wm.get("_heroes") as Array).size() < int(wm.get("MAX_HEROES")):
-		for c2 in (wm.get("_cities") as Array):
-			if int(c2["owner"]) == int(wm.get("OWNER_HERO")):
-				candidates.append(c2["pos"])
+	# HEIMWEG. Die eigene Stadt ist ein Ziel, wenn es dort etwas zu holen
+	# gibt: einen neuen Helden (M13b) ODER Rekruten (It. 45).
+	#
+	# Ohne den zweiten Grund lief der Test-Spieler nach dem dritten Helden
+	# nie wieder nach Hause. Der Langlauf hat gezeigt, was das anrichtet:
+	# nach 200 Zuegen sass er auf 428.679 Gold mit 35 Einheiten, waehrend
+	# der KI-Held - der jeden Zug in seiner Stadt einkauft - auf 1300
+	# Einheiten stand. Das sah nach einer kaputten KI aus und war in
+	# Wahrheit ein Test-Spieler, der sein Geld nicht ausgibt.
+	var purse_now: Wallet = wm.get("_purse")
+	var want_hero: bool = purse_now.can_afford(wm.get("HERO_HIRE_COST") as Dictionary) \
+		and (wm.get("_heroes") as Array).size() < int(wm.get("MAX_HEROES"))
+	for c2 in (wm.get("_cities") as Array):
+		if int(c2["owner"]) != int(wm.get("OWNER_HERO")):
+			continue
+		if want_hero or _has_affordable_recruit(wm, c2 as Dictionary):
+			candidates.append(c2["pos"])
 	# Kampfkraft wie in der Oberflaeche - in GOLD (It. 38). Der
 	# Test-Spieler geht KEINEN Kampf ein, den die Karte rot anzeigt:
 	# sonst prueft der Test nur, dass ein aussichtsloser Angriff verliert.
@@ -336,8 +420,25 @@ func _move_and_fight(wm, seed_value: int, turn: int) -> void:
 		if cost <= int(hero.mp) and cost < best:
 			best = cost
 			target = pp
+		# Auch UNERREICHBARE Ziele merken, das billigste zuerst (It. 45).
+		if cost < far_best:
+			far_best = cost
+			far_goal = pp
 	if target.x < 0:
-		return
+		# NICHTS in einem Zug erreichbar - dann in Richtung des besten
+		# Ziels marschieren, statt stehen zu bleiben.
+		#
+		# Das war die letzte Luecke des Test-Spielers: er nahm nur Ziele,
+		# die er DIESEN Zug erreicht (`cost <= hero.mp`). Auf der fertigen
+		# Karte liegen die letzten KI-Staedte weiter weg als eine
+		# Tagesreise - also passierte 160 Zuege lang nichts, und das sah
+		# nach einem kaputten Endspiel aus. In Wahrheit standen 75.800 Gold
+		# Armee gegen einen KI-Helden mit 6.295: gewinnbar, nur nie
+		# angegriffen.
+		if far_goal.x >= 0:
+			target = _step_towards(wm, costs, hero, far_goal, eff, safe)
+		if target.x < 0:
+			return
 
 	var origin: Vector2 = wm.call("_map_origin")
 	var ts: float = float(wm.get("_tile_size"))
@@ -346,6 +447,36 @@ func _move_and_fight(wm, seed_value: int, turn: int) -> void:
 	wm.call("_handle_tap", pos)
 	await process_frame
 	await _resolve_overlay(wm, seed_value, turn)
+
+
+# Ein Tagesmarsch in Richtung `goal`: das erreichbare Feld, das dem Ziel am
+# naechsten liegt. Greedy, aber die Karte ist offen genug - und es ist
+# derselbe Griff, den der Kampf-Test fuer die Annaeherung benutzt.
+func _step_towards(wm, costs: Dictionary, hero, goal: Vector2i,
+		eff: int, safe: float) -> Vector2i:
+	var here: Vector2i = hero.position
+	var best_cell := Vector2i(-1, -1)
+	var best_d: int = absi(here.x - goal.x) + absi(here.y - goal.y)
+	for cell in costs.keys():
+		var cv: Vector2i = cell
+		if cv == here or int(costs[cv]) > int(hero.mp):
+			continue
+		# Nicht auf einen eigenen Helden treten: dort oeffnet der Tap den
+		# Armee-Tausch (It. 44) statt zu laufen.
+		if int(wm.call("_hero_index_at", cv)) >= 0:
+			continue
+		# UND die Gefahren-Regel gilt auch auf dem Marsch. Der erste Anlauf
+		# hat sie nur bei der Zielwahl geprueft: der Test-Spieler marschierte
+		# dem KI-Helden vor die Fuesse, kapitulierte, marschierte wieder hin
+		# - 161 Kapitulationen in 200 Zuegen. Eine Regel, die nur an einer
+		# von zwei Stellen gilt, gilt nicht.
+		if _ai_hero_danger(wm, cv, eff, safe):
+			continue
+		var d: int = absi(cv.x - goal.x) + absi(cv.y - goal.y)
+		if d < best_d:
+			best_d = d
+			best_cell = cv
+	return best_cell
 
 
 # Sucht ein offenes Kampf-Overlay und spielt es aus. Genau hier wuerde
