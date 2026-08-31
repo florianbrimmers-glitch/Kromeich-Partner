@@ -70,9 +70,52 @@ const OBJECT_TREASURE := 1
 # Ressourcen-Haufen (M3): unbewachtes/leicht bewachtes Einmal-Pickup
 # einer einzelnen Ressource.
 const OBJECT_PILE := 2
+# Bonus-Objekte (M5). Alle unbewacht - in HoMM3 sind die Stat-Schreine
+# ebenfalls frei zugaenglich; die Kosten sind die Bewegungspunkte und der
+# Umweg, nicht ein Kampf.
+const OBJECT_SHRINE_ATT := 3      # Soeldnerlager   -> +1 Angriff
+const OBJECT_SHRINE_DEF := 4      # Wehrturm        -> +1 Verteidigung
+const OBJECT_SHRINE_POWER := 5    # Sternwarte      -> +1 Zauberkraft
+const OBJECT_SHRINE_KNOW := 6     # Garten          -> +1 Wissen
+const OBJECT_WELL := 7            # Brunnen         -> Mana voll, 1x/Tag
+const OBJECT_LEARNING := 8        # Lehrmeister     -> XP, einmalig
+const OBJECT_WINDMILL := 9        # Windmuehle      -> Ressource, 1x/Woche
+
 const MINE_COUNT := 6
 const TREASURE_COUNT := 4
 const PILE_COUNT := 6
+
+# Je Bonus-Art so viele Exemplare. Die Stat-Schreine bleiben einzeln,
+# damit sie sich lohnen und nicht beliebig wiederholbar wirken.
+const BONUS_PLAN := {
+	OBJECT_SHRINE_ATT: 1,
+	OBJECT_SHRINE_DEF: 1,
+	OBJECT_SHRINE_POWER: 1,
+	OBJECT_SHRINE_KNOW: 1,
+	OBJECT_WELL: 2,
+	OBJECT_LEARNING: 2,
+	OBJECT_WINDMILL: 2,
+}
+# Einmalige Stat-Schreine: Art -> (Primaerwert, Anzeigename).
+const SHRINE_STATS := {
+	OBJECT_SHRINE_ATT: ["attack", "Soeldnerlager"],
+	OBJECT_SHRINE_DEF: ["defense", "Wehrturm"],
+	OBJECT_SHRINE_POWER: ["spell_power", "Sternwarte"],
+	OBJECT_SHRINE_KNOW: ["knowledge", "Garten der Erkenntnis"],
+}
+# Art -> Sprite-Name unter assets/world/objects/.
+const OBJECT_SPRITES := {
+	OBJECT_SHRINE_ATT: "shrine_att",
+	OBJECT_SHRINE_DEF: "shrine_def",
+	OBJECT_SHRINE_POWER: "shrine_power",
+	OBJECT_SHRINE_KNOW: "shrine_know",
+	OBJECT_WELL: "well",
+	OBJECT_LEARNING: "learning",
+	OBJECT_WINDMILL: "windmill",
+}
+const LEARNING_XP := 120
+const WINDMILL_MIN := 3
+const WINDMILL_MAX := 6
 const MINE_GOLD_PER_TURN := 150
 const TREASURE_GOLD_MIN := 300
 const TREASURE_GOLD_MAX := 700
@@ -665,7 +708,19 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 	_set_status("STEP 5c: Objekte platzieren")
 	_objects.clear()
 	var o_attempts: int = 0
-	var o_target: int = MINE_COUNT + TREASURE_COUNT + PILE_COUNT
+	# Plan statt Index-Arithmetik: die alte Form ("if idx >= MINE_COUNT +
+	# TREASURE_COUNT") traegt sieben zusaetzliche Arten nicht mehr.
+	var kind_plan: Array = []
+	for _i in range(MINE_COUNT):
+		kind_plan.append(OBJECT_MINE)
+	for _i in range(TREASURE_COUNT):
+		kind_plan.append(OBJECT_TREASURE)
+	for _i in range(PILE_COUNT):
+		kind_plan.append(OBJECT_PILE)
+	for bk in BONUS_PLAN.keys():
+		for _i in range(int(BONUS_PLAN[bk])):
+			kind_plan.append(int(bk))
+	var o_target: int = kind_plan.size()
 	while _objects.size() < o_target and o_attempts < 800:
 		o_attempts += 1
 		var ox: int = rng.next_int(0, MAP_WIDTH - 1)
@@ -697,11 +752,7 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 		if oblocked:
 			continue
 		var idx: int = _objects.size()
-		var kind: int = OBJECT_MINE
-		if idx >= MINE_COUNT + TREASURE_COUNT:
-			kind = OBJECT_PILE
-		elif idx >= MINE_COUNT:
-			kind = OBJECT_TREASURE
+		var kind: int = int(kind_plan[idx]) if idx < kind_plan.size() else OBJECT_PILE
 		var resource: String = "gold"
 		var gold_amt: int = MINE_GOLD_PER_TURN
 		var guard_amt: int = rng.next_int(OBJECT_GUARD_MIN, OBJECT_GUARD_MAX)
@@ -712,6 +763,11 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 			gold_amt = int(MINE_YIELD.get(resource, 1))
 		elif kind == OBJECT_TREASURE:
 			gold_amt = rng.next_int(TREASURE_GOLD_MIN, TREASURE_GOLD_MAX)
+		elif kind >= OBJECT_SHRINE_ATT:
+			# Bonus-Objekte: unbewacht, kein Gold-Ertrag. Was sie geben,
+			# entscheidet _visit_bonus_object beim Betreten.
+			guard_amt = 0
+			gold_amt = 0
 		else:
 			# Ressourcen-Haufen: Rotation Holz/Erz/Edel, kleine Mengen,
 			# hoechstens Mini-Wache (0-1) - fruehes "Einsammel-Futter".
@@ -1293,6 +1349,12 @@ func _draw_map() -> void:
 		elif okind == OBJECT_PILE:
 			obj_sprite = "objects/pile.svg"
 			obj_tint = RESOURCE_COLORS.get(String(obj.get("resource", "gold")), Color.WHITE)
+		elif OBJECT_SPRITES.has(okind):
+			obj_sprite = "objects/%s.svg" % String(OBJECT_SPRITES[okind])
+			# Verbrauchte Bonus-Objekte bleiben stehen, aber blass - der
+			# Spieler soll sehen, wo er schon war, ohne hinzulaufen.
+			if _bonus_spent(obj):
+				obj_tint = Color(0.55, 0.55, 0.58)
 		var obj_tex: Texture2D = _world_texture(obj_sprite)
 		if obj_tex != null:
 			_map_area.draw_texture_rect(obj_tex, orect, false, obj_tint)
@@ -1865,6 +1927,10 @@ func _handle_tap(pos: Vector2) -> void:
 			_hero.wallet.add(pres, pamt)
 			_objects.remove_at(obj_idx)
 			_set_combat("Gefunden: +%d %s" % [pamt, Wallet.display_name(pres)])
+		elif okind2 >= OBJECT_SHRINE_ATT:
+			var bmsg: String = _visit_bonus_object(obj2)
+			if bmsg != "":
+				_set_combat(bmsg)
 
 	_hero.mp -= cost
 	_hero.position = target
@@ -2482,6 +2548,86 @@ func _recalc_max_mp() -> void:
 		+ LEVEL_BONUS_MP * max(0, _hero.level - 1)
 	var pct: int = Skills.move_pct(_hero.skills)
 	_hero.max_mp = base_mp + int(round(float(base_mp) * float(pct) / 100.0))
+
+
+
+# --- Bonus-Objekte (M5) --------------------------------------------------
+# Wirkung beim Betreten. Rueckgabe ist die Statusmeldung ("" = nichts
+# passiert). Der Zustand steckt im Objekt selbst, damit er ohne
+# Save-Migration mitgespeichert wird:
+#   "used"      -> einmalige Objekte (Stat-Schreine, Lehrmeister)
+#   "used_turn" -> Brunnen, einmal pro Tag
+#   "used_week" -> Windmuehle, einmal pro Woche
+# Verbraucht = jetzt nichts zu holen. Einmalige sind endgueltig durch,
+# Brunnen und Windmuehle nur fuer heute bzw. diese Woche.
+func _bonus_spent(obj: Dictionary) -> bool:
+	var kind: int = int(obj["kind"])
+	if kind == OBJECT_WELL:
+		return int(obj.get("used_turn", -1)) == _turn_number
+	if kind == OBJECT_WINDMILL:
+		return int(obj.get("used_week", -1)) == GameCalendar.week_total(_turn_number)
+	return bool(obj.get("used", false))
+
+
+func _visit_bonus_object(obj: Dictionary) -> String:
+	var kind: int = int(obj["kind"])
+
+	if SHRINE_STATS.has(kind):
+		var spec: Array = SHRINE_STATS[kind] as Array
+		var stat_id: String = String(spec[0])
+		var label: String = String(spec[1])
+		if bool(obj.get("used", false)):
+			return "%s: schon besucht." % label
+		obj["used"] = true
+		_hero.add_primary(stat_id, 1)
+		# Wissen hebt den Mana-Deckel - das Mana soll sofort mitwachsen,
+		# sonst wirkt der Garten erst am naechsten Tag.
+		if stat_id == "knowledge":
+			_hero.mana = min(_hero_max_mana(), int(_hero.mana) + Spells.MANA_PER_KNOWLEDGE)
+		_recalc_max_mp()
+		_update_labels()
+		return "%s: %s +1" % [label, Skills.PRIMARY_NAMES.get(stat_id, stat_id)]
+
+	if kind == OBJECT_WELL:
+		if int(obj.get("used_turn", -1)) == _turn_number:
+			return "Brunnen: heute schon genutzt."
+		var cap: int = _hero_max_mana()
+		if int(_hero.mana) >= cap:
+			return "Brunnen: Mana ist voll."
+		obj["used_turn"] = _turn_number
+		var gained: int = cap - int(_hero.mana)
+		_hero.mana = cap
+		_update_labels()
+		return "Brunnen: +%d Mana (%d/%d)" % [gained, cap, cap]
+
+	if kind == OBJECT_LEARNING:
+		if bool(obj.get("used", false)):
+			return "Lehrmeister: schon gelernt."
+		obj["used"] = true
+		_hero.xp += LEARNING_XP
+		var leveled: bool = _check_level_up()
+		_update_labels()
+		if leveled:
+			return "Lehrmeister: +%d XP - Stufe %d!" % [LEARNING_XP, int(_hero.level)]
+		return "Lehrmeister: +%d XP" % LEARNING_XP
+
+	if kind == OBJECT_WINDMILL:
+		var week: int = GameCalendar.week_total(_turn_number)
+		if int(obj.get("used_week", -1)) == week:
+			return "Windmuehle: diese Woche schon geleert."
+		obj["used_week"] = week
+		# Deterministisch aus Seed, Feld und Woche: derselbe Spielstand gibt
+		# denselben Ertrag, aber jede Woche etwas anderes.
+		var wrng := RandomNumberGenerator.new()
+		var wp: Vector2i = obj["pos"]
+		wrng.seed = _seed * 31 + wp.x * 7919 + wp.y * 104729 + week * 1299709
+		var res: String = String(RARE_RESOURCES[wrng.randi_range(0, RARE_RESOURCES.size() - 1)])
+		var amt: int = wrng.randi_range(WINDMILL_MIN, WINDMILL_MAX)
+		_hero.wallet.add(res, amt)
+		_update_labels()
+		return "Windmuehle: +%d %s" % [amt, Wallet.display_name(res)]
+
+	return ""
 
 
 # Mana-Maximum aus Wissen (M8). Nicht gespeichert, immer abgeleitet -
