@@ -21,9 +21,16 @@ wie HoMM3, 7 Einheiten-Tiers (units.json migrieren!), CC0-Sound.
 | M9 Belagerung | FERTIG (It. 14): neues `BattleObstacles.KIND_WALL` (blockt Bewegung+Schusslinie, `WALL_SEGMENT_HP`=2) + `siege_walls(cols, rows)` = Segmentreihe in Spalte `cols-4` mit Tor-Luecke in der Mittelreihe. Kampf-Screen: `ctx.siege`/`ctx.tower_dmg`, `_wall_hp` je Segment; Katapult trifft pro Runde das tor-naechste Segment (1 Schaden), zerstoertes Segment fliegt aus `_obstacles` UND `_ob_map` -> Feld sofort passierbar; Pfeilturm (SIEGE_TOWER_DMG 12 + 8 je Wachturm) trifft pro Runde den groessten Angreifer-Stack; Verteidiger +SIEGE_DEF_BONUS (2) solange ein Segment steht; `attack_wall`-Einheiten (Zyklop) schlagen per Tap selbst Segmente ein. **Falle:** `_dijkstra_for` prueft Hindernis-Arten als Literale - neue Kinds dort NACHTRAGEN (die Mauer blockte zuerst nicht). Ausserdem: Stadt-Wachen bestehen jetzt aus Einheiten der Stadt-Fraktion (`_faction_guard_stacks`), und die Auto-Abrechnung bei KI-Angriffen rechnet die eigene Mauer mit `SIEGE_AUTO_DEF_FACTOR` (1.25) ein. 8. Suite `tools/test_siege.gd`. |
 | Echte Garnisonen (M9b) | FERTIG (It. 15). Vorher hielt jede Stadt nur `garrison: int` (Phantom-Truppen wurden beim Angriff synthetisiert) und die Spielerstadt startete mit 0 - die Mauer aus M9 schuetzte niemanden. Jetzt: `city["garrison_army"]` ist ein `{uid: count}`-Dict wie `Hero.army`, neues `core/Garrison.gd` (synth/total/add/remove/to_stacks/from_stacks/summary). **SAVE_VERSION=3** + `_migrate_2_to_3` (alte Zahl -> echte Einheiten der Stadt-Fraktion). Rekrutieren OHNE Held vor Ort fuellt die Garnison (Fernverwaltung existierte schon); CityScreen hat einen Garnison-Button mit Verschiebe-Panel (Held <-> Stadt, 1/alle, respektiert MAX_ARMY_SLOTS). Kampf nutzt die gespeicherten Einheiten; `battle_finished` liefert jetzt `player_remaining` + `enemy_remaining`, damit eine gescheiterte Belagerung die Garnison geschwaecht zuruecklaesst. KI-Angriff auf eigene Stadt = **spielbarer Verteidigungskampf** (gleiches Muster wie der Pflicht-Kampf gegen den Helden: Overlay auf, `return false`, Callback `_on_city_defense_result` setzt die KI-Phase fort); Verteidiger = Garnison + Held falls anwesend. `SIEGE_AUTO_DEF_FACTOR` entfallen. 9. Suite `tools/test_garrison.gd`. |
 | Grafik-Politur (It. 16) | FERTIG. Stadt: Effekt-Text von der Buehne runter (er lief in den Nachbar-Plot; steht jetzt beim Tap in der Statuszeile), Beschriftung auf 2 Zeilen mit Breiten-Begrenzung (`_centered_text(..., max_w)`), Kapelle/Zitadelle im gemalten Layout auf x 0.33/0.67 auseinandergerueckt, `HUD_TOP` 150->250 (Garnison-Button ragte in die Kopfzeile). NEU `buildings_plain` in city_layout.json: Fraktionen OHNE gemalten Hintergrund verteilen dieselben 9 Plots ueber y 0.14-0.86 (`_active_layout()` waehlt anhand `_has_painted_bg()`), dazu ein Platzhalter-Verlauf statt Volltonflaeche - **kein Asset**, wird von gemalten bg.png ersetzt. Kampf: Kopfzeile 330->125 px, Log unter das Gitter (3 statt 5 Zeilen), Gitterflaeche 1485 statt 1357 px, Terrain-Boden je `terrain_id` (TERRAIN_GROUND) mit Schachbrett-Nuance + Verlauf statt Schwarz, Beschriftung auf cell*0.52 UNTER das Token (lag vorher auf dem Sprite). **Test-Falle:** das Kampf-Log ist als Test-Quelle unbrauchbar (3 Zeilen, Zug-Kette laeuft synchron weiter) - dafuer gibt es `_skips_status`/`_skips_moral` als Zaehler; Einzelwert-Marker reichen nicht, weil die naechste Aktion sie ueberschreibt. |
+| Kampf-Effekte (It. 17) | FERTIG. Neu `core/BattleVfx.gd` (preload-Alias `Vfx`, weil `Fx` schon StatusFx ist): reine DATEN-Schicht, Effekte sind Dictionaries in einer Array-Queue, `advance()` laesst die Zeit laufen. Arten: Ausfallschritt, Projektil (Parabel), Einschlag (Ring + Splitter), Schadenszahl, Zerfall, Shake, Heilung, Wort-Einblendung, Mauerbruch, Gleiten. **Zwei Trichter statt zwanzig Aufrufstellen:** `_apply_dmg` erzeugt Treffer+Zahl+Zerfall (dort laufen Nahkampf, Konter, Schuss, Todeswolke und Pfeilturm ALLE durch), `_melee_exchange` den Ausfallschritt. Staffelung ueber `cfg["delay"]` (t startet negativ, `Vfx.pending()` = noch nicht zeichnen) - sonst blitzt der Treffer, waehrend der Pfeil fliegt; `Vfx.time_left_of(q, MOVE)` schiebt den Nahkampf hinter einen laufenden Anmarsch. Einschlag-Geometrie (`impact_radius`/`impact_spoke`) steht IM MODUL, weil `tools/preview_battle_fx.gd` dieselben Werte zeichnet. 10. Suite `tools/test_battle_vfx.gd`. |
 | M5-M12 Parallel-Band (Objekte, Sound, Events) | offen |
 | M7/M8 Heldenstats/Skills, Zauber | offen (nach M4) |
 | M13 Mehrere Helden (vorher Struktur-Iteration!), M14 MP | zurueckgestellt |
+
+**Test-Falle It. 17 (`fx_speed`):** Der Kampf-Screen wartet mit der
+Zugkette auf ablaufende Effekte. Jeder Test, der einen Kampf treibt, MUSS
+`bs.fx_speed = 0.0` direkt nach `TBS.new()` setzen - sonst wartet er auf
+Animationen, die headless nie ankommen, und laeuft in den Timeout.
+`test_battle.gd` (6 Instanzen) und `test_siege.gd` (1) tun das.
 
 Pro-Iteration-Vertrag: (1) git fetch+reset auf origin-Branch (Sandbox
 resettet, Tracking-Ref luegt - ls-remote glauben, nicht git log!),
@@ -31,6 +38,27 @@ resettet, Tracking-Ref luegt - ls-remote glauben, nicht git log!),
 (4) Test in tools/ + game-ci.yml, (5) Save-Fixture-Kompatibilitaet
 (tools/fixtures/save_v*.json) pruefen, (6) nur gruen pushen (CI shippt
 APK auf latest-mobile!), (7) diese Tabelle aktualisieren.
+
+## Grafik-Programm (Nutzer-Entscheidung, It. 17 ff.)
+
+Der Nutzer hat die Grafik komplett verworfen ("nur der Hintergrund ist
+fertig"). Entschieden:
+
+- **Stil-Messlatte** sind die drei SVG-Stadt-Hintergruende (Waldvolk,
+  Totenreich, Orks), erzeugt von einem Python-Generator.
+- **Pipeline: SVG-Generatoren, alles aus einer Hand.** KEIN Bildgenerator.
+  Claude Design ist nur die Begutachtungs-Leinwand, kein Erzeuger - das war
+  ein Missverstaendnis des Nutzers und ist ausgeraeumt.
+- `assets/city/menschen/bg.png` (Canva-generiert, gemalt) **wird ersetzt**,
+  damit alle vier Staedte zusammenpassen.
+- Kampf: **gemalte Kreatur direkt im Gitter**, nicht Token + Detail-Panel.
+  Bei ~86 px Zellgroesse heisst das: grobe, kontrastreiche Silhouetten.
+- Reihenfolge: 17 Effekte -> 18 Schlachtfeld-Kulisse -> 19 28 Kreaturen ->
+  20 Stadt (4 Hintergruende + 32 Gebaeude) -> 21 Weltkarten-Tileset.
+
+**Befund-Stand:** Gebaeude-Sprites gibt es nur fuer `menschen`;
+`CityScreen._faction_dir()` faellt NICHT auf menschen zurueck, die anderen
+drei Fraktionen zeigen nur die generische Baustelle.
 
 ## Entschiedene Design-Fragen (implementiert)
 

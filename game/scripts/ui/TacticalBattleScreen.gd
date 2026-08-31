@@ -14,9 +14,28 @@ const Abil := preload("res://scripts/core/Abilities.gd")
 const Fx := preload("res://scripts/core/StatusFx.gd")
 # Moral + Glueck (M6).
 const Mor := preload("res://scripts/core/Morale.gd")
+# Effekt-Schicht (It. 17). Alias Vfx, weil Fx oben schon StatusFx ist.
+const Vfx := preload("res://scripts/core/BattleVfx.gd")
 
 const GRID_COLS := 10
 const GRID_ROWS := 8
+
+# --- Effekte (It. 17) -----------------------------------------------------
+# Queue mit laufenden Effekten. Die Zugkette wartet, solange ein
+# blockierender Effekt lebt (siehe _advance).
+var _fx: Array = []
+# Tempo-Regler. 0.0 = alles sofort fertig -> die Kette laeuft wie vor
+# It. 17 durch. TESTS SETZEN DAS AUF 0.0 (siehe test_battle/test_siege),
+# sonst warten sie auf Animationen, die headless nie ankommen.
+var fx_speed: float = 1.0
+# Farben fuer Schadenszahlen: die Seite, die EINSTECKT, bestimmt die Farbe.
+const FX_COL_PLAYER_HURT := Color(1.0, 0.55, 0.45)
+const FX_COL_ENEMY_HURT := Color(1.0, 0.94, 0.72)
+# Verzoegerung, mit der _apply_dmg seine Treffer-Effekte startet. Der
+# Angriffs-Pfad setzt sie auf die Flugzeit des Geschosses bzw. auf den
+# Scheitel des Ausfallschritts und danach zurueck auf 0. So bleibt
+# _apply_dmg der einzige Trichter, ohne dass der Einschlag zu frueh kommt.
+var _fx_delay: float = 0.0
 
 var _player_name: String = "Held"
 var _enemy_name: String = "Gegner"
@@ -211,6 +230,15 @@ func _apply_aoe(attacker_uid: String, target: Dictionary, dmg: int) -> String:
 func _melee_exchange(attacker: Dictionary, target: Dictionary) -> String:
 	var a_uid: String = String(attacker["type"])
 	var t_uid: String = String(target["type"])
+	# Ausfallschritt hier und nicht an den drei Aufrufstellen: derselbe
+	# Trichter-Gedanke wie bei _apply_dmg. Der Treffer landet auf dem
+	# Scheitel der Bewegung.
+	var a_pos: Vector2i = Vector2i(attacker["pos"])
+	var t_pos: Vector2i = Vector2i(target["pos"])
+	# Laeuft noch ein Anmarsch? Dann erst danach zuschlagen.
+	var march: float = Vfx.time_left_of(_fx, Vfx.MOVE)
+	Vfx.spawn(_fx, Vfx.LUNGE, {"from": a_pos, "to": t_pos, "delay": march})
+	_fx_delay = march + Vfx.lunge_delay()
 	# Leergeschossene Fernkaempfer schlagen mit Malus zu (M4 Teil 3).
 	var a_ranged: bool = UnitType.is_ranged(a_uid)
 	var hits: int = Abil.attacks_per_turn(a_uid, false)
@@ -251,7 +279,15 @@ func _melee_exchange(attacker: Dictionary, target: Dictionary) -> String:
 			target["retaliated"] = true
 			var rdmg: int = max(1, _dmg(target, attacker, UnitType.is_ranged(t_uid)) / 2)
 			counter_dmg += rdmg
+			# Der Konter kommt NACH dem Treffer, sonst liegen beide Zahlen
+			# im selben Frame uebereinander.
+			var back_delay: float = _fx_delay
+			_fx_delay = back_delay + Vfx.DUR[Vfx.IMPACT]
+			Vfx.spawn(_fx, Vfx.LUNGE, {"from": t_pos, "to": a_pos,
+				"delay": back_delay + Vfx.DUR[Vfx.IMPACT] - Vfx.lunge_delay()})
 			counter_kill += _apply_dmg(attacker, rdmg)
+			_fx_delay = back_delay
+	_fx_delay = 0.0
 	var msg: String = "%d Sch., -%d" % [dmg_sum, killed]
 	if struck > 1:
 		msg = "%dx (%s)" % [struck, msg]
@@ -345,6 +381,8 @@ func _step() -> void:
 	if not st.is_empty() and Fx.blocks_turn(st):
 		var who: String = "Held" if int(slot["side"]) == 0 else "Feind"
 		_skips_status += 1
+		Vfx.popup(_fx, Vector2i(st["pos"]), Fx.marker_name(st),
+			Color(0.75, 0.70, 1.0))
 		_set_action("%s %s ist %s - Zug verloren." % [
 			who, UnitType.short_of(String(st["type"])), Fx.marker_name(st)])
 		_advance()
@@ -355,6 +393,7 @@ func _step() -> void:
 		if Mor.rolls_freeze(mor, _rng):
 			var who2: String = "Held" if int(slot["side"]) == 0 else "Feind"
 			_skips_moral += 1
+			Vfx.popup(_fx, Vector2i(st["pos"]), "Moral!", Color(1.0, 0.55, 0.45))
 			_set_action("%s %s: keine Moral - Zug verloren." % [
 				who2, UnitType.short_of(String(st["type"]))])
 			_advance()
@@ -367,6 +406,8 @@ func _step() -> void:
 
 
 func _next_round() -> void:
+	if _finished:
+		return
 	_round += 1
 	for s in _p_stacks + _e_stacks:
 		s["retaliated"] = false
@@ -411,6 +452,7 @@ func _damage_wall(pos: Vector2i, dmg: int) -> String:
 		if Vector2i(o["pos"]) != pos:
 			keep.append(o)
 	_obstacles = keep
+	Vfx.wall_break(_fx, pos)
 	return "Bresche!"
 
 
@@ -430,7 +472,15 @@ func _catapult_shot() -> void:
 			best = pos
 	if best.x < 0:
 		return
+	# Steinkugel von ausserhalb des Feldes, hoher Bogen. Das Katapult
+	# selbst steht nicht auf dem Gitter - Startfeld links vor der Reihe.
+	var from := Vector2i(-1, best.y)
+	var flight: float = Vfx.shot(_fx, from, best, true)
+	_fx_delay = flight
 	var res: String = _damage_wall(best, 1)
+	if res == "":
+		Vfx.spawn(_fx, Vfx.SHAKE, {"amp": 4.0, "delay": flight})
+	_fx_delay = 0.0
 	if res != "":
 		_set_action("Katapult -> Mauer (%d,%d): %s" % [best.x, best.y, res])
 
@@ -448,7 +498,11 @@ func _tower_shot() -> void:
 			target = s
 	if target.is_empty():
 		return
+	# Der Turm steht hinter der Mauer, also rechts ausserhalb des Gitters.
+	var tpos: Vector2i = Vector2i(target["pos"])
+	_fx_delay = Vfx.shot(_fx, Vector2i(GRID_COLS, tpos.y), tpos)
 	var killed: int = _apply_dmg(target, _tower_dmg)
+	_fx_delay = 0.0
 	_set_action("Pfeilturm -> %s: %d Sch., -%d" % [
 		UnitType.short_of(String(target["type"])), _tower_dmg, killed])
 
@@ -462,19 +516,59 @@ func _regenerate(stack: Dictionary) -> void:
 	var hp_max: int = UnitType.hp_of(uid)
 	var gain: int = Abil.regen_hp(uid, int(stack["top_hp"]), hp_max)
 	if gain > 0:
+		var before: int = int(stack["top_hp"])
 		stack["top_hp"] = min(hp_max, int(stack["top_hp"]) + gain)
+		Vfx.healed(_fx, Vector2i(stack["pos"]), int(stack["top_hp"]) - before)
 
 
+# Zugkette. Vor It. 17 lief sie mit einer Pauschal-Pause von 0.30 s vor
+# KI-Zuegen durch; Animationen waeren unsichtbar geblieben, weil der
+# naechste Zug losrennt, bevor der Treffer gezeichnet ist. Jetzt wartet
+# die Kette, bis alle blockierenden Effekte abgelaufen sind, und legt vor
+# KI-Zuegen zusaetzlich die Mindestpause ein.
 func _advance() -> void:
 	_active_slot += 1
 	if _active_slot >= _turn_order.size():
-		_next_round()
+		_wait_for_fx(_next_round)
 		return
 	var next_side: int = int(_turn_order[_active_slot]["side"])
 	if next_side == 1:
-		get_tree().create_timer(0.30).timeout.connect(_step)
+		_wait_for_fx(_step, AI_TURN_PAUSE)
 	else:
-		_step()
+		_wait_for_fx(_step)
+
+
+const AI_TURN_PAUSE := 0.30
+
+
+# Ruft `fn` auf, sobald die Effekt-Queue frei ist (plus optionale
+# Mindestpause). Bei fx_speed <= 0 - also in den Tests - laeuft es
+# synchron durch, genau wie vor It. 17.
+func _wait_for_fx(fn: Callable, extra: float = 0.0) -> void:
+	# Nach Kampfende keine neuen Timer: das Overlay wird vom Aufrufer
+	# freigegeben, ein noch laufender Timer wuerde auf eine tote Instanz
+	# zeigen.
+	if _finished:
+		return
+	if fx_speed <= 0.0:
+		Vfx.advance(_fx, 1.0, 0.0)
+		if extra <= 0.0:
+			fn.call()
+			return
+		get_tree().create_timer(extra).timeout.connect(fn)
+		return
+	var wait: float = Vfx.busy_time_left(_fx) / fx_speed + extra
+	if wait <= 0.0:
+		fn.call()
+		return
+	get_tree().create_timer(wait).timeout.connect(fn)
+
+
+func _process(delta: float) -> void:
+	if _fx.is_empty():
+		return
+	if Vfx.advance(_fx, delta, fx_speed) and _grid_area != null:
+		_grid_area.queue_redraw()
 
 
 func _build_reachable() -> void:
@@ -634,6 +728,10 @@ func _draw_grid() -> void:
 	var g: Array = _geom()
 	var o: Vector2 = g[0]; var c: float = g[1]
 	if c <= 0.0: return
+	# Wackeln bei schweren Treffern. Nur der ZEICHEN-Ursprung wandert -
+	# _geom() selbst bleibt sauber, sonst wuerde _cell_at die Taps
+	# waehrend des Shakes auf die falschen Felder legen.
+	o += _shake_offset()
 	var gw := c * GRID_COLS; var gh := c * GRID_ROWS
 	var ground: Color = _ground_color()
 
@@ -694,7 +792,7 @@ func _draw_grid() -> void:
 		var s: Dictionary = _p_stacks[i]
 		if int(s["count"]) <= 0: continue
 		var sp: Vector2i = Vector2i(s["pos"])
-		var ctr := o + Vector2((float(sp.x)+0.5)*c, (float(sp.y)+0.5)*c)
+		var ctr := _cell_center(sp, o, c) + _stack_offset(sp, c)
 		# Seiten-Ring bleibt auch mit Sprite: er sagt auf einen Blick, wem
 		# der Stack gehoert - die Silhouette allein tut das nicht.
 		var col_fill := Color(0.95, 0.80, 0.25) if sp != active_pos else Color(1.0, 0.95, 0.4)
@@ -711,13 +809,156 @@ func _draw_grid() -> void:
 		var s: Dictionary = _e_stacks[i]
 		if int(s["count"]) <= 0: continue
 		var sp: Vector2i = Vector2i(s["pos"])
-		var ctr := o + Vector2((float(sp.x)+0.5)*c, (float(sp.y)+0.5)*c)
+		var ctr := _cell_center(sp, o, c) + _stack_offset(sp, c)
 		_draw_token(ctr, c, r_active, s, Color(0.5, 0.5, 0.55), Color(0.85, 0.25, 0.25))
 		_draw_lbl(ctr, UnitType.short_of(String(s["type"])) + str(int(s["count"])), c)
 		_draw_hp_bar(ctr, c, int(s["top_hp"]), UnitType.hp_of(String(s["type"])))
 		_draw_status_marker(ctr, c, s)
 		if bool(s.get("waited", false)):
 			_draw_wait_marker(ctr, r_active)
+
+	# Effekte zuletzt, damit sie ueber den Token liegen.
+	_draw_effects(o, c)
+
+
+# --- Effekt-Zeichnung (It. 17) --------------------------------------------
+
+func _shake_offset() -> Vector2:
+	var off := Vector2.ZERO
+	for e in Vfx.of_kind(_fx, Vfx.SHAKE):
+		if Vfx.pending(e):
+			continue
+		off += Vfx.shake_offset(Vfx.progress(e), float(e.get("amp", 5.0)))
+	return off
+
+
+# Versatz eines Stacks in PIXEL: Ausfallschritt beim Angriff, Gleiten
+# beim Zug. Der Stack steht datenseitig schon auf dem Zielfeld - der
+# Effekt zieht ihn optisch zurueck, bis er "angekommen" ist.
+func _stack_offset(sp: Vector2i, c: float) -> Vector2:
+	var off := Vector2.ZERO
+	for e in _fx:
+		if Vfx.pending(e):
+			continue
+		var kind: String = String(e.get("kind", ""))
+		if kind == Vfx.LUNGE:
+			if Vector2i(e.get("from", Vector2i.ZERO)) != sp:
+				continue
+			var dir: Vector2 = Vector2(Vector2i(e.get("to", sp)) - sp)
+			off += dir * c * 0.34 * Vfx.ping_pong(Vfx.progress(e))
+		elif kind == Vfx.MOVE:
+			if Vector2i(e.get("to", Vector2i.ZERO)) != sp:
+				continue
+			var back: Vector2 = Vector2(Vector2i(e.get("from", sp)) - sp)
+			off += back * c * (1.0 - Vfx.ease_in_out(Vfx.progress(e)))
+	return off
+
+
+# Letzter Durchgang, damit Effekte UEBER den Token liegen.
+func _draw_effects(o: Vector2, c: float) -> void:
+	var font: Font = ThemeDB.fallback_font
+	for e in _fx:
+		if Vfx.pending(e):
+			continue
+		var kind: String = String(e.get("kind", ""))
+		var t: float = Vfx.progress(e)
+		match kind:
+			Vfx.PROJECTILE:
+				var pa: Vector2 = _cell_center(Vector2i(e["from"]), o, c)
+				var pb: Vector2 = _cell_center(Vector2i(e["to"]), o, c)
+				var lift: float = float(e.get("lift", 0.45)) * c
+				var p: Vector2 = Vfx.arc_point(pa, pb, t, lift)
+				# Schweif: drei kleiner werdende Punkte hinter dem Geschoss.
+				for k in range(3):
+					var tt: float = max(0.0, t - 0.07 * float(k + 1))
+					var q: Vector2 = Vfx.arc_point(pa, pb, tt, lift)
+					_grid_area.draw_circle(q, c * (0.055 - 0.014 * float(k)),
+						Color(1.0, 0.92, 0.65, 0.45 - 0.12 * float(k)))
+				_grid_area.draw_circle(p, c * 0.075, Color(1.0, 0.97, 0.82))
+			Vfx.IMPACT:
+				var ctr: Vector2 = _cell_center(Vector2i(e["at"]), o, c)
+				var col: Color = e.get("col", Color(1, 1, 1))
+				var alpha: float = 1.0 - t
+				# Ring + Splitter nach aussen: liest sich als Einschlag,
+				# ein einfaches Aufblitzen sieht wie ein Fehler aus. Die
+				# Radien kommen aus BattleVfx, damit die Vorschau dasselbe
+				# zeichnet.
+				_grid_area.draw_arc(ctr, c * Vfx.impact_radius(t), 0, TAU, 28,
+					Color(col.r, col.g, col.b, alpha * 0.9), max(2.0, c * 0.05))
+				var sp: Array = Vfx.impact_spoke(t)
+				for k in range(Vfx.IMPACT_SPOKES):
+					var a: float = float(k) * TAU / float(Vfx.IMPACT_SPOKES) + 0.3
+					var dir := Vector2(cos(a), sin(a))
+					_grid_area.draw_line(ctr + dir * c * float(sp[0]),
+						ctr + dir * c * float(sp[1]),
+						Color(1, 1, 1, alpha * 0.8), max(1.5, c * 0.035))
+			Vfx.HEAL:
+				var hc: Vector2 = _cell_center(Vector2i(e["at"]), o, c)
+				for k in range(5):
+					var ang: float = float(k) * TAU / 5.0
+					var rise: float = c * 0.5 * Vfx.ease_out(t)
+					var pt: Vector2 = hc + Vector2(cos(ang) * c * 0.28,
+						sin(ang) * c * 0.16 - rise)
+					_grid_area.draw_circle(pt, c * 0.06,
+						Color(0.55, 1.0, 0.62, (1.0 - t) * 0.85))
+			Vfx.DEATH:
+				_draw_death(e, o, c, t)
+			Vfx.WALL_BREAK:
+				var wc: Vector2 = _cell_center(Vector2i(e["at"]), o, c)
+				# Truemmer fallen auseinander und nach unten.
+				for k in range(7):
+					var ang2: float = float(k) * TAU / 7.0 + 0.5
+					var d: Vector2 = Vector2(cos(ang2), sin(ang2) * 0.5)
+					var pos: Vector2 = wc + d * c * 0.5 * Vfx.ease_out(t) \
+						+ Vector2(0.0, c * 0.35 * t * t)
+					var sz: float = c * 0.11 * (1.0 - t * 0.5)
+					_grid_area.draw_rect(Rect2(pos - Vector2(sz, sz) * 0.5,
+						Vector2(sz, sz)), Color(0.62, 0.60, 0.56, 1.0 - t), true)
+			Vfx.NUMBER, Vfx.POPUP:
+				var rf: Array = Vfx.rise_fade(t)
+				var up: float = float(rf[0]) * c
+				var a2: float = float(rf[1])
+				var nc: Vector2 = _cell_center(Vector2i(e["at"]), o, c) \
+					- Vector2(0.0, c * 0.42 + up)
+				var txt: String = String(e.get("text", ""))
+				var fsize: int = int(max(14.0, c * (0.30 if kind == Vfx.NUMBER else 0.24)))
+				var col2: Color = e.get("col", Color(1, 1, 1))
+				var w: float = font.get_string_size(txt,
+					HORIZONTAL_ALIGNMENT_LEFT, -1, fsize).x
+				var at: Vector2 = nc - Vector2(w * 0.5, 0.0)
+				# Schlagschatten, sonst verschwindet die Zahl auf hellem Boden.
+				_grid_area.draw_string(font, at + Vector2(2, 2), txt,
+					HORIZONTAL_ALIGNMENT_LEFT, -1, fsize, Color(0, 0, 0, a2 * 0.8))
+				_grid_area.draw_string(font, at, txt,
+					HORIZONTAL_ALIGNMENT_LEFT, -1, fsize,
+					Color(col2.r, col2.g, col2.b, a2))
+
+
+# Zerfall eines gefallenen Stacks: das Sprite bleibt sichtbar, sinkt,
+# schrumpft und blendet aus, dazu Staub. Position und Typ kommen aus dem
+# Effekt, weil der Stack datenseitig schon leer ist.
+func _draw_death(e: Dictionary, o: Vector2, c: float, t: float) -> void:
+	var ctr: Vector2 = _cell_center(Vector2i(e["at"]), o, c)
+	var fade: float = 1.0 - t
+	var sink: float = c * 0.22 * Vfx.ease_out(t)
+	var tex: Texture2D = _unit_texture(String(e.get("uid", "")))
+	var size: float = c * 0.92 * (1.0 - 0.28 * t)
+	var at: Vector2 = ctr + Vector2(0.0, sink) - Vector2(size, size) * 0.5
+	_grid_area.draw_circle(ctr + Vector2(0.0, sink), c * 0.40 * (1.0 - 0.3 * t),
+		Color(0.05, 0.05, 0.06, fade * 0.7))
+	if tex != null:
+		_grid_area.draw_texture_rect(tex, Rect2(at, Vector2(size, size)), false,
+			Color(1, 1, 1, fade))
+	# Staubwolke nach aussen.
+	for k in range(5):
+		var ang: float = float(k) * TAU / 5.0 + 0.9
+		var d := Vector2(cos(ang), sin(ang) * 0.45)
+		_grid_area.draw_circle(ctr + d * c * 0.44 * Vfx.ease_out(t),
+			c * 0.09 * (1.0 - t * 0.4), Color(0.55, 0.50, 0.44, fade * 0.5))
+
+
+func _cell_center(cell: Vector2i, o: Vector2, c: float) -> Vector2:
+	return o + Vector2((float(cell.x) + 0.5) * c, (float(cell.y) + 0.5) * c)
 
 
 # Ein Stack-Token: Seiten-Scheibe + Ring, darauf das Einheiten-Sprite
@@ -949,6 +1190,8 @@ func _on_grid_input(event: InputEvent) -> void:
 
 	if _reachable.has(cell) and cell != Vector2i(active["pos"]):
 		active["tiles_moved"] = int(_reachable.get(cell, 0))
+		Vfx.moved(_fx, Vector2i(active["pos"]), cell,
+			String(active["type"]), 0)
 		active["pos"] = cell
 		_set_action("Held %s bewegt sich." % UnitType.short_of(String(active["type"])))
 		_build_reachable()
@@ -986,6 +1229,7 @@ func _try_attack_enemy(e_idx: int) -> void:
 			_set_action("Held %s: keine Schusslinie (Stein im Weg)." % atk_s)
 			return
 		var adjacent: bool = _adj(apos, epos)
+		_fx_delay = Vfx.shot(_fx, apos, epos)
 		# Doppelschuss (Erz-Elfen) feuert zweimal - kostet 2 Munition.
 		var volleys: int = Abil.attacks_per_turn(uid, true)
 		var dmg: int = 0
@@ -1005,6 +1249,7 @@ func _try_attack_enemy(e_idx: int) -> void:
 			extra += _luck_suffix()
 			extra += _roll_status(uid, estack)
 			extra += _apply_aoe(uid, estack, d1)
+		_fx_delay = 0.0
 		var suffix: String = "  (halb: Baumstamm)" if bool(mod["halve"]) else ""
 		var shot_txt: String = "%d Sch., -%d" % [dmg, killed]
 		if fired > 1:
@@ -1033,6 +1278,7 @@ func _try_attack_enemy(e_idx: int) -> void:
 		return
 	# Anmarsch zaehlt fuer den Jousting-Bonus.
 	active["tiles_moved"] = best_d
+	Vfx.moved(_fx, Vector2i(active["pos"]), best, String(active["type"]), 0)
 	active["pos"] = best
 	_set_action("Held %s vor -> %s: %s" % [atk_s, def_s, _melee_exchange(active, estack)])
 	_end_player_turn()
@@ -1081,6 +1327,7 @@ func _claim_morale_extra(side: int, idx: int) -> bool:
 		if int(_turn_order[i]["side"]) == side and int(_turn_order[i]["idx"]) == idx:
 			s["morale_extra_used"] = true
 			_active_slot = i
+			Vfx.popup(_fx, Vector2i(s["pos"]), "Moral!", Color(0.55, 1.0, 0.65))
 			_set_action("Moral! %s %s zieht nochmal." % [
 				"Held" if side == 0 else "Feind", UnitType.short_of(String(s["type"]))])
 			return true
@@ -1128,6 +1375,8 @@ func _ai_turn() -> void:
 		var mod: Dictionary = Obstacles.line_modifier(_obstacles, epos, tpos)
 		if not bool(mod["blocked"]):
 			var adjacent: bool = _adj(epos, tpos)
+			_fx_delay = Vfx.time_left_of(_fx, Vfx.MOVE) \
+				+ Vfx.shot(_fx, epos, tpos)
 			var volleys: int = Abil.attacks_per_turn(uid, true)
 			var dmg: int = 0
 			var killed: int = 0
@@ -1199,6 +1448,7 @@ func _ai_turn() -> void:
 		if atk_cell != epos:
 			# Anmarsch-Distanz merken (Jousting-Bonus).
 			estack["tiles_moved"] = int(dist_map.get(atk_cell, 0))
+			Vfx.moved(_fx, epos, atk_cell, String(estack["type"]), 1)
 			estack["pos"] = atk_cell
 			epos = atk_cell
 		var def_s2: String = UnitType.short_of(String(atk_target["type"]))
@@ -1220,6 +1470,7 @@ func _ai_turn() -> void:
 				best_step = cv
 		if best_step != epos:
 			estack["tiles_moved"] = int(dist_map.get(best_step, 0))
+			Vfx.moved(_fx, epos, best_step, String(estack["type"]), 1)
 			estack["pos"] = best_step
 			_set_action("Feind %s bewegt sich." % atk_s)
 		else:
@@ -1324,6 +1575,13 @@ func _dmg(attacker: Dictionary, defender: Dictionary, melee_penalty: bool) -> in
 		_last_luck = Mor.luck_factor(luck, _rng)
 		if _last_luck != 1.0:
 			dmg = max(1, int(float(dmg) * _last_luck))
+			# Einblendung am ZIEL, weil dort auch die Schadenszahl steht.
+			if _last_luck > 1.0:
+				Vfx.popup(_fx, Vector2i(defender["pos"]), "Glueck!",
+					Color(1.0, 0.88, 0.35))
+			else:
+				Vfx.popup(_fx, Vector2i(defender["pos"]), "Pech!",
+					Color(0.70, 0.72, 0.78))
 	return dmg
 
 
@@ -1336,8 +1594,23 @@ func _luck_suffix() -> String:
 	return ""
 
 
+# EINZIGER Trichter fuer Schaden an einem Stack - Nahkampf, Konter,
+# Schuss, Todeswolke, Pfeilturm laufen alle hier durch. Deshalb sitzen die
+# Treffer-Effekte hier und nicht an zehn Aufrufstellen: eine Quelle, kein
+# vergessener Zweig.
 func _apply_dmg(stack: Dictionary, dmg: int) -> int:
-	return CombatMath.apply(stack, dmg)
+	var at: Vector2i = Vector2i(stack["pos"])
+	var side: int = int(stack.get("side", 1))
+	var before: int = int(stack["count"])
+	var killed: int = CombatMath.apply(stack, dmg)
+	var col: Color = FX_COL_PLAYER_HURT if side == 0 else FX_COL_ENEMY_HURT
+	Vfx.hit(_fx, at, dmg, col, _fx_delay)
+	# Stack ist gerade gefallen -> Zerfall. Der Effekt traegt Typ und Seite
+	# selbst, damit _draw_effects die Einheit noch zeichnen kann, obwohl
+	# ihr count schon 0 ist.
+	if before > 0 and int(stack["count"]) <= 0:
+		Vfx.died(_fx, at, String(stack["type"]), side, _fx_delay)
+	return killed
 
 
 func _check_end() -> bool:

@@ -107,6 +107,11 @@ jobs:
           ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
             --headless --path game/ --script tools/test_garrison.gd
 
+      - name: Effekt-Tests (Kampf-Animationen, Test-Bremse)
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/test_battle_vfx.gd
+
       - name: Balance-Simulator (informativ, bricht nicht)
         continue-on-error: true
         run: |

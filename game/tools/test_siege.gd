@@ -74,6 +74,9 @@ func _test_wall_layout() -> void:
 
 func _siege_screen(player: Array, enemy: Array, tower: int = 0):
 	var bs = TBS.new()
+	# Effekte aus (It. 17): mit fx_speed > 0 wartet die Zugkette auf
+	# Animationen, die headless nie ankommen -> Test haengt.
+	bs.fx_speed = 0.0
 	bs.size = Vector2(1080, 1920)
 	root.add_child(bs)
 	bs.set_battle({

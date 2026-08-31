@@ -70,6 +70,9 @@ func _test_sprite_coverage() -> void:
 	_check(missing.is_empty(), "alle 28 Token vorhanden (fehlen: %s)" % str(missing))
 	# Und der Screen findet sie auch ueber seinen Cache-Pfad.
 	var bs = TBS.new()
+	# Effekte aus (It. 17): mit fx_speed > 0 wartet die Zugkette auf
+	# Animationen, die headless nie ankommen -> Test haengt.
+	bs.fx_speed = 0.0
 	root.add_child(bs)
 	var no_tex: Array = []
 	for uid in UnitType.all_ids():
@@ -83,6 +86,9 @@ func _test_sprite_coverage() -> void:
 func _test_layout() -> void:
 	print("== Kampf-Layout ==")
 	var bs = TBS.new()
+	# Effekte aus (It. 17): mit fx_speed > 0 wartet die Zugkette auf
+	# Animationen, die headless nie ankommen -> Test haengt.
+	bs.fx_speed = 0.0
 	bs.size = Vector2(1080, 1920)
 	root.add_child(bs)
 	await process_frame
@@ -320,6 +326,9 @@ func _st(uid: String, count: int = 5) -> Dictionary:
 func _test_morale_combat() -> void:
 	print("== Kampf-Screen: Moral + Glueck in Aktion ==")
 	var bs = TBS.new()
+	# Effekte aus (It. 17): mit fx_speed > 0 wartet die Zugkette auf
+	# Animationen, die headless nie ankommen -> Test haengt.
+	bs.fx_speed = 0.0
 	bs.size = Vector2(1080, 1920)
 	root.add_child(bs)
 	await process_frame
@@ -400,6 +409,9 @@ func _test_morale_combat() -> void:
 func _test_status_combat() -> void:
 	print("== Kampf-Screen: Status-Effekte in Aktion ==")
 	var bs = TBS.new()
+	# Effekte aus (It. 17): mit fx_speed > 0 wartet die Zugkette auf
+	# Animationen, die headless nie ankommen -> Test haengt.
+	bs.fx_speed = 0.0
 	bs.size = Vector2(1080, 1920)
 	root.add_child(bs)
 	await process_frame
@@ -476,6 +488,9 @@ func _test_limited_shots() -> void:
 	print("== TacticalBattleScreen: begrenzte Schuesse ==")
 	# Variant statt Control: dynamischer Zugriff auf Screen-Interna.
 	var bs = TBS.new()
+	# Effekte aus (It. 17): mit fx_speed > 0 wartet die Zugkette auf
+	# Animationen, die headless nie ankommen -> Test haengt.
+	bs.fx_speed = 0.0
 	bs.size = Vector2(1080, 1920)
 	root.add_child(bs)   # _ready baut HUD
 	await process_frame  # Node muss im Tree sein (AI-Step nutzt get_tree)
@@ -522,6 +537,9 @@ func _test_limited_shots() -> void:
 func _test_ability_combat() -> void:
 	print("== Kampf-Screen: Abilities in Aktion ==")
 	var bs = TBS.new()
+	# Effekte aus (It. 17): mit fx_speed > 0 wartet die Zugkette auf
+	# Animationen, die headless nie ankommen -> Test haengt.
+	bs.fx_speed = 0.0
 	bs.size = Vector2(1080, 1920)
 	root.add_child(bs)
 	await process_frame
