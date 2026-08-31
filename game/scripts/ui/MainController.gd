@@ -2,10 +2,25 @@ extends Control
 
 # Titel-Screen. Einstiegspunkte:
 # - Fortsetzen: laedt den Autosave (nur sichtbar, wenn einer existiert)
-# - Weltkarte: neues Spiel
-# - Kampf-Test: Auto-Battle-Replay zur Verifikation der Battle-Engine
+# - Neues Spiel: Fraktionswahl + Seed
+# - Anleitung: die Spielregeln (It. 46)
+#
+# Der dritte Knopf hiess bis It. 46 "Kampf-Test" und fuehrte in
+# scenes/Battle.tscn - ein Auto-Battle-Replay aus der Zeit VOR dem
+# Taktik-Kampf (M4), mit fest verdrahteter Demo-Armee. Ein
+# Entwickler-Werkzeug im Spielermenue ist eine Sackgasse; Szene und
+# Skript sind mit dem Knopf gegangen (gleiche Begruendung wie das
+# Loeschen von preview_battle.gd in It. 36).
 
 const SaveLib := preload("res://scripts/core/SaveManager.gd")
+const Manual := preload("res://scripts/core/Manual.gd")
+const ManualPanel := preload("res://scripts/ui/ManualPanel.gd")
+# NUR fuer die Zahlen der Anleitung: sie muessen aus den Konstanten
+# kommen, die sie im Spiel bestimmen, sonst luegt die Anleitung nach der
+# ersten Balance-Aenderung. Das Skript wird dabei nicht instanziiert.
+const WMS := preload("res://scripts/ui/WorldMapScreen.gd")
+const TBS := preload("res://scripts/ui/TacticalBattleScreen.gd")
+const Spl := preload("res://scripts/core/HeroSpells.gd")
 
 # Muss zur Reihenfolge in WorldMapScreen.FACTION_NAMES passen.
 const FACTIONS := ["Waldvolk", "Menschen", "Totenreich", "Orks"]
@@ -17,21 +32,27 @@ const FACTION_COLORS := [
 ]
 
 @export var worldmap_button_path: NodePath = ^"WorldMapBtn"
-@export var battle_button_path: NodePath   = ^"BattleBtn"
+@export var help_button_path: NodePath     = ^"HelpBtn"
+
+# Untertitel des Titelschirms. Bis It. 46 stand hier "MVP - Linux/..." -
+# das Spiel hat sich selbst als Prototyp vorgestellt und die
+# Geraetekennung des Entwicklers mitgeliefert.
+const SUBTITLE := "Vier Fraktionen, eine Landkarte, ein Heer"
 
 var _new_game_panel: Panel
 var _seed_edit: LineEdit
+var _help_panel: Panel
 
 func _ready() -> void:
 	var wbtn := get_node_or_null(worldmap_button_path) as Button
 	if wbtn != null:
 		wbtn.pressed.connect(_on_worldmap_pressed)
-	var bbtn := get_node_or_null(battle_button_path) as Button
-	if bbtn != null:
-		bbtn.pressed.connect(_on_battle_pressed)
+	var hbtn := get_node_or_null(help_button_path) as Button
+	if hbtn != null:
+		hbtn.pressed.connect(_on_help_pressed)
 	var sub := get_node_or_null(^"Subtitle") as Label
 	if sub != null:
-		sub.text = "MVP - %s / %s" % [OS.get_name(), OS.get_model_name()]
+		sub.text = SUBTITLE
 	# "Fortsetzen" dynamisch ueber dem Weltkarte-Button einfuegen, damit
 	# die .tscn unveraendert bleibt. Nur zeigen, wenn ein Autosave existiert.
 	if SaveLib.has_autosave() and wbtn != null:
@@ -66,8 +87,23 @@ func _on_worldmap_pressed() -> void:
 		_build_new_game_panel()
 	_new_game_panel.visible = true
 
-func _on_battle_pressed() -> void:
-	get_tree().change_scene_to_file("res://scenes/Battle.tscn")
+# --- Anleitung (It. 46) --------------------------------------------------
+
+# Die Zahlen der Anleitung, EINMAL aus ihren Quellen gelesen.
+static func manual_numbers() -> Dictionary:
+	return Manual.numbers(
+		WMS.MAX_HEROES,
+		int((WMS.HERO_HIRE_COST as Dictionary).get("gold", 0)),
+		WMS.LOSS_GRACE_DAYS,
+		Hero.MAX_ARMY_SLOTS,
+		TBS.GRID_COLS, TBS.GRID_ROWS,
+		Spl.CASTS_PER_ROUND)
+
+
+func _on_help_pressed() -> void:
+	if _help_panel == null:
+		_help_panel = ManualPanel.build(self, manual_numbers())
+	_help_panel.visible = true
 
 
 # --- Neues-Spiel-Dialog (M2): Fraktionswahl + Seed ---
@@ -161,3 +197,4 @@ func _on_faction_chosen(fid: int) -> void:
 	if sm != null:
 		sm.pending_new_game = {"seed": seed_val, "faction": fid}
 	get_tree().change_scene_to_file("res://scenes/WorldMap.tscn")
+

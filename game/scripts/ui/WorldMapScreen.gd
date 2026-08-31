@@ -26,6 +26,12 @@ const Move := preload("res://scripts/core/Movement.gd")
 # Kreatur-Sprites fuers Heldenblatt (It. 29) - dieselben 28 SVGs wie im
 # Kampf, aufgeloest in core/UnitArt.gd.
 const UnitArt := preload("res://scripts/core/UnitArt.gd")
+# Anleitung (It. 46). ManualPanel preloadet KEINEN Screen, sonst gaebe es
+# hier einen Preload-Kreis.
+const Manual := preload("res://scripts/core/Manual.gd")
+const ManualPanel := preload("res://scripts/ui/ManualPanel.gd")
+# NUR fuer die Gitter-Zahlen der Anleitung.
+const TBS := preload("res://scripts/ui/TacticalBattleScreen.gd")
 const Abil := preload("res://scripts/core/Abilities.gd")
 
 # Weltkarten-Screen. Rendert eine deterministische Zufallskarte per
@@ -349,7 +355,7 @@ const MARKET_SELL := {"wood": 50, "ore": 50, "mercury": 150, "sulfur": 150, "cry
 @export var status_label_path: NodePath    = ^"TopBar/StatusLabel"
 @export var mp_label_path: NodePath        = ^"TopBar/MPLabel"
 @export var end_turn_button_path: NodePath = ^"BottomBar/EndTurnBtn"
-@export var reroll_button_path: NodePath   = ^"BottomBar/RerollBtn"
+@export var help_button_path: NodePath     = ^"BottomBar/HelpBtn"
 @export var back_button_path: NodePath     = ^"BottomBar/BackBtn"
 @export var map_area_path: NodePath        = ^"MapArea"
 @export var minimap_path: NodePath         = ^"Minimap"
@@ -514,7 +520,9 @@ func _ready() -> void:
 	_build_victory_panel()
 
 	(get_node(end_turn_button_path) as Button).pressed.connect(_on_end_turn)
-	(get_node(reroll_button_path) as Button).pressed.connect(_on_reroll)
+	var help_btn := get_node_or_null(help_button_path) as Button
+	if help_btn != null:
+		help_btn.pressed.connect(_on_help)
 	(get_node(back_button_path) as Button).pressed.connect(_on_back)
 	_set_status("STEP 2: Buttons verdrahtet")
 
@@ -3398,6 +3406,7 @@ var _xchg_panel: Panel = null
 var _xchg_rows: VBoxContainer = null
 var _xchg_title: Label = null
 var _xchg_other: int = -1
+var _help_panel: Panel = null
 
 
 func _open_army_exchange(other_idx: int) -> void:
@@ -4951,12 +4960,39 @@ func _on_city_defense_result(result: Dictionary, city_idx: int, ai_idx: int,
 	_advance_ai_phase(next_idx)
 
 
-func _on_reroll() -> void:
-	_start(_seed + 1, _player_faction)
+# An dieser Stelle sass bis It. 46 "Neue Karte": ein Knopf, der das
+# laufende Spiel OHNE Rueckfrage und ohne zu speichern durch `_start(seed
+# + 1)` ersetzt hat. Ein Fehlgriff auf dem Handy kostete damit dreissig
+# Zuege. Neue Spiele gehoeren ins Hauptmenue (dort mit Fraktions- und
+# Seed-Wahl), und nach Sieg/Niederlage bieten die Panels es ohnehin an.
+# Der Platz traegt jetzt die Anleitung - mitten im Spiel ist sie
+# nuetzlicher als ein Neustart.
+func _on_help() -> void:
+	if _help_panel == null:
+		_help_panel = ManualPanel.build(self, Manual.numbers(
+			MAX_HEROES,
+			int(HERO_HIRE_COST.get("gold", 0)),
+			LOSS_GRACE_DAYS,
+			Hero.MAX_ARMY_SLOTS,
+			TBS.GRID_COLS, TBS.GRID_ROWS,
+			Spells.CASTS_PER_ROUND))
+	_help_panel.visible = true
+	Sound.play("ui_tap")
 
 
 func _on_back() -> void:
+	# ERST SICHERN. Vorher ging der Weg ins Hauptmenue ohne Speichern, und
+	# alles seit dem letzten Tagesende war weg - auf einem Handy ist
+	# "kurz rausgehen" der Normalfall, nicht die Ausnahme.
+	_save_now()
 	get_tree().change_scene_to_file("res://scenes/Main.tscn")
+
+
+# EIN Ort fuers Sichern. Nach Sieg oder Niederlage NICHT mehr speichern -
+# dort ist der Spielstand absichtlich geloescht.
+func _save_now() -> void:
+	if _hero != null and not _game_won and not _game_lost:
+		SaveLib.write_save(_capture_state())
 
 
 # ====================== Save/Load (M1) ======================
@@ -5119,5 +5155,4 @@ func _restore_state(d: Dictionary) -> bool:
 # WM_CLOSE_REQUEST beim regulaeren Beenden.
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_WM_CLOSE_REQUEST:
-		if _hero != null and not _game_won and not _game_lost:
-			SaveLib.write_save(_capture_state())
+		_save_now()

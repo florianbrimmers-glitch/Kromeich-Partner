@@ -58,9 +58,9 @@ offset_top = 800.0
 offset_right = 240.0
 offset_bottom = 900.0
 grow_horizontal = 2
-text = "Weltkarte"
+text = "Neues Spiel"
 
-[node name="BattleBtn" type="Button" parent="."]
+[node name="HelpBtn" type="Button" parent="."]
 layout_mode = 1
 anchors_preset = 5
 anchor_left = 0.5
@@ -70,4 +70,4 @@ offset_top = 920.0
 offset_right = 240.0
 offset_bottom = 1020.0
 grow_horizontal = 2
-text = "Kampf-Test"
+text = "Anleitung"

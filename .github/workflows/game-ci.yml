@@ -152,6 +152,11 @@ jobs:
           ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
             --headless --path game/ --script tools/test_multi_hero.gd
 
+      - name: Menue-Tests (Titelschirm, Anleitung, Speichern beim Verlassen)
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/test_menu.gd
+
       - name: Durchspiel-Test (Weltkarte -> Kampf -> Callback -> Weltkarte)
         run: |
           ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
