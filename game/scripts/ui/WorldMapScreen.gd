@@ -311,7 +311,37 @@ const MARKET_SELL := {"wood": 50, "ore": 50, "mercury": 150, "sulfur": 150, "cry
 @export var hero_button_path: NodePath     = ^"TopBar/HeroBtn"
 
 var _map: Dictionary
-var _hero: Hero
+
+# --- Helden (M13a) --------------------------------------------------------
+# Der Spieler hat eine LISTE von Helden; `_active_hero` zeigt auf den, den
+# er gerade steuert. `_hero` ist nur noch ein GETTER darauf.
+#
+# Warum so: `_hero` kommt in dieser Datei rund 160 Mal vor, aber es gab nur
+# ZWEI Schreibzugriffe auf die Variable selbst. Als Getter bleiben damit
+# alle Lesestellen (position, mp, army, xp, skills, mana, ...) unveraendert
+# gueltig, und der Umbau beruehrt nur die Stellen, die es wirklich angeht.
+#
+# In dieser Iteration existiert genau EIN Held - das Spiel muss sich
+# verhalten wie vorher. Anwerben, Wechsel-Knopf und Armee-Tausch kommen in
+# M13b.
+var _heroes: Array = []
+var _active_hero: int = 0
+
+# ACHTUNG: In Kampf-Callbacks (die Lambdas in `_open_battle`) NICHT `_hero`
+# lesen, sondern den beim Oeffnen gemerkten Helden. Der aktive Held kann
+# zwischen Kampfbeginn und Callback wechseln - mit einem Helden ist das
+# harmlos, ab zwei ein Fehler, der nur manchmal auftritt.
+var _hero: Hero:
+	get:
+		if _active_hero < 0 or _active_hero >= _heroes.size():
+			return null   # 16 null-Pruefungen im Code verlassen sich darauf
+		return _heroes[_active_hero] as Hero
+
+# Geldbeutel des SPIELERS, nicht des Helden (M13a). Vorher lag er in
+# `Hero.wallet` - mit zwei Helden waere "welcher Held haelt das Gold" sofort
+# ein Fehler. Die KI behaelt ihren Beutel im Helden: jede KI hat genau einen.
+var _purse: Wallet = Wallet.new()
+
 var _seed: int = 42
 var _costs: Dictionary = {}
 var _tile_size: float = 64.0
@@ -617,12 +647,15 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 		"hero_spawn": spawn,
 	}
 	_set_status("STEP 4: MapGen fertig, spawn %s" % str(spawn))
-	_hero = Hero.new(spawn, BASE_MAX_MP)
+	_heroes = [Hero.new(spawn, BASE_MAX_MP)]
+	_active_hero = 0
 	# Mana startet voll (M8). Der Deckel leitet sich aus dem Wissen ab,
 	# bei Stufe 1 ist das der Grundstock.
 	_hero.mana = Spells.max_mana(int(_hero.knowledge))
-	_hero.gold = STARTING_GOLD
-	_hero.wallet.add_all(STARTING_RESOURCES)
+	# Der Beutel gehoert dem Spieler (M13a), nicht dem Helden.
+	_purse = Wallet.new()
+	_purse.set_amount("gold", STARTING_GOLD)
+	_purse.add_all(STARTING_RESOURCES)
 	# Start-Einheiten haengen an der Fraktion - die ergibt sich erst,
 	# wenn die Start-Stadt gewaehlt ist. Siehe player_start_idx unten.
 	_set_status("STEP 5: Hero erstellt")
@@ -943,8 +976,16 @@ func _recompute_fog_player() -> void:
 	for i in range(total):
 		if int(arr[i]) == FOG_VISIBLE:
 			arr[i] = FOG_EXPLORED
-	if _hero != null:
-		_fog_mark(arr, _hero.position, _hero_sight())
+	# JEDER eigene Held deckt auf (M13a) - nicht nur der aktive. Sonst
+	# sieht der Spieler beim Umschalten die Umgebung seines anderen Helden
+	# nicht mehr, und der Nebel wechselt bei jedem Wechsel das Bild. Das
+	# ist der Fehler, den der Save-Roundtrip-Test gefunden hat: einmal
+	# aufgezeichnet mit Held A als aktivem, einmal mit B - zwei
+	# verschiedene Nebelbilder.
+	for h in _heroes:
+		var ph: Hero = h as Hero
+		if ph != null:
+			_fog_mark(arr, ph.position, _hero_sight_of(ph))
 	for city in _cities:
 		if int(city["owner"]) == OWNER_HERO:
 			_fog_mark(arr, Vector2i(city["pos"]), CITY_SIGHT)
@@ -1201,11 +1242,11 @@ func _update_labels() -> void:
 		line1.append("OHNE STADT: %d Tage" % grace)
 	# Ressourcen: nur Bestaende ungleich null, sonst wird die Zeile auf
 	# schmalen Displays zu lang.
-	var line2: Array = ["%d Gold" % int(_hero.gold)]
+	var line2: Array = ["%d Gold" % _purse.get_amount("gold")]
 	for rid in Wallet.RESOURCE_IDS:
 		if rid == "gold":
 			continue
-		var amt: int = _hero.wallet.get_amount(rid)
+		var amt: int = _purse.get_amount(rid)
 		if amt > 0:
 			line2.append("%d %s" % [amt, Wallet.short_name(rid)])
 	line2.append("%d XP" % int(_hero.xp))
@@ -1252,7 +1293,7 @@ func _apply_week_event_start() -> void:
 	if own <= 0:
 		return
 	var gold: int = own * WeekFx.HARVEST_GOLD_PER_CITY
-	_hero.gold += gold
+	_purse.add("gold", gold)
 	_turn_income += gold
 
 
@@ -1576,17 +1617,34 @@ func _draw_map() -> void:
 			_map_area.draw_string(mfont, op2 + Vector2(2, 2), otxt, HORIZONTAL_ALIGNMENT_CENTER, -1, osize, Color(0, 0, 0, 0.8))
 			_map_area.draw_string(mfont, op2, otxt, HORIZONTAL_ALIGNMENT_CENTER, -1, osize, ocol)
 
-	var hero_px := origin + Vector2(_hero.position.x * _tile_size, _hero.position.y * _tile_size)
-	var center := hero_px + Vector2(_tile_size * 0.5, _tile_size * 0.5)
-	var radius := _tile_size * 0.35
-	# Held als Sprite, sonst gelber Kreis-Fallback.
+	# ALLE eigenen Helden zeichnen (M13a). Der aktive bekommt den gelben
+	# Ring - ohne ihn waere bei mehreren Helden nicht zu sehen, wen ein Tap
+	# bewegt. Die inaktiven werden leicht abgedunkelt.
 	var hero_tex: Texture2D = _world_texture("units/hero.svg")
-	if hero_tex != null:
-		var hrect := Rect2(hero_px, Vector2(_tile_size - 1.0, _tile_size - 1.0))
-		_map_area.draw_texture_rect(hero_tex, hrect, false)
-	else:
-		_map_area.draw_circle(center, radius, Color(1.0, 0.85, 0.2))
-		_map_area.draw_arc(center, radius, 0.0, TAU, 24, Color(0.2, 0.15, 0.05), 2.0)
+	# EIN Radius fuer alle Helden-Marker (Spieler UND KI). Er stand vor dem
+	# Umbau als `radius` vor dem Spieler-Block und wurde vom KI-Block
+	# mitbenutzt; in der Schleife waere er lokal und der KI-Block saehe ihn
+	# nicht mehr.
+	var marker_radius: float = _tile_size * 0.35
+	for hi in range(_heroes.size()):
+		var ph: Hero = _heroes[hi] as Hero
+		if ph == null:
+			continue
+		var active: bool = (hi == _active_hero)
+		var hero_px := origin + Vector2(ph.position.x * _tile_size,
+			ph.position.y * _tile_size)
+		var center := hero_px + Vector2(_tile_size * 0.5, _tile_size * 0.5)
+		if hero_tex != null:
+			var hrect := Rect2(hero_px, Vector2(_tile_size - 1.0, _tile_size - 1.0))
+			_map_area.draw_texture_rect(hero_tex, hrect, false,
+				Color.WHITE if active else Color(0.72, 0.72, 0.76))
+		else:
+			_map_area.draw_circle(center, marker_radius, Color(1.0, 0.85, 0.2))
+			_map_area.draw_arc(center, marker_radius, 0.0, TAU, 24,
+				Color(0.2, 0.15, 0.05), 2.0)
+		if active and _heroes.size() > 1:
+			_map_area.draw_arc(center, marker_radius + 4.0, 0.0, TAU, 28,
+				Color(1.0, 0.9, 0.3), 4.0)
 
 	# KI-Helden: pro KI entweder voller Marker (in Sicht) oder Ghost an
 	# zuletzt bekannter Position (Alpha ueber FOG_ROT_TURNS verblassend).
@@ -1609,8 +1667,8 @@ func _draw_map() -> void:
 					var erect := Rect2(epx, Vector2(_tile_size - 1.0, _tile_size - 1.0))
 					_map_area.draw_texture_rect(enemy_tex, erect, false, efill)
 				else:
-					_map_area.draw_circle(ecenter, radius, efill)
-					_map_area.draw_arc(ecenter, radius, 0.0, TAU, 24, ering, 2.0)
+					_map_area.draw_circle(ecenter, marker_radius, efill)
+					_map_area.draw_arc(ecenter, marker_radius, 0.0, TAU, 24, ering, 2.0)
 				var earmy: int = eh.total_count()
 				var etxt: String = str(earmy)
 				var ecol: Color
@@ -1638,8 +1696,8 @@ func _draw_map() -> void:
 		var alpha: float = 1.0 - float(since) / float(FOG_ROT_TURNS)
 		var gpx := origin + Vector2(lpos.x * _tile_size, lpos.y * _tile_size)
 		var gcenter := gpx + Vector2(_tile_size * 0.5, _tile_size * 0.5)
-		_map_area.draw_circle(gcenter, radius, Color(efill.r, efill.g, efill.b, 0.35 * alpha))
-		_map_area.draw_arc(gcenter, radius, 0.0, TAU, 24, Color(efill.r, efill.g, efill.b, alpha), 2.0)
+		_map_area.draw_circle(gcenter, marker_radius, Color(efill.r, efill.g, efill.b, 0.35 * alpha))
+		_map_area.draw_arc(gcenter, marker_radius, 0.0, TAU, 24, Color(efill.r, efill.g, efill.b, alpha), 2.0)
 		var qsize: int = int(_tile_size * 0.5)
 		var qs := mfont.get_string_size("?", HORIZONTAL_ALIGNMENT_CENTER, -1, qsize)
 		var qpos := gcenter + Vector2(-qs.x * 0.5, qs.y * 0.35)
@@ -1995,6 +2053,16 @@ func _handle_tap(pos: Vector2) -> void:
 		_set_status("Tap ausserhalb (%d,%d)" % [tx, ty])
 		return
 	var target := Vector2i(tx, ty)
+
+	# Tap auf einen ANDEREN eigenen Helden: umschalten statt hinlaufen
+	# (M13a). Steht dort der aktive Held selbst, faellt der Tap durch - er
+	# kann auf einer eigenen Stadt stehen, und dann soll das Stadt-Panel
+	# aufgehen.
+	var tapped_hero: int = _hero_index_at(target)
+	if tapped_hero >= 0 and tapped_hero != _active_hero:
+		_switch_hero(tapped_hero)
+		return
+
 	var target_city_idx: int = _city_at(target)
 	# Eigene Stadt:
 	#   - Held steht drauf            -> Panel oeffnen
@@ -2103,14 +2171,14 @@ func _handle_tap(pos: Vector2) -> void:
 			obj2["owner"] = OWNER_HERO
 		elif okind2 == OBJECT_TREASURE:
 			var reward: int = int(obj2["gold"])
-			_hero.gold += reward
+			_purse.add("gold", reward)
 			_objects.remove_at(obj_idx)
 			Sound.play("coin")
 			_set_combat("Schatz gefunden: +%d G" % reward)
 		elif okind2 == OBJECT_PILE:
 			var pres: String = String(obj2.get("resource", "gold"))
 			var pamt: int = int(obj2["gold"])
-			_hero.wallet.add(pres, pamt)
+			_purse.add(pres, pamt)
 			_objects.remove_at(obj_idx)
 			Sound.play("resource")
 			_set_combat("Gefunden: +%d %s" % [pamt, Wallet.display_name(pres)])
@@ -2148,6 +2216,30 @@ func _city_at(p: Vector2i) -> int:
 		if _cities[i]["pos"] == p:
 			return i
 	return -1
+
+
+# --- Helden-Wechsel (M13a) ------------------------------------------------
+
+# Index des eigenen Helden auf diesem Feld, oder -1.
+func _hero_index_at(p: Vector2i) -> int:
+	for i in range(_heroes.size()):
+		var h: Hero = _heroes[i] as Hero
+		if h != null and h.position == p:
+			return i
+	return -1
+
+
+# Aktiven Helden wechseln. Die Reichweite MUSS neu gerechnet werden: sie
+# haengt an Position, Bewegungspunkten und Wegfindung des Helden.
+func _switch_hero(idx: int) -> void:
+	if idx < 0 or idx >= _heroes.size() or idx == _active_hero:
+		return
+	_active_hero = idx
+	_recompute_costs()
+	_update_labels()
+	_request_redraw()
+	Sound.play("ui_tap")
+	_set_status("Held %d von %d gewaehlt" % [idx + 1, _heroes.size()])
 
 
 # --- Wandernde Monster (It. 35) -------------------------------------------
@@ -2502,7 +2594,7 @@ func _on_monster_result(result: Dictionary, mon_pos: Vector2i, target: Vector2i,
 	var mstr: int = int(_monsters[mon_idx]["strength"])
 	var cas: int = _count_casualties(result)
 	_apply_casualties(result)
-	_hero.gold += MONSTER_VICTORY_GOLD
+	_purse.add("gold", MONSTER_VICTORY_GOLD)
 	var xp_gain: int = mstr * XP_PER_STRENGTH
 	_hero.xp += xp_gain
 	var leveled: bool = _check_level_up()
@@ -2530,7 +2622,7 @@ func _on_enemy_hero_result(result: Dictionary, target: Vector2i, cost: int, targ
 		return
 	var cas: int = _count_casualties(result)
 	_apply_casualties(result)
-	_hero.gold += ENEMY_DEFEAT_GOLD
+	_purse.add("gold", ENEMY_DEFEAT_GOLD)
 	_hero.xp += ENEMY_DEFEAT_XP
 	var leveled: bool = _check_level_up()
 	if ai_idx >= 0 and ai_idx < _enemies.size():
@@ -2585,13 +2677,13 @@ func _on_object_result(result: Dictionary, obj_pos: Vector2i, target: Vector2i, 
 		obj["owner"] = OWNER_HERO
 	elif okind == OBJECT_TREASURE:
 		var reward: int = int(obj["gold"])
-		_hero.gold += reward
+		_purse.add("gold", reward)
 		_objects.remove_at(obj_idx)
 		_set_combat("Schatz gefunden: +%d G (Wache -%d A)" % [reward, cas])
 	elif okind == OBJECT_PILE:
 		var pres: String = String(obj.get("resource", "gold"))
 		var pamt: int = int(obj["gold"])
-		_hero.wallet.add(pres, pamt)
+		_purse.add(pres, pamt)
 		_objects.remove_at(obj_idx)
 		_set_combat("Gefunden: +%d %s (Wache -%d A)" % [pamt, Wallet.display_name(pres), cas])
 	_finish_move_to(target, cost)
@@ -2879,7 +2971,7 @@ func _hero_stats_text() -> String:
 		"Zauberkraft %d   Wissen %d   Mana %d/%d" % [
 			int(_hero.spell_power), int(_hero.knowledge),
 			int(_hero.mana), _hero_max_mana()],
-		"%d Gold   Armee %d" % [int(_hero.gold), _hero.total_count()],
+		"%d Gold   Armee %d" % [_purse.get_amount("gold"), _hero.total_count()],
 	]
 	if not _hero.skills.is_empty():
 		var parts: Array = []
@@ -2973,11 +3065,20 @@ func _on_skill_picked(skill_id: String) -> void:
 # Tageswechsel; mit dem Skill muss sie auch nach einer Wahl neu laufen,
 # sonst wirkt Logistik erst am naechsten Tag.
 func _recalc_max_mp() -> void:
+	# Alle Helden (M13a): Spaeher-Gebaeude gelten fuer den ganzen Spieler,
+	# Stufe und Logistik sind pro Held verschieden.
+	for h in _heroes:
+		_recalc_max_mp_of(h as Hero)
+
+
+func _recalc_max_mp_of(h: Hero) -> void:
+	if h == null:
+		return
 	var base_mp: int = BASE_MAX_MP \
 		+ MP_BONUS_SPAEHER * _count_own_buildings("spaeher") \
-		+ LEVEL_BONUS_MP * max(0, _hero.level - 1)
-	var pct: int = Skills.move_pct(_hero.skills)
-	_hero.max_mp = base_mp + int(round(float(base_mp) * float(pct) / 100.0))
+		+ LEVEL_BONUS_MP * max(0, h.level - 1)
+	var pct: int = Skills.move_pct(h.skills)
+	h.max_mp = base_mp + int(round(float(base_mp) * float(pct) / 100.0))
 
 
 
@@ -3089,7 +3190,7 @@ func _visit_bonus_object(obj: Dictionary) -> String:
 		wrng.seed = _seed * 31 + wp.x * 7919 + wp.y * 104729 + week * 1299709
 		var res: String = String(RARE_RESOURCES[wrng.randi_range(0, RARE_RESOURCES.size() - 1)])
 		var amt: int = wrng.randi_range(WINDMILL_MIN, WINDMILL_MAX)
-		_hero.wallet.add(res, amt)
+		_purse.add(res, amt)
 		_update_labels()
 		return "Windmuehle: +%d %s" % [amt, Wallet.display_name(res)]
 
@@ -3107,14 +3208,30 @@ const MANA_REGEN_PER_DAY := 1
 
 
 func _regen_mana() -> void:
-	var cap: int = _hero_max_mana()
-	var gain: int = MANA_REGEN_PER_DAY + Skills.mana_regen(_hero.skills)
-	_hero.mana = clampi(int(_hero.mana) + gain, 0, cap)
+	# Jeder Held regeneriert sein eigenes Mana (M13a): Deckel und Zuwachs
+	# haengen an Wissen und Mystizismus, also am einzelnen Helden.
+	for h in _heroes:
+		var hero: Hero = h as Hero
+		if hero == null:
+			continue
+		var cap: int = Spells.max_mana(int(hero.knowledge))
+		var gain: int = MANA_REGEN_PER_DAY + Skills.mana_regen(hero.skills)
+		hero.mana = clampi(int(hero.mana) + gain, 0, cap)
 
 
-# Sichtweite des Helden: Grundwert plus Aufklaeren.
+# Sichtweite des AKTIVEN Helden: Grundwert plus Aufklaeren.
 func _hero_sight() -> int:
-	return HERO_SIGHT + Skills.sight_bonus(_hero.skills)
+	if _hero == null:
+		return HERO_SIGHT
+	return _hero_sight_of(_hero)
+
+
+# Sichtweite eines bestimmten Helden (M13a): Aufklaeren ist ein Skill, also
+# pro Held verschieden.
+func _hero_sight_of(h: Hero) -> int:
+	if h == null:
+		return HERO_SIGHT
+	return HERO_SIGHT + Skills.sight_bonus(h.skills)
 
 
 func _build_victory_panel() -> void:
@@ -3209,7 +3326,12 @@ func _city_ctx(city_idx: int) -> Dictionary:
 	var city: Dictionary = _cities[city_idx]
 	return {
 		"city": city,
+		# "hero" bleibt fuer die ARMEE (Garnisons-Panel). Der Geldbeutel
+		# kommt seit M13a getrennt: er gehoert dem Spieler, nicht dem
+		# Helden, und der CityScreen darf ihn nicht mehr aus dem Helden
+		# lesen.
 		"hero": _hero,
+		"wallet": _purse,
 		"buildings": BUILDINGS,
 		"faction_names": FACTION_NAMES,
 		"faction_colors": FACTION_COLORS,
@@ -3261,18 +3383,18 @@ func _on_market_trade(res: String, buy: bool) -> void:
 		return
 	if buy:
 		var price: int = int(MARKET_BUY.get(res, 0))
-		if price <= 0 or not _hero.wallet.pay({"gold": price}):
+		if price <= 0 or not _purse.pay({"gold": price}):
 			_set_status("Zu wenig Gold (%d G noetig)" % price)
 			return
-		_hero.wallet.add(res, 1)
+		_purse.add(res, 1)
 		_set_status("Gekauft: +1 %s fuer %d G" % [Wallet.display_name(res), price])
 	else:
 		var gain: int = int(MARKET_SELL.get(res, 0))
-		if gain <= 0 or _hero.wallet.get_amount(res) < 1:
+		if gain <= 0 or _purse.get_amount(res) < 1:
 			_set_status("Kein %s zum Verkaufen" % Wallet.display_name(res))
 			return
-		_hero.wallet.add(res, -1)
-		_hero.wallet.add("gold", gain)
+		_purse.add(res, -1)
+		_purse.add("gold", gain)
 		_set_status("Verkauft: 1 %s fuer %d G" % [Wallet.display_name(res), gain])
 	_update_labels()
 	_show_city(_selected_city)
@@ -3292,7 +3414,7 @@ func _buy_building(city_idx: int, bld_idx: int) -> void:
 	var b: Dictionary = BUILDINGS[bld_idx]
 	var bid: String = b["id"]
 	var cost: Dictionary = b["cost"]
-	if not _hero.wallet.can_afford(cost):
+	if not _purse.can_afford(cost):
 		_set_status("Zu teuer: braucht %s" % Wallet.cost_text(cost))
 		return
 	var city: Dictionary = _cities[city_idx]
@@ -3306,7 +3428,7 @@ func _buy_building(city_idx: int, bld_idx: int) -> void:
 	built.append(bid)
 	_prime_pool_for_building(city, bid)
 	Sound.play("build")
-	_hero.wallet.pay(cost)
+	_purse.pay(cost)
 	_update_labels()
 	_set_status("Gebaut: " + str(b["name"]))
 	_show_city(city_idx)
@@ -3330,7 +3452,7 @@ func _recruit_unit(city_idx: int, unit_id: String) -> void:
 	# Voller Ressourcen-Preis aus units.json (M4 Teil 2): T6/T7 kosten
 	# neben Gold auch Edel-Ressourcen (z.B. Engel 3500G + 1 Edelstein).
 	var cost: Dictionary = UnitType.cost_dict_of(unit_id)
-	if not _hero.wallet.can_afford(cost):
+	if not _purse.can_afford(cost):
 		_set_status("Zu teuer: braucht %s" % Wallet.cost_text(cost))
 		return
 	var city: Dictionary = _cities[city_idx]
@@ -3357,11 +3479,11 @@ func _recruit_unit(city_idx: int, unit_id: String) -> void:
 		if not _hero.can_add_unit(unit_id):
 			_set_status("Armee voll - max %d Stacks" % Hero.MAX_ARMY_SLOTS)
 			return
-		_hero.wallet.pay(cost)
+		_purse.pay(cost)
 		_hero.add_units(unit_id, 1)
 		_set_status("Rekrutiert: +1 %s" % UnitType.name_of(unit_id))
 	else:
-		_hero.wallet.pay(cost)
+		_purse.pay(cost)
 		var gar: Dictionary = city.get("garrison_army", {}) as Dictionary
 		Garrison.add(gar, unit_id, 1)
 		city["garrison_army"] = gar
@@ -4010,7 +4132,9 @@ func _on_end_turn() -> void:
 				kapelle_count += 1
 	_recalc_max_mp()
 	_regen_mana()
-	_hero.end_turn()
+	# Bewegungspunkte aller Helden zuruecksetzen (M13a).
+	for h in _heroes:
+		(h as Hero).end_turn()
 	# Goldminen im Besitz: +MINE_GOLD_PER_TURN pro Mine (bereits als
 	# obj["gold"] hinterlegt, damit spaeter Minen unterschiedlichen
 	# Ertrag haben koennen, ohne dass sich die Rechnung aendert).
@@ -4022,10 +4146,10 @@ func _on_end_turn() -> void:
 				mine_income += int(obj["gold"])
 			else:
 				# Nicht-Gold-Minen zahlen ihre Ressource direkt ins Wallet.
-				_hero.wallet.add(mres, int(obj["gold"]))
+				_purse.add(mres, int(obj["gold"]))
 	var income: int = owned * CITY_INCOME + markt_count * INCOME_MARKT + mine_income \
 		+ Skills.estates_gold(_hero.skills)
-	_hero.gold += income
+	_purse.add("gold", income)
 	var xp_gain: int = kapelle_count * KAPELLE_XP_PER_TURN
 	if xp_gain > 0:
 		_hero.xp += xp_gain
@@ -4236,12 +4360,20 @@ func _capture_state() -> Dictionary:
 	var seen_out: Array = []
 	for s in _ai_seen_by_player:
 		seen_out.append({"pos": SaveCodec.v2i(s["pos"]), "turn": int(s["turn"])})
+	# Helden als LISTE plus aktiver Index und Spieler-Beutel (v5, M13a).
+	# Der alte Schluessel "hero" wird nicht mehr geschrieben; alte
+	# Spielstaende setzt SaveManager._migrate_4_to_5 um.
+	var heroes_out: Array = []
+	for h in _heroes:
+		heroes_out.append((h as Hero).to_dict())
 	return {
 		"seed": _seed,
 		"turn_number": _turn_number,
 		"no_city_since": _no_city_since,
 		"player_faction": _player_faction,
-		"hero": _hero.to_dict(),
+		"heroes": heroes_out,
+		"active_hero": _active_hero,
+		"purse": _purse.to_dict(),
 		"cities": cities_out,
 		"objects": objects_out,
 		"monsters": monsters_out,
@@ -4253,7 +4385,10 @@ func _capture_state() -> Dictionary:
 
 
 func _restore_state(d: Dictionary) -> bool:
-	if d.is_empty() or not d.has("seed") or not d.has("hero"):
+	# "heroes" ist die Form ab v5 (M13a); SaveManager.migrate hat einen
+	# aelteren Spielstand vorher umgesetzt, hier kommt also immer die neue
+	# Form an.
+	if d.is_empty() or not d.has("seed") or not d.has("heroes"):
 		return false
 	# 1) Welt deterministisch neu bauen - danach stimmen Karte/UI/Arrays.
 	_start(int(d["seed"]))
@@ -4261,7 +4396,13 @@ func _restore_state(d: Dictionary) -> bool:
 	_turn_number = int(d.get("turn_number", 0))
 	_no_city_since = int(d.get("no_city_since", -1))
 	_player_faction = int(d.get("player_faction", 1))
-	_hero = Hero.from_dict(d["hero"])
+	_heroes.clear()
+	for hd in (d["heroes"] as Array):
+		_heroes.append(Hero.from_dict(hd as Dictionary))
+	if _heroes.is_empty():
+		return false
+	_active_hero = clampi(int(d.get("active_hero", 0)), 0, _heroes.size() - 1)
+	_purse = Wallet.from_dict(d.get("purse", {}))
 	_cities.clear()
 	for cd in d.get("cities", []):
 		var c: Dictionary = (cd as Dictionary).duplicate(true)

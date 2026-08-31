@@ -95,7 +95,14 @@ func _test_codec() -> void:
 	var mig: Dictionary = SaveLib.migrate(old_save)
 	_check(int(mig["save_version"]) == SaveLib.SAVE_VERSION,
 		"migrate hebt auf v%d" % SaveLib.SAVE_VERSION)
-	var ma: Dictionary = (mig["hero"] as Dictionary)["army"]
+	# Seit v5 (M13a) liegt der Spieler-Held in "heroes[0]" - der alte
+	# Schluessel "hero" ist nach der Migration weg. Das PRUEFT dieser Test
+	# jetzt mit, sonst faellt eine halb durchgefuehrte Migration nicht auf.
+	_check(not mig.has("hero"), "alter Schluessel 'hero' ist nach v5 weg")
+	_check((mig.get("heroes", []) as Array).size() == 1,
+		"Held liegt in 'heroes' (%d Eintraege)" % (mig.get("heroes", []) as Array).size())
+	_check(int(mig.get("active_hero", -1)) == 0, "active_hero auf 0 gesetzt")
+	var ma: Dictionary = ((mig["heroes"] as Array)[0] as Dictionary)["army"]
 	_check(int(ma.get("men_spearman", 0)) == 5 and not ma.has("sword"),
 		"migrate merged Alt- und Neu-Keys (sword -> men_spearman)")
 	var mpools: Dictionary = ((mig["cities"] as Array)[0] as Dictionary)["pools"]

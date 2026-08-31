@@ -230,8 +230,8 @@ func _update_hud() -> void:
 	var fid: int = _faction_id()
 	var fname: String = String(fnames[fid]) if fid >= 0 and fid < fnames.size() else "?"
 	_title.text = "Stadt " + fname
-	var hero: Object = _ctx.get("hero", null)
-	_gold.text = "Gold: " + str(int(hero.gold)) if hero != null else "Gold: 0"
+	var purse: Wallet = _wallet()
+	_gold.text = "Gold: " + str(purse.get_amount("gold")) if purse != null else "Gold: 0"
 	# Kalender plus Wochenereignis (M12). Ruhige Wochen bleiben stumm,
 	# sonst stuende dort in drei von vier Wochen "Ruhige Woche".
 	var cal_text: String = String(_ctx.get("calendar", ""))
@@ -574,8 +574,8 @@ func _plot_sub_color(def: Dictionary, is_built: bool, fid: int) -> Color:
 	if not is_built:
 		if not _missing_requires(def).is_empty():
 			return Color(0.9, 0.5, 0.5)
-		var hero: Object = _ctx.get("hero", null)
-		if hero != null and (hero.wallet as Wallet).can_afford(def.get("cost", {})):
+		var purse: Wallet = _wallet()
+		if purse != null and purse.can_afford(def.get("cost", {})):
 			return Color(0.6, 0.95, 0.6)
 		return Color(0.95, 0.85, 0.5)
 	if not UnitType.units_for_building(fid, bid).is_empty():
@@ -619,6 +619,23 @@ func _handle_tap(pos: Vector2) -> void:
 # Die Konstanten bleiben als Rueckfall, wenn die Datei den Eintrag nicht
 # hat (alte Layout-Datei).
 const PLAZA_FALLBACK := {"x": 0.63, "y": 0.885, "rx": 0.115, "ry": 0.05}
+
+
+# Geldbeutel des Spielers (M13a). Er steckt seit dem Umbau als "wallet" im
+# Kontext, weil er dem SPIELER gehoert und nicht dem Helden - mit mehreren
+# Helden waere "welcher Held haelt das Gold" sofort ein Fehler.
+#
+# Rueckfall auf `hero.wallet`, wenn der Aufrufer nur einen Helden reicht:
+# so bleiben Alt-Aufrufer und die Tests gueltig, die den Screen einzeln
+# aufsetzen. Gibt null zurueck, wenn beides fehlt - jeder Aufrufer prueft.
+func _wallet() -> Wallet:
+	var w = _ctx.get("wallet", null)
+	if w is Wallet:
+		return w as Wallet
+	var hero: Object = _ctx.get("hero", null)
+	if hero != null:
+		return hero.wallet as Wallet
+	return null
 
 
 func _plaza_def() -> Dictionary:
@@ -855,11 +872,11 @@ func _build_trade_panel() -> void:
 func _refresh_trade_labels() -> void:
 	if _trade_panel == null or not _trade_panel.visible and _trade_labels.is_empty():
 		return
-	var hero: Object = _ctx.get("hero", null)
-	if hero == null:
+	var purse: Wallet = _wallet()
+	if purse == null:
 		return
 	for rid in _trade_labels.keys():
-		var amt: int = (hero.wallet as Wallet).get_amount(String(rid))
+		var amt: int = purse.get_amount(String(rid))
 		(_trade_labels[rid] as Label).text = "%s: %d" % [Wallet.display_name(String(rid)), amt]
 
 
@@ -1106,6 +1123,7 @@ func _refresh_recruit_labels() -> void:
 		(_recruit_labels[u] as Label).text = "%s (T%d): %d da, +%d/Wo\n%s" % [
 			UnitType.name_of(u), UnitType.tier_of(u), have, UnitType.growth_of(u),
 			UnitArt.stat_line(u)]
-		var afford: bool = hero != null \
-			and (hero.wallet as Wallet).can_afford(UnitType.cost_dict_of(u))
+		var purse: Wallet = _wallet()
+		var afford: bool = purse != null \
+			and purse.can_afford(UnitType.cost_dict_of(u))
 		(_recruit_buttons[u] as Button).disabled = have <= 0 or not afford or not here

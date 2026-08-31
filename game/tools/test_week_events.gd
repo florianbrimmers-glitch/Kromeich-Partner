@@ -226,18 +226,20 @@ func _test_worldmap() -> void:
 		for c in (_wm.get("_cities") as Array):
 			if int((c as Dictionary)["owner"]) == int(_wm.get("OWNER_HERO")):
 				own += 1
-		var gold_before: int = int(hero.gold)
+		# Die Ernte zahlt in den SPIELER-Beutel (M13a), nicht in den Helden.
+		var purse: Wallet = _wm.get("_purse")
+		var gold_before: int = purse.get_amount("gold")
 		_wm.call("_apply_week_event_start")
 		var expect: int = own * int(WeekFx.HARVEST_GOLD_PER_CITY)
-		_check(int(hero.gold) == gold_before + expect,
+		_check(purse.get_amount("gold") == gold_before + expect,
 			"Ernte zahlt %d fuer %d Stadt/Staedte (ist +%d)"
-			% [expect, own, int(hero.gold) - gold_before])
+			% [expect, own, purse.get_amount("gold") - gold_before])
 		# Eine ruhige Woche darf nichts zahlen. Zug 0 = Woche 1, und die
 		# ist per FIRST_QUIET_WEEK garantiert ruhig.
 		_wm.set("_turn_number", 0)
-		var g2: int = int(hero.gold)
+		var g2: int = purse.get_amount("gold")
 		_wm.call("_apply_week_event_start")
-		_check(int(hero.gold) == g2, "ruhige Woche zahlt nichts")
+		_check(purse.get_amount("gold") == g2, "ruhige Woche zahlt nichts")
 
 	# Nichts wird gespeichert: nach Save/Load muss dieselbe Woche dasselbe
 	# Ereignis liefern, weil es aus Seed und Wochennummer kommt.

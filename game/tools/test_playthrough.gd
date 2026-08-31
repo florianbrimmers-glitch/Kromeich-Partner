@@ -116,7 +116,9 @@ func _play(seed_value: int) -> void:
 	await process_frame
 
 	var hero = wm.get("_hero")
-	var gold0: int = int(hero.gold)
+	# Gold liegt seit M13a im Spieler-Beutel, nicht im Helden.
+	var purse: Wallet = wm.get("_purse")
+	var gold0: int = purse.get_amount("gold")
 	var xp0: int = int(hero.xp)
 	var army0: int = int(hero.total_count())
 	var fog0: int = _explored(wm)
@@ -166,7 +168,7 @@ func _play(seed_value: int) -> void:
 
 	# 2. FORTSCHRITT. Ein Spiel, in dem nach 40 Zuegen nichts passiert
 	#    ist, ist kaputt - auch wenn es nicht abstuerzt.
-	var gold1: int = int(hero.gold)
+	var gold1: int = purse.get_amount("gold")
 	var xp1: int = int(hero.xp)
 	var fog1: int = _explored(wm)
 	print("        Gold %d -> %d, XP %d -> %d, Armee %d -> %d, erkundet %d -> %d, Staedte %d -> %d"

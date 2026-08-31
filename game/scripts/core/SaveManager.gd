@@ -13,7 +13,7 @@ extends Node
 
 const SAVE_DIR := "user://saves"
 const AUTOSAVE_PATH := "user://saves/autosave.json"
-const SAVE_VERSION := 4
+const SAVE_VERSION := 5
 
 # v1 -> v2: Einheiten-IDs der 3-Tier-Aera (M4-Migration). Das Mapping
 # lebte als LEGACY_ALIASES in UnitType und wurde bei jedem Lookup
@@ -88,9 +88,38 @@ static func migrate(d: Dictionary) -> Dictionary:
 				d = _migrate_2_to_3(d)
 			3:
 				d = _migrate_3_to_4(d)
+			4:
+				d = _migrate_4_to_5(d)
 			_:
 				# Unbekannte Zwischenversion: nicht endlos schleifen.
 				d["save_version"] = SAVE_VERSION
+	return d
+
+
+# v4 -> v5: Der Spieler hat eine LISTE von Helden, und der Geldbeutel gehoert
+# ihm statt seinem Helden (M13a).
+#
+# Warum der Beutel wandert: er lag in `hero.wallet`. Mit zwei Helden waere
+# "welcher Held haelt das Gold" sofort ein Fehler - Gold gehoert dem
+# Spieler. Die KI behaelt ihren Beutel im Helden, denn jede KI hat genau
+# einen.
+#
+# Der Held selbst wandert unveraendert in `heroes[0]`; sein `wallet`-Feld
+# bleibt im Dictionary stehen (Hero.to_dict schreibt es weiter, die KI
+# braucht es) und wird beim Laden des Spielers einfach ignoriert.
+static func _migrate_4_to_5(d: Dictionary) -> Dictionary:
+	if d.has("hero") and not d.has("heroes"):
+		var hd: Variant = d["hero"]
+		d["heroes"] = [hd]
+		d["active_hero"] = 0
+		if hd is Dictionary and (hd as Dictionary).has("wallet"):
+			d["purse"] = ((hd as Dictionary)["wallet"] as Dictionary).duplicate()
+		else:
+			# Sehr alter Spielstand ohne Boerse: nur Gold gab es dort.
+			var g: int = int((hd as Dictionary).get("gold", 0)) if hd is Dictionary else 0
+			d["purse"] = {"gold": g}
+		d.erase("hero")
+	d["save_version"] = 5
 	return d
 
 

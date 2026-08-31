@@ -203,23 +203,33 @@ func _test_worldmap() -> void:
 
 func _test_migration() -> void:
 	print("")
-	print("== Save-Migration v3 -> v4 ==")
+	print("== Save-Migration v3 -> v4 -> v5 ==")
 	var v3: Dictionary = {
 		"save_version": 3,
-		"hero": {"position": {"x": 2, "y": 3}, "mp": 7, "max_mp": 10, "army": {}},
+		"hero": {"position": {"x": 2, "y": 3}, "mp": 7, "max_mp": 10, "army": {},
+			"wallet": {"gold": 700, "wood": 3}},
 		"enemies": [{"hero": {"mp": 4, "max_mp": 10, "army": {}}}, {"hero": null}],
 		"cities": [],
 	}
 	var mig: Dictionary = SaveLib.migrate(v3)
 	_check(int(mig["save_version"]) == SaveLib.SAVE_VERSION,
 		"migrate hebt auf v%d" % SaveLib.SAVE_VERSION)
-	var h: Dictionary = mig["hero"] as Dictionary
+	# Seit v5 (M13a) liegt der Spieler-Held in "heroes[0]".
+	var h: Dictionary = (mig["heroes"] as Array)[0] as Dictionary
 	_check(int(h["mp"]) == 28 and int(h["max_mp"]) == 40,
 		"Punkte des Helden skaliert (mp %d, max %d)" % [int(h["mp"]), int(h["max_mp"])])
 	var eh: Dictionary = (mig["enemies"] as Array)[0]["hero"] as Dictionary
 	_check(int(eh["mp"]) == 16, "KI-Held ebenfalls (ist %d)" % int(eh["mp"]))
 	_check((mig["enemies"] as Array)[1]["hero"] == null,
 		"gefallener KI-Held (null) toleriert")
+	# v4 -> v5: der Beutel wandert aus dem Helden zum Spieler.
+	_check(not mig.has("hero"), "alter Schluessel 'hero' ist weg")
+	_check(int(mig.get("active_hero", -1)) == 0, "active_hero gesetzt")
+	var purse: Dictionary = mig.get("purse", {}) as Dictionary
+	_check(int(purse.get("gold", 0)) == 700 and int(purse.get("wood", 0)) == 3,
+		"Beutel aus dem Helden gehoben (%s)" % str(purse))
+	# Die KI behaelt ihren Beutel IM Helden - jede KI hat genau einen.
+	_check(not mig.has("ai_purse"), "fuer die KI wird kein Beutel angelegt")
 
 	# Ganze Kette ab v1: die Fixture aus M4-Zeiten muss durchlaufen.
 	var f := FileAccess.open("res://tools/fixtures/save_v1.json", FileAccess.READ)
@@ -232,12 +242,16 @@ func _test_migration() -> void:
 			var m2: Dictionary = SaveLib.migrate(raw as Dictionary)
 			_check(int(m2["save_version"]) == SaveLib.SAVE_VERSION,
 				"v1-Fixture landet auf v%d" % SaveLib.SAVE_VERSION)
-			var h2: Dictionary = m2["hero"] as Dictionary
+			var h2: Dictionary = (m2["heroes"] as Array)[0] as Dictionary
 			_check(int(h2["mp"]) == mp_before * SaveLib.MP_SCALE_3_TO_4,
 				"und ihre Punkte sind mitskaliert (%d -> %d)"
 				% [mp_before, int(h2["mp"])])
-			# Eine ZWEITE Migration darf nicht nochmal skalieren.
+			_check((m2.get("purse", {}) as Dictionary).has("gold"),
+				"und der Beutel ist angelegt (%s)" % str(m2.get("purse", {})))
+			# Eine ZWEITE Migration darf nichts mehr aendern.
 			var m3: Dictionary = SaveLib.migrate(m2)
-			_check(int((m3["hero"] as Dictionary)["mp"]) == int(h2["mp"]),
+			_check(int(((m3["heroes"] as Array)[0] as Dictionary)["mp"]) == int(h2["mp"]),
 				"nochmal migrieren aendert nichts (idempotent)")
+			_check((m3["heroes"] as Array).size() == 1,
+				"und legt keinen zweiten Helden an")
 	_done.append("_test_migration")

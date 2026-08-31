@@ -244,24 +244,34 @@ func _test_windmill() -> void:
 	_done.append("_test_windmill")
 
 
-func _total_resources(hero) -> int:
+# Der Beutel gehoert seit M13a dem SPIELER (`_purse` im Screen), nicht dem
+# Helden. Die Hilfsfunktionen nehmen den Helden weiter als Parameter, damit
+# die Aufrufstellen unveraendert bleiben - gelesen wird der Screen-Beutel.
+func _purse() -> Wallet:
+	return _wm.get("_purse") as Wallet
+
+
+func _total_resources(_hero_unused) -> int:
 	var n: int = 0
+	var p: Wallet = _purse()
 	for rid in Wallet.RESOURCE_IDS:
-		n += int(hero.wallet.get_amount(String(rid)))
+		n += int(p.get_amount(String(rid)))
 	return n
 
 
-func _resource_snapshot(hero) -> Dictionary:
+func _resource_snapshot(_hero_unused) -> Dictionary:
 	var d: Dictionary = {}
+	var p: Wallet = _purse()
 	for rid in Wallet.RESOURCE_IDS:
-		d[String(rid)] = int(hero.wallet.get_amount(String(rid)))
+		d[String(rid)] = int(p.get_amount(String(rid)))
 	return d
 
 
-func _resource_delta(snap: Dictionary, hero) -> Dictionary:
+func _resource_delta(snap: Dictionary, _hero_unused) -> Dictionary:
 	var d: Dictionary = {}
+	var p: Wallet = _purse()
 	for rid in snap.keys():
-		var diff: int = int(hero.wallet.get_amount(String(rid))) - int(snap[rid])
+		var diff: int = int(p.get_amount(String(rid))) - int(snap[rid])
 		if diff != 0:
 			d[String(rid)] = diff
 	return d
