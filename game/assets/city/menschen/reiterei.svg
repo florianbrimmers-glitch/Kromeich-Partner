@@ -1,68 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Reiterei. Breiter Holzstall mit grossem Doppeltor und Heuballen. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="rt_wallL" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#a07246"/>
-      <stop offset="1" stop-color="#6e4a26"/>
-    </linearGradient>
-    <linearGradient id="rt_wallR" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#6c4524"/>
-      <stop offset="1" stop-color="#3e2810"/>
-    </linearGradient>
-    <linearGradient id="rt_roof" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#7c5a32"/>
-      <stop offset="1" stop-color="#4a341a"/>
-    </linearGradient>
-  </defs>
+<!-- Erzeugt von tools/gen_city_buildings.py - nicht von Hand editieren.
+     Bodenraute-Mitte bei y=288 (CityScreen SPRITE_GROUND_FRAC 0.56). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<polygon points="93.8,294.0 256.0,212.9 418.2,294.0 256.0,375.1" fill="#000000" opacity="0.30"/>
+<polygon points="103.0,288.0 256.0,364.5 256.0,294.5 103.0,218.0" fill="#c9b184" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="256.0,364.5 409.0,288.0 409.0,218.0 256.0,294.5" fill="#9a8460" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="256.0,141.5 409.0,218.0 256.0,294.5 103.0,218.0" fill="#4a5a72" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="256.0,57.5 256.0,141.5 103.0,218.0 256.0,294.5 256.0,210.5" fill="#5e7290" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="256.0,57.5 256.0,141.5 409.0,218.0 256.0,294.5 256.0,210.5" fill="#374556" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<line x1="256.0" y1="57.5" x2="256.0" y2="210.5" stroke="#2c2418" stroke-width="3"/>
+<path d="M 208.0 294.0 L 208.0 243.4 A 48.0 41.4 0 0 1 304.0 243.4 L 304.0 294.0 Z" fill="#6b5330" stroke="#2c2418" stroke-width="2"/>
+<polygon points="98.0,290.0 98.0,216.0 114.0,216.0 114.0,290.0" fill="#7a5f34" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="398.0,290.0 398.0,216.0 414.0,216.0 414.0,290.0" fill="#7a5f34" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<line x1="106.0" y1="262.0" x2="406.0" y2="262.0" stroke="#7a5f34" stroke-width="9"/>
+<line x1="106.0" y1="234.0" x2="406.0" y2="234.0" stroke="#7a5f34" stroke-width="9"/>
 
-  <!-- Boden-Schatten -->
-  <ellipse cx="256" cy="392" rx="220" ry="34" fill="#000" opacity="0.32"/>
-
-  <!-- Linke Wand (Hoehe 128, leicht hoeher als Kaserne) -->
-  <polygon points="64,288 256,384 256,256 64,160" fill="url(#rt_wallL)"
-           stroke="#2c1a08" stroke-width="2"/>
-  <!-- Holzbretter, vertikal -->
-  <line x1="92" y1="200" x2="92" y2="350" stroke="#3c2810" stroke-width="1.8" opacity="0.55"/>
-  <line x1="124" y1="216" x2="124" y2="362" stroke="#3c2810" stroke-width="1.8" opacity="0.55"/>
-  <line x1="156" y1="232" x2="156" y2="374" stroke="#3c2810" stroke-width="1.8" opacity="0.55"/>
-  <line x1="200" y1="254" x2="200" y2="375" stroke="#3c2810" stroke-width="1.8" opacity="0.5"/>
-  <line x1="232" y1="270" x2="232" y2="380" stroke="#3c2810" stroke-width="1.8" opacity="0.5"/>
-
-  <!-- Doppeltor offen -->
-  <polygon points="148,310 244,358 244,240 148,200" fill="#1a0e04"/>
-  <!-- Holzbalken im Tor-Schatten -->
-  <line x1="166" y1="222" x2="166" y2="320" stroke="#3a2210" stroke-width="1.5" opacity="0.7"/>
-  <line x1="190" y1="232" x2="190" y2="332" stroke="#3a2210" stroke-width="1.5" opacity="0.7"/>
-  <line x1="214" y1="242" x2="214" y2="344" stroke="#3a2210" stroke-width="1.5" opacity="0.7"/>
-
-  <!-- Rechte Wand -->
-  <polygon points="256,384 448,288 448,160 256,256" fill="url(#rt_wallR)"
-           stroke="#1c1006" stroke-width="2"/>
-  <line x1="296" y1="364" x2="296" y2="236" stroke="#291808" stroke-width="1.8" opacity="0.6"/>
-  <line x1="340" y1="342" x2="340" y2="214" stroke="#291808" stroke-width="1.8" opacity="0.6"/>
-  <line x1="384" y1="320" x2="384" y2="192" stroke="#291808" stroke-width="1.8" opacity="0.6"/>
-  <line x1="424" y1="300" x2="424" y2="172" stroke="#291808" stroke-width="1.8" opacity="0.6"/>
-
-  <!-- Kleines Fenster mit Hufeisen-Andeutung -->
-  <polygon points="320,330 360,310 360,278 320,298" fill="#1f140a"/>
-  <path d="M 332 308 q 6 -10 16 -10 q 10 0 16 10" stroke="#caa84a" stroke-width="2" fill="none"/>
-
-  <!-- Dach, einfach -->
-  <polygon points="256,80 448,160 256,256 64,160" fill="url(#rt_roof)"
-           stroke="#221408" stroke-width="2"/>
-  <!-- First-Linie -->
-  <line x1="256" y1="80" x2="256" y2="256" stroke="#321c0a" stroke-width="2" opacity="0.7"/>
-  <!-- Dachpfannen-Andeutung -->
-  <line x1="160" y1="120" x2="352" y2="216" stroke="#5a3e1c" stroke-width="1.5" opacity="0.35"/>
-  <line x1="352" y1="120" x2="160" y2="216" stroke="#5a3e1c" stroke-width="1.5" opacity="0.35"/>
-
-  <!-- Heuballen rechts vor dem Stall -->
-  <ellipse cx="404" cy="356" rx="38" ry="16" fill="#d8b85a"/>
-  <ellipse cx="404" cy="350" rx="36" ry="14" fill="#e6cc6e"/>
-  <line x1="378" y1="354" x2="430" y2="354" stroke="#a0863a" stroke-width="0.8" opacity="0.6"/>
-  <line x1="384" y1="346" x2="424" y2="346" stroke="#a0863a" stroke-width="0.8" opacity="0.6"/>
-
-  <ellipse cx="358" cy="368" rx="22" ry="11" fill="#caa84a"/>
-  <ellipse cx="358" cy="364" rx="22" ry="10" fill="#d8b85a"/>
 </svg>

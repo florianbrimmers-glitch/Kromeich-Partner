@@ -1,69 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Markt. Niedriges Steinhaus mit rot-weissem Sonnensegel und Tischen. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="mk_wallL" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#c7a772"/>
-      <stop offset="1" stop-color="#9a7c4a"/>
-    </linearGradient>
-    <linearGradient id="mk_wallR" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#8a6b3e"/>
-      <stop offset="1" stop-color="#5a4322"/>
-    </linearGradient>
-  </defs>
+<!-- Erzeugt von tools/gen_city_buildings.py - nicht von Hand editieren.
+     Bodenraute-Mitte bei y=288 (CityScreen SPRITE_GROUND_FRAC 0.56). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<polygon points="97.0,294.0 256.0,214.5 415.0,294.0 256.0,373.5" fill="#000000" opacity="0.30"/>
+<polygon points="106.0,288.0 256.0,363.0 256.0,283.0 106.0,208.0" fill="#c9b184" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="256.0,363.0 406.0,288.0 406.0,208.0 256.0,283.0" fill="#9a8460" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="256.0,133.0 406.0,208.0 256.0,283.0 106.0,208.0" fill="#4a5a72" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="124.0,282.0 138.0,228.0 374.0,228.0 388.0,282.0" fill="#7a5f34" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="138.0,228.0 186.0,228.0 180.0,186.0 132.0,186.0" fill="#a8342c" stroke="#2c2418" stroke-width="1.5" stroke-linejoin="round"/>
+<polygon points="186.0,228.0 234.0,228.0 228.0,186.0 180.0,186.0" fill="#5e7290" stroke="#2c2418" stroke-width="1.5" stroke-linejoin="round"/>
+<polygon points="234.0,228.0 282.0,228.0 276.0,186.0 228.0,186.0" fill="#a8342c" stroke="#2c2418" stroke-width="1.5" stroke-linejoin="round"/>
+<polygon points="282.0,228.0 330.0,228.0 324.0,186.0 276.0,186.0" fill="#5e7290" stroke="#2c2418" stroke-width="1.5" stroke-linejoin="round"/>
+<polygon points="330.0,228.0 378.0,228.0 372.0,186.0 324.0,186.0" fill="#a8342c" stroke="#2c2418" stroke-width="1.5" stroke-linejoin="round"/>
+<circle cx="352.0" cy="264.0" r="16" fill="#ffd98a"/>
 
-  <!-- Boden-Schatten -->
-  <ellipse cx="256" cy="392" rx="216" ry="34" fill="#000" opacity="0.32"/>
-
-  <!-- Niedrige Waende, nur 96px Wand -->
-  <polygon points="64,288 256,384 256,288 64,192" fill="url(#mk_wallL)"
-           stroke="#3a2a18" stroke-width="2"/>
-  <line x1="104" y1="212" x2="104" y2="356" stroke="#5e4628" stroke-width="1.2" opacity="0.5"/>
-  <line x1="164" y1="240" x2="164" y2="370" stroke="#5e4628" stroke-width="1.2" opacity="0.5"/>
-  <line x1="218" y1="267" x2="218" y2="378" stroke="#5e4628" stroke-width="1.2" opacity="0.5"/>
-
-  <polygon points="256,384 448,288 448,192 256,288" fill="url(#mk_wallR)"
-           stroke="#2a1e10" stroke-width="2"/>
-  <line x1="312" y1="356" x2="312" y2="260" stroke="#3a2a16" stroke-width="1.2" opacity="0.55"/>
-  <line x1="372" y1="326" x2="372" y2="230" stroke="#3a2a16" stroke-width="1.2" opacity="0.55"/>
-  <line x1="424" y1="300" x2="424" y2="204" stroke="#3a2a16" stroke-width="1.2" opacity="0.55"/>
-
-  <!-- Flaches Dach (Iso-Raute) -->
-  <polygon points="256,128 448,192 256,288 64,192" fill="#b89060" stroke="#3a2a16" stroke-width="2"/>
-  <line x1="256" y1="128" x2="256" y2="288" stroke="#7a5a32" stroke-width="1.5" opacity="0.5"/>
-
-  <!-- Sonnensegel ueber dem Dach, rot-weiss-Streifen -->
-  <!-- Vier Pfosten -->
-  <line x1="80" y1="192" x2="80" y2="86" stroke="#3a2a16" stroke-width="3"/>
-  <line x1="240" y1="278" x2="240" y2="170" stroke="#3a2a16" stroke-width="3"/>
-  <line x1="432" y1="192" x2="432" y2="86" stroke="#3a2a16" stroke-width="3"/>
-  <line x1="240" y1="118" x2="240" y2="40" stroke="#3a2a16" stroke-width="3"/>
-
-  <!-- Tuch: Iso-Raute oben mit Streifen -->
-  <polygon points="240,40 432,86 240,170 80,86" fill="#e6e0c8"/>
-  <polygon points="240,40 432,86 384,72 230,30" fill="#c93a2c" opacity="0.85"/>
-  <polygon points="288,46 432,86 432,98 320,68" fill="#c93a2c" opacity="0.85"/>
-  <polygon points="240,170 432,98 432,86 240,140" fill="#c93a2c" opacity="0.55"/>
-  <polygon points="80,86 240,140 240,170 80,108" fill="#a52a20" opacity="0.6"/>
-
-  <!-- Hänge-Wimpel -->
-  <polygon points="80,86 80,108 70,98" fill="#caa84a"/>
-  <polygon points="432,86 432,108 442,98" fill="#caa84a"/>
-
-  <!-- Marktstand vorne links -->
-  <polygon points="92,358 178,386 178,330 92,302" fill="#7a5a30"/>
-  <polygon points="92,302 178,330 178,322 92,294" fill="#a07a44"/>
-  <!-- Wares: Saecke -->
-  <circle cx="116" cy="324" r="10" fill="#caa472"/>
-  <circle cx="138" cy="334" r="9" fill="#a8845c"/>
-  <circle cx="156" cy="344" r="8" fill="#caa472"/>
-
-  <!-- Tongefaess rechts -->
-  <ellipse cx="378" cy="356" rx="18" ry="22" fill="#9a6a3e"/>
-  <ellipse cx="378" cy="338" rx="18" ry="8" fill="#6a4824"/>
-  <ellipse cx="378" cy="338" rx="12" ry="5" fill="#3a2812"/>
-
-  <!-- Goldmuenze auf dem Stand-Tisch -->
-  <circle cx="148" cy="316" r="6" fill="#e6c247" stroke="#a07a30" stroke-width="0.8"/>
-  <circle cx="156" cy="310" r="5" fill="#e6c247" stroke="#a07a30" stroke-width="0.8"/>
 </svg>

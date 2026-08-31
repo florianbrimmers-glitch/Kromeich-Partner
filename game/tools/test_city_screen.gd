@@ -175,6 +175,14 @@ func _init() -> void:
 	ok = _check(clashes2.is_empty(),
 		"keine Text-Kollisionen im zweiten Layout (%s)" % str(clashes2)) and ok
 
+	# 8) ASSET-VOLLSTAENDIGKEIT (Iteration 18). Das ist die Sperre gegen den
+	#    violetten Wuerfel: fehlt fuer ein GEBAUTES Gebaeude das Sprite,
+	#    zeichnet _draw_plot einen Volltonquader in Fraktionsfarbe. Vorher
+	#    fehlten 28 von 36 Sprites, und niemand hat es gemerkt, bis ein
+	#    Screenshot vom Geraet kam. Ein neues Gebaeude ohne Grafik macht
+	#    diese Suite jetzt rot.
+	ok = _test_assets_complete(cs) and ok
+
 	print("")
 	if ok:
 		print("CityScreen-Smoke-Test: ALLE CHECKS GRUEN")
@@ -194,3 +202,51 @@ func _find(plots: Array, bid: String) -> Dictionary:
 		if String(p["id"]) == bid:
 			return p
 	return {}
+
+
+func _test_assets_complete(cs) -> bool:
+	print("")
+	print("== Asset-Vollstaendigkeit (Sperre gegen den Platzhalter-Quader) ==")
+	var ok := true
+	var f := FileAccess.open("res://data/city_layout.json", FileAccess.READ)
+	var raw: Variant = JSON.parse_string(f.get_as_text())
+	var ids: Array = (raw as Dictionary)["buildings"].keys()
+	ok = _check(ids.size() == 9, "9 Gebaeude-IDs im Layout (sind %d)" % ids.size()) and ok
+
+	var missing: Array = []
+	for fac in CityScreen.FACTION_DIRS:
+		for bid in ids:
+			var path: String = "res://assets/city/%s/%s.svg" % [String(fac), String(bid)]
+			if not ResourceLoader.exists(path):
+				missing.append("%s/%s" % [String(fac), String(bid)])
+	ok = _check(missing.is_empty(), "alle %d Gebaeude-Sprites vorhanden (fehlen: %s)"
+		% [ids.size() * CityScreen.FACTION_DIRS.size(), str(missing)]) and ok
+
+	var missing_bg: Array = []
+	for fac2 in CityScreen.FACTION_DIRS:
+		for name in ["bg", "bg_walled"]:
+			if not ResourceLoader.exists("res://assets/city/%s/%s.svg" % [String(fac2), name]):
+				missing_bg.append("%s/%s" % [String(fac2), name])
+	ok = _check(missing_bg.is_empty(),
+		"Hintergrund + Mauer-Variante fuer alle vier Fraktionen (fehlen: %s)"
+		% str(missing_bg)) and ok
+
+	var missing_con: Array = []
+	for bid2 in ids:
+		if not ResourceLoader.exists("res://assets/city/_shared/construction-%s.svg" % String(bid2)):
+			missing_con.append(String(bid2))
+	ok = _check(missing_con.is_empty(),
+		"Baustellen-Sprite je Gebaeude (fehlen: %s)" % str(missing_con)) and ok
+
+	# Jede Fraktion muss jetzt das gemalte Layout benutzen - alle vier haben
+	# einen Hintergrund. Faellt eine auf das Plain-Layout zurueck, fehlt ihr
+	# Bild.
+	var plain_fallback: Array = []
+	for fid in range(CityScreen.FACTION_DIRS.size()):
+		cs._ctx = {"city": {"faction": fid, "buildings": []}}
+		if not cs._has_painted_bg():
+			plain_fallback.append(String(CityScreen.FACTION_DIRS[fid]))
+	ok = _check(plain_fallback.is_empty(),
+		"alle Fraktionen haben einen gemalten Hintergrund (ohne: %s)"
+		% str(plain_fallback)) and ok
+	return ok

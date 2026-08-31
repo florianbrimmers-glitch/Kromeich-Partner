@@ -333,8 +333,15 @@ func _draw_plot(p: Dictionary) -> void:
 		_plot_label(p, c + Vector2(0, hh + 18.0))
 		return
 
-	var height: float = hh * 2.0
-	_draw_iso_block(c, hw, hh, height, col)
+	# Letzte Rettung: fehlt das Sprite fuer ein GEBAUTES Gebaeude, stand hier
+	# ein Volltonquader in Fraktionsfarbe - auf dem Geraet ein violetter
+	# Wuerfel mitten in der Stadt. Seit Iteration 18 sind alle 36 Sprites da
+	# und tools/test_city_screen.gd haelt das fest; der Quader bleibt nur als
+	# Notausgang und ist bewusst entsaettigt, damit er nach Platzhalter
+	# aussieht und nicht nach Absicht.
+	var height: float = hh * 1.5
+	var placeholder: Color = col.lerp(Color(0.42, 0.42, 0.44), 0.72)
+	_draw_iso_block(c, hw, hh, height, placeholder)
 	_plot_label(p, c + Vector2(0, hh + 18.0))
 
 

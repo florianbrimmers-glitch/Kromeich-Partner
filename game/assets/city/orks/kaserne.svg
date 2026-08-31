@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Erzeugt von tools/gen_city_buildings.py - nicht von Hand editieren.
+     Bodenraute-Mitte bei y=288 (CityScreen SPRITE_GROUND_FRAC 0.56). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<polygon points="81.1,294.0 256.0,206.6 430.9,294.0 256.0,381.4" fill="#000000" opacity="0.30"/>
+<polygon points="91.0,288.0 256.0,370.5 256.0,266.5 91.0,184.0" fill="#8a6c3d" stroke="#1d1409" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="256.0,370.5 421.0,288.0 421.0,184.0 256.0,266.5" fill="#5d4726" stroke="#1d1409" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="256.0,101.5 421.0,184.0 256.0,266.5 91.0,184.0" fill="#4a3a20" stroke="#1d1409" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="121.0,184.0 163.9,184.0 163.9,152.0 121.0,152.0" fill="#4a3a20" stroke="#1d1409" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="177.8,184.0 220.7,184.0 220.7,152.0 177.8,152.0" fill="#4a3a20" stroke="#1d1409" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="234.6,184.0 277.4,184.0 277.4,152.0 234.6,152.0" fill="#4a3a20" stroke="#1d1409" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="291.3,184.0 334.2,184.0 334.2,152.0 291.3,152.0" fill="#4a3a20" stroke="#1d1409" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="348.1,184.0 391.0,184.0 391.0,152.0 348.1,152.0" fill="#4a3a20" stroke="#1d1409" stroke-width="2.0" stroke-linejoin="round"/>
+<path d="M 230.0 294.0 L 230.0 252.2 A 26.0 34.2 0 0 1 282.0 252.2 L 282.0 294.0 Z" fill="#33260f" stroke="#1d1409" stroke-width="2"/>
+<rect x="175.0" y="196.0" width="22.0" height="30.0" rx="9.9" fill="#ffb257" stroke="#1d1409" stroke-width="2"/>
+<rect x="245.0" y="196.0" width="22.0" height="30.0" rx="9.9" fill="#ffb257" stroke="#1d1409" stroke-width="2"/>
+<rect x="315.0" y="196.0" width="22.0" height="30.0" rx="9.9" fill="#ffb257" stroke="#1d1409" stroke-width="2"/>
+<line x1="116.0" y1="152.0" x2="116.0" y2="278.0" stroke="#1d1409" stroke-width="5"/>
+<polygon points="116.0,152.0 170.0,168.0 116.0,186.0" fill="#a8452c" stroke="#1d1409" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="76.6,284.9 74.2,242.9 81.4,230.9 92.2,242.9 94.6,284.9" fill="#6b5028" stroke="#1d1409" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="120.7,286.7 119.5,232.7 127.6,220.7 137.5,232.7 138.7,286.7" fill="#6b5028" stroke="#1d1409" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="164.8,288.4 164.8,222.4 173.8,210.4 182.8,222.4 182.8,288.4" fill="#6b5028" stroke="#1d1409" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="208.9,290.2 210.1,248.2 220.0,236.2 228.1,248.2 226.9,290.2" fill="#6b5028" stroke="#1d1409" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="253.0,292.0 255.4,238.0 266.2,226.0 273.4,238.0 271.0,292.0" fill="#6b5028" stroke="#1d1409" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="282.1,290.2 279.7,224.2 286.9,212.2 297.7,224.2 300.1,290.2" fill="#6b5028" stroke="#1d1409" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="326.2,288.4 325.0,246.4 333.1,234.4 343.0,246.4 344.2,288.4" fill="#6b5028" stroke="#1d1409" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="370.3,286.7 370.3,232.7 379.3,220.7 388.3,232.7 388.3,286.7" fill="#6b5028" stroke="#1d1409" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="414.4,284.9 415.6,218.9 425.5,206.9 433.6,218.9 432.4,284.9" fill="#6b5028" stroke="#1d1409" stroke-width="2.0" stroke-linejoin="round"/>
+</svg>

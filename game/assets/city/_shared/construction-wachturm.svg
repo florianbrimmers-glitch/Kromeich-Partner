@@ -1,47 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Baustelle Wachturm: schmaler hoher Steinpfeiler im Bau, Geruest
-     drumherum. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="cw_sL" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#a39080"/>
-      <stop offset="1" stop-color="#766656"/>
-    </linearGradient>
-    <linearGradient id="cw_sR" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#6c5e50"/>
-      <stop offset="1" stop-color="#403628"/>
-    </linearGradient>
-    <linearGradient id="cw_beam" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#a87238"/>
-      <stop offset="1" stop-color="#5c3c18"/>
-    </linearGradient>
-  </defs>
-  <ellipse cx="256" cy="388" rx="130" ry="22" fill="#000" opacity="0.34"/>
-
-  <!-- Stein-Sockel breit -->
-  <polygon points="176,310 256,348 336,310 256,272" fill="#5e5246" stroke="#2a2418" stroke-width="2"/>
-  <polygon points="176,310 256,348 256,360 176,322" fill="#4a3e32"/>
-  <polygon points="256,348 336,310 336,322 256,360" fill="#352a20"/>
-
-  <!-- TURM-PFEILER: schmaler hoher Stein, unebener Top (im Bau) -->
-  <polygon points="200,300 256,332 256,156 200,124" fill="url(#cw_sL)" stroke="#2a2418" stroke-width="2.5"/>
-  <line x1="200" y1="180" x2="256" y2="212" stroke="#4e4030" stroke-width="1.4" opacity="0.55"/>
-  <line x1="200" y1="220" x2="256" y2="252" stroke="#4e4030" stroke-width="1.4" opacity="0.55"/>
-  <line x1="200" y1="260" x2="256" y2="292" stroke="#4e4030" stroke-width="1.4" opacity="0.55"/>
-  <!-- Unebener oberer Rand -->
-  <polygon points="200,124 220,118 232,128 248,116 256,124 252,156 216,140 200,156 Z" fill="url(#cw_sL)"/>
-
-  <polygon points="256,332 312,300 312,124 256,156" fill="url(#cw_sR)" stroke="#1a1610" stroke-width="2.5"/>
-  <line x1="256" y1="212" x2="312" y2="180" stroke="#2c241a" stroke-width="1.4" opacity="0.5"/>
-  <line x1="256" y1="252" x2="312" y2="220" stroke="#2c241a" stroke-width="1.4" opacity="0.5"/>
-
-  <!-- Geruest am Turm: zwei kraeftige Pfosten + Querbalken -->
-  <polygon points="160,300 174,306 174,140 160,134" fill="url(#cw_beam)" stroke="#3a2412" stroke-width="2"/>
-  <polygon points="338,260 352,254 352,90 338,84" fill="url(#cw_beam)" stroke="#3a2412" stroke-width="2"/>
-  <polygon points="160,140 352,184 352,196 160,152" fill="url(#cw_beam)" stroke="#3a2412" stroke-width="2"/>
-  <polygon points="160,180 352,224 352,236 160,192" fill="#7a5230" stroke="#3a2412" stroke-width="1.5"/>
-
-  <!-- Steinhaufen vorne -->
-  <ellipse cx="382" cy="372" rx="32" ry="13" fill="#5e5246"/>
-  <polygon points="362,366 382,358 402,366 390,374 374,374" fill="#766658"/>
+<!-- Erzeugt von tools/gen_city_buildings.py - nicht von Hand editieren.
+     Bodenraute-Mitte bei y=288 (CityScreen SPRITE_GROUND_FRAC 0.56). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<polygon points="167.0,294.0 256.0,249.5 345.0,294.0 256.0,338.5" fill="#000000" opacity="0.30"/>
+<path d="M 172.0 199.8 L 172.0 288.0 A 84.0 42.0 0 0 0 340.0 288.0 L 340.0 199.8 Z" fill="#9a9086" stroke="#2f2b26" stroke-width="2"/>
+<path d="M 266.1 199.8 L 266.1 288.0 A 84.0 42.0 0 0 0 340.0 288.0 L 340.0 199.8 Z" fill="#6f665d" opacity="0.55"/>
+<ellipse cx="256.0" cy="199.8" rx="84.0" ry="42.0" fill="#7d746a" stroke="#2f2b26" stroke-width="2"/>
+<polygon points="176.1,296.0 176.1,141.8 188.1,141.8 188.1,296.0" fill="#8a6c3d" stroke="#2f2b26" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="323.9,296.0 323.9,141.8 335.9,141.8 335.9,296.0" fill="#8a6c3d" stroke="#2f2b26" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="177.0,167.8 335.0,167.8 335.0,177.8 177.0,177.8" fill="#8a6c3d" stroke="#2f2b26" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="177.0,213.8 335.0,213.8 335.0,223.8 177.0,223.8" fill="#8a6c3d" stroke="#2f2b26" stroke-width="2.0" stroke-linejoin="round"/>
+<line x1="209.8" y1="294.0" x2="209.8" y2="161.8" stroke="#2f2b26" stroke-width="5"/>
+<line x1="235.8" y1="294.0" x2="235.8" y2="161.8" stroke="#2f2b26" stroke-width="5"/>
+<line x1="209.8" y1="280.0" x2="235.8" y2="280.0" stroke="#2f2b26" stroke-width="4"/>
+<line x1="209.8" y1="254.0" x2="235.8" y2="254.0" stroke="#2f2b26" stroke-width="4"/>
+<line x1="209.8" y1="228.0" x2="235.8" y2="228.0" stroke="#2f2b26" stroke-width="4"/>
+<line x1="209.8" y1="202.0" x2="235.8" y2="202.0" stroke="#2f2b26" stroke-width="4"/>
+<line x1="209.8" y1="176.0" x2="235.8" y2="176.0" stroke="#2f2b26" stroke-width="4"/>
 </svg>

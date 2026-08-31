@@ -1,66 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Schmiede. Niedriger Steinkasten mit Schornstein und Glut.
-     Selbe Iso-Konvention wie Kaserne (siehe dort fuer Geometrie). -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <defs>
-    <linearGradient id="sm_wallL" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#928679"/>
-      <stop offset="1" stop-color="#6a604f"/>
-    </linearGradient>
-    <linearGradient id="sm_wallR" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#5a5142"/>
-      <stop offset="1" stop-color="#3a3326"/>
-    </linearGradient>
-    <linearGradient id="sm_roof" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#3a4858"/>
-      <stop offset="1" stop-color="#222a36"/>
-    </linearGradient>
-    <radialGradient id="sm_glow" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#ffd060"/>
-      <stop offset="0.4" stop-color="#ff7820"/>
-      <stop offset="1" stop-color="#a02808" stop-opacity="0"/>
-    </radialGradient>
-  </defs>
+<!-- Erzeugt von tools/gen_city_buildings.py - nicht von Hand editieren.
+     Bodenraute-Mitte bei y=288 (CityScreen SPRITE_GROUND_FRAC 0.56). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<polygon points="107.6,294.0 256.0,219.8 404.4,294.0 256.0,368.2" fill="#000000" opacity="0.30"/>
+<polygon points="116.0,288.0 256.0,358.0 256.0,258.0 116.0,188.0" fill="#c9b184" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="256.0,358.0 396.0,288.0 396.0,188.0 256.0,258.0" fill="#9a8460" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="256.0,118.0 396.0,188.0 256.0,258.0 116.0,188.0" fill="#4a5a72" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="256.0,46.0 256.0,118.0 116.0,188.0 256.0,258.0 256.0,186.0" fill="#5e7290" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="256.0,46.0 256.0,118.0 396.0,188.0 256.0,258.0 256.0,186.0" fill="#374556" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<line x1="256.0" y1="46.0" x2="256.0" y2="186.0" stroke="#2c2418" stroke-width="3"/>
+<polygon points="165.0,176.0 165.0,92.0 199.0,92.0 199.0,176.0" fill="#9a8460" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<circle cx="189.0" cy="76.0" r="12.0" fill="#cfc6b4" opacity="0.34"/>
+<circle cx="201.0" cy="56.0" r="16.0" fill="#cfc6b4" opacity="0.25"/>
+<circle cx="213.0" cy="36.0" r="20.0" fill="#cfc6b4" opacity="0.16"/>
+<ellipse cx="256.0" cy="248.0" rx="62" ry="30" fill="#a8342c" opacity="0.45"/>
+<ellipse cx="256.0" cy="245.0" rx="30" ry="15" fill="#ffd98a" opacity="0.85"/>
 
-  <!-- Boden-Schatten -->
-  <ellipse cx="256" cy="392" rx="210" ry="34" fill="#000" opacity="0.32"/>
-
-  <!-- Niedrige Waende, nur 96px hoch -->
-  <!-- Linke Wand -->
-  <polygon points="64,288 256,384 256,288 64,192" fill="url(#sm_wallL)"
-           stroke="#2a2418" stroke-width="2"/>
-  <line x1="110" y1="216" x2="110" y2="360" stroke="#3a3324" stroke-width="1.2" opacity="0.5"/>
-  <line x1="170" y1="245" x2="170" y2="370" stroke="#3a3324" stroke-width="1.2" opacity="0.5"/>
-  <line x1="220" y1="270" x2="220" y2="380" stroke="#3a3324" stroke-width="1.2" opacity="0.5"/>
-
-  <!-- Tor mit Glut: groesseres Tor zeigt orangefarbenes Innenlicht -->
-  <polygon points="128,304 200,340 200,250 128,214" fill="#1a0e08"/>
-  <ellipse cx="164" cy="278" rx="36" ry="42" fill="url(#sm_glow)"/>
-
-  <!-- Rechte Wand -->
-  <polygon points="256,384 448,288 448,192 256,288" fill="url(#sm_wallR)"
-           stroke="#1a1610" stroke-width="2"/>
-  <line x1="312" y1="356" x2="312" y2="260" stroke="#2a2418" stroke-width="1.2" opacity="0.55"/>
-  <line x1="372" y1="326" x2="372" y2="230" stroke="#2a2418" stroke-width="1.2" opacity="0.55"/>
-  <line x1="424" y1="300" x2="424" y2="204" stroke="#2a2418" stroke-width="1.2" opacity="0.55"/>
-
-  <!-- Dach -->
-  <polygon points="256,128 448,192 256,288 64,192" fill="url(#sm_roof)"
-           stroke="#0e1218" stroke-width="2"/>
-  <line x1="256" y1="128" x2="256" y2="288" stroke="#10141c" stroke-width="2" opacity="0.7"/>
-
-  <!-- Schornstein: hoch, leicht versetzt nach hinten/rechts -->
-  <polygon points="296,118 332,134 332,38 296,22" fill="#5a4636"/>
-  <polygon points="332,134 348,126 348,30 332,38" fill="#3a2c20"/>
-  <polygon points="296,22 332,38 348,30 312,16" fill="#7a6450"/>
-
-  <!-- Rauch / Glut-Wolke -->
-  <ellipse cx="324" cy="18" rx="22" ry="14" fill="#cfcfd6" opacity="0.45"/>
-  <ellipse cx="340" cy="6" rx="16" ry="10" fill="#e6e6ea" opacity="0.35"/>
-  <ellipse cx="316" cy="0" rx="12" ry="8" fill="#f0f0f4" opacity="0.28"/>
-
-  <!-- Amboss vor dem Tor (links) -->
-  <polygon points="84,358 124,372 124,344 84,330" fill="#1a1a1c"/>
-  <polygon points="74,346 84,358 84,330 74,318" fill="#0c0c0e"/>
-  <polygon points="68,316 130,332 130,322 68,306" fill="#2a2a2c"/>
 </svg>

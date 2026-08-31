@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Erzeugt von tools/gen_city_buildings.py - nicht von Hand editieren.
+     Bodenraute-Mitte bei y=288 (CityScreen SPRITE_GROUND_FRAC 0.56). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<polygon points="167.0,294.0 256.0,249.5 345.0,294.0 256.0,338.5" fill="#000000" opacity="0.30"/>
+<path d="M 172.0 92.0 L 172.0 288.0 A 84.0 42.0 0 0 0 340.0 288.0 L 340.0 92.0 Z" fill="#8b85a0" stroke="#18141f" stroke-width="2"/>
+<path d="M 266.1 92.0 L 266.1 288.0 A 84.0 42.0 0 0 0 340.0 288.0 L 340.0 92.0 Z" fill="#605a75" opacity="0.55"/>
+<ellipse cx="256.0" cy="92.0" rx="84.0" ry="42.0" fill="#4a4466" stroke="#18141f" stroke-width="2"/>
+<rect x="244.0" y="126.0" width="24.0" height="32.0" rx="10.8" fill="#7dffb0" stroke="#18141f" stroke-width="2"/>
+<rect x="244.0" y="180.0" width="24.0" height="32.0" rx="10.8" fill="#7dffb0" stroke="#18141f" stroke-width="2"/>
+<line x1="250.0" y1="60.0" x2="250.0" y2="154.0" stroke="#18141f" stroke-width="5"/>
+<polygon points="250.0,60.0 304.0,76.0 250.0,94.0" fill="#7dffb0" stroke="#18141f" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="152.0,292.0 152.0,246.0 160.0,246.0 160.0,292.0" fill="#4a4459" stroke="#18141f" stroke-width="1.5" stroke-linejoin="round"/>
+<circle cx="156.0" cy="236.0" r="13" fill="#e8e4d4" stroke="#18141f" stroke-width="1.5"/>
+<polygon points="148.0,242.0 164.0,242.0 161.0,252.0 151.0,252.0" fill="#e8e4d4" stroke="#18141f" stroke-width="1.5" stroke-linejoin="round"/>
+<circle cx="151.0" cy="234.0" r="3.4" fill="#18141f"/>
+<circle cx="161.0" cy="234.0" r="3.4" fill="#18141f"/>
+<circle cx="156.0" cy="216.0" r="5" fill="#7dffb0" opacity="0.75"/>
+<polygon points="352.0,292.0 352.0,246.0 360.0,246.0 360.0,292.0" fill="#4a4459" stroke="#18141f" stroke-width="1.5" stroke-linejoin="round"/>
+<circle cx="356.0" cy="236.0" r="13" fill="#e8e4d4" stroke="#18141f" stroke-width="1.5"/>
+<polygon points="348.0,242.0 364.0,242.0 361.0,252.0 351.0,252.0" fill="#e8e4d4" stroke="#18141f" stroke-width="1.5" stroke-linejoin="round"/>
+<circle cx="351.0" cy="234.0" r="3.4" fill="#18141f"/>
+<circle cx="361.0" cy="234.0" r="3.4" fill="#18141f"/>
+<circle cx="356.0" cy="216.0" r="5" fill="#7dffb0" opacity="0.75"/>
+</svg>
