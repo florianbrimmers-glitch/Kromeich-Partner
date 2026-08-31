@@ -87,8 +87,11 @@ func _test_data() -> void:
 	_check(Skills.value_of("archery", 3) == 50, "Bogenkampf III = +50 %")
 	_check(Skills.value_of("armorer", 1) == 5, "Ruestungskunde I = -5 %")
 	_check(Skills.value_of("leadership", 0) == 0, "Stufe 0 = kein Effekt")
-	_check(Skills.value_of("wisdom", 1) == 0,
+	# Weisheit und Mystizismus sind seit M8 umgesetzt; Wegfindung nicht.
+	_check(Skills.value_of("pathfinding", 1) == 0,
 		"nicht umgesetzter Skill hat keinen Wert")
+	_check(Skills.value_of("wisdom", 2) == 3, "Weisheit II erlaubt Stufe 3")
+	_check(Skills.mana_regen({"mysticism": 3}) == 3, "Mystizismus III = +3 Mana/Tag")
 	_check(Skills.next_tier_text("logistics", {}).contains("10"),
 		"Beschreibung der naechsten Stufe nennt den Wert (ist '%s')"
 		% Skills.next_tier_text("logistics", {}))
@@ -156,21 +159,35 @@ func _test_offer() -> void:
 	_check(str(a) == str(b), "gleicher Seed -> gleiches Angebot")
 
 	# Primaerwert: nur aus dem Topf, und Orks schlagen haeufiger zu.
-	var att_orks: int = 0
+	# Seit M8 umfasst der Topf alle vier Werte (Wissen gibt Mana,
+	# Zauberkraft skaliert Zauber). Die Pruefung faellt deshalb nicht auf
+	# eine Mehrheit, sondern darauf, dass Angriff bei den Orks der
+	# HAEUFIGSTE Wert ist - das ist die eigentliche Absicht der Gewichte.
+	var counts: Dictionary = {}
 	var off_pool: Array = []
-	for i in range(300):
+	for i in range(600):
 		rng.seed = i
 		var s3: String = Skills.roll_primary(rng, 3)
+		counts[s3] = int(counts.get(s3, 0)) + 1
 		if not off_pool.has(s3):
 			off_pool.append(s3)
-		if s3 == "attack":
-			att_orks += 1
 	var only_pool := true
 	for s4 in off_pool:
 		if not Skills.PRIMARY_POOL.has(String(s4)):
 			only_pool = false
 	_check(only_pool, "Primaerwert kommt nur aus PRIMARY_POOL (%s)" % str(off_pool))
-	_check(att_orks > 150, "Orks ziehen ueberwiegend Angriff (%d von 300)" % att_orks)
+	var top: String = ""
+	var top_n: int = -1
+	for k in counts.keys():
+		if int(counts[k]) > top_n:
+			top_n = int(counts[k])
+			top = String(k)
+	_check(top == "attack", "Orks ziehen am haeufigsten Angriff (%s)" % str(counts))
+	# Und Zauberkraft bleibt bei Orks selten - sonst waeren die Gewichte
+	# wirkungslos.
+	_check(int(counts.get("spell_power", 0)) < int(counts.get("attack", 0)) / 2,
+		"Orks zaubern kaum (Zauberkraft %d vs Angriff %d)"
+		% [int(counts.get("spell_power", 0)), int(counts.get("attack", 0))])
 
 
 func _test_hero() -> void:

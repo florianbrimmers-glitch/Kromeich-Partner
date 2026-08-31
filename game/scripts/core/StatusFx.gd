@@ -30,6 +30,13 @@ const STUNNED := "betaeubt"
 const DISEASED := "krank"
 const CURSED := "verflucht"
 const AGED := "gealtert"
+# Zauber-Status (M8). Bewusst getrennt von den Treffer-Status oben: die
+# kommen aus units.json-Flags, diese aus data/spells.json. Gleiche
+# Mechanik, andere Quelle.
+const HASTENED := "beschleunigt"
+const SLOWED := "verlangsamt"
+const STONE_SKIN := "steinhaut"
+const WEAKENED := "geschwaecht"
 
 # Ability-Flag -> Status, Trefferwahrscheinlichkeit, Dauer in Runden.
 const ON_HIT := {
@@ -45,9 +52,17 @@ const ON_HIT := {
 const MARKERS := {
 	ROOTED: "W", BLINDED: "B", STUNNED: "S",
 	DISEASED: "K", CURSED: "F", AGED: "A",
+	# Zauber-Status (M8). Grossbuchstaben bleiben fuer Treffer-Status,
+	# damit man im Gitter auf einen Blick sieht, woher etwas kommt.
+	HASTENED: "h", SLOWED: "l", STONE_SKIN: "d", WEAKENED: "w",
 }
 
 const DISEASE_STAT_MALUS: int = 2
+# Zauber-Werte. Quelle: data/spells.json (+3_spd, -3_spd, +3_def, -3_att).
+const HASTE_SPD_BONUS: int = 3
+const SLOW_SPD_MALUS: int = 3
+const STONE_SKIN_DEF_BONUS: int = 3
+const WEAKNESS_ATT_MALUS: int = 3
 const CURSE_DEALT_FACTOR: float = 0.75
 const AGED_TAKEN_FACTOR: float = 1.25
 
@@ -104,11 +119,33 @@ static func apply_on_hit(attacker_uid: String, target: Dictionary,
 
 
 static func att_mod(stack: Dictionary) -> int:
-	return -DISEASE_STAT_MALUS if has(stack, DISEASED) else 0
+	var m: int = 0
+	if has(stack, DISEASED):
+		m -= DISEASE_STAT_MALUS
+	if has(stack, WEAKENED):
+		m -= WEAKNESS_ATT_MALUS
+	return m
 
 
 static func def_mod(stack: Dictionary) -> int:
-	return -DISEASE_STAT_MALUS if has(stack, DISEASED) else 0
+	var m: int = 0
+	if has(stack, DISEASED):
+		m -= DISEASE_STAT_MALUS
+	if has(stack, STONE_SKIN):
+		m += STONE_SKIN_DEF_BONUS
+	return m
+
+
+# Geschwindigkeits-Aenderung (M8). Beschleunigen und Verlangsamen heben
+# sich gegenseitig auf, statt sich zu stapeln - so kann ein Zauberduell
+# nicht in absurde Werte laufen.
+static func spd_mod(stack: Dictionary) -> int:
+	var m: int = 0
+	if has(stack, HASTENED):
+		m += HASTE_SPD_BONUS
+	if has(stack, SLOWED):
+		m -= SLOW_SPD_MALUS
+	return m
 
 
 # Faktor auf den Schaden, den dieser Stack ANRICHTET.

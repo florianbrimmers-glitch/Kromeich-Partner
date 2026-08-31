@@ -10,6 +10,8 @@ const SaveLib := preload("res://scripts/core/SaveManager.gd")
 # Diese Schicht rechnet Skill-Stufen in Zahlen um; der Kampf-Screen
 # bekommt nur Prozentwerte im Kontext und kennt keine Skills.
 const Skills := preload("res://scripts/core/HeroSkills.gd")
+# Zauber (M8). Loest die Formeln aus spells.json in Zahlen auf.
+const Spells := preload("res://scripts/core/HeroSpells.gd")
 
 # Weltkarten-Screen. Rendert eine deterministische Zufallskarte per
 # _draw() und erlaubt den Helden per Tap zu bewegen. Dijkstra berechnet
@@ -497,6 +499,9 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 	}
 	_set_status("STEP 4: MapGen fertig, spawn %s" % str(spawn))
 	_hero = Hero.new(spawn, BASE_MAX_MP)
+	# Mana startet voll (M8). Der Deckel leitet sich aus dem Wissen ab,
+	# bei Stufe 1 ist das der Grundstock.
+	_hero.mana = Spells.max_mana(int(_hero.knowledge))
 	_hero.gold = STARTING_GOLD
 	_hero.wallet.add_all(STARTING_RESOURCES)
 	# Start-Einheiten haengen an der Fraktion - die ergibt sich erst,
@@ -1943,6 +1948,11 @@ func _open_battle(opp_name: String, opp_army: int, allow_flee: bool, terrain_id:
 			"player_archery_pct": Skills.archery_pct(_hero.skills),
 			"player_offense_pct": Skills.offense_pct(_hero.skills),
 			"player_armorer_pct": Skills.armorer_pct(_hero.skills),
+			"player_mana": int(_hero.mana),
+			"player_spell_power": int(_hero.spell_power),
+			"player_spells": Spells.known(
+				Spells.schools_for_faction(_player_faction),
+				Skills.wisdom_tier(_hero.skills)),
 			"enemy_name": opp_name,
 			"enemy_stacks": e_stacks,
 			"allow_flee": allow_flee,
@@ -1953,6 +1963,11 @@ func _open_battle(opp_name: String, opp_army: int, allow_flee: bool, terrain_id:
 			"tower_dmg": int(siege_ctx.get("tower_dmg", 0)),
 		})
 	overlay.connect("battle_finished", func(result: Dictionary) -> void:
+		# Verbrauchtes Mana zuerst uebernehmen - EIN Ort fuer alle
+		# Kampf-Ausgaenge (Sieg, Niederlage, Flucht), statt in jedem der
+		# fuenf Callbacks daran zu denken.
+		if result.has("mana_left"):
+			_hero.mana = clampi(int(result["mana_left"]), 0, _hero_max_mana())
 		on_result.call(result)
 		overlay.queue_free()
 	)
@@ -2365,6 +2380,9 @@ func _hero_stats_text() -> String:
 	var lines: Array = [
 		"Stufe %d   %d XP" % [int(_hero.level), int(_hero.xp)],
 		"Angriff %d   Verteidigung %d" % [int(_hero.att), int(_hero.def)],
+		"Zauberkraft %d   Wissen %d   Mana %d/%d" % [
+			int(_hero.spell_power), int(_hero.knowledge),
+			int(_hero.mana), _hero_max_mana()],
 		"%d Gold   Armee %d" % [int(_hero.gold), _hero.total_count()],
 	]
 	if not _hero.skills.is_empty():
@@ -2464,6 +2482,22 @@ func _recalc_max_mp() -> void:
 		+ LEVEL_BONUS_MP * max(0, _hero.level - 1)
 	var pct: int = Skills.move_pct(_hero.skills)
 	_hero.max_mp = base_mp + int(round(float(base_mp) * float(pct) / 100.0))
+
+
+# Mana-Maximum aus Wissen (M8). Nicht gespeichert, immer abgeleitet -
+# steigt das Wissen, steigt der Deckel sofort mit.
+func _hero_max_mana() -> int:
+	return Spells.max_mana(int(_hero.knowledge))
+
+
+# Mana pro Tag: Grundregeneration plus Mystizismus.
+const MANA_REGEN_PER_DAY := 1
+
+
+func _regen_mana() -> void:
+	var cap: int = _hero_max_mana()
+	var gain: int = MANA_REGEN_PER_DAY + Skills.mana_regen(_hero.skills)
+	_hero.mana = clampi(int(_hero.mana) + gain, 0, cap)
 
 
 # Sichtweite des Helden: Grundwert plus Aufklaeren.
@@ -3316,6 +3350,7 @@ func _on_end_turn() -> void:
 			if bl.has("kapelle"):
 				kapelle_count += 1
 	_recalc_max_mp()
+	_regen_mana()
 	_hero.end_turn()
 	# Goldminen im Besitz: +MINE_GOLD_PER_TURN pro Mine (bereits als
 	# obj["gold"] hinterlegt, damit spaeter Minen unterschiedlichen

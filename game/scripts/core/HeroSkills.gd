@@ -18,13 +18,12 @@ extends RefCounted
 
 const DATA_PATH := "res://data/skills.json"
 
-# Primaerwerte. Die Auswahl beim Stufenaufstieg zieht bewusst NUR aus
-# Angriff und Verteidigung: Zauberkraft und Wissen wirken erst mit den
-# Zaubern (M8). Einen Wert zu verteilen, der nichts tut, waere schlechter
-# als ein kleinerer Topf. Die Felder existieren trotzdem schon im Helden
-# und im Save - M8 muss dann nur diese Liste erweitern.
+# Primaerwerte. In M7 Teil 1 zog die Auswahl nur aus Angriff und
+# Verteidigung, weil Zauberkraft und Wissen nichts taten. Mit M8 wirken
+# beide: Wissen bestimmt das Mana-Maximum, Zauberkraft skaliert jede
+# Zauberwirkung. Der Topf umfasst deshalb jetzt alle vier.
 const PRIMARY_IDS := ["attack", "defense", "spell_power", "knowledge"]
-const PRIMARY_POOL := ["attack", "defense"]
+const PRIMARY_POOL := ["attack", "defense", "spell_power", "knowledge"]
 const PRIMARY_NAMES := {
 	"attack": "Angriff", "defense": "Verteidigung",
 	"spell_power": "Zauberkraft", "knowledge": "Wissen",
@@ -32,12 +31,12 @@ const PRIMARY_NAMES := {
 
 # Skills, deren Grundsystem noch fehlt. Sie werden NICHT angeboten - der
 # Spieler soll keinen toten Skill ziehen koennen.
-#   wisdom, mysticism -> brauchen Zauber und Mana (M8)
-#   pathfinding       -> braucht Gelaende-Bewegungskosten
-#   tactics           -> braucht eine Aufstellungsphase vor dem Kampf
-#   necromancy        -> braucht Armee-Zuwachs nach dem Sieg (M7 Teil 2)
-const NOT_YET_IMPLEMENTED := ["wisdom", "mysticism", "pathfinding",
-	"tactics", "necromancy"]
+#   pathfinding -> braucht Gelaende-Bewegungskosten
+#   tactics     -> braucht eine Aufstellungsphase vor dem Kampf
+#   necromancy  -> braucht Armee-Zuwachs nach dem Sieg (M7 Teil 2)
+# Weisheit und Mystizismus sind seit M8 drin - sie brauchten Zauber und
+# Mana, und beides gibt es jetzt.
+const NOT_YET_IMPLEMENTED := ["pathfinding", "tactics", "necromancy"]
 
 const MAX_TIER := 3
 const MAX_SLOTS := 8
@@ -46,12 +45,13 @@ const OFFER_COUNT := 2
 # Fraktions-Gewichte fuer den Primaerwert. Quelle der Absicht:
 # hero_classes und affinity_schools in data/factions.json.
 # Reihenfolge = FACTION_DIRS-Index: 0 waldvolk, 1 menschen, 2 totenreich,
-# 3 orks. Werte sind Gewichte fuer PRIMARY_POOL (Angriff, Verteidigung).
+# 3 orks. Werte sind Gewichte fuer PRIMARY_POOL in dessen Reihenfolge:
+# Angriff, Verteidigung, Zauberkraft, Wissen.
 const FACTION_WEIGHTS := {
-	0: [3, 2],   # Waldvolk: Fernkampf, offensiv
-	1: [2, 2],   # Menschen: ausgewogen (Referenz)
-	2: [2, 3],   # Totenreich: zaeh
-	3: [4, 1],   # Orks: schlagen zu
+	0: [3, 2, 3, 2],   # Waldvolk: offensiv und naturmagisch
+	1: [3, 3, 2, 2],   # Menschen: ausgewogen (Referenz)
+	2: [2, 3, 3, 2],   # Totenreich: zaeh und magielastig
+	3: [4, 3, 1, 1],   # Orks: schlagen zu, zaubern kaum
 }
 
 static var _cache: Dictionary = {}
@@ -177,6 +177,8 @@ const _TABLES := {
 	"offense": [10, 25, 40],           # Prozent Nahkampfschaden
 	"armorer": [5, 10, 15],            # Prozent weniger erlittener Schaden
 	"estates": [125, 250, 500],        # Gold pro Tag
+	"wisdom": [2, 3, 4],               # hoechste lernbare Zauberstufe
+	"mysticism": [1, 2, 3],            # Mana pro Tag zusaetzlich
 	"necromancy": [10, 20, 30],        # Prozent der Gefallenen (Teil 2)
 }
 
@@ -216,6 +218,15 @@ static func armorer_pct(have: Dictionary) -> int:
 static func estates_gold(have: Dictionary) -> int:
 	return value_in(have, "estates")
 
+# Weisheit als STUFE, nicht als Wert: HeroSpells.max_spell_level rechnet
+# daraus die erlaubte Zauberstufe. Die Tabelle oben haelt die Stufen-Werte
+# nur fuer die Anzeige.
+static func wisdom_tier(have: Dictionary) -> int:
+	return int(have.get("wisdom", 0))
+
+static func mana_regen(have: Dictionary) -> int:
+	return value_in(have, "mysticism")
+
 
 # Kurzbeschreibung der NAECHSTEN Stufe - fuer die Auswahl beim Aufstieg.
 # Der Spieler muss sehen, was der Zug bringt, nicht nur den Namen.
@@ -240,6 +251,10 @@ static func next_tier_text(skill_id: String, have: Dictionary) -> String:
 			return "+%d Gold pro Tag" % val
 		"necromancy":
 			return "%d %% der Gefallenen als Skelette" % val
+		"wisdom":
+			return "Zauber bis Stufe %d lernbar" % val
+		"mysticism":
+			return "+%d Mana pro Tag" % val
 	return ""
 
 

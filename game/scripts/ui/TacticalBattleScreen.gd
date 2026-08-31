@@ -16,6 +16,9 @@ const Fx := preload("res://scripts/core/StatusFx.gd")
 const Mor := preload("res://scripts/core/Morale.gd")
 # Effekt-Schicht (It. 17). Alias Vfx, weil Fx oben schon StatusFx ist.
 const Vfx := preload("res://scripts/core/BattleVfx.gd")
+# Zauber (M8). Wie HeroSkills eine reine Datenschicht: sie loest die
+# Formeln aus spells.json in Zahlen auf, der Screen wirkt sie nur.
+const Spl := preload("res://scripts/core/HeroSpells.gd")
 
 const GRID_COLS := 10
 const GRID_ROWS := 8
@@ -49,6 +52,20 @@ var _p_def: int = 0
 var _p_archery_pct: int = 0
 var _p_offense_pct: int = 0
 var _p_armorer_pct: int = 0
+
+# --- Zauber (M8) ---------------------------------------------------------
+# Der Weltkarten-Screen gibt Mana, Zauberkraft und die Liste der wirkbaren
+# Zauber mit; der Kampf gibt das verbrauchte Mana im Ergebnis zurueck.
+var _p_mana: int = 0
+var _p_power: int = 0
+var _p_spells: Array = []
+# Ein Zauber pro Runde (HoMM3-Regel). Zaehler statt Bool, damit spaetere
+# Artefakte mehr erlauben koennen, ohne die Logik umzubauen.
+var _casts_left: int = 0
+# Gewaehlter Zauber, wartet auf das Ziel-Tippen. Leer = kein Zielmodus.
+var _pending_spell: String = ""
+var _spell_btn: Button = null
+var _spell_panel: Panel = null
 var _allow_flee: bool = true
 var _rng: RandomNumberGenerator
 var _art_seed: int = 42
@@ -111,6 +128,11 @@ func set_battle(ctx: Dictionary) -> void:
 	_p_archery_pct = int(ctx.get("player_archery_pct", 0))
 	_p_offense_pct = int(ctx.get("player_offense_pct", 0))
 	_p_armorer_pct = int(ctx.get("player_armorer_pct", 0))
+	_p_mana = int(ctx.get("player_mana", 0))
+	_p_power = int(ctx.get("player_spell_power", 0))
+	_p_spells = (ctx.get("player_spells", []) as Array).duplicate()
+	_casts_left = Spl.CASTS_PER_ROUND
+	_pending_spell = ""
 	_allow_flee  = bool(ctx.get("allow_flee", true))
 	_rng = RandomNumberGenerator.new()
 	_rng.seed = int(ctx.get("seed", 42))
@@ -156,6 +178,7 @@ func set_battle(ctx: Dictionary) -> void:
 	_active_slot = 0
 	if _flee_btn != null:
 		_flee_btn.visible = _allow_flee
+	_refresh_spell_button()
 	_refresh()
 	_step()
 
@@ -430,6 +453,10 @@ func _next_round() -> void:
 	if _finished:
 		return
 	_round += 1
+	# Neue Runde, neuer Zauber (HoMM3-Regel).
+	_casts_left = Spl.CASTS_PER_ROUND
+	_pending_spell = ""
+	_refresh_spell_button()
 	for s in _p_stacks + _e_stacks:
 		s["retaliated"] = false
 		s["waited"] = false
@@ -603,7 +630,9 @@ func _build_reachable() -> void:
 	if Fx.blocks_move(st):
 		_reachable[start] = 0
 		return
-	var spd: int = UnitType.speed_of(String(st["type"]))
+	# M8: Beschleunigen/Verlangsamen aendern die Reichweite. Minimum 1,
+	# sonst kann ein Stack durch Verlangsamen komplett festkleben.
+	var spd: int = max(1, UnitType.speed_of(String(st["type"])) + Fx.spd_mod(st))
 	var blocked: Array = []
 	for s in _p_stacks:
 		if Vector2i(s["pos"]) != start and int(s["count"]) > 0:
@@ -693,6 +722,20 @@ func _build_ui() -> void:
 	_wait_btn.add_theme_font_size_override("font_size", 38)
 	_wait_btn.pressed.connect(_on_wait)
 	add_child(_wait_btn)
+
+	# Zauber-Knopf (M8). Sitzt mittig zwischen Warten und Fliehen; ohne
+	# wirkbare Zauber bleibt er unsichtbar, damit die Zeile nicht mit einem
+	# toten Knopf zugestellt ist.
+	_spell_btn = Button.new()
+	_spell_btn.text = "Zauber"
+	_spell_btn.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	_spell_btn.offset_left = 500.0
+	_spell_btn.offset_right = -500.0
+	_spell_btn.offset_top = -170.0
+	_spell_btn.offset_bottom = -50.0
+	_spell_btn.add_theme_font_size_override("font_size", 34)
+	_spell_btn.pressed.connect(_on_spell_button)
+	add_child(_spell_btn)
 
 	_flee_btn = Button.new()
 	_flee_btn.text = "Fliehen"
@@ -901,6 +944,172 @@ func _draw_grid() -> void:
 
 	# Effekte zuletzt, damit sie ueber den Token liegen.
 	_draw_effects(o, c)
+
+
+# --- Zauber (M8) ---------------------------------------------------------
+
+func _castable_spells() -> Array:
+	var out: Array = []
+	for sid in _p_spells:
+		if Spl.cost_of(String(sid)) <= _p_mana:
+			out.append(String(sid))
+	return out
+
+
+func _refresh_spell_button() -> void:
+	if _spell_btn == null:
+		return
+	var can: Array = _castable_spells()
+	_spell_btn.visible = not _p_spells.is_empty()
+	_spell_btn.disabled = can.is_empty() or _casts_left <= 0 or _finished
+	if _casts_left <= 0:
+		_spell_btn.text = "Zauber verbraucht"
+	elif can.is_empty():
+		_spell_btn.text = "Mana %d" % _p_mana
+	else:
+		_spell_btn.text = "Zauber (%d Mana)" % _p_mana
+
+
+func _on_spell_button() -> void:
+	if _pending_spell != "":
+		# Zweiter Druck bricht die Zielauswahl ab.
+		_pending_spell = ""
+		_set_action("Zauber abgebrochen.")
+		return
+	_open_spell_book()
+
+
+func _open_spell_book() -> void:
+	if _spell_panel == null:
+		_build_spell_panel()
+	var vb := _spell_panel.get_node("VB") as VBoxContainer
+	for child in vb.get_children():
+		child.queue_free()
+	var head := Label.new()
+	head.text = "Zauberbuch  -  %d Mana  -  Zauberkraft %d" % [_p_mana, _p_power]
+	head.add_theme_font_size_override("font_size", 34)
+	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(head)
+	for sid in _castable_spells():
+		var spell_id: String = String(sid)
+		var btn := Button.new()
+		btn.custom_minimum_size = Vector2(0, 110)
+		btn.add_theme_font_size_override("font_size", 28)
+		btn.text = Spl.book_line(spell_id, _p_power)
+		btn.pressed.connect(_on_spell_chosen.bind(spell_id))
+		vb.add_child(btn)
+	var cancel := Button.new()
+	cancel.custom_minimum_size = Vector2(0, 100)
+	cancel.add_theme_font_size_override("font_size", 30)
+	cancel.text = "Zurueck"
+	cancel.pressed.connect(func(): _spell_panel.visible = false)
+	vb.add_child(cancel)
+	_spell_panel.visible = true
+
+
+func _build_spell_panel() -> void:
+	var panel := Panel.new()
+	panel.visible = false
+	panel.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(panel)
+	var bg := ColorRect.new()
+	bg.color = Color(0.05, 0.06, 0.09, 0.96)
+	bg.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(bg)
+	var vb := VBoxContainer.new()
+	vb.name = "VB"
+	vb.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	vb.offset_left = 40
+	vb.offset_right = -40
+	vb.offset_top = 140
+	vb.offset_bottom = -140
+	vb.add_theme_constant_override("separation", 18)
+	panel.add_child(vb)
+	_spell_panel = panel
+
+
+func _on_spell_chosen(spell_id: String) -> void:
+	_spell_panel.visible = false
+	_pending_spell = spell_id
+	var friendly: bool = Spl.is_friendly_target(spell_id)
+	_set_action("%s: %s antippen." % [
+		Spl.display_name(spell_id),
+		"eigenen Stack" if friendly else "Gegner-Stack"])
+
+
+# Tippt der Spieler im Zielmodus auf einen Stack, wird hier gewirkt.
+# Rueckgabe true = Tap verbraucht.
+func _try_cast_on(cell: Vector2i) -> bool:
+	if _pending_spell == "":
+		return false
+	var spell_id: String = _pending_spell
+	var friendly: bool = Spl.is_friendly_target(spell_id)
+	var pool: Array = _p_stacks if friendly else _e_stacks
+	var target: Dictionary = {}
+	for s in pool:
+		if int(s["count"]) > 0 and Vector2i(s["pos"]) == cell:
+			target = s
+			break
+	if target.is_empty():
+		_set_action("Kein gueltiges Ziel dort.")
+		return true
+	_pending_spell = ""
+	_cast(spell_id, target)
+	return true
+
+
+func _cast(spell_id: String, target: Dictionary) -> void:
+	var cost: int = Spl.cost_of(spell_id)
+	if cost > _p_mana or _casts_left <= 0:
+		_set_action("Nicht genug Mana.")
+		return
+	_p_mana -= cost
+	_casts_left -= 1
+	var name: String = Spl.display_name(spell_id)
+	var msg: String = ""
+	var st: Dictionary = Spl.status_of(spell_id)
+	if not st.is_empty():
+		Fx.add(target, String(st["status"]), int(st["rounds"]))
+		Vfx.popup(_fx, Vector2i(target["pos"]), name, Color(0.75, 0.70, 1.0))
+		msg = "%s -> %s (%s, %d Rd.)" % [name,
+			UnitType.short_of(String(target["type"])),
+			String(st["status"]), int(st["rounds"])]
+	elif Spl.damage_of(spell_id, _p_power) > 0:
+		var dmg: int = Spl.damage_of(spell_id, _p_power)
+		var killed: int = _apply_dmg(target, dmg)
+		msg = "%s -> %s: %d Sch., -%d" % [name,
+			UnitType.short_of(String(target["type"])), dmg, killed]
+		if Spl.is_aoe(spell_id):
+			# Umfeld wie die Lich-Todeswolke: halber Schaden auf die
+			# Nachbarfelder derselben Seite.
+			var side: int = int(target["side"])
+			var splash: int = max(1, int(round(float(dmg) * Spl.AOE_FRACTION)))
+			var hit: int = 0
+			for s2 in (_e_stacks if side == 1 else _p_stacks):
+				if s2 == target or int(s2["count"]) <= 0:
+					continue
+				if _adj(Vector2i(s2["pos"]), Vector2i(target["pos"])):
+					_apply_dmg(s2, splash)
+					hit += 1
+			if hit > 0:
+				msg += "  (+%d Nachbar, je %d)" % [hit, splash]
+	else:
+		var heal: int = Spl.heal_of(spell_id, _p_power)
+		if heal > 0:
+			var before: int = int(target["top_hp"])
+			CombatMath.heal(target, heal)
+			var gained: int = int(target["top_hp"]) - before
+			Vfx.healed(_fx, Vector2i(target["pos"]), gained)
+			msg = "%s -> %s: +%d HP" % [name,
+				UnitType.short_of(String(target["type"])), gained]
+	_set_action("%s  [Mana %d]" % [msg, _p_mana])
+	_refresh_spell_button()
+	_refresh()
+	# Zaubern kostet KEINEN Zug - der aktive Stack darf danach noch
+	# handeln (HoMM3-Regel). Deshalb hier kein _advance().
+	if _check_end():
+		return
 
 
 # --- Effekt-Zeichnung (It. 17) --------------------------------------------
@@ -1267,6 +1476,11 @@ func _on_grid_input(event: InputEvent) -> void:
 	var cell: Vector2i = _cell_at(mb.position)
 	if cell.x < 0: return
 
+	# Zauber-Zielmodus fangt den Tap ab, bevor Angriff oder Bewegung
+	# ausgeloest werden.
+	if _try_cast_on(cell):
+		return
+
 	var active: Dictionary = _active_stack()
 	if active.is_empty(): return
 
@@ -1501,7 +1715,7 @@ func _ai_turn() -> void:
 			return
 		# LOS blockiert (Stein) -> faellt durch auf Melee-Pathing unten.
 
-	var spd: int = UnitType.speed_of(uid)
+	var spd: int = max(1, UnitType.speed_of(uid) + Fx.spd_mod(estack))
 	# Verwurzelte KI-Stacks bleiben stehen und greifen nur Nachbarn an.
 	if Fx.blocks_move(estack):
 		spd = 0
@@ -1740,6 +1954,9 @@ func _check_end() -> bool:
 	var res: Dictionary = {
 		"outcome": "victory" if p_alive else "defeat",
 		"casualties": cas,
+		# M8: verbrauchtes Mana muss zurueck, sonst waere der Held nach
+		# jedem Kampf wieder voll aufgeladen.
+		"mana_left": _p_mana,
 		"player_remaining": _remaining_of(_p_stacks),
 		"enemy_remaining": _remaining_of(_e_stacks),
 	}
@@ -1782,4 +1999,5 @@ func _on_wait() -> void:
 func _on_flee() -> void:
 	if _finished or not _allow_flee: return
 	_finished = true
-	battle_finished.emit({"outcome": "flee", "casualties": {}})
+	battle_finished.emit({"outcome": "flee", "casualties": {},
+		"mana_left": _p_mana})

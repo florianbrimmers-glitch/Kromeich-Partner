@@ -43,6 +43,9 @@ var spell_power: int = 0
 var knowledge: int = 0
 # {skill_id: stufe 1..3}
 var skills: Dictionary = {}
+# Mana (M8). Der Hoechstwert leitet sich aus `knowledge` ab und wird
+# deshalb NICHT gespeichert - nur der aktuelle Stand.
+var mana: int = 0
 
 
 func skill_tier(skill_id: String) -> int:
@@ -168,6 +171,7 @@ func to_dict() -> Dictionary:
 		"spell_power": spell_power,
 		"knowledge": knowledge,
 		"skills": skills.duplicate(),
+		"mana": mana,
 	}
 
 static func from_dict(d: Dictionary) -> Hero:
@@ -190,4 +194,5 @@ static func from_dict(d: Dictionary) -> Hero:
 	h.spell_power = int(d.get("spell_power", 0))
 	h.knowledge = int(d.get("knowledge", 0))
 	h.skills = SaveCodec.int_dict(d.get("skills", {}))
+	h.mana = int(d.get("mana", 0))
 	return h
