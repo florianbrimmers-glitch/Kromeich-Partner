@@ -16,5 +16,5 @@
   <path d="M 32.0 64.0 q -13 0 -13 13 l 0 9 q 0 13 13 15 q 13 -2 13 -15 l 0 -9 q 0 -13 -13 -13 Z" fill="#dac350" stroke="#27230e" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
   <path d="M 32.0 68.0 L 32.0 96.0" fill="none" stroke="#c8d2dc" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
-  <circle cx="64.0" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#27230e" stroke-width="1.2"/>
+  <circle cx="64.0" cy="122.0" r="2.6" fill="#f7e692" opacity="0.75"/>
 </svg>

@@ -16,6 +16,6 @@
   <path d="M 98 58 L 68 58" fill="none" stroke="#7a5a34" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
   <polygon points="70.0,58.0 60.0,54.0 60.0,62.0" fill="#c8d2dc" stroke="#122312" stroke-width="1.5" stroke-linejoin="round"/>
   </g>
-  <circle cx="57.5" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#122312" stroke-width="1.2"/>
-  <circle cx="70.5" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#122312" stroke-width="1.2"/>
+  <circle cx="59.5" cy="122.0" r="2.6" fill="#a2e6a2" opacity="0.75"/>
+  <circle cx="68.5" cy="122.0" r="2.6" fill="#a2e6a2" opacity="0.75"/>
 </svg>

@@ -117,17 +117,57 @@ def legs(p, top, w=9, spread=13, col=None):
     return out
 
 
-def quad_legs(p, body_y, w=8, front=26, back=26, col=None):
-    """Vier Beine: hinten dunkler, damit Tiefe entsteht."""
-    c = col or p["main"]
+def animal_leg(p, x, top, foot="hoof", far=False, w=10.0, kick=0.0):
+    """EIN Tierbein mit Gelenkknick. Vorher waren die vier Beine gerade
+    Rechtecke gleicher Breite - bei 96 px lasen sie sich als Striche unter
+    einem Klumpen, nicht als Beine. Der Knick und der Fuss tragen die
+    Erkennbarkeit; `far` schiebt das Bein farblich nach hinten.
+
+    foot: hoof (Huf), paw (Tatze), talon (Greifvogel-Fang)
+    kick: Versatz des Fusses gegen die Schulter - erzeugt Schrittstellung.
+    """
+    col = p["mid"] if far else p["main"]
+    knee_y = top + (GROUND - top) * 0.50
     out = []
-    for s, off, shade in ((-1, back, 0.0), (1, front, 0.0),
-                          (-1, back - 9, 1.0), (1, front - 9, 1.0)):
-        x = CX + s * off
-        fill = p["mid"] if shade else c
-        out.append(poly([(x - w * 0.5, body_y), (x + w * 0.5, body_y),
-                         (x + w * 0.5, GROUND - 3), (x + w * 0.5 + 2.5, GROUND),
-                         (x - w * 0.5 - 2.5, GROUND)], fill, p))
+    out.append(poly([
+        (x - w * 0.60, top), (x + w * 0.60, top),
+        (x + w * 0.42 + kick * 0.5, knee_y),
+        (x + w * 0.30 + kick, GROUND - 7),
+        (x - w * 0.30 + kick, GROUND - 7),
+        (x - w * 0.46 + kick * 0.5, knee_y),
+    ], col, p, 2.2))
+    fx = x + kick
+    if foot == "hoof":
+        out.append(poly([(fx - w * 0.38, GROUND - 8), (fx + w * 0.38, GROUND - 8),
+                         (fx + w * 0.46, GROUND), (fx - w * 0.46, GROUND)],
+                        p["dark"], p, 2.0))
+    elif foot == "paw":
+        out.append(poly([(fx - w * 0.42, GROUND - 8), (fx + w * 0.62, GROUND - 8),
+                         (fx + w * 0.78, GROUND), (fx - w * 0.54, GROUND)],
+                        col, p, 2.0))
+        for k in range(2):
+            out.append(stroke_path("M %.1f %.1f l 3.5 4.5"
+                                   % (fx + w * 0.20 + k * 4.0, GROUND - 5),
+                                   p["dark"], 1.8))
+    else:  # talon
+        out.append(poly([(fx - w * 0.30, GROUND - 9), (fx + w * 0.30, GROUND - 9),
+                         (fx + w * 0.30, GROUND - 3), (fx - w * 0.30, GROUND - 3)],
+                        p["accent"], p, 1.8))
+        for k in (-1, 0, 1):
+            out.append(stroke_path("M %.1f %.1f q %.1f 4 %.1f 5"
+                                   % (fx, GROUND - 4, k * 4.0, k * 7.0),
+                                   p["accent"], 2.6))
+    return out
+
+
+def quad_legs(p, body_y, w=8, front=26, back=26, col=None,
+              foot_front="hoof", foot_back="hoof"):
+    """Vier Beine ums Rumpfmittel. Hinterlaeufe zuerst (liegen hinten)."""
+    out = []
+    out += animal_leg(p, CX - back + 4, body_y - 2, foot_back, True, w * 0.9, -2.0)
+    out += animal_leg(p, CX + front - 4, body_y - 2, foot_front, True, w * 0.9, 2.0)
+    out += animal_leg(p, CX - back, body_y, foot_back, False, w, 2.0)
+    out += animal_leg(p, CX + front, body_y, foot_front, False, w, -2.0)
     return out
 
 
@@ -374,24 +414,66 @@ def shield(p, x=32, y=64):
 # ------------------------------------------------------------------ Fluegel
 
 def wings(kind, p, cy=52, span=44, drop=18):
+    """Fluegelpaare. It. 30 komplett neu gezeichnet: die alten Formen waren
+    glatte Blaetter (feather) bzw. eine Strichreihe (bone) - bei 96 px las
+    sich das erste als Fisch und das zweite als Rechen. Jetzt hat jeder
+    Fluegel eine NACH HINTEN GESCHWUNGENE Vorderkante und eine gezackte
+    bzw. gebogene Hinterkante; das ist die Silhouette, die man als Fluegel
+    erkennt.
+
+    WICHTIG: keine festen Minuszeichen in die Formatzeichenkette schreiben.
+    Der erste Anlauf hatte "-%.1f" und setzte dort einen bereits mit s
+    multiplizierten Wert ein - fuer s=-1 kam "--25.3" heraus, also
+    ungueltiges SVG. Alle Verschiebungen tragen ihr Vorzeichen selbst.
+    """
     o = []
-    # WICHTIG: keine festen Minuszeichen in die Formatzeichenkette schreiben.
-    # Der erste Anlauf hatte "-%.1f" und setzte dort einen bereits mit s
-    # multiplizierten Wert ein - fuer s=-1 kam "--25.3" heraus, also
-    # ungueltiges SVG. Alle Verschiebungen tragen ihr Vorzeichen selbst.
     if kind == "feather":
+        # Drei Federlagen je Seite, nach hinten-oben gestaffelt.
         for s in (-1, 1):
-            x0 = CX + s * 12
-            o.append(path("M %.1f %.1f q %.1f %.1f %.1f %.1f q %.1f %.1f %.1f %.1f Z"
-                          % (x0, cy,
-                             s * span * 0.5, -26.0, s * span, -12.0,
-                             s * span * -0.1, 30.0, s * span * -0.55, drop),
-                          p["light"], p))
-            for k in range(3):
+            x0 = CX + s * 10
+            for k, (dx, dy, ln) in enumerate((
+                    (0.42, -30.0, 0.72), (0.72, -20.0, 0.92), (0.92, -6.0, 1.0))):
+                o.append(poly([
+                    (x0, cy - 6.0 + k * 5.0),
+                    (x0 + s * span * dx, cy + dy),
+                    (x0 + s * span * ln, cy + dy + 12.0),
+                    (x0 + s * span * (ln - 0.18), cy + dy + 20.0),
+                    (x0, cy + 6.0 + k * 5.0),
+                ], p["light"] if k < 2 else p["mid"], p, 2.0))
+    elif kind == "membrane" or kind == "bone":
+        # Drachenfluegel: ECKIGE Silhouette mit drei vorstehenden
+        # Fingerspitzen an der Hinterkante. Die erste Fassung hatte eine
+        # weiche Bogenkante - in Fraktionsgruen las sie sich als Blatt und
+        # in Knochenfarbe als Lappen. Die Zacken sind das Merkmal, an dem
+        # ein Fluegel bei 96 px als Drachenfluegel erkannt wird.
+        rotten = (kind == "bone")
+        for s in (-1, 1):
+            x0 = CX + s * 8
+            pts = [
+                (x0, cy - 4.0),
+                (x0 + s * span * 0.46, cy - 28.0),
+                (x0 + s * span, cy - 17.0),
+                (x0 + s * span * 0.80, cy - 1.0),
+                (x0 + s * span * 0.86, cy + 9.0),
+                (x0 + s * span * 0.54, cy + 3.0),
+                (x0 + s * span * 0.60, cy + 15.0),
+                (x0 + s * span * 0.26, cy + 8.0),
+                (x0 + s * span * 0.30, cy + drop),
+                (x0, cy + 8.0),
+            ]
+            o.append(poly(pts, p["dark"] if rotten else p["mid"], p, 2.4))
+            # Fingerknochen zu den drei Spitzen.
+            for k, f in enumerate((0.80, 0.54, 0.26)):
                 o.append(stroke_path("M %.1f %.1f L %.1f %.1f"
-                                     % (CX + s * (18 + k * 8), cy - 4,
-                                        CX + s * (30 + k * 11), cy + 10 + k * 4),
-                                     p["line"], 2.0))
+                                     % (x0 + s * 3.0, cy - 1.0,
+                                        x0 + s * span * f,
+                                        cy - 1.0 + k * 5.0),
+                                     p["bone"] if rotten else p["accent"],
+                                     3.0 if rotten else 2.2))
+            if rotten:
+                for k in range(2):
+                    o.append(blob(x0 + s * span * (0.40 + k * 0.20),
+                                  cy + 1.0 + k * 5.0, 3.6, 2.8, p["line"]))
     elif kind == "bat":
         for s in (-1, 1):
             o.append(path("M %.1f %.1f q %.1f %.1f %.1f %.1f q %.1f %.1f %.1f %.1f "
@@ -404,16 +486,45 @@ def wings(kind, p, cy=52, span=44, drop=18):
             o.append(stroke_path("M %.1f %.1f L %.1f %.1f"
                                  % (CX + s * 12, cy, CX + s * span * 0.95, cy - 15),
                                  p["line"], 2.2))
-    elif kind == "bone":
-        for s in (-1, 1):
-            o.append(stroke_path("M %.1f %.1f q %.1f -%.1f %.1f -%.1f"
-                                 % (CX + s * 11, cy, s * span * 0.5, 26.0,
-                                    s * span, 14.0), p["bone"], 5.0))
-            for k in range(3):
-                o.append(stroke_path("M %.1f %.1f L %.1f %.1f"
-                                     % (CX + s * (22 + k * 12), cy - 7 - k * 4,
-                                        CX + s * (26 + k * 13), cy + 12 + k * 3),
-                                     p["bone"], 3.5))
+    elif kind == "dragon_membrane" or kind == "dragon_bone":
+        # PROFIL-Fluegel. Der Drache steht im Profil (Kopf rechts) - ein
+        # symmetrisches Paar, das waagerecht nach beiden Seiten absteht,
+        # hat ihn zum Huhn gemacht. Beide Fluegel gehen nach OBEN-HINTEN,
+        # der ferne deutlich kleiner und weit versetzt, damit daraus keine
+        # zusammenhaengende dunkle Platte wird.
+        #
+        # Die Hinterkante braucht TIEFE Zacken: bei flachen Zacken liest
+        # der Fluegel als gefaltetes Papier.
+        rotten = (kind == "dragon_bone")
+        for far in (True, False):
+            f = 0.58 if far else 1.0
+            sx = CX + 2.0 + (12.0 if far else 0.0)
+            sy = cy + (-12.0 if far else 0.0)
+            fill = p["dark"] if far else (p["light"] if not rotten else p["mid"])
+            pts = [
+                (sx, sy),
+                (sx - span * 0.34 * f, sy - 32.0 * f),
+                (sx - span * 0.92 * f, sy - 26.0 * f),
+                (sx - span * 0.60 * f, sy - 8.0 * f),
+                (sx - span * 0.72 * f, sy + 10.0 * f),
+                (sx - span * 0.40 * f, sy - 3.0 * f),
+                (sx - span * 0.46 * f, sy + 16.0 * f),
+                (sx - span * 0.18 * f, sy + 2.0 * f),
+                (sx - span * 0.20 * f, sy + 20.0 * f),
+                (sx - span * 0.04 * f, sy + 6.0 * f),
+            ]
+            o.append(poly(pts, fill, p, 2.4))
+            if not far:
+                for k, fr in enumerate((0.60, 0.40, 0.18)):
+                    o.append(stroke_path("M %.1f %.1f L %.1f %.1f"
+                                         % (sx - 2.0, sy,
+                                            sx - span * fr, sy - 8.0 + k * 5.0),
+                                         p["bone"] if rotten else p["dark"],
+                                         3.0 if rotten else 2.4))
+                if rotten:
+                    for k in range(2):
+                        o.append(blob(sx - span * (0.30 + k * 0.18),
+                                      sy - 2.0 + k * 6.0, 3.6, 2.8, p["line"]))
     elif kind == "insect":
         for s in (-1, 1):
             o.append(ell(CX + s * span * 0.55, cy - 10, span * 0.42, 13,
@@ -440,9 +551,13 @@ def sil_humanoid(p, build="slim"):
     o.append(poly([(CX - sh, top), (CX + sh, top),
                    (CX + wa, GROUND - 32), (CX - wa, GROUND - 32)], p["main"], p))
     # Helle Brustplatte: gibt dem Rumpf Binnenkontrast statt Volltonflaeche.
-    o.append(poly([(CX - sh * 0.45, top + 4), (CX + sh * 0.45, top + 4),
-                   (CX + wa * 0.5, GROUND - 40), (CX - wa * 0.5, GROUND - 40)],
-                  p["light"], p, 1.8))
+    # NICHT beim Gebeugten - dort las sie sich als Schuerze.
+    if build != "hunched":
+        o.append(poly([(CX - sh * 0.45, top + 4), (CX + sh * 0.45, top + 4),
+                       (CX + wa * 0.5, GROUND - 40), (CX - wa * 0.5, GROUND - 40)],
+                      p["light"], p, 1.8))
+    else:
+        o.append(blob(CX, GROUND - 46.0, sh * 0.5, 10.0, p["dark"]))
     if build == "hunched":
         # Haengende Arme - der Zombie soll schon an der Haltung kenntlich sein.
         for s in (-1, 1):
@@ -461,13 +576,31 @@ def sil_squat(p):
 
 
 def sil_brute(p):
-    """Breite Schultern, langer Arm bis fast zum Boden."""
+    """Massige, vorgebeugte Gestalt: Schultern hoeher als der Kopf, zwei
+    Arme (einer bis zum Boden), kurze dicke Beine. Vorher war es ein
+    Trapez mit einem Strich als Arm - kaum von `humanoid broad` zu
+    unterscheiden."""
     o = []
-    o += legs(p, GROUND - 26, w=15, spread=17)
-    o.append(poly([(CX - 36, 40), (CX + 36, 40),
-                   (CX + 22, GROUND - 24), (CX - 22, GROUND - 24)], p["main"], p))
-    o.append(stroke_path("M %.1f 46 q -14 26 -8 44" % (CX - 32), p["main"], 12.0))
-    return o, 24.0
+    o += legs(p, GROUND - 24, w=17, spread=18)
+    # Rumpf: unten schmaler, oben ausgestellt (Schultern).
+    o.append(path("M %.1f 44 Q %.1f 36 %.1f 44 L %.1f %.1f Q %.1f %.1f %.1f %.1f Z"
+                  % (CX - 34.0, CX, CX + 34.0,
+                     CX + 21.0, GROUND - 22.0,
+                     CX, GROUND - 16.0, CX - 21.0, GROUND - 22.0),
+                  p["main"], p))
+    # Bauchpartie hell - sonst ist der Rumpf eine Volltonflaeche.
+    o.append(blob(CX, GROUND - 44.0, 17.0, 15.0, p["light"]))
+    # Langer Arm links bis fast zum Boden, kurzer Arm rechts.
+    o.append(poly([(CX - 30.0, 46.0), (CX - 18.0, 48.0),
+                   (CX - 22.0, GROUND - 18.0), (CX - 34.0, GROUND - 20.0)],
+                  p["mid"], p, 2.2))
+    o.append(ell(CX - 28.0, GROUND - 16.0, 8.0, 7.0, p["mid"], p, 2.2))
+    o.append(poly([(CX + 20.0, 48.0), (CX + 32.0, 46.0),
+                   (CX + 30.0, 74.0), (CX + 20.0, 72.0)], p["mid"], p, 2.2))
+    # Schulterhoecker: der Kopf sitzt dazwischen und wirkt dadurch klein.
+    for s in (-1, 1):
+        o.append(ell(CX + s * 27.0, 44.0, 11.0, 9.0, p["light"], p, 2.2))
+    return o, 30.0
 
 
 def sil_robed(p):
@@ -495,78 +628,227 @@ def sil_skeletal(p):
 
 
 def sil_spectre(p):
-    """Kein Beinpaar - laeuft nach unten in einen Schweif aus."""
+    """Kein Beinpaar - der Umriss laeuft unten in ZERFETZTE Zipfel aus.
+    Vorher war es eine glatte Tropfenform, also ein weisser Klumpen ohne
+    Merkmal. Der gezackte Saum und die schmalen Schultern machen den
+    Unterschied zum Moench (robed) und zum Zombie."""
     o = []
-    o.append(path("M %.1f 50 q -10 34 4 %.1f q %.1f 8 %.1f -%.1f q 14 -30 4 -%.1f Z"
-                  % (CX - 22, GROUND - 50, 18.0, 36.0, 4.0, 64.0),
-                  p["main"], p))
-    o.append(stroke_path("M %.1f 66 q 10 22 -2 40" % (CX - 8), p["dark"], 3.0, 0.7))
-    o.append(stroke_path("M %.1f 66 q -10 22 2 40" % (CX + 8), p["dark"], 3.0, 0.7))
-    return o, 38.0
+    hem = GROUND - 2.0
+    pts = [(CX - 14.0, 48.0), (CX + 14.0, 48.0), (CX + 26.0, 80.0)]
+    # Fuenf Zipfel, tief eingeschnitten - erst ab dieser Tiefe liest der
+    # Saum bei 96 px als zerfetzt und nicht als Wellenlinie.
+    for k, dy in enumerate((0.0, 22.0, 6.0, 26.0, 2.0)):
+        x = CX + 21.0 - k * 10.5
+        pts.append((x, hem - dy))
+        pts.append((x - 5.5, hem - dy - 22.0))
+    pts.append((CX - 26.0, 80.0))
+    o.append(poly(pts, p["mid"], p))
+    # Klauenarme, weit ausgestellt - macht die Silhouette breit statt rund.
+    for s in (-1, 1):
+        o.append(poly([(CX + s * 11.0, 54.0), (CX + s * 30.0, 66.0),
+                       (CX + s * 24.0, 74.0), (CX + s * 8.0, 66.0)],
+                      p["main"], p, 2.0))
+        for k in (-1, 1):
+            o.append(stroke_path("M %.1f 68 l %.1f 8"
+                                 % (CX + s * 27.0, k * 4.0), p["light"], 2.2))
+    return o, 36.0
+
+
+# Der Rumpf der Tiere liegt links von der Mitte, damit Hals und Kopf nach
+# rechts Platz haben, ohne aus der 128er ViewBox zu laufen.
+BX = CX - 8.0
+
+
+def _body_path(top, bottom, back_x, front_x, croup=6.0, top_front=None):
+    """Rumpf als gefuellter Pfad statt Ellipse. Eine Ellipse ist vorn und
+    hinten gleich - genau daran lasen sich Greif, Pegasus, Einhorn und
+    Behemoth als derselbe Klumpen. Hier ist die BRUST tiefer als die
+    Kruppe, und die Ruecken-/Bauchlinie ist gebogen."""
+    tf = top if top_front is None else top_front
+    return ("M %.1f %.1f Q %.1f %.1f %.1f %.1f L %.1f %.1f "
+            "Q %.1f %.1f %.1f %.1f Q %.1f %.1f %.1f %.1f "
+            "L %.1f %.1f Q %.1f %.1f %.1f %.1f Z"
+            % (back_x, (top + bottom) * 0.5,
+               back_x - 2.0, top + croup, back_x + 14.0, top + croup * 0.4,
+               front_x - 14.0, tf,
+               front_x + 3.0, tf, front_x + 5.0, tf + (bottom - tf) * 0.45,
+               front_x + 6.0, bottom - 2.0, front_x - 12.0, bottom,
+               back_x + 16.0, bottom,
+               back_x - 1.0, bottom - 1.0, back_x, (top + bottom) * 0.5))
+
+
+def _neck(p, from_xy, to_xy, w_bottom, w_top):
+    """Gefuellter, sich verjuengender Hals. Vorher war es ein Strich mit
+    konstanter Breite - der Kopf sass dadurch wie angeklebt."""
+    x0, y0 = from_xy
+    x1, y1 = to_xy
+    return poly([(x0 - w_bottom * 0.5, y0), (x0 + w_bottom * 0.5, y0 + 2.0),
+                 (x1 + w_top * 0.5, y1 + 4.0), (x1 - w_top * 0.5, y1)],
+                p["main"], p, 2.2)
 
 
 def sil_quadruped(p, kind="horse"):
-    """Vierbeiner. kind steuert Rumpf und Hals."""
+    """Vierbeiner. Drei deutlich verschiedene Bauarten:
+      horse  - schlank, langer Hals, Hufe, Schweif (Pegasus, Einhorn)
+      lion   - tiefe Brust, Greifvogel-Faenge vorn, Tatzen hinten (Greif)
+      heavy  - massig, kurzer Hals, Kopf tief vorn (Behemoth)
+    """
     o = []
     if kind == "heavy":
-        body_y, rx, ry, neck_dx, neck_dy = 70.0, 31.0, 17.0, 27.0, 74.0
-        o += quad_legs(p, body_y + 6, w=12, front=25, back=25)
+        # Bison-Umriss: der Ruecken faellt nach hinten ab, die Schulter ist
+        # der hoechste Punkt und der Kopf sitzt TIEF davor. Der erste
+        # Anlauf hatte einen waagerechten Ruecken und einen grossen runden
+        # Kopf oben vorn - das las sich als Schwein mit Ball.
+        top, bottom, back_x, front_x = 66.0, 94.0, BX - 32.0, BX + 28.0
+        top_front = 50.0
+        o += quad_legs(p, bottom - 2, w=15, front=22, back=26,
+                       foot_front="paw", foot_back="paw")
+        neck_from = (BX + 22.0, 58.0)
+        head_xy = (BX + 40.0, 72.0)
+        nw = (26.0, 20.0)
     elif kind == "lion":
-        body_y, rx, ry, neck_dx, neck_dy = 74.0, 27.0, 14.0, 25.0, 78.0
-        o += quad_legs(p, body_y + 4, w=8, front=22, back=22)
+        top, bottom, back_x, front_x = 62.0, 90.0, BX - 30.0, BX + 28.0
+        top_front = None
+        o += quad_legs(p, bottom - 2, w=11, front=22, back=24,
+                       foot_front="talon", foot_back="paw")
+        neck_from = (BX + 22.0, 66.0)
+        head_xy = (BX + 40.0, 42.0)
+        nw = (20.0, 15.0)
     else:
-        body_y, rx, ry, neck_dx, neck_dy = 74.0, 26.0, 13.0, 24.0, 74.0
-        o += quad_legs(p, body_y + 4, w=7, front=22, back=22)
-    o.append(ell(CX, body_y, rx, ry, p["main"], p))
-    # Hals als kraeftiger Bogen nach oben-vorn; der Kopf sitzt am Ende.
-    head_x = CX + neck_dx
-    head_y = GROUND - neck_dy
-    o.append(stroke_path("M %.1f %.1f Q %.1f %.1f %.1f %.1f"
-                         % (CX + rx * 0.5, body_y - ry * 0.4,
-                            CX + rx * 0.95, body_y - ry * 1.4,
-                            head_x - 3, head_y + 10), p["main"], 14.0))
-    return o, (head_x, head_y)
+        top, bottom, back_x, front_x = 64.0, 90.0, BX - 30.0, BX + 26.0
+        top_front = None
+        o += quad_legs(p, bottom - 2, w=10, front=21, back=23,
+                       foot_front="hoof", foot_back="hoof")
+        neck_from = (BX + 20.0, 68.0)
+        head_xy = (BX + 40.0, 38.0)
+        nw = (17.0, 13.0)
+
+    # Schweif ZUERST (liegt hinter dem Rumpf).
+    if kind == "horse":
+        o.append(stroke_path("M %.1f %.1f q %.1f 14 %.1f 26"
+                             % (back_x + 3.0, top + 4.0, -14.0, -12.0),
+                             p["accent"], 7.0))
+    elif kind == "lion":
+        o.append(stroke_path("M %.1f %.1f q %.1f -12 %.1f 6"
+                             % (back_x + 3.0, top + 8.0, -18.0, -24.0),
+                             p["main"], 6.0))
+        o.append(ell(back_x - 21.0, top + 14.0, 6.0, 6.0, p["accent"], p, 2.0))
+    else:
+        o.append(poly([(back_x + 4.0, top + 6.0), (back_x - 22.0, top + 2.0),
+                       (back_x - 20.0, top + 14.0), (back_x + 4.0, top + 18.0)],
+                      p["mid"], p, 2.2))
+
+    o.append(path(_body_path(top, bottom, back_x, front_x, top_front=top_front),
+                  p["main"], p))
+    # Keule hinten und Schulter vorn OHNE Kontur: Volumen ohne zusaetzliche
+    # Linien, die bei 96 px als Kritzel lesen.
+    o.append(blob(back_x + 15.0, (top + bottom) * 0.5 + 1.0,
+                  13.0, (bottom - top) * 0.42, p["mid"]))
+    o.append(blob(front_x - 13.0, (top + bottom) * 0.5,
+                  12.0, (bottom - top) * 0.40, p["light"]))
+    o.append(_neck(p, neck_from, head_xy, nw[0], nw[1]))
+    if kind == "heavy":
+        # Kamm entlang der Rueckenlinie, hinten kurz, vorn lang - er
+        # betont das Gefaelle statt es zu ueberdecken.
+        for k in range(5):
+            bx = BX - 20.0 + k * 11.0
+            by = top - (top - top_front) * (k / 4.0) + 2.0
+            hl = 5.0 + k * 2.5
+            o.append(poly([(bx, by), (bx + 5.0, by - hl), (bx + 10.0, by)],
+                          p["light"], p, 1.8))
+    return o, head_xy
 
 
 def sil_mounted(p, mount="horse"):
-    """Reittier plus Reiter. Der Reiter macht die Silhouette hoch und
-    schmal - das unterscheidet sie vom nackten Vierbeiner."""
+    """Reittier plus Reiter. Der Reiter sitzt jetzt IM Sattel: Bein am
+    Rumpf, Torso darueber, Arm nach vorn. Vorher war es ein schwebendes
+    Rechteck auf dem Ruecken."""
     o, headpos = sil_quadruped(p, "horse" if mount == "horse" else "lion")
     if mount == "wolf":
-        for s in (-1, 1):
-            o.append(poly([(CX + 26 + s * 4, 46), (CX + 34, 34), (CX + 30 + s * 4, 50)],
-                          p["dark"], p, 2.0))
-    # Reiter: Torso auf dem Ruecken
-    o.append(poly([(CX - 20, 34), (CX + 6, 34), (CX + 2, 62), (CX - 16, 62)],
-                  p["accent"], p))
-    return o, headpos, (CX - 8.0, 24.0)
+        # Nackenmaehne statt Hufe: der Wolf soll kein Pferd sein.
+        for k in range(4):
+            o.append(poly([(BX + 12.0 + k * 5.0, 62.0),
+                           (BX + 16.0 + k * 5.0, 48.0),
+                           (BX + 20.0 + k * 5.0, 62.0)], p["dark"], p, 1.8))
+    # Reiterbein am Rumpf (dunkel, liegt auf dem Tier).
+    o.append(poly([(BX - 6.0, 60.0), (BX + 6.0, 60.0),
+                   (BX + 4.0, 84.0), (BX - 4.0, 84.0)], p["dark"], p, 2.0))
+    # Torso
+    o.append(poly([(BX - 12.0, 34.0), (BX + 10.0, 36.0),
+                   (BX + 7.0, 62.0), (BX - 8.0, 62.0)], p["accent"], p))
+    # Arm nach vorn - haelt die Lanze bzw. den Speer.
+    o.append(stroke_path("M %.1f 44 L %.1f 52" % (BX + 6.0, BX + 24.0),
+                         p["accent"], 7.0))
+    return o, headpos, (BX - 3.0, 24.0)
 
 
 def sil_bird(p):
+    """Aufrechter Riesenvogel: eierfoermiger Rumpf, Schwanzfedern nach
+    hinten, kraeftige Standbeine mit Faengen, Kopf auf kurzem Hals."""
     o = []
-    for s in (-1, 1):
-        o.append(stroke_path("M %.1f 84 L %.1f %.1f" % (CX + s * 10, CX + s * 15, GROUND),
-                             p["accent"], 6.0))
-        for k in (-1, 0, 1):
-            o.append(stroke_path("M %.1f %.1f l %.1f 5" % (CX + s * 15, GROUND,
-                                                           k * 7), p["accent"], 3.0))
-    o.append(ell(CX, 78, 21, 17, p["main"], p))
-    o.append(stroke_path("M %.1f 68 Q %.1f 52 %.1f 48" % (CX + 6, CX + 16, CX + 12),
-                         p["main"], 12.0))
-    return o, 42.0
+    # Schwanzfedern zuerst (hinter dem Rumpf), knapp und nach unten.
+    for k in (-1, 0, 1):
+        o.append(poly([(BX - 10.0, 62.0 + k * 3.0),
+                       (BX - 34.0, 84.0 + k * 6.0),
+                       (BX - 10.0, 70.0 + k * 3.0)], p["mid"], p, 2.0))
+    o += animal_leg(p, BX + 2.0, 74.0, "talon", True, 9.0, -4.0)
+    o += animal_leg(p, BX + 15.0, 76.0, "talon", False, 10.0, 3.0)
+    o.append(ell(BX + 7.0, 58.0, 20.0, 22.0, p["main"], p))
+    o.append(blob(BX + 13.0, 62.0, 11.0, 14.0, p["light"]))
+    o.append(_neck(p, (BX + 14.0, 44.0), (BX + 24.0, 30.0), 15.0, 11.0))
+    return o, (BX + 26.0, 26.0)
 
 
 def sil_dragon(p):
-    """Langer Hals, Rumpf, Schweif - liest sich sofort als Drache."""
+    """Drache im Profil, Kopf rechts. Aufgebaut aus GETRENNTEN Massen
+    (Schweif, Rumpf, Hals), nicht aus einem durchlaufenden Umriss.
+
+    Drei Anlaeufe vorher gescheitert, alle drei am selben Punkt: der
+    Drache wurde zum Vogel.
+      1. Ellipse mit zwei Striemen            -> Ente
+      2. runder Rumpf + symmetrische Fluegel  -> Huhn
+      3. ein Umriss von Schweifspitze bis Kopf -> diagonaler Streifen,
+         weil der Rumpf zwischen Rueckenlinie und Bauchlinie zu duenn wurde
+    Was den Unterschied macht: ein LANGER SCHWEIF am Boden, ein flach
+    liegender, breiter Rumpf - und Fluegel im Profil, die nicht groesser
+    sind als der Rumpf.
+    """
     o = []
-    o.append(stroke_path("M %.1f 92 q -34 6 -40 -10" % (CX - 6), p["dark"], 9.0))
-    for s in (-1, 1):
-        o.append(poly([(CX + s * 12, 92), (CX + s * 20, 92), (CX + s * 17, GROUND)],
-                      p["dark"], p, 2.0))
-    o.append(ell(CX + 2, 84, 25, 16, p["main"], p))
-    o.append(stroke_path("M %.1f 76 Q %.1f 52 %.1f 44" % (CX + 14, CX + 34, CX + 28),
-                         p["main"], 12.0))
-    return o, (CX + 30.0, 40.0)
+    # Schweif zuerst (liegt hinter dem Rumpf), dick am Ansatz, spitz.
+    o.append(path("M %.1f 68 Q %.1f 74 %.1f %.1f L %.1f %.1f Q %.1f 82 %.1f 86 Z"
+                  % (BX - 22.0, BX - 46.0, BX - 52.0, GROUND - 5.0,
+                     BX - 43.0, GROUND - 1.0, BX - 38.0, BX - 16.0),
+                  p["mid"], p))
+    o += animal_leg(p, BX - 8.0, 84.0, "talon", True, 11.0, -4.0)
+    # Rumpf: breiter als hoch, vorn hoeher (Brust).
+    o.append(path("M %.1f 74 Q %.1f 58 %.1f 58 Q %.1f 58 %.1f 70 "
+                  "Q %.1f 84 %.1f 90 Q %.1f 92 %.1f 84 Z"
+                  % (BX - 26.0, BX - 22.0, BX - 2.0, BX + 18.0, BX + 24.0,
+                     BX + 28.0, BX + 8.0, BX - 14.0, BX - 24.0),
+                  p["main"], p))
+    o.append(blob(BX + 10.0, 74.0, 13.0, 13.0, p["light"]))
+    o += animal_leg(p, BX + 8.0, 86.0, "talon", False, 12.0, 3.0)
+    # Bauchplatten
+    for k in range(3):
+        o.append(stroke_path("M %.1f %.1f l 10 2"
+                             % (BX - 14.0 + k * 11.0, 84.0 + k * 1.0),
+                             p["light"], 2.4, 0.85))
+    # Hals: sich verjuengende Masse nach oben-vorn.
+    o.append(poly([(BX + 8.0, 62.0), (BX + 24.0, 64.0),
+                   (BX + 40.0, 38.0), (BX + 29.0, 32.0)], p["main"], p))
+    # Rueckenzacken ueber Rumpf UND Hals, nach vorn wachsend.
+    for k in range(5):
+        bx = BX - 18.0 + k * 9.0
+        by = 62.0 - k * 1.2
+        hl = 6.0 + k * 1.2
+        o.append(poly([(bx, by), (bx + 4.5, by - hl), (bx + 9.0, by - 1.0)],
+                      p["accent"], p, 1.8))
+    for k in range(2):
+        bx = BX + 26.0 + k * 6.0
+        by = 56.0 - k * 10.0
+        o.append(poly([(bx, by), (bx + 7.0, by - 7.0), (bx + 4.0, by + 4.0)],
+                      p["accent"], p, 1.8))
+    return o, (BX + 40.0, 30.0)
 
 
 def sil_tree(p, big=False):
@@ -591,7 +873,7 @@ RECIPES = {
     "men_spearman":   dict(sil=("humanoid", "slim"),   head="helm_conical", wpn="spear", shield=True),
     "men_archer":     dict(sil=("humanoid", "slim"),   head="cap",          wpn="bow"),
     "men_griffin":    dict(sil=("quadruped", "lion"),  head="beak",         wpn="claws",
-                           wing=("feather", 46, 40)),
+                           wing=("feather", 42, 66)),
     "men_crusader":   dict(sil=("humanoid", "broad"),  head="helm_great",   wpn="twin_swords"),
     "men_monk":       dict(sil=("robed", None),        head="hood",         wpn="staff"),
     "men_cavalier":   dict(sil=("mounted", "horse"),   head="helm_conical", wpn="lance"),
@@ -601,12 +883,12 @@ RECIPES = {
     "elf_dwarf":      dict(sil=("squat", None),        head="beard",        wpn="axe"),
     "elf_archer":     dict(sil=("humanoid", "slim"),   head="hood",         wpn="longbow"),
     "elf_pegasus":    dict(sil=("quadruped", "horse"), head="mane",         wpn="none",
-                           wing=("feather", 45, 40)),
+                           wing=("feather", 40, 66)),
     "elf_treant":     dict(sil=("tree", False),        head="bare",         wpn="branch"),
     "elf_unicorn":    dict(sil=("quadruped", "horse"), head="horn_single",  wpn="none"),
     "elf_treefather": dict(sil=("tree", True),         head="crown_leaf",   wpn="branch"),
     "elf_goldwyrm":   dict(sil=("dragon", None),       head="draconic",     wpn="none",
-                           wing=("insect", 44, 40)),
+                           wing=("dragon_membrane", 46, 62)),
     # --- Totenreich
     "nec_skeleton":   dict(sil=("skeletal", None),     head="skull",        wpn="sword"),
     "nec_zombie":     dict(sil=("humanoid", "hunched"), head="rotten",      wpn="none"),
@@ -616,14 +898,14 @@ RECIPES = {
     "nec_lich":       dict(sil=("robed", None),        head="skull_glow",   wpn="staff_orb"),
     "nec_blackknight": dict(sil=("humanoid", "broad"), head="helm_horned",  wpn="greatsword"),
     "nec_bonedragon": dict(sil=("dragon", None),       head="skull",        wpn="none",
-                           wing=("bone", 46, 42)),
+                           wing=("dragon_bone", 46, 62)),
     # --- Orks
     "ork_goblin":     dict(sil=("squat", None),        head="eared",        wpn="dagger"),
     "ork_wolfrider":  dict(sil=("mounted", "wolf"),    head="tusked",       wpn="spear"),
     "ork_orc":        dict(sil=("humanoid", "broad"),  head="tusked",       wpn="crossbow"),
     "ork_ogre":       dict(sil=("brute", None),        head="small",        wpn="club"),
     "ork_roc":        dict(sil=("bird", None),         head="beak",         wpn="none",
-                           wing=("feather", 48, 46)),
+                           wing=("feather", 40, 62)),
     "ork_cyclops":    dict(sil=("brute", None),        head="one_eye",      wpn="boulder"),
     "ork_behemoth":   dict(sil=("quadruped", "heavy"), head="horned",       wpn="none"),
 }
@@ -678,21 +960,21 @@ def build(unit):
         body, hy = sil_spectre(p)
         head_at = (CX, hy, 17.0)
     elif kind == "bird":
-        body, hy = sil_bird(p)
-        head_at = (CX + 14, hy, 14.0)
+        body, hp = sil_bird(p)
+        head_at = (hp[0], hp[1], 15.0)
     elif kind == "tree":
         body, hy = sil_tree(p, arg)
         head_at = (CX, hy, 19.0 if arg else 15.0)
     elif kind == "quadruped":
         body, hp = sil_quadruped(p, arg)
-        head_at = (hp[0], hp[1], 17.0)
+        head_at = (hp[0], hp[1], 14.0 if arg == "heavy" else 16.0)
     elif kind == "dragon":
         body, hp = sil_dragon(p)
-        head_at = (hp[0], hp[1], 16.0)
+        head_at = (hp[0], hp[1], 13.0)
     elif kind == "mounted":
         body, hp, rp = sil_mounted(p, arg)
-        head_at = (hp[0], hp[1], 13.0)
-        rider_head = (rp[0], rp[1], 14.0)
+        head_at = (hp[0], hp[1], 12.0)
+        rider_head = (rp[0], rp[1], 13.0)
     else:
         raise ValueError("unbekannte Silhouette: %s" % kind)
 
@@ -718,12 +1000,15 @@ def build(unit):
 def tier_pips(tier, p):
     """Stufe als Punktreihe am Sockel - schneller lesbar als eine Zahl und
     stoert die Silhouette nicht."""
+    # It. 30: kleiner und ohne Kontur. Vorher waren es sieben weisse
+    # Scheiben mit dunklem Rand direkt unter der Figur - bei 96 px zog die
+    # Punktreihe mehr Aufmerksamkeit als die Kreatur darueber.
     out = []
-    total_w = (tier - 1) * 13
+    total_w = (tier - 1) * 9.0
     x0 = CX - total_w / 2.0
     for i in range(tier):
-        out.append('  <circle cx="%.1f" cy="%.1f" r="4.0" fill="#f4f0e4" '
-                   'stroke="%s" stroke-width="1.2"/>' % (x0 + i * 13, GROUND + 9, p["line"]))
+        out.append('  <circle cx="%.1f" cy="%.1f" r="2.6" fill="%s" '
+                   'opacity="0.75"/>' % (x0 + i * 9.0, GROUND + 8.0, p["light"]))
     return out
 
 

@@ -12,9 +12,9 @@
   <path d="M 92 32 L 88 108" fill="none" stroke="#7a5a34" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
   <ellipse cx="93.0" cy="24.0" rx="10.0" ry="10.0" fill="#dac350" stroke="#27230e" stroke-width="2.5"/>
   </g>
-  <circle cx="38.0" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#27230e" stroke-width="1.2"/>
-  <circle cx="51.0" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#27230e" stroke-width="1.2"/>
-  <circle cx="64.0" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#27230e" stroke-width="1.2"/>
-  <circle cx="77.0" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#27230e" stroke-width="1.2"/>
-  <circle cx="90.0" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#27230e" stroke-width="1.2"/>
+  <circle cx="46.0" cy="122.0" r="2.6" fill="#f7e692" opacity="0.75"/>
+  <circle cx="55.0" cy="122.0" r="2.6" fill="#f7e692" opacity="0.75"/>
+  <circle cx="64.0" cy="122.0" r="2.6" fill="#f7e692" opacity="0.75"/>
+  <circle cx="73.0" cy="122.0" r="2.6" fill="#f7e692" opacity="0.75"/>
+  <circle cx="82.0" cy="122.0" r="2.6" fill="#f7e692" opacity="0.75"/>
 </svg>

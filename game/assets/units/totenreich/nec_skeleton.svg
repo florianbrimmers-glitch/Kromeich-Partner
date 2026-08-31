@@ -19,5 +19,5 @@
   <polygon points="92.0,60.0 100.0,58.0 104.0,16.0 95.0,18.0" fill="#9aa4ae" stroke="#242320" stroke-width="2.0" stroke-linejoin="round"/>
   <polygon points="87.0,60.0 105.0,57.0 106.0,65.0 88.0,68.0" fill="#a167cf" stroke="#242320" stroke-width="2.0" stroke-linejoin="round"/>
   </g>
-  <circle cx="64.0" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#242320" stroke-width="1.2"/>
+  <circle cx="64.0" cy="122.0" r="2.6" fill="#ebe7da" opacity="0.75"/>
 </svg>

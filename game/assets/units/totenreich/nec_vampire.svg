@@ -26,8 +26,8 @@
   <path d="M 99.0 66 q 3.0 10 1.0 20" fill="none" stroke="#242320" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>
   <path d="M 104.0 66 q 3.0 10 1.0 20" fill="none" stroke="#242320" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>
   </g>
-  <circle cx="44.5" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#242320" stroke-width="1.2"/>
-  <circle cx="57.5" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#242320" stroke-width="1.2"/>
-  <circle cx="70.5" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#242320" stroke-width="1.2"/>
-  <circle cx="83.5" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#242320" stroke-width="1.2"/>
+  <circle cx="50.5" cy="122.0" r="2.6" fill="#ebe7da" opacity="0.75"/>
+  <circle cx="59.5" cy="122.0" r="2.6" fill="#ebe7da" opacity="0.75"/>
+  <circle cx="68.5" cy="122.0" r="2.6" fill="#ebe7da" opacity="0.75"/>
+  <circle cx="77.5" cy="122.0" r="2.6" fill="#ebe7da" opacity="0.75"/>
 </svg>

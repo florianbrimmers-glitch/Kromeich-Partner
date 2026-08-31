@@ -18,9 +18,9 @@
   <ellipse cx="95.0" cy="21.0" rx="12.0" ry="12.0" fill="#7dffb0" stroke="#242320" stroke-width="2.5"/>
   <ellipse cx="92.0" cy="18.0" rx="4.0" ry="4.0" fill="#ffffff"/>
   </g>
-  <circle cx="38.0" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#242320" stroke-width="1.2"/>
-  <circle cx="51.0" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#242320" stroke-width="1.2"/>
-  <circle cx="64.0" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#242320" stroke-width="1.2"/>
-  <circle cx="77.0" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#242320" stroke-width="1.2"/>
-  <circle cx="90.0" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#242320" stroke-width="1.2"/>
+  <circle cx="46.0" cy="122.0" r="2.6" fill="#ebe7da" opacity="0.75"/>
+  <circle cx="55.0" cy="122.0" r="2.6" fill="#ebe7da" opacity="0.75"/>
+  <circle cx="64.0" cy="122.0" r="2.6" fill="#ebe7da" opacity="0.75"/>
+  <circle cx="73.0" cy="122.0" r="2.6" fill="#ebe7da" opacity="0.75"/>
+  <circle cx="82.0" cy="122.0" r="2.6" fill="#ebe7da" opacity="0.75"/>
 </svg>

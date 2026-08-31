@@ -20,10 +20,10 @@
   <path d="M 80.0 62 q 18.0 -14 30.0 -30" fill="none" stroke="#7a5a34" stroke-width="6.0" stroke-linecap="round" stroke-linejoin="round"/>
   <ellipse cx="112.0" cy="30.0" rx="13.0" ry="10.0" fill="#a2e6a2" stroke="#122312" stroke-width="2.0"/>
   </g>
-  <circle cx="31.5" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#122312" stroke-width="1.2"/>
-  <circle cx="44.5" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#122312" stroke-width="1.2"/>
-  <circle cx="57.5" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#122312" stroke-width="1.2"/>
-  <circle cx="70.5" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#122312" stroke-width="1.2"/>
-  <circle cx="83.5" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#122312" stroke-width="1.2"/>
-  <circle cx="96.5" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#122312" stroke-width="1.2"/>
+  <circle cx="41.5" cy="122.0" r="2.6" fill="#a2e6a2" opacity="0.75"/>
+  <circle cx="50.5" cy="122.0" r="2.6" fill="#a2e6a2" opacity="0.75"/>
+  <circle cx="59.5" cy="122.0" r="2.6" fill="#a2e6a2" opacity="0.75"/>
+  <circle cx="68.5" cy="122.0" r="2.6" fill="#a2e6a2" opacity="0.75"/>
+  <circle cx="77.5" cy="122.0" r="2.6" fill="#a2e6a2" opacity="0.75"/>
+  <circle cx="86.5" cy="122.0" r="2.6" fill="#a2e6a2" opacity="0.75"/>
 </svg>

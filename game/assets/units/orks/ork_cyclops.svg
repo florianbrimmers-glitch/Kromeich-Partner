@@ -5,20 +5,25 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
   <ellipse cx="64.0" cy="117.0" rx="36.4" ry="7" fill="#000" opacity="0.42"/>
   <g transform="translate(64.0,114.0) scale(0.98) translate(-64.0,-114.0)">
-  <polygon points="39.5,88.0 54.5,88.0 54.5,110.0 57.5,114.0 36.5,114.0" fill="#96372f" stroke="#270e0c" stroke-width="2.5" stroke-linejoin="round"/>
-  <polygon points="73.5,88.0 88.5,88.0 88.5,110.0 91.5,114.0 70.5,114.0" fill="#96372f" stroke="#270e0c" stroke-width="2.5" stroke-linejoin="round"/>
-  <polygon points="28.0,40.0 100.0,40.0 86.0,90.0 42.0,90.0" fill="#c7493f" stroke="#270e0c" stroke-width="2.5" stroke-linejoin="round"/>
-  <path d="M 32.0 46 q -14 26 -8 44" fill="none" stroke="#c7493f" stroke-width="12.0" stroke-linecap="round" stroke-linejoin="round"/>
-  <ellipse cx="64.0" cy="24.0" rx="16.0" ry="16.8" fill="#f79289" stroke="#270e0c" stroke-width="2.5"/>
-  <ellipse cx="64.0" cy="22.4" rx="6.7" ry="6.7" fill="#f4ecd8" stroke="#270e0c" stroke-width="2.0"/>
-  <ellipse cx="64.0" cy="22.4" rx="3.2" ry="3.2" fill="#270e0c"/>
+  <polygon points="37.5,90.0 54.5,90.0 54.5,110.0 57.5,114.0 34.5,114.0" fill="#96372f" stroke="#270e0c" stroke-width="2.5" stroke-linejoin="round"/>
+  <polygon points="73.5,90.0 90.5,90.0 90.5,110.0 93.5,114.0 70.5,114.0" fill="#96372f" stroke="#270e0c" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M 30.0 44 Q 64.0 36 98.0 44 L 85.0 92.0 Q 64.0 98.0 43.0 92.0 Z" fill="#c7493f" stroke="#270e0c" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <ellipse cx="64.0" cy="70.0" rx="17.0" ry="15.0" fill="#f79289"/>
+  <polygon points="34.0,46.0 46.0,48.0 42.0,96.0 30.0,94.0" fill="#96372f" stroke="#270e0c" stroke-width="2.2" stroke-linejoin="round"/>
+  <ellipse cx="36.0" cy="98.0" rx="8.0" ry="7.0" fill="#96372f" stroke="#270e0c" stroke-width="2.2"/>
+  <polygon points="84.0,48.0 96.0,46.0 94.0,74.0 84.0,72.0" fill="#96372f" stroke="#270e0c" stroke-width="2.2" stroke-linejoin="round"/>
+  <ellipse cx="37.0" cy="44.0" rx="11.0" ry="9.0" fill="#f79289" stroke="#270e0c" stroke-width="2.2"/>
+  <ellipse cx="91.0" cy="44.0" rx="11.0" ry="9.0" fill="#f79289" stroke="#270e0c" stroke-width="2.2"/>
+  <ellipse cx="64.0" cy="30.0" rx="16.0" ry="16.8" fill="#f79289" stroke="#270e0c" stroke-width="2.5"/>
+  <ellipse cx="64.0" cy="28.4" rx="6.7" ry="6.7" fill="#f4ecd8" stroke="#270e0c" stroke-width="2.0"/>
+  <ellipse cx="64.0" cy="28.4" rx="3.2" ry="3.2" fill="#270e0c"/>
   <ellipse cx="96.0" cy="34.0" rx="17.0" ry="15.0" fill="#8e8880" stroke="#270e0c" stroke-width="2.5"/>
   <ellipse cx="91.0" cy="30.0" rx="6.0" ry="5.0" fill="#f79289"/>
   </g>
-  <circle cx="31.5" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#270e0c" stroke-width="1.2"/>
-  <circle cx="44.5" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#270e0c" stroke-width="1.2"/>
-  <circle cx="57.5" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#270e0c" stroke-width="1.2"/>
-  <circle cx="70.5" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#270e0c" stroke-width="1.2"/>
-  <circle cx="83.5" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#270e0c" stroke-width="1.2"/>
-  <circle cx="96.5" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#270e0c" stroke-width="1.2"/>
+  <circle cx="41.5" cy="122.0" r="2.6" fill="#f79289" opacity="0.75"/>
+  <circle cx="50.5" cy="122.0" r="2.6" fill="#f79289" opacity="0.75"/>
+  <circle cx="59.5" cy="122.0" r="2.6" fill="#f79289" opacity="0.75"/>
+  <circle cx="68.5" cy="122.0" r="2.6" fill="#f79289" opacity="0.75"/>
+  <circle cx="77.5" cy="122.0" r="2.6" fill="#f79289" opacity="0.75"/>
+  <circle cx="86.5" cy="122.0" r="2.6" fill="#f79289" opacity="0.75"/>
 </svg>
