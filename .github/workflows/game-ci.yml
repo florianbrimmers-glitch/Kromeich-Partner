@@ -137,6 +137,11 @@ jobs:
           ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
             --headless --path game/ --script tools/test_sfx.gd
 
+      - name: Bewegungs-Tests (Gelaendekosten, Wegfindung, Migration v3->v4)
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/test_movement.gd
+
       - name: Balance-Simulator (informativ, bricht nicht)
         continue-on-error: true
         run: |

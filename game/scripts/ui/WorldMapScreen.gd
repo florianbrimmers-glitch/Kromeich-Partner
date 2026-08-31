@@ -19,6 +19,10 @@ const WeekFx := preload("res://scripts/core/WeekEvents.gd")
 # fehlt bei "godot --script tools/x.gd", ein direkter Aufruf wuerde
 # dort zur Laufzeit scheitern und die Testfunktion abbrechen.
 const Sound := preload("res://scripts/core/SfxBus.gd")
+# Bewegungskosten (M7 Teil 2). EINE Tabelle fuer Karte, Pathfinder und den
+# Dijkstra hier drunter; der Skill Wegfindung greift genau dort den
+# Gelaende-Aufschlag ab.
+const Move := preload("res://scripts/core/Movement.gd")
 
 # Weltkarten-Screen. Rendert eine deterministische Zufallskarte per
 # _draw() und erlaubt den Helden per Tap zu bewegen. Dijkstra berechnet
@@ -43,11 +47,11 @@ const OWNER_AI_MAX := 3
 # Er startet mit Armee 0 und Gold 0, exakt wie der Spieler - keine
 # Gratis-Resourcen. Sein Fortschritt haengt allein davon ab, was er in
 # seinen Staedten baut (siehe _enemy_economy).
-const ENEMY_BASE_MP := 10
+const ENEMY_BASE_MP := 40
 
 # Gebaeude-Effekte
-const BASE_MAX_MP := 10
-const MP_BONUS_SPAEHER := 2     # pro Spaeher in eigener Stadt
+const BASE_MAX_MP := 40      # 10 Felder Flachland (Movement.UNIT = 4)
+const MP_BONUS_SPAEHER := 8     # pro Spaeher in eigener Stadt (2 Felder)
 const INCOME_MARKT := 200       # zusaetzlich pro Markt in eigener Stadt
 const UNIT_COST := 150          # pro Einheit, benoetigt Kaserne
 
@@ -161,7 +165,7 @@ const GARRISON_MAX := 5
 const XP_PER_STRENGTH := 15
 const LEVEL_THRESHOLDS := [0, 50, 150, 350, 700, 1200, 2000]
 const LEVEL_BONUS_ARMY := 1   # sofort +1 Armee bei Level-Up
-const LEVEL_BONUS_MP := 1     # +1 max_mp pro Level-Up (additiv zur Basis)
+const LEVEL_BONUS_MP := 4     # +1 Feld pro Level-Up (additiv zur Basis)
 # Kampfkraft-Bonus pro Level (level-1): zaehlt zur Armee im Kampf UND
 # reduziert Verluste. Macht XP endlich nuetzlich: Level 3 mit 1 Armee
 # schlaegt Staerke-3-Monster ohne einen einzigen Verlust.
@@ -819,7 +823,7 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 
 
 func _recompute_costs() -> void:
-	_costs = _dijkstra(_hero.position, true)
+	_costs = _dijkstra(_hero.position, true, Skills.pathfinding_tier(_hero.skills))
 
 
 func _init_fog_arrays() -> void:
@@ -965,7 +969,8 @@ func _ai_ring_color(owner_id: int) -> Color:
 	return Color(0.85, 0.15, 0.15)
 
 
-func _dijkstra(start: Vector2i, monsters_block: bool) -> Dictionary:
+func _dijkstra(start: Vector2i, monsters_block: bool,
+		pathfinding_tier: int = 0) -> Dictionary:
 	# Dijkstra inline: static-Calls auf class_name Pathfinder liefern
 	# im Android-Export leere Dicts zurueck (gleiches Problem wie bei
 	# MapGen). Also hier direkt gerechnet.
@@ -1012,16 +1017,14 @@ func _dijkstra(start: Vector2i, monsters_block: bool) -> Dictionary:
 			if nx < 0 or nx >= MAP_WIDTH or ny < 0 or ny >= MAP_HEIGHT:
 				continue
 			var t: int = int(tiles[ny * MAP_WIDTH + nx])
-			# terrain_cost inline als Integer-Literale, weil Cross-File-
-			# class_name-Aufrufe (MapGen.terrain_cost) im Android-Export
-			# 0 liefern koennen - dann waere das ganze Grid unpassierbar
-			# und Held wie KI stehen fest. Gleiches Muster wie Pathfinder.gd.
-			# 0=Gras, 1=Wald, 2=Wasser, 3=Berg, 4=Sand, 5=Sumpf.
-			var step: int = -1
-			if t == 0 or t == 4:
-				step = 1
-			elif t == 1 or t == 5:
-				step = 2
+			# Kosten aus dem preload-Modul Movement: Cross-File-Aufrufe
+			# ueber class_name (MapGen.terrain_cost) koennen im
+			# Android-Export 0 liefern - dann waere das ganze Grid
+			# unpassierbar und Held wie KI stehen fest. preload-Module
+			# haben dieses Problem nicht (gleiches Muster wie Abilities
+			# im Kampf-Screen), deshalb stehen die Zahlen jetzt EINMAL
+			# im Baum statt dreimal.
+			var step: int = Move.step_cost(t, pathfinding_tier)
 			if step <= 0:
 				continue
 			var next_cost: int = cur_cost + step
@@ -1088,7 +1091,10 @@ func _update_labels() -> void:
 	var line1: Array = [
 		_calendar_long(),
 		"Stufe %d" % int(_hero.level),
-		"Zug %d/%d" % [int(_hero.mp), int(_hero.max_mp)],
+		# In FELDERN, nicht in Punkten: die Punkte-Einheit ist seit M7
+		# Teil 2 vierfach feiner (Movement.UNIT), und "Zug 40/40" liest
+		# sich auf dem Handy wie ein Fehler.
+		"Zug %d/%d" % [Move.tiles_of(int(_hero.mp)), Move.tiles_of(int(_hero.max_mp))],
 	]
 	# Wochenereignis (M12) nur nennen, wenn es eines gibt - "Ruhige Woche"
 	# in jeder Zeile waere Rauschen.
@@ -1905,7 +1911,7 @@ func _handle_tap(pos: Vector2) -> void:
 		return
 	var cost: int = int(_costs[target])
 	if cost > _hero.mp:
-		_set_status("Tap zu teuer: %d > %d MP" % [cost, _hero.mp])
+		_set_status("Tap zu teuer: %d > %d Punkte" % [cost, _hero.mp])
 		return
 
 	# Terrain-Id des Zielfelds bestimmt Obstacle-Generierung im Taktikkampf
@@ -2004,13 +2010,13 @@ func _handle_tap(pos: Vector2) -> void:
 	_update_labels()
 	if claimed:
 		var fid1: int = int(_cities[target_city_idx]["faction"])
-		_set_status("Stadt %s eingenommen (%d MP)" % [FACTION_NAMES[fid1], cost])
+		_set_status("Stadt %s eingenommen (%d Punkte)" % [FACTION_NAMES[fid1], cost])
 		_check_victory()
 	elif target_city_idx >= 0:
 		var fid2: int = int(_cities[target_city_idx]["faction"])
-		_set_status("Stadt %s (%d MP)" % [FACTION_NAMES[fid2], cost])
+		_set_status("Stadt %s (%d Punkte)" % [FACTION_NAMES[fid2], cost])
 	else:
-		_set_status("Zug -> (%d,%d) fuer %d MP" % [tx, ty, cost])
+		_set_status("Zug -> (%d,%d) fuer %d Punkte" % [tx, ty, cost])
 
 
 func _city_at(p: Vector2i) -> int:
@@ -2074,6 +2080,9 @@ func _open_battle(opp_name: String, opp_army: int, allow_flee: bool, terrain_id:
 			"player_archery_pct": Skills.archery_pct(_hero.skills),
 			"player_offense_pct": Skills.offense_pct(_hero.skills),
 			"player_armorer_pct": Skills.armorer_pct(_hero.skills),
+			# Taktik (M7 Teil 2): Spalten fuer die Aufstellungsphase. 0 =
+			# keine Phase, der Kampf startet wie bisher sofort.
+			"player_tactics": Skills.tactics_cols(_hero.skills),
 			"player_mana": int(_hero.mana),
 			"player_spell_power": int(_hero.spell_power),
 			"player_spells": Spells.known(
@@ -2088,6 +2097,11 @@ func _open_battle(opp_name: String, opp_army: int, allow_flee: bool, terrain_id:
 			"siege": bool(siege_ctx.get("siege", false)),
 			"tower_dmg": int(siege_ctx.get("tower_dmg", 0)),
 		})
+	# Kaempfte die Armee des HELDEN mit? Bei einem Verteidigungskampf um die
+	# eigene Stadt steuert der Spieler die Garnison; Skelette gehoeren dann
+	# nur dem Helden, wenn er selbst in der Stadt stand.
+	var hero_fought: bool = (not siege_ctx.has("player_army")) \
+		or bool(siege_ctx.get("hero_present", false))
 	overlay.connect("battle_finished", func(result: Dictionary) -> void:
 		# Verbrauchtes Mana zuerst uebernehmen - EIN Ort fuer alle
 		# Kampf-Ausgaenge (Sieg, Niederlage, Flucht), statt in jedem der
@@ -2095,6 +2109,11 @@ func _open_battle(opp_name: String, opp_army: int, allow_flee: bool, terrain_id:
 		if result.has("mana_left"):
 			_hero.mana = clampi(int(result["mana_left"]), 0, _hero_max_mana())
 		on_result.call(result)
+		# Totenerweckung NACH dem Callback: der Verteidigungskampf verteilt
+		# dort die Ueberlebenden neu und SETZT _hero.army komplett neu -
+		# vorher eingehaengte Skelette waeren wieder verschwunden.
+		if hero_fought and String(result.get("outcome", "")) == "victory":
+			_apply_necromancy(int(result.get("enemy_killed_hp", 0)))
 		overlay.queue_free()
 	)
 
@@ -2612,6 +2631,42 @@ func _recalc_max_mp() -> void:
 	var pct: int = Skills.move_pct(_hero.skills)
 	_hero.max_mp = base_mp + int(round(float(base_mp) * float(pct) / 100.0))
 
+
+
+# --- Totenerweckung (M7 Teil 2) ------------------------------------------
+# Nach einem gewonnenen Kampf steigt ein Teil der gefallenen Gegner als
+# Skelette in die Heldenarmee. Gerechnet wird ueber die gefallenen
+# TREFFERPUNKTE (HeroSkills.raised_skeletons), nicht ueber Koepfe.
+#
+# Skelette gibt es fuer JEDE Fraktion, nicht nur fuer das Totenreich - so
+# ist es in HoMM3, und es hat einen Preis: Lebende und Untote in einer
+# Armee kosten Moral (Morale.gd). Der Skill schliesst ausserdem Fuehrung
+# aus (conflicts_with in skills.json), also entscheidet der Spieler
+# zwischen Moral und Nachschub.
+const NECRO_UNIT := "nec_skeleton"
+
+func _apply_necromancy(killed_hp: int) -> String:
+	if _hero == null:
+		return ""
+	var pct: int = Skills.necromancy_pct(_hero.skills)
+	if pct <= 0 or killed_hp <= 0:
+		return ""
+	var raised: int = Skills.raised_skeletons(_hero.skills, killed_hp,
+		UnitType.hp_of(NECRO_UNIT))
+	if raised <= 0:
+		return ""
+	if not _hero.can_add_unit(NECRO_UNIT):
+		# Armee voll und kein Skelett-Stack da: der Skill greift nicht
+		# still ins Leere, der Spieler soll den Grund sehen.
+		var full: String = "Totenerweckung: kein Platz fuer %d Skelette" % raised
+		_set_combat(full)
+		return full
+	_hero.add_units(NECRO_UNIT, raised)
+	var msg: String = "Totenerweckung: %d Skelette erhoben" % raised
+	_set_combat(msg)
+	_update_labels()
+	_request_redraw()
+	return msg
 
 
 # --- Bonus-Objekte (M5) --------------------------------------------------
@@ -3464,6 +3519,9 @@ func _run_enemy_turn_for(idx: int) -> bool:
 					for hk in _hero.army.keys():
 						Garrison.add(def_army, String(hk), int(_hero.army[hk]))
 				sctx_def["player_army"] = def_army
+				# Fuer die Totenerweckung: nur wenn der Held selbst
+				# mitkaempft, bekommt er die Skelette.
+				sctx_def["hero_present"] = hero_in_city
 				# Der Belagerer kaempft mit seinen ECHTEN Einheiten, nicht
 				# mit einer aus der Kopfzahl synthetisierten Truppe.
 				sctx_def["enemy_army"] = eh.army.duplicate()

@@ -31,12 +31,17 @@ const PRIMARY_NAMES := {
 
 # Skills, deren Grundsystem noch fehlt. Sie werden NICHT angeboten - der
 # Spieler soll keinen toten Skill ziehen koennen.
-#   pathfinding -> braucht Gelaende-Bewegungskosten
-#   tactics     -> braucht eine Aufstellungsphase vor dem Kampf
-#   necromancy  -> braucht Armee-Zuwachs nach dem Sieg (M7 Teil 2)
-# Weisheit und Mystizismus sind seit M8 drin - sie brauchten Zauber und
-# Mana, und beides gibt es jetzt.
-const NOT_YET_IMPLEMENTED := ["pathfinding", "tactics", "necromancy"]
+#
+# Seit M7 Teil 2 ist die Liste LEER: die drei letzten Nachzuegler haben ihr
+# Grundsystem bekommen. Wegfindung brauchte Gelaende-Bewegungskosten mit
+# feinerer Einheit (core/Movement.gd), Taktik eine Aufstellungsphase vor
+# dem Kampf (TacticalBattleScreen._tactics_phase), Totenerweckung den
+# Armee-Zuwachs nach dem Sieg (WorldMapScreen._apply_necromancy).
+# Weisheit und Mystizismus kamen mit M8 dazu.
+#
+# Der Filter bleibt als Mechanik stehen: der naechste Skill, der Daten hat
+# aber keine Wirkung, gehoert hier hinein und nicht ins Angebot.
+const NOT_YET_IMPLEMENTED: Array = []
 
 const MAX_TIER := 3
 const MAX_SLOTS := 8
@@ -179,7 +184,9 @@ const _TABLES := {
 	"estates": [125, 250, 500],        # Gold pro Tag
 	"wisdom": [2, 3, 4],               # hoechste lernbare Zauberstufe
 	"mysticism": [1, 2, 3],            # Mana pro Tag zusaetzlich
-	"necromancy": [10, 20, 30],        # Prozent der Gefallenen (Teil 2)
+	"necromancy": [10, 20, 30],        # Prozent der gefallenen Gegner-HP
+	"pathfinding": [25, 50, 100],      # Prozent weniger Gelaende-Aufschlag
+	"tactics": [1, 2, 3],              # Spalten fuer die Aufstellung
 }
 
 
@@ -228,6 +235,37 @@ static func mana_regen(have: Dictionary) -> int:
 	return value_in(have, "mysticism")
 
 
+# Wegfindung als STUFE: Movement.step_cost rechnet daraus den Abschlag.
+# Wie bei der Weisheit haelt die Tabelle oben nur den Anzeigewert.
+static func pathfinding_tier(have: Dictionary) -> int:
+	return int(have.get("pathfinding", 0))
+
+# Taktik: wie viele Spalten der Spieler vor dem Kampf umstellen darf.
+static func tactics_cols(have: Dictionary) -> int:
+	return value_in(have, "tactics")
+
+static func necromancy_pct(have: Dictionary) -> int:
+	return value_in(have, "necromancy")
+
+
+# Skelette aus einem gewonnenen Kampf.
+#
+# HoMM3 (klassisch) rechnet mit der ANZAHL gefallener Gegner - dort bringt
+# ein Feld voll Bauern mehr Skelette als ein gefallener Drache. Hier laeuft
+# es ueber die gefallenen TREFFERPUNKTE, in der Absicht der Notiz in
+# skills.json ("Equilibris-Stil"): der Zuwachs haengt daran, was der Gegner
+# wert war, nicht daran, wie klein seine Einheiten waren.
+#
+# `skeleton_hp` kommt von aussen, damit dieses Modul keine Unit-Daten
+# kennen muss (dieselbe Trennung wie zwischen Kampf-Screen und Skills).
+static func raised_skeletons(have: Dictionary, killed_hp: int,
+		skeleton_hp: int) -> int:
+	var pct: int = necromancy_pct(have)
+	if pct <= 0 or killed_hp <= 0 or skeleton_hp <= 0:
+		return 0
+	return int(killed_hp * pct / (100 * skeleton_hp))
+
+
 # Kurzbeschreibung der NAECHSTEN Stufe - fuer die Auswahl beim Aufstieg.
 # Der Spieler muss sehen, was der Zug bringt, nicht nur den Namen.
 static func next_tier_text(skill_id: String, have: Dictionary) -> String:
@@ -250,11 +288,17 @@ static func next_tier_text(skill_id: String, have: Dictionary) -> String:
 		"estates":
 			return "+%d Gold pro Tag" % val
 		"necromancy":
-			return "%d %% der Gefallenen als Skelette" % val
+			return "Skelette aus %d %% der gefallenen Gegner" % val
 		"wisdom":
 			return "Zauber bis Stufe %d lernbar" % val
 		"mysticism":
 			return "+%d Mana pro Tag" % val
+		"pathfinding":
+			if val >= 100:
+				return "raues Gelaende kostet nichts mehr"
+			return "-%d %% Aufschlag in Wald und Sumpf" % val
+		"tactics":
+			return "%d Spalte(n) Aufstellung vor dem Kampf" % val
 	return ""
 
 

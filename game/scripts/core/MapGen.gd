@@ -14,6 +14,8 @@ extends RefCounted
 # Convenience-Wrapper; WorldMapScreen ruft die Phasen einzeln mit
 # Diagnostik auf.
 
+const Move := preload("res://scripts/core/Movement.gd")
+
 const TILE_GRASS := 0
 const TILE_FOREST := 1
 const TILE_WATER := 2
@@ -143,17 +145,14 @@ static func _has_neighbor(tiles: Array, width: int, height: int, x: int, y: int,
 	return false
 
 
+# Bewegungskosten kommen seit M7 Teil 2 aus core/Movement.gd - EINE
+# Tabelle fuer Karte, Pathfinder und Weltkarten-Dijkstra. ACHTUNG: die
+# Einheit ist seither feiner (flaches Feld = Movement.UNIT = 4 Punkte,
+# nicht 1), damit der Skill Wegfindung einen Prozent-Abschlag auf den
+# Gelaende-Aufschlag rechnen kann.
 static func terrain_cost(t: int) -> int:
-	# -1 = unpassierbar
-	match t:
-		TILE_GRASS: return 1
-		TILE_SAND: return 1
-		TILE_FOREST: return 2
-		TILE_SWAMP: return 2
-		TILE_WATER: return -1
-		TILE_MOUNTAIN: return -1
-	return 1
+	return Move.step_cost(t, 0)
 
 
 static func is_passable(t: int) -> bool:
-	return terrain_cost(t) > 0
+	return Move.is_passable(t)

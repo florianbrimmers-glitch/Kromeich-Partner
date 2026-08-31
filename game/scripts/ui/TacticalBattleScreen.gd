@@ -100,6 +100,21 @@ var _siege: bool = false
 var _wall_hp: Dictionary = {}
 var _tower_dmg: int = 0
 
+# --- Taktik (M7 Teil 2) --------------------------------------------------
+# Aufstellungsphase VOR der ersten Runde: der Spieler darf seine Stacks
+# innerhalb der ersten Spalten frei umstellen. Der Skill liefert die Zahl
+# der Spalten (1-3); ohne Skill gibt es die Phase nicht.
+#
+# WARUM EINE EIGENE PHASE und kein Vorab-Sortieren: die Reihenfolge der
+# Stacks bestimmt bisher allein _row(), also stehen Schuetzen zufaellig
+# vorn. Genau das soll der Spieler entscheiden koennen - und zwar sehend,
+# mit dem Gelaende und der Gegneraufstellung vor Augen.
+const TACTICS_FIRST_COL := 1
+var _tactics_cols: int = 0
+var _tactics_phase: bool = false
+var _tactics_pick: int = -1
+var _tactics_btn: Button = null
+
 var _p_stacks: Array = []
 var _e_stacks: Array = []
 var _turn_order: Array = []
@@ -137,6 +152,8 @@ func set_battle(ctx: Dictionary) -> void:
 	_p_spells = (ctx.get("player_spells", []) as Array).duplicate()
 	_casts_left = Spl.CASTS_PER_ROUND
 	_pending_spell = ""
+	_tactics_cols = clampi(int(ctx.get("player_tactics", 0)), 0, GRID_COLS - 4)
+	_tactics_pick = -1
 	_allow_flee  = bool(ctx.get("allow_flee", true))
 	_rng = RandomNumberGenerator.new()
 	_rng.seed = int(ctx.get("seed", 42))
@@ -184,7 +201,12 @@ func set_battle(ctx: Dictionary) -> void:
 		_flee_btn.visible = _allow_flee
 	_refresh_spell_button()
 	_refresh()
-	_step()
+	# Taktik zuerst: die Zugkette startet erst, wenn der Spieler fertig
+	# aufgestellt hat.
+	if _tactics_cols > 0 and not _p_stacks.is_empty():
+		_begin_tactics()
+	else:
+		_step()
 
 
 func _make_stacks(list: Array, side: int) -> Array:
@@ -370,6 +392,87 @@ func _row(i: int, n: int) -> int:
 	if n <= 1:
 		return GRID_ROWS / 2
 	return (GRID_ROWS / (n + 1)) * (i + 1)
+
+
+# --- Taktik-Phase ---------------------------------------------------------
+
+# Erlaubte Spalten: TACTICS_FIRST_COL bis einschliesslich
+# TACTICS_FIRST_COL + Stufe. Stufe 1 gibt also zwei Spalten (umstellen und
+# eine nach vorn), Stufe 3 vier. Die Mitte des Feldes bleibt in jedem Fall
+# tabu - clampi in set_battle haelt die Zone von der Gegnerseite weg.
+func _tactics_allows(cell: Vector2i) -> bool:
+	if cell.y < 0 or cell.y >= GRID_ROWS:
+		return false
+	return cell.x >= TACTICS_FIRST_COL and cell.x <= TACTICS_FIRST_COL + _tactics_cols
+
+
+func _begin_tactics() -> void:
+	_tactics_phase = true
+	_tactics_pick = -1
+	if _tactics_btn != null:
+		_tactics_btn.visible = true
+	# Die Kampf-Knoepfe haben in der Aufstellung keine Bedeutung.
+	if _wait_btn != null:
+		_wait_btn.visible = false
+	if _flee_btn != null:
+		_flee_btn.visible = false
+	if _spell_btn != null:
+		_spell_btn.visible = false
+	_set_action("Taktik: Stack antippen, dann Zielfeld (%d Spalten)."
+		% (_tactics_cols + 1))
+	_refresh()
+
+
+func _end_tactics() -> void:
+	if not _tactics_phase:
+		return
+	_tactics_phase = false
+	_tactics_pick = -1
+	if _tactics_btn != null:
+		_tactics_btn.visible = false
+	if _wait_btn != null:
+		_wait_btn.visible = true
+	if _flee_btn != null:
+		_flee_btn.visible = _allow_flee
+	_refresh_spell_button()
+	_set_action("Aufstellung steht.")
+	# Reihenfolge neu, damit ein leer gelaufener Slot nicht haengt; die
+	# Positionen haben die Initiative nicht veraendert, aber das ist die
+	# einzige Stelle, die _turn_order und _active_slot konsistent setzt.
+	_rebuild_order()
+	_active_slot = 0
+	_refresh()
+	_step()
+
+
+# Ein Tap waehrend der Aufstellung. Erst Stack waehlen, dann Zielfeld.
+func _tactics_tap(cell: Vector2i) -> void:
+	for i in range(_p_stacks.size()):
+		var s: Dictionary = _p_stacks[i]
+		if int(s["count"]) <= 0:
+			continue
+		if Vector2i(s["pos"]) == cell:
+			_tactics_pick = i
+			_set_action("%s gewaehlt - Zielfeld antippen."
+				% UnitType.short_of(String(s["type"])))
+			_refresh()
+			return
+	if _tactics_pick < 0:
+		_set_action("Taktik: zuerst einen eigenen Stack antippen.")
+		return
+	if not _tactics_allows(cell):
+		_set_action("Taktik: nur die ersten %d Spalten." % (_tactics_cols + 1))
+		return
+	if _ob_map.has(cell):
+		_set_action("Taktik: Feld ist blockiert.")
+		return
+	for s2 in _e_stacks:
+		if int(s2["count"]) > 0 and Vector2i(s2["pos"]) == cell:
+			_set_action("Taktik: Feld ist besetzt.")
+			return
+	_p_stacks[_tactics_pick]["pos"] = cell
+	_tactics_pick = -1
+	_refresh()
 
 
 func _rebuild_order() -> void:
@@ -745,6 +848,20 @@ func _build_ui() -> void:
 	_spell_btn.pressed.connect(_on_spell_button)
 	add_child(_spell_btn)
 
+	# Taktik-Knopf (M7 Teil 2). Liegt ueber der Knopfzeile und ist nur
+	# waehrend der Aufstellungsphase sichtbar - er beendet sie.
+	_tactics_btn = Button.new()
+	_tactics_btn.text = "Kampf beginnen"
+	_tactics_btn.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	_tactics_btn.offset_left = 50.0
+	_tactics_btn.offset_right = -50.0
+	_tactics_btn.offset_top = -170.0
+	_tactics_btn.offset_bottom = -50.0
+	_tactics_btn.add_theme_font_size_override("font_size", 38)
+	_tactics_btn.visible = false
+	_tactics_btn.pressed.connect(_end_tactics)
+	add_child(_tactics_btn)
+
 	_flee_btn = Button.new()
 	_flee_btn.text = "Fliehen"
 	_flee_btn.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
@@ -903,6 +1020,15 @@ func _draw_grid() -> void:
 		var r := Rect2(o + Vector2(float(cv.x)*c, float(cv.y)*c), Vector2(c, c))
 		_grid_area.draw_rect(r, Color(0.25, 0.45, 0.28, 0.5), true)
 
+	# Aufstellungs-Zone (M7 Teil 2): waehrend der Taktik-Phase steht statt
+	# der Reichweite die erlaubte Flaeche im Feld.
+	if _tactics_phase:
+		for tx in range(TACTICS_FIRST_COL, TACTICS_FIRST_COL + _tactics_cols + 1):
+			for ty in range(GRID_ROWS):
+				var tr := Rect2(o + Vector2(float(tx) * c, float(ty) * c),
+					Vector2(c, c))
+				_grid_area.draw_rect(tr, Color(0.25, 0.40, 0.60, 0.35), true)
+
 	for s in _e_stacks:
 		if int(s["count"]) <= 0: continue
 		var ep: Vector2i = Vector2i(s["pos"])
@@ -932,6 +1058,9 @@ func _draw_grid() -> void:
 		_draw_token(ctr, c, r_active, s, col_fill, Color(0.5, 0.35, 0.05))
 		if sp == active_pos:
 			_grid_area.draw_arc(ctr, r_active + 4, 0, TAU, 32, Color(1,1,0.5,0.7), 2.5)
+		if _tactics_phase and i == _tactics_pick:
+			_grid_area.draw_arc(ctr, r_active + 6, 0, TAU, 32,
+				Color(0.55, 0.85, 1.0, 0.9), 4.0)
 		_draw_lbl(ctr, UnitType.short_of(String(s["type"])) + str(int(s["count"])), c)
 		_draw_hp_bar(ctr, c, int(s["top_hp"]), UnitType.hp_of(String(s["type"])))
 		_draw_status_marker(ctr, c, s)
@@ -1534,6 +1663,13 @@ func _on_grid_input(event: InputEvent) -> void:
 	if not (event is InputEventMouseButton): return
 	var mb: InputEventMouseButton = event
 	if not mb.pressed or mb.button_index != MOUSE_BUTTON_LEFT: return
+	# Aufstellungsphase faengt den Tap ab, bevor irgendeine Zug-Logik
+	# greift - es ist noch niemand am Zug.
+	if _tactics_phase:
+		var tc: Vector2i = _cell_at(mb.position)
+		if tc.x >= 0:
+			_tactics_tap(tc)
+		return
 	if _turn_order.is_empty() or _active_slot >= _turn_order.size(): return
 	if int(_turn_order[_active_slot]["side"]) != 0: return
 
@@ -2019,9 +2155,22 @@ func _check_end() -> bool:
 	# soll die Stadt-Garnison geschwaecht zuruecklassen, und bei einem
 	# Verteidigungskampf um die eigene Stadt braucht der Aufrufer die
 	# Reste der eigenen (Garnisons-)Truppe.
+	# Gefallene Gegner - Grundlage der Totenerweckung (M7 Teil 2). Zwei
+	# Zahlen: Koepfe fuer die Meldung, TREFFERPUNKTE fuer die Rechnung.
+	# Ueber die HP, weil ein Feld voll Goblins sonst mehr Skelette bringt
+	# als ein gefallener Drache (siehe HeroSkills.raised_skeletons).
+	var e_killed: int = 0
+	var e_killed_hp: int = 0
+	for s in _e_stacks:
+		var lost_e: int = int(s.get("count_start", 0)) - int(s["count"])
+		if lost_e > 0:
+			e_killed += lost_e
+			e_killed_hp += lost_e * UnitType.hp_of(String(s["type"]))
 	var res: Dictionary = {
 		"outcome": "victory" if p_alive else "defeat",
 		"casualties": cas,
+		"enemy_killed": e_killed,
+		"enemy_killed_hp": e_killed_hp,
 		# M8: verbrauchtes Mana muss zurueck, sonst waere der Held nach
 		# jedem Kampf wieder voll aufgeladen.
 		"mana_left": _p_mana,

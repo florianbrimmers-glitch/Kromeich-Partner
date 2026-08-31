@@ -65,7 +65,10 @@ func add_primary(stat_id: String, amount: int = 1) -> void:
 		"spell_power": spell_power += amount
 		"knowledge": knowledge += amount
 
-func _init(start: Vector2i, max_movement: int = 12) -> void:
+# Standard-Bewegung in PUNKTEN, nicht in Feldern: seit M7 Teil 2 kostet
+# ein flaches Feld Movement.UNIT (4) Punkte. 48 sind also 12 Felder - der
+# alte Vorgabewert, nur in der feineren Einheit.
+func _init(start: Vector2i, max_movement: int = 48) -> void:
 	position = start
 	max_mp = max_movement
 	mp = max_movement
@@ -176,7 +179,7 @@ func to_dict() -> Dictionary:
 
 static func from_dict(d: Dictionary) -> Hero:
 	var h := Hero.new(SaveCodec.to_v2i(d.get("position"), Vector2i.ZERO),
-		int(d.get("max_mp", 12)))
+		int(d.get("max_mp", 48)))
 	h.mp = int(d.get("mp", h.max_mp))
 	if d.has("wallet"):
 		h.wallet = Wallet.from_dict(d["wallet"])

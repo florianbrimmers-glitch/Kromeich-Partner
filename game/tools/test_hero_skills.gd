@@ -15,11 +15,21 @@ extends SceneTree
 #      Warteschlange; Auswahl wirkt auf Bewegung und Sichtweite
 #   5. Kampf: Angriff und Verteidigung sind GETRENNT, Fuehrung hebt die
 #      Moral, Bogenkampf/Offensive/Ruestungskunde aendern den Schaden
+#   6. M7 Teil 2: Taktik-Aufstellung im Kampf und Totenerweckung nach
+#      dem Sieg (Wegfindung steckt in tools/test_movement.gd)
+#
+# Jede Test-Funktion setzt am Ende eine Marke - ein Laufzeitfehler bricht
+# in GDScript nur die Funktion ab, die Suite bliebe sonst gruen.
 
 const Skills := preload("res://scripts/core/HeroSkills.gd")
 const TBS := preload("res://scripts/ui/TacticalBattleScreen.gd")
 
 var _fails: int = 0
+var _done: Array = []
+# Ergebnis aus dem battle_finished-Signal. MUSS ein Feld sein: GDScript-
+# Lambdas fangen lokale Variablen als KOPIE, ein Schreiben in eine lokale
+# Variable landet im Nichts (Lehrgeld aus It. 23).
+var _last_result: Dictionary = {}
 
 
 func _init() -> void:
@@ -28,6 +38,17 @@ func _init() -> void:
 	_test_hero()
 	await _test_worldmap()
 	await _test_battle()
+	await _test_tactics()
+	await _test_necromancy()
+
+	var expected: Array = ["data", "offer", "hero", "worldmap", "battle",
+		"tactics", "necromancy"]
+	var aborted: Array = []
+	for name in expected:
+		if not _done.has(String(name)):
+			aborted.append(String(name))
+	_check(aborted.is_empty(),
+		"jede Test-Funktion lief bis zum Ende durch (abgebrochen: %s)" % str(aborted))
 
 	print("")
 	if _fails == 0:
@@ -87,14 +108,37 @@ func _test_data() -> void:
 	_check(Skills.value_of("archery", 3) == 50, "Bogenkampf III = +50 %")
 	_check(Skills.value_of("armorer", 1) == 5, "Ruestungskunde I = -5 %")
 	_check(Skills.value_of("leadership", 0) == 0, "Stufe 0 = kein Effekt")
-	# Weisheit und Mystizismus sind seit M8 umgesetzt; Wegfindung nicht.
-	_check(Skills.value_of("pathfinding", 1) == 0,
-		"nicht umgesetzter Skill hat keinen Wert")
+	# Seit M7 Teil 2 hat JEDER Skill aus der JSON eine Wirkung. Der Filter
+	# bleibt als Mechanik, aber er darf niemanden mehr aussperren - sonst
+	# faellt ein Skill still aus dem Angebot.
+	_check(Skills.NOT_YET_IMPLEMENTED.is_empty(),
+		"kein Skill mehr ohne Wirkung (%s)" % str(Skills.NOT_YET_IMPLEMENTED))
+	_check(Skills.offerable_ids().size() == Skills.all_secondary_ids().size(),
+		"alle %d Skills sind anbietbar" % Skills.all_secondary_ids().size())
+	var no_value: Array = []
+	for sid in Skills.all_secondary_ids():
+		if Skills.value_of(String(sid), 1) == 0:
+			no_value.append(String(sid))
+	_check(no_value.is_empty(), "jeder Skill hat auf Stufe 1 einen Wert (%s)"
+		% str(no_value))
+	_check(Skills.value_of("pathfinding", 1) == 25, "Wegfindung I = -25 %")
+	_check(Skills.tactics_cols({"tactics": 2}) == 2, "Taktik II = 2 Spalten")
+	_check(Skills.necromancy_pct({"necromancy": 3}) == 30,
+		"Totenerweckung III = 30 %")
 	_check(Skills.value_of("wisdom", 2) == 3, "Weisheit II erlaubt Stufe 3")
 	_check(Skills.mana_regen({"mysticism": 3}) == 3, "Mystizismus III = +3 Mana/Tag")
 	_check(Skills.next_tier_text("logistics", {}).contains("10"),
 		"Beschreibung der naechsten Stufe nennt den Wert (ist '%s')"
 		% Skills.next_tier_text("logistics", {}))
+	# Auch die neuen drei muessen sich beschreiben lassen - ein leerer Text
+	# im Auswahl-Overlay waere ein Blindkauf.
+	var empty_text: Array = []
+	for sid2 in Skills.all_secondary_ids():
+		if Skills.next_tier_text(String(sid2), {}).is_empty():
+			empty_text.append(String(sid2))
+	_check(empty_text.is_empty(), "jeder Skill beschreibt seine Stufe (%s)"
+		% str(empty_text))
+	_done.append("data")
 
 
 func _test_offer() -> void:
@@ -188,6 +232,7 @@ func _test_offer() -> void:
 	_check(int(counts.get("spell_power", 0)) < int(counts.get("attack", 0)) / 2,
 		"Orks zaubern kaum (Zauberkraft %d vs Angriff %d)"
 		% [int(counts.get("spell_power", 0)), int(counts.get("attack", 0))])
+	_done.append("offer")
 
 
 func _test_hero() -> void:
@@ -215,6 +260,7 @@ func _test_hero() -> void:
 	var h3: Hero = Hero.from_dict(old_save)
 	_check(h3.att == 0 and h3.skills.is_empty(),
 		"Save ohne M7-Felder laedt mit Nullwerten (keine Migration noetig)")
+	_done.append("hero")
 
 
 func _test_worldmap() -> void:
@@ -263,6 +309,7 @@ func _test_worldmap() -> void:
 
 	wm.queue_free()
 	await process_frame
+	_done.append("worldmap")
 
 
 func _test_battle() -> void:
@@ -351,3 +398,201 @@ func _test_battle() -> void:
 	bs.queue_free()
 	bs2.queue_free()
 	await process_frame
+	_done.append("battle")
+
+
+# --- M7 Teil 2: Taktik-Aufstellung ---------------------------------------
+
+func _test_tactics() -> void:
+	print("")
+	print("== Taktik: Aufstellung vor dem Kampf ==")
+	var bs = TBS.new()
+	bs.fx_speed = 0.0
+	root.add_child(bs)
+	await process_frame
+	bs.set_battle({
+		"player_stacks": [{"type": "men_archer", "count": 10},
+			{"type": "men_spearman", "count": 10}],
+		"enemy_stacks": [{"type": "ork_goblin", "count": 10}],
+		"seed": 11, "allow_flee": true,
+		"player_tactics": 2,
+	})
+	# Hindernisse raus, damit die Zielfelder im Test frei sind.
+	bs._obstacles = []
+	bs._ob_map = {}
+	await process_frame
+
+	_check(bool(bs._tactics_phase), "Phase laeuft bei Taktik II")
+	_check(bs._tactics_btn != null and bs._tactics_btn.visible,
+		"'Kampf beginnen' steht bereit")
+	_check(bs._wait_btn != null and not bs._wait_btn.visible,
+		"Warten ist waehrend der Aufstellung weg")
+
+	var s0: Dictionary = bs._p_stacks[0]
+	var from: Vector2i = Vector2i(s0["pos"])
+	_check(from.x == bs.TACTICS_FIRST_COL, "Stacks stehen in Spalte %d"
+		% bs.TACTICS_FIRST_COL)
+
+	# Ohne Auswahl bewegt sich nichts.
+	bs._tactics_tap(Vector2i(3, from.y))
+	_check(Vector2i(s0["pos"]) == from, "Tap ohne Auswahl verschiebt nichts")
+
+	# Auswaehlen, dann in die Zone: Spalte 1 bis 3 bei Stufe 2.
+	bs._tactics_tap(from)
+	_check(int(bs._tactics_pick) == 0, "Stack ausgewaehlt")
+	bs._tactics_tap(Vector2i(3, from.y))
+	_check(Vector2i(s0["pos"]) == Vector2i(3, from.y),
+		"Stack steht auf dem Zielfeld (ist %s)" % str(Vector2i(s0["pos"])))
+	_check(int(bs._tactics_pick) == -1, "Auswahl nach dem Setzen zurueckgesetzt")
+
+	# Ausserhalb der Zone: Spalte 4 ist bei Stufe 2 zu weit.
+	bs._tactics_tap(Vector2i(3, from.y))
+	bs._tactics_tap(Vector2i(4, from.y))
+	_check(Vector2i(s0["pos"]) == Vector2i(3, from.y),
+		"Spalte 4 wird bei Stufe 2 verweigert")
+	_check(not bs._tactics_allows(Vector2i(4, from.y)),
+		"_tactics_allows sagt dasselbe")
+	_check(not bs._tactics_allows(Vector2i(0, from.y)),
+		"Spalte 0 ebenfalls tabu (Rand)")
+
+	# Blockiertes Feld.
+	bs._ob_map[Vector2i(2, from.y)] = 1
+	bs._tactics_tap(Vector2i(3, from.y))
+	bs._tactics_tap(Vector2i(2, from.y))
+	_check(Vector2i(s0["pos"]) == Vector2i(3, from.y),
+		"Hindernis-Feld wird verweigert")
+	bs._ob_map.erase(Vector2i(2, from.y))
+
+	# Zweiter Stack auf dasselbe Feld? Erlaubt ist es nicht - aber der
+	# erste Tap waehlt dort ohnehin den Stack aus, deshalb pruefen wir das
+	# ueber ein Feld, auf dem der andere eigene Stack steht: der Tap muss
+	# ihn AUSWAEHLEN, nicht den ersten dorthin schieben.
+	var s1: Dictionary = bs._p_stacks[1]
+	var other: Vector2i = Vector2i(s1["pos"])
+	bs._tactics_tap(Vector2i(3, from.y))
+	bs._tactics_tap(other)
+	_check(int(bs._tactics_pick) == 1, "Tap auf den zweiten Stack waehlt ihn aus")
+	_check(Vector2i(s0["pos"]) == Vector2i(3, from.y), "der erste bleibt stehen")
+
+	# Phase beenden -> der Kampf laeuft.
+	bs._end_tactics()
+	_check(not bool(bs._tactics_phase), "Phase beendet")
+	_check(not bs._tactics_btn.visible and bs._wait_btn.visible,
+		"Knopfzeile ist zurueck")
+	_check(bs._turn_order.size() > 0 and int(bs._active_slot) < bs._turn_order.size(),
+		"Zugreihenfolge steht (%d Slots)" % bs._turn_order.size())
+	bs.queue_free()
+
+	# Ohne Skill gibt es die Phase nicht - der Kampf startet sofort.
+	var bs2 = TBS.new()
+	bs2.fx_speed = 0.0
+	root.add_child(bs2)
+	await process_frame
+	bs2.set_battle({
+		"player_stacks": [{"type": "men_archer", "count": 10}],
+		"enemy_stacks": [{"type": "ork_goblin", "count": 10}],
+		"seed": 11, "allow_flee": true,
+	})
+	await process_frame
+	_check(not bool(bs2._tactics_phase), "ohne Skill keine Aufstellungsphase")
+	_check(bs2._tactics_btn != null and not bs2._tactics_btn.visible,
+		"und kein Knopf dafuer")
+	bs2.queue_free()
+	await process_frame
+	_done.append("tactics")
+
+
+# --- M7 Teil 2: Totenerweckung -------------------------------------------
+
+func _test_necromancy() -> void:
+	print("")
+	print("== Totenerweckung: Skelette nach dem Sieg ==")
+	var sk_hp: int = UnitType.hp_of("nec_skeleton")
+	_check(sk_hp > 0, "Skelett-HP bekannt (%d)" % sk_hp)
+	_check(Skills.raised_skeletons({}, 1000, sk_hp) == 0, "ohne Skill nichts")
+	_check(Skills.raised_skeletons({"necromancy": 1}, 0, sk_hp) == 0,
+		"ohne Gefallene nichts")
+	var t1: int = Skills.raised_skeletons({"necromancy": 1}, 700, sk_hp)
+	var t3: int = Skills.raised_skeletons({"necromancy": 3}, 700, sk_hp)
+	_check(t1 == int(700 * 10 / (100 * sk_hp)),
+		"Stufe 1 = 10 %% der gefallenen HP (%d Skelette)" % t1)
+	_check(t3 > t1, "hoehere Stufe gibt mehr (%d -> %d)" % [t1, t3])
+	# Ein gefallener Drache muss mehr bringen als ein gefallener Goblin -
+	# genau das leistet die HP-Rechnung gegenueber der Koepfe-Zaehlung.
+	var dragon: int = Skills.raised_skeletons({"necromancy": 3},
+		UnitType.hp_of("nec_bonedragon"), sk_hp)
+	var goblin: int = Skills.raised_skeletons({"necromancy": 3},
+		UnitType.hp_of("ork_goblin"), sk_hp)
+	_check(dragon > goblin,
+		"ein gefallener Knochendrache bringt mehr als ein Goblin (%d vs %d)"
+		% [dragon, goblin])
+
+	# Das Kampf-Ergebnis muss die gefallenen HP mitliefern.
+	var bs = TBS.new()
+	bs.fx_speed = 0.0
+	root.add_child(bs)
+	await process_frame
+	_last_result = {}
+	bs.battle_finished.connect(func(r: Dictionary) -> void: _last_result = r)
+	bs.set_battle({
+		"player_stacks": [{"type": "men_archer", "count": 20}],
+		"enemy_stacks": [{"type": "ork_goblin", "count": 6}],
+		"seed": 3, "allow_flee": false,
+	})
+	await process_frame
+	var enemy: Dictionary = bs._e_stacks[0]
+	var e_uid: String = String(enemy["type"])
+	var e_cnt: int = int(enemy["count"])
+	bs._apply_dmg(enemy, 99999)
+	bs._check_end()
+	_check(String(_last_result.get("outcome", "")) == "victory", "Sieg gemeldet")
+	_check(int(_last_result.get("enemy_killed", 0)) == e_cnt,
+		"%d gefallene Gegner gezaehlt (sind %d)"
+		% [e_cnt, int(_last_result.get("enemy_killed", 0))])
+	_check(int(_last_result.get("enemy_killed_hp", 0)) == e_cnt * UnitType.hp_of(e_uid),
+		"und ihre Trefferpunkte (%d)" % int(_last_result.get("enemy_killed_hp", 0)))
+	bs.queue_free()
+
+	# Weltkarte: der Trichter haengt die Skelette in die Heldenarmee.
+	var scene := load("res://scenes/WorldMap.tscn") as PackedScene
+	var wm = scene.instantiate()
+	root.add_child(wm)
+	await process_frame
+	wm.call("_start", 909, 1)
+	await process_frame
+	var hero = wm.get("_hero")
+
+	hero.skills = {}
+	var before: int = int(hero.army.get("nec_skeleton", 0))
+	wm.call("_apply_necromancy", 1000)
+	_check(int(hero.army.get("nec_skeleton", 0)) == before,
+		"ohne Skill kommt niemand zurueck")
+
+	hero.skills = {"necromancy": 3}
+	wm.call("_apply_necromancy", 700)
+	var expect: int = Skills.raised_skeletons({"necromancy": 3}, 700, sk_hp)
+	_check(int(hero.army.get("nec_skeleton", 0)) == before + expect,
+		"%d Skelette in der Armee (sind %d)"
+		% [expect, int(hero.army.get("nec_skeleton", 0))])
+	# Zweiter Sieg: der bestehende Stack waechst, es gibt keinen zweiten.
+	wm.call("_apply_necromancy", 700)
+	_check(int(hero.army.get("nec_skeleton", 0)) == before + 2 * expect,
+		"bestehender Stack waechst statt einen zweiten anzulegen")
+
+	# Armee voll und kein Skelett-Stack: der Skill darf nicht still
+	# verpuffen, aber auch keinen Slot erzwingen.
+	hero.army = {}
+	var fillers: Array = ["men_spearman", "men_archer", "men_griffin",
+		"men_crusader", "men_monk", "men_cavalier"]
+	for i in range(Hero.MAX_ARMY_SLOTS):
+		hero.army[String(fillers[i % fillers.size()])] = 5
+	var slots_before: int = hero.army.size()
+	var msg: String = String(wm.call("_apply_necromancy", 700))
+	_check(hero.army.size() == slots_before
+			and not hero.army.has("nec_skeleton"),
+		"bei voller Armee kommt kein Stack dazu (%d Slots)" % hero.army.size())
+	_check(msg.contains("kein Platz"), "und der Spieler erfaehrt warum ('%s')" % msg)
+
+	wm.queue_free()
+	await process_frame
+	_done.append("necromancy")

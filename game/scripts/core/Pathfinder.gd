@@ -4,8 +4,16 @@ extends RefCounted
 # Dijkstra auf einem Tile-Grid mit Terrain-Kosten. Keine Diagonalen.
 # Nutzung: compute_costs(map, start) -> Dictionary {Vector2i -> int_cost}.
 # Start hat Kosten 0; nicht-erreichbare Felder fehlen im Dictionary.
+#
+# Kosten kommen aus core/Movement.gd (M7 Teil 2). Vorher standen hier
+# eigene Integer-Literale - und die kannten den Sumpf nicht, ein Feld das
+# es seit der Sumpf-Kachel gibt: er galt als unpassierbar.
 
-static func compute_costs(map: Dictionary, start: Vector2i) -> Dictionary:
+const Move := preload("res://scripts/core/Movement.gd")
+
+
+static func compute_costs(map: Dictionary, start: Vector2i,
+		pathfinding_tier: int = 0) -> Dictionary:
 	var width: int = int(map["width"])
 	var height: int = int(map["height"])
 	var tiles: Array = map["tiles"]
@@ -34,15 +42,10 @@ static func compute_costs(map: Dictionary, start: Vector2i) -> Dictionary:
 			if nx < 0 or nx >= width or ny < 0 or ny >= height:
 				continue
 			var t: int = int(tiles[ny * width + nx])
-			# Integer-Literale statt MapGen.TILE_*: Cross-File-
-			# class_name-Konstanten verhalten sich im Android-Export
-			# wie die static MapGen.xxx()-Calls (Wert kommt nicht an).
-			# 0=GRASS, 1=FOREST, 2=WATER, 3=MOUNTAIN, 4=SAND.
-			var step := -1
-			if t == 0 or t == 4:
-				step = 1
-			elif t == 1:
-				step = 2
+			# preload-Modul statt class_name: static-Calls ueber
+			# class_name sind im Android-Export historisch unzuverlaessig
+			# (Wert kommt nicht an), preload-Konstanten nicht.
+			var step: int = Move.step_cost(t, pathfinding_tier)
 			if step < 0:
 				continue
 			var next_cost := cur_cost + step

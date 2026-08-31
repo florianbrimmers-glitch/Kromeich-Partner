@@ -13,7 +13,7 @@ extends Node
 
 const SAVE_DIR := "user://saves"
 const AUTOSAVE_PATH := "user://saves/autosave.json"
-const SAVE_VERSION := 3
+const SAVE_VERSION := 4
 
 # v1 -> v2: Einheiten-IDs der 3-Tier-Aera (M4-Migration). Das Mapping
 # lebte als LEGACY_ALIASES in UnitType und wurde bei jedem Lookup
@@ -86,10 +86,41 @@ static func migrate(d: Dictionary) -> Dictionary:
 				d = _migrate_1_to_2(d)
 			2:
 				d = _migrate_2_to_3(d)
+			3:
+				d = _migrate_3_to_4(d)
 			_:
 				# Unbekannte Zwischenversion: nicht endlos schleifen.
 				d["save_version"] = SAVE_VERSION
 	return d
+
+
+# v3 -> v4: Bewegungspunkte in feinerer Einheit (M7 Teil 2). Ein flaches
+# Feld kostete 1 Punkt und ein raues 2; damit war der Prozent-Abschlag des
+# Skills Wegfindung in ganzen Zahlen nicht darstellbar. Jetzt kostet ein
+# flaches Feld Movement.UNIT (4) Punkte, ein raues 8.
+#
+# Ohne diesen Schritt haette ein alter Spielstand einen Helden mit 7 von 40
+# Punkten geladen - der koennte an dem Tag kein einziges Feld weit gehen,
+# obwohl er beim Speichern fast voll war. Betroffen sind Held und
+# KI-Helden; max_mp wird beim Laden ohnehin neu gerechnet, mp nicht.
+const MP_SCALE_3_TO_4 := 4
+
+static func _migrate_3_to_4(d: Dictionary) -> Dictionary:
+	_scale_mp_in(d.get("hero"))
+	for e in d.get("enemies", []) as Array:
+		if e is Dictionary:
+			_scale_mp_in((e as Dictionary).get("hero"))
+	d["save_version"] = 4
+	return d
+
+
+static func _scale_mp_in(hero: Variant) -> void:
+	if not (hero is Dictionary):
+		return
+	var hd: Dictionary = hero as Dictionary
+	for key in ["mp", "max_mp"]:
+		if hd.has(key):
+			hd[key] = int(hd[key]) * MP_SCALE_3_TO_4
 
 
 # v2 -> v3: Stadt-Garnisonen werden echte Einheiten. Vorher stand dort
