@@ -127,6 +127,11 @@ jobs:
           ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
             --headless --path game/ --script tools/test_map_objects.gd
 
+      - name: Wochenereignis-Tests (Wachstum, Ernte, Seuche)
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/test_week_events.gd
+
       - name: Balance-Simulator (informativ, bricht nicht)
         continue-on-error: true
         run: |

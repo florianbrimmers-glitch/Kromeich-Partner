@@ -218,7 +218,12 @@ func _update_hud() -> void:
 	_title.text = "Stadt " + fname
 	var hero: Object = _ctx.get("hero", null)
 	_gold.text = "Gold: " + str(int(hero.gold)) if hero != null else "Gold: 0"
-	_cal.text = String(_ctx.get("calendar", ""))
+	# Kalender plus Wochenereignis (M12). Ruhige Wochen bleiben stumm,
+	# sonst stuende dort in drei von vier Wochen "Ruhige Woche".
+	var cal_text: String = String(_ctx.get("calendar", ""))
+	if not bool(_ctx.get("week_quiet", true)):
+		cal_text += "\n" + String(_ctx.get("week_event", ""))
+	_cal.text = cal_text
 
 
 # --- Rendering ---

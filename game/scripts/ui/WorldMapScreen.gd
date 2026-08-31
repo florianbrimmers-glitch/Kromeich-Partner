@@ -12,6 +12,9 @@ const SaveLib := preload("res://scripts/core/SaveManager.gd")
 const Skills := preload("res://scripts/core/HeroSkills.gd")
 # Zauber (M8). Loest die Formeln aus spells.json in Zahlen auf.
 const Spells := preload("res://scripts/core/HeroSpells.gd")
+# Wochenereignisse (M12). Leiten sich aus Seed und Wochennummer ab, es wird
+# also nichts gespeichert.
+const WeekFx := preload("res://scripts/core/WeekEvents.gd")
 
 # Weltkarten-Screen. Rendert eine deterministische Zufallskarte per
 # _draw() und erlaubt den Helden per Tap zu bewegen. Dijkstra berechnet
@@ -1073,6 +1076,11 @@ func _update_labels() -> void:
 		"Stufe %d" % int(_hero.level),
 		"Zug %d/%d" % [int(_hero.mp), int(_hero.max_mp)],
 	]
+	# Wochenereignis (M12) nur nennen, wenn es eines gibt - "Ruhige Woche"
+	# in jeder Zeile waere Rauschen.
+	var wev: Dictionary = _week_event()
+	if not WeekFx.is_quiet(wev):
+		line1.append(String(wev.get("title", "")))
 	if bonus > 0:
 		line1.append("Kampf +%d" % bonus)
 	# Ressourcen: nur Bestaende ungleich null, sonst wird die Zeile auf
@@ -1108,10 +1116,36 @@ func _calendar_long() -> String:
 # GameCalendar.day_delta), Summe pro Woche entspricht WEEKLY_GROWTH[req].
 # Pools stapeln sich - nichts verfaellt. Cap ist nur der Wochen-Durchsatz,
 # kein Vorrats-Deckel.
+# Ereignis der laufenden Woche. Deterministisch aus Seed und Wochennummer,
+# deshalb ohne Zwischenspeicher - der Aufruf ist billig.
+func _week_event() -> Dictionary:
+	return WeekFx.for_week(_seed, GameCalendar.week_total(_turn_number),
+		UnitType.all_ids())
+
+
+# Einmalige Wirkungen zum Wochenstart. Wachstums-Faktoren laufen NICHT
+# hier durch, die holt _pool_cap_for jeden Tag frisch aus _week_event().
+func _apply_week_event_start() -> void:
+	var ev: Dictionary = _week_event()
+	if String(ev.get("kind", "")) != WeekFx.KIND_HARVEST:
+		return
+	var own: int = 0
+	for c in _cities:
+		if int(c["owner"]) == OWNER_HERO:
+			own += 1
+	if own <= 0:
+		return
+	var gold: int = own * WeekFx.HARVEST_GOLD_PER_CITY
+	_hero.gold += gold
+	_turn_income += gold
+
+
 func _pool_cap_for(uid: String) -> int:
 	# M4: Wochenrate kommt aus units.json (designte Balance, z.B. 22
 	# Speertraeger/Woche), nicht mehr pauschal pro Gebaeude.
-	return UnitType.growth_of(uid)
+	# M12: das Wochenereignis skaliert sie - EIN Ort, damit Tages-Tick und
+	# Catch-up beim Neubau automatisch dasselbe rechnen.
+	return WeekFx.apply_growth(_week_event(), uid, UnitType.growth_of(uid))
 
 
 func _day_delta(cap: int, dow: int) -> int:
@@ -2750,6 +2784,10 @@ func _city_ctx(city_idx: int) -> Dictionary:
 		"market_buy": MARKET_BUY,
 		"market_sell": MARKET_SELL,
 		"calendar": _calendar_long(),
+		# Wochenereignis (M12) gehoert in die Stadt: hier wird rekrutiert,
+		# und "Woche des Greifs" aendert genau das.
+		"week_event": String(_week_event().get("title", "")),
+		"week_quiet": WeekFx.is_quiet(_week_event()),
 		"hero_here": _hero != null and _hero.position == Vector2i(city["pos"]),
 	}
 
@@ -3543,7 +3581,14 @@ func _advance_ai_phase(start_idx: int) -> void:
 
 
 func _finalize_turn() -> void:
+	var week_before: int = GameCalendar.week_total(_turn_number)
 	_turn_number += 1
+	# Wochenwechsel (M12): das Ereignis der NEUEN Woche gilt schon fuer den
+	# Tagestick unten - _pool_cap_for zieht es aus _week_event(). Einmalige
+	# Wirkungen (Ernte) muessen hier vorher laufen.
+	var new_week: bool = GameCalendar.week_total(_turn_number) != week_before
+	if new_week:
+		_apply_week_event_start()
 	# Tagestick: Pools aller Staedte bekommen ihre Tagesration (Bresenham
 	# ueber 7 Tage). Pools stapeln sich, nichts verfaellt. _day_of_week()
 	# bezieht sich auf den gerade begonnenen neuen Tag.
@@ -3557,7 +3602,15 @@ func _finalize_turn() -> void:
 	# _turn_number wurde gerade erhoeht, entspricht also der Nummer des
 	# gerade beendeten Tages (Tag 1 = erster Zug). _day_num() zeigt auf
 	# den neuen, aktuellen Tag.
-	_set_status("Tag %d beendet: +%d G, +%d XP (%d Staedte)" % [_turn_number, _turn_income, _turn_xp_gain, _turn_owned])
+	if new_week:
+		# Der Wochenwechsel ist die wichtigere Nachricht als die
+		# Tagesbilanz - er bestimmt, was diese Woche wachsen wird.
+		var ev: Dictionary = _week_event()
+		_set_status("Neue Woche: %s" % String(ev.get("title", "")))
+		_set_combat(String(ev.get("detail", "")))
+	else:
+		_set_status("Tag %d beendet: +%d G, +%d XP (%d Staedte)"
+			% [_turn_number, _turn_income, _turn_xp_gain, _turn_owned])
 	_check_defeat()
 	# Nach der kompletten KI-Phase pruefen, ob die KIs sich gegenseitig
 	# ausradiert haben und der Spieler dadurch schon gewonnen hat. Ohne
