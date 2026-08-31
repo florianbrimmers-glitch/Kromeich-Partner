@@ -1333,11 +1333,17 @@ func _cast(spell_id: String, target: Dictionary) -> void:
 			UnitType.short_of(String(target["type"])),
 			String(st["status"]), int(st["rounds"])]
 	elif Spl.damage_of(spell_id, _p_power) > 0:
-		var dmg: int = Spl.damage_of(spell_id, _p_power)
+		# Feuerschutz halbiert Feuer-Zauber (It. 43). Der Faktor kommt aus
+		# StatusFx, damit die Zahl dort steht, wo alle Status-Zahlen stehen.
+		var fire: bool = Spl.is_fire(spell_id)
+		var dmg: int = int(round(float(Spl.damage_of(spell_id, _p_power))
+			* Fx.spell_taken_factor(target, fire)))
 		var killed: int = _apply_dmg(target, dmg)
 		Sound.play("spell_hit")
 		msg = "%s -> %s: %d Sch., -%d" % [name,
 			UnitType.short_of(String(target["type"])), dmg, killed]
+		if fire and Fx.has(target, Fx.FIRE_WARD):
+			msg += "  (halb: Feuerschutz)"
 		if Spl.is_aoe(spell_id):
 			# Umfeld wie die Lich-Todeswolke: halber Schaden auf die
 			# Nachbarfelder derselben Seite.
@@ -1348,7 +1354,11 @@ func _cast(spell_id: String, target: Dictionary) -> void:
 				if s2 == target or int(s2["count"]) <= 0:
 					continue
 				if _adj(Vector2i(s2["pos"]), Vector2i(target["pos"])):
-					_apply_dmg(s2, splash)
+					# Auch im Umfeld schuetzt der Feuerschutz - sonst waere
+					# er gegen den Feuerball, den einzigen Flaechenzauber
+					# mit Feuer, halb wirkungslos.
+					_apply_dmg(s2, maxi(1, int(round(float(splash)
+						* Fx.spell_taken_factor(s2, fire)))))
 					hit += 1
 			if hit > 0:
 				msg += "  (+%d Nachbar, je %d)" % [hit, splash]

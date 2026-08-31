@@ -43,6 +43,9 @@ const SHIELDED := "geschirmt"     # weniger NAHKAMPF-Schaden erlitten
 const PRAYED := "gebet"           # +2 Angriff, Verteidigung, Geschwindigkeit
 const READY := "konterbereit"     # ein zusaetzlicher Konter pro Runde
 
+# It. 43
+const FIRE_WARD := "feuerschutz"  # halber Schaden von Feuer-ZAUBERN
+
 # Ability-Flag -> Status, Trefferwahrscheinlichkeit, Dauer in Runden.
 const ON_HIT := {
 	"root_enemy_on_hit_20pct":  {"status": ROOTED,   "chance": 0.20, "rounds": 1},
@@ -61,6 +64,7 @@ const MARKERS := {
 	# damit man im Gitter auf einen Blick sieht, woher etwas kommt.
 	HASTENED: "h", SLOWED: "l", STONE_SKIN: "d", WEAKENED: "w",
 	BLESSED: "+", SHIELDED: "s", PRAYED: "p", READY: "k",
+	FIRE_WARD: "f",
 }
 
 const DISEASE_STAT_MALUS: int = 2
@@ -73,6 +77,9 @@ const WEAKNESS_ATT_MALUS: int = 3
 const PRAYER_STAT_BONUS: int = 2
 const SHIELD_MELEE_FACTOR: float = 0.85   # -15 % Nahkampf-Schaden
 const READY_EXTRA_RETALIATIONS: int = 1
+# Feuerschutz halbiert den Schaden von Feuer-Zaubern (spells.json:
+# "-50pct_fire_dmg_for_3_turns").
+const FIRE_WARD_FACTOR: float = 0.5
 const CURSE_DEALT_FACTOR: float = 0.75
 const AGED_TAKEN_FACTOR: float = 1.25
 
@@ -179,6 +186,16 @@ static func taken_factor(stack: Dictionary, melee: bool = true) -> float:
 	if melee and has(stack, SHIELDED):
 		f *= SHIELD_MELEE_FACTOR
 	return f
+
+
+# Faktor auf ZAUBER-Schaden an diesem Stack. Getrennt von taken_factor,
+# weil das der Waffen-Schaden ist: Feuerschutz wirkt nur gegen Feuer, und
+# Altern/Schild nur gegen Schlaege. `fire` sagt, ob der Zauber Feuer ist -
+# HeroSpells.is_fire ist die Quelle dafuer.
+static func spell_taken_factor(stack: Dictionary, fire: bool) -> float:
+	if fire and has(stack, FIRE_WARD):
+		return FIRE_WARD_FACTOR
+	return 1.0
 
 
 # Verschiebung des Schadenswurfs: +1 = immer Hoechstwert, -1 = immer

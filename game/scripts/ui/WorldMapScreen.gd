@@ -3143,6 +3143,7 @@ var _hero_panel_stats: Label = null
 var _hero_panel_switch: HBoxContainer = null
 var _hero_panel_title: Label = null
 var _hero_panel_army: VBoxContainer = null
+var _hero_panel_spells: HBoxContainer = null
 
 
 func _open_hero_panel() -> void:
@@ -3198,6 +3199,14 @@ func _build_hero_panel() -> void:
 	_hero_panel_switch.add_theme_constant_override("separation", 12)
 	vb.add_child(_hero_panel_switch)
 
+	# Abenteuer-Zauber (It. 43). Eigene Zeile unter den Werten, ein Knopf je
+	# Zauber - dieselbe Bauart wie die Wechsel-Zeile. Kein neuer Platz in
+	# der Kopfzeile: wer zaubern will, schaut auf sein Mana, und das steht
+	# hier.
+	_hero_panel_spells = HBoxContainer.new()
+	_hero_panel_spells.add_theme_constant_override("separation", 12)
+	vb.add_child(_hero_panel_spells)
+
 	_hero_panel_stats = Label.new()
 	_hero_panel_stats.add_theme_font_size_override("font_size", 26)
 	_hero_panel_stats.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -3252,6 +3261,7 @@ func _fill_hero_panel() -> void:
 					_switch_hero(idx)
 					_fill_hero_panel())
 				_hero_panel_switch.add_child(b)
+	_fill_adventure_spells()
 	if _hero_panel_title != null:
 		_hero_panel_title.text = "Heldenblatt" if _heroes.size() <= 1 \
 			else "Heldenblatt - Held %d von %d" % [_active_hero + 1, _heroes.size()]
@@ -3289,7 +3299,71 @@ func _fill_hero_panel() -> void:
 		row.add_child(lbl)
 
 
-# EIN Ort fuer die Heldenwerte. Der String stand vorher zweimal wortgleich
+# Abenteuer-Zauber des aktiven Helden (It. 43). HoMM3 hat diese Kategorie
+# von Anfang an; bei uns war sie leer - der Spieler konnte Weisheit III
+# lernen, und Stadttor stand trotzdem nirgends.
+func _fill_adventure_spells() -> void:
+	if _hero_panel_spells == null:
+		return
+	for c in _hero_panel_spells.get_children():
+		c.queue_free()
+	if _hero == null:
+		return
+	var known: Array = Spells.known_adventure(
+		Spells.schools_for_faction(_player_faction),
+		Skills.wisdom_tier(_hero.skills))
+	for sid in known:
+		var spell: String = String(sid)
+		var cost: int = Spells.cost_of(spell)
+		var b := Button.new()
+		b.text = "%s (%d Mana)" % [Spells.display_name(spell), cost]
+		b.add_theme_font_size_override("font_size", 26)
+		b.custom_minimum_size = Vector2(0, 78)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.disabled = not _can_cast_adventure(spell)
+		b.pressed.connect(func() -> void: _cast_adventure(spell))
+		_hero_panel_spells.add_child(b)
+
+
+# Darf der aktive Held diesen Abenteuer-Zauber JETZT wirken? Mana, und was
+# der Zauber selbst braucht.
+func _can_cast_adventure(spell: String) -> bool:
+	if _hero == null or _game_lost or _game_won:
+		return false
+	if int(_hero.mana) < Spells.cost_of(spell):
+		return false
+	if spell == "town_gate":
+		# Ziel muss es geben, und auf der eigenen Stadt zu stehen waere
+		# sinnlos. Beides hier pruefen, damit der Knopf die Wahrheit sagt
+		# statt erst beim Druecken zu meckern.
+		var ci: int = _nearest_own_city(_hero.position)
+		return ci >= 0 and Vector2i(_cities[ci]["pos"]) != _hero.position
+	return true
+
+
+func _cast_adventure(spell: String) -> void:
+	if not _can_cast_adventure(spell):
+		return
+	var cost: int = Spells.cost_of(spell)
+	if spell == "town_gate":
+		# Stadttor: der Held UND seine Armee gehen zur naechsten eigenen
+		# Stadt. Genau der Weg, den _retreat_hero schon geht (It. 42) -
+		# mit keep_army und seiner eigenen Armee als "Ueberlebende".
+		#
+		# Der Tag ist danach zu Ende (mp = 0, setzt _retreat_hero). HoMM3
+		# macht es genauso: das Tor kostet die Restbewegung, sonst waere
+		# jeder Zug ein Sprung hin und zurueck.
+		if not _retreat_hero(_hero, true, _hero.army.duplicate()):
+			return
+		_hero.mana = maxi(0, int(_hero.mana) - cost)
+		_set_combat("STADTTOR: Rueckkehr in die Stadt (-%d Mana)" % cost)
+		_set_status("Stadttor - der Tag ist zu Ende")
+		Sound.play("spell_hit")
+		_fill_hero_panel()
+		return
+
+
+# EIN Ort fuer die Heldenwerte.# EIN Ort fuer die Heldenwerte. Der String stand vorher zweimal wortgleich
 # im Code; mit Primaerwerten und Skills waere er auseinandergelaufen.
 func _hero_stats_text() -> String:
 	# Nach dem Tod des LETZTEN Helden gibt es keinen mehr - und genau dann

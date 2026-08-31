@@ -32,10 +32,12 @@ const BASE_SPELL_LEVEL := 1
 # Ein Zauber pro Runde und Held - HoMM3-Regel.
 const CASTS_PER_ROUND := 1
 
-# Umgesetzt und wirksam. Der Rest aus spells.json bleibt bewusst draussen:
-#   protection_fire  -> es gibt keinen Schadenstyp "Feuer"
-#   summon_boat, town_gate -> Abenteuerkarten-Zauber, es gibt keine Boote
-#   resurrect, implosion, armageddon -> Stufe 5, ohne Relikt nicht lernbar
+# Umgesetzt und wirksam IM KAMPF. Der Rest aus spells.json:
+#   town_gate -> Abenteuerkarten-Zauber, steht in ADVENTURE (It. 43)
+#   summon_boat -> braucht Boote und Wasser-Bewegung, gibt es nicht
+#   resurrect, implosion, armageddon -> Stufe 5. max_spell_level erreicht
+#     mit Weisheit III nur 4; laut skills.json braucht Stufe 5 ein Relikt,
+#     und ein Artefakt-System gibt es nicht. Die Daten stehen bereit.
 const IMPLEMENTED := [
 	"heal",           # licht   L1
 	"bless",          # licht   L1
@@ -52,7 +54,29 @@ const IMPLEMENTED := [
 	"curse",          # tod     L2
 	"blind",          # tod     L3
 	"animate_dead",   # tod     L4
+	"protection_fire", # natur  L2 (It. 43)
 ]
+
+# ABENTEUER-ZAUBER (It. 43). Sie wirken auf der WELTKARTE, nicht im Kampf -
+# deshalb eine eigene Liste: `known()` fuettert das Zauberbuch des
+# Kampf-Screens, und ein Stadttor hat dort nichts zu suchen.
+#
+# HoMM3 hat diese Kategorie von Anfang an (Stadttor, Schiff rufen,
+# Wasserlauf, Fliegen). Bei uns war sie bis It. 43 komplett leer: der
+# Spieler konnte Weisheit III lernen und Stadttor stand trotzdem nirgends.
+const ADVENTURE := [
+	"town_gate",      # natur   L4 - zur naechsten eigenen Stadt
+]
+
+# Feuer-Zauber. protection_fire halbiert genau diese (It. 43) - vorher gab
+# es "keinen Schadenstyp Feuer", und das war der Grund, den Zauber
+# draussen zu lassen. Der Typ ist EINE Liste, keine neue Spalte in der
+# JSON: Feuer ist die Schule Chaos plus Schaden.
+const FIRE_SPELLS := ["fire_bolt", "fireball"]
+
+
+static func is_fire(spell_id: String) -> bool:
+	return FIRE_SPELLS.has(spell_id)
 
 # Zauber -> Status und Dauer. Die JSON schreibt "-3_spd_for_3_turns"; die
 # Zuordnung auf die Status-Namen steht hier, damit StatusFx die einzige
@@ -70,6 +94,8 @@ const STATUS_SPELLS := {
 	"counterstrike": {"status": "konterbereit", "rounds": 3, "friendly": true},
 	# Gebet trifft die GANZE eigene Seite - target ist all_friendly.
 	"prayer":        {"status": "gebet",        "rounds": 3, "friendly": true},
+	# It. 43
+	"protection_fire": {"status": "feuerschutz", "rounds": 3, "friendly": true},
 }
 
 # Zauber, die die ganze eigene Seite treffen und deshalb KEIN Ziel-Tippen
@@ -180,6 +206,8 @@ const NAMES := {
 	"weakness": "Schwaeche", "curse": "Fluch", "blind": "Blenden",
 	"bless": "Segen", "prayer": "Gebet", "shield": "Schild",
 	"counterstrike": "Konterschlag", "animate_dead": "Untote erwecken",
+	# It. 43
+	"protection_fire": "Feuerschutz", "town_gate": "Stadttor",
 }
 
 
@@ -208,6 +236,21 @@ static func known(schools: Array, wisdom_tier: int) -> Array:
 	var cap: int = max_spell_level(wisdom_tier)
 	var out: Array = []
 	for sid in IMPLEMENTED:
+		var s: String = String(sid)
+		if level_of(s) > cap:
+			continue
+		if not schools.is_empty() and not schools.has(school_of(s)):
+			continue
+		out.append(s)
+	return out
+
+
+# Wie `known`, aber fuer die Abenteuer-Zauber der Weltkarte (It. 43).
+# Dieselben Schranken: Schule der Fraktion und Zauberstufe aus Weisheit.
+static func known_adventure(schools: Array, wisdom_tier: int) -> Array:
+	var cap: int = max_spell_level(wisdom_tier)
+	var out: Array = []
+	for sid in ADVENTURE:
 		var s: String = String(sid)
 		if level_of(s) > cap:
 			continue

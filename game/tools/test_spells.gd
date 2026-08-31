@@ -35,6 +35,8 @@ func _init() -> void:
 	_test_status()
 	await _test_battle()
 	await _test_worldmap()
+	await _test_adventure()
+	await _test_fire_ward()
 
 	# Abschluss-Marken (It. 31): jede _test*-Funktion setzt am Ende eine
 	# Marke. Ein Laufzeitfehler bricht in GDScript nur die betroffene
@@ -487,6 +489,96 @@ func _test_worldmap() -> void:
 	wm.queue_free()
 	await process_frame
 	_done.append("_test_worldmap")
+
+
+# Abenteuer-Zauber (It. 43). Sie wirken auf der WELTKARTE und gehoeren
+# NICHT ins Zauberbuch des Kampfes - das ist der erste Check.
+func _test_adventure() -> void:
+	print("")
+	print("== Abenteuer-Zauber: Stadttor ==")
+	_check(not Spl.IMPLEMENTED.has("town_gate"),
+		"Stadttor steht NICHT in den Kampf-Zaubern")
+	_check(Spl.ADVENTURE.has("town_gate"), "sondern in den Abenteuer-Zaubern")
+	# Stufe 4 heisst: ohne Weisheit III gibt es ihn nicht.
+	_check(Spl.known_adventure(["natur"], 0).is_empty(),
+		"ohne Weisheit kein Stadttor")
+	_check(Spl.known_adventure(["natur"], 3).has("town_gate"),
+		"mit Weisheit III schon")
+	_check(not Spl.known_adventure(["chaos"], 3).has("town_gate"),
+		"und nur in der Schule Natur")
+
+	var scene := load("res://scenes/WorldMap.tscn") as PackedScene
+	var wm = scene.instantiate()
+	root.add_child(wm)
+	await process_frame
+	wm.call("_start", 4711, 0)   # Waldvolk hat die Schule Natur
+	await process_frame
+	var hero = wm.get("_hero")
+	hero.skills = {"wisdom": 3}
+	hero.knowledge = 10
+	hero.mana = int(wm.call("_hero_max_mana"))
+	var cities: Array = wm.get("_cities")
+	var city_pos := Vector2i(-1, -1)
+	for c in cities:
+		if int(c["owner"]) == int(wm.get("OWNER_HERO")):
+			city_pos = Vector2i(c["pos"])
+			break
+	_check(city_pos.x >= 0, "eigene Stadt gefunden")
+
+	# Auf der eigenen Stadt STEHEND ist das Tor sinnlos - der Knopf muss
+	# aus sein, statt erst beim Druecken zu meckern.
+	hero.position = city_pos
+	_check(not bool(wm.call("_can_cast_adventure", "town_gate")),
+		"in der eigenen Stadt ist das Tor gesperrt")
+
+	# Weit weg: wirkt, nimmt Mana, beendet den Tag, Armee kommt MIT.
+	hero.position = city_pos + Vector2i(5, 3)
+	hero.army = {"elf_dwarf": 4}
+	hero.mp = hero.max_mp
+	var mana_before: int = int(hero.mana)
+	_check(bool(wm.call("_can_cast_adventure", "town_gate")),
+		"ausserhalb ist es wirkbar")
+	wm.call("_cast_adventure", "town_gate")
+	_check(hero.position == city_pos, "Held steht in der Stadt %s" % str(hero.position))
+	_check(hero.count_of("elf_dwarf") == 4, "die Armee kommt mit (%d)" % hero.count_of("elf_dwarf"))
+	_check(int(hero.mana) == mana_before - Spl.cost_of("town_gate"),
+		"Mana bezahlt (%d von %d)" % [mana_before - int(hero.mana), Spl.cost_of("town_gate")])
+	_check(int(hero.mp) == 0, "der Tag ist zu Ende")
+
+	# Zu wenig Mana: gesperrt.
+	hero.position = city_pos + Vector2i(5, 3)
+	hero.mana = Spl.cost_of("town_gate") - 1
+	_check(not bool(wm.call("_can_cast_adventure", "town_gate")),
+		"ohne genug Mana gesperrt")
+	wm.queue_free()
+	await process_frame
+	_done.append("_test_adventure")
+
+
+# Feuerschutz (It. 43): halbiert Schaden von Feuer-Zaubern, sonst nichts.
+func _test_fire_ward() -> void:
+	print("")
+	print("== Feuerschutz ==")
+	_check(Spl.is_fire("fireball") and Spl.is_fire("fire_bolt"),
+		"Feuerball und Feuerblitz sind Feuer")
+	_check(not Spl.is_fire("magic_arrow"),
+		"der Magische Pfeil ist es NICHT (sonst waere der Schutz allgemein)")
+	var warded: Dictionary = {"type": "men_spearman", "count": 5,
+		"count_start": 5, "top_hp": 10, "side": 1, "pos": Vector2i(5, 3),
+		"status": {}}
+	_check(Fx.spell_taken_factor(warded, true) == 1.0,
+		"ohne Status kein Abschlag")
+	Fx.add(warded, Fx.FIRE_WARD, 3)
+	_check(Fx.spell_taken_factor(warded, true) == Fx.FIRE_WARD_FACTOR,
+		"mit Schutz halber Feuerschaden")
+	_check(Fx.spell_taken_factor(warded, false) == 1.0,
+		"gegen NICHT-Feuer wirkt er nicht")
+	# Und er darf den Waffen-Schaden nicht anfassen - das ist taken_factor.
+	_check(Fx.taken_factor(warded, true) == 1.0,
+		"Nahkampf-Schaden bleibt unberuehrt")
+	_check(Spl.status_of("protection_fire").get("status", "") == Fx.FIRE_WARD,
+		"der Zauber setzt genau diesen Status")
+	_done.append("_test_fire_ward")
 
 
 func _on_battle_result(r: Dictionary) -> void:

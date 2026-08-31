@@ -20,6 +20,10 @@ extends SceneTree
 
 const UnitArt := preload("res://scripts/core/UnitArt.gd")
 
+# Geraetegroesse (Portrait, wie im Export).
+const DEVICE_W := 1080
+const DEVICE_H := 1920
+
 var _fails: int = 0
 var _done: Array = []
 
@@ -232,6 +236,68 @@ func _test_hero_panel() -> void:
 		if c is Label and (c as Label).text.contains("Keine Einheiten"):
 			has_hint = true
 	_check(has_hint, "leere Armee erklaert sich")
+
+	# ABENTEUER-ZAUBER-ZEILE (It. 43). Sie kommt nur, wenn der Held den
+	# Zauber ueberhaupt kennt - Weisheit III und die richtige Schule.
+	var srow = wm.get("_hero_panel_spells")
+	_check(srow != null, "Zauber-Zeile ist im Blatt angelegt")
+	_check(srow.get_child_count() == 0,
+		"ohne Weisheit steht dort nichts (sind %d)" % srow.get_child_count())
+
+	# GEOMETRIE IN GERAETEGROESSE (It. 43). Das Blatt hat eine FESTE Hoehe;
+	# jede neue Zeile nimmt der Armee-Liste Platz weg. Zwei Dinge muessen
+	# gelten: das Blatt bleibt auf dem Schirm, und sein Inhalt passt hinein
+	# - sonst rutscht der Schliessen-Knopf unter den Rand und das Blatt
+	# laesst sich auf dem Geraet nicht mehr zumachen.
+	wm.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	wm.size = Vector2(DEVICE_W, DEVICE_H)
+	await process_frame
+	# Vollprogramm: Zauber-Zeile BESETZT, Wechsel-Zeile besetzt, lange
+	# Armee. Die Fraktion wird auf Waldvolk gestellt, denn nur die Schule
+	# Natur kennt das Stadttor - sonst messe ich eine leere Zeile und
+	# glaube, es passe alles.
+	wm.set("_player_faction", 0)
+	hero.skills = {"wisdom": 3, "logistics": 2, "estates": 1}
+	hero.knowledge = 10
+	hero.army = {"men_spearman": 12, "men_archer": 5, "men_griffin": 3,
+		"men_crusader": 2, "men_angel": 1}
+	var h2 := Hero.new(hero.position + Vector2i(2, 0),
+		int(wm.get("BASE_MAX_MP")))
+	(wm.get("_heroes") as Array).append(h2)
+	wm.call("_recompute_fog_player")
+	wm.call("_recompute_costs")
+	wm.call("_fill_hero_panel")
+	await process_frame
+	_check(srow.get_child_count() == 1,
+		"mit Weisheit III und Natur steht das Stadttor da (sind %d)"
+		% srow.get_child_count())
+	_check((wm.get("_hero_panel_switch") as HBoxContainer).get_child_count() == 2,
+		"und zwei Wechsel-Knoepfe")
+	var panel: Panel = wm.get("_hero_panel")
+	var prect: Rect2 = panel.get_rect()
+	var screen := Rect2(Vector2.ZERO, Vector2(DEVICE_W, DEVICE_H))
+	_check(screen.encloses(prect), "Blatt liegt ganz auf dem Schirm %s" % str(prect))
+	var vb: VBoxContainer = null
+	for c2 in panel.get_children():
+		if c2 is VBoxContainer:
+			vb = c2 as VBoxContainer
+	_check(vb != null, "Inhalts-Box gefunden")
+	if vb != null:
+		var used: float = 0.0
+		var closer: Control = null
+		for c3 in vb.get_children():
+			var cc: Control = c3 as Control
+			used += cc.get_rect().size.y
+			if cc is Button and String((cc as Button).text) == "Schliessen":
+				closer = cc
+		used += float(vb.get_child_count() - 1) * 16.0   # separation
+		_check(used <= vb.get_rect().size.y + 1.0,
+			"Inhalt passt in das Blatt (%d von %d px)"
+			% [int(used), int(vb.get_rect().size.y)])
+		_check(closer != null, "Schliessen-Knopf ist da")
+		if closer != null:
+			_check(screen.encloses(closer.get_global_rect()),
+				"und liegt auf dem Schirm %s" % str(closer.get_global_rect()))
 
 	wm.queue_free()
 	await process_frame
