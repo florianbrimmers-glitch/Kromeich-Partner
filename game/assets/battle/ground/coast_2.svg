@@ -3,9 +3,9 @@
      Erzeugt von tools/gen_battle_art.py. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
   <rect width="64" height="64" fill="#293a4d"/>
-  <ellipse cx="29.6" cy="41.2" rx="18.9" ry="8.6" fill="#33485e" opacity="0.19"/>
-  <ellipse cx="36.3" cy="53.3" rx="14.1" ry="8.8" fill="#33485e" opacity="0.16"/>
-  <ellipse cx="9.1" cy="50.0" rx="24.9" ry="11.0" fill="#33485e" opacity="0.15"/>
-  <path d="M 44.1 19.9 q 8.7 -3.5 17.3 0" fill="none" stroke="#41586f" stroke-width="2" stroke-linecap="round" opacity="0.20"/>
-  <path d="M 43.3 28.1 q 8.5 -3.5 17.0 0" fill="none" stroke="#41586f" stroke-width="2" stroke-linecap="round" opacity="0.20"/>
+  <ellipse cx="37.9" cy="9.1" rx="18.4" ry="8.1" fill="#33485e" opacity="0.22"/>
+  <ellipse cx="34.2" cy="47.0" rx="27.5" ry="15.4" fill="#33485e" opacity="0.25"/>
+  <ellipse cx="45.8" cy="54.6" rx="30.0" ry="21.0" fill="#33485e" opacity="0.18"/>
+  <path d="M 54.5 50.9 q 8.5 -3.5 16.9 0" fill="none" stroke="#41586f" stroke-width="2" stroke-linecap="round" opacity="0.27"/>
+  <path d="M 38.2 43.0 q 6.6 -3.5 13.2 0" fill="none" stroke="#41586f" stroke-width="2" stroke-linecap="round" opacity="0.20"/>
 </svg>

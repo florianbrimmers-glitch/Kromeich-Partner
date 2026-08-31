@@ -5,13 +5,13 @@
   <defs><linearGradient id="fg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#293a4d"/><stop offset="1" stop-color="#1a2733"/></linearGradient></defs>
   <rect width="540" height="130" fill="url(#fg)"/>
   <rect x="0" y="0" width="540" height="6" fill="#1a2733" opacity="0.6"/>
-  <polygon points="82,130 90,103 110,109 117,130" fill="#1a2733"/>
-  <polygon points="470,130 481,104 507,109 517,130" fill="#1a2733"/>
-  <polygon points="371,130 380,93 404,100 412,130" fill="#1a2733"/>
-  <polygon points="275,130 282,98 301,105 308,130" fill="#1a2733"/>
-  <polygon points="314,130 324,101 352,107 362,130" fill="#1a2733"/>
-  <polygon points="347,130 358,109 387,113 397,130" fill="#1a2733"/>
-  <polygon points="149,130 161,104 192,109 203,130" fill="#1a2733"/>
-  <polygon points="261,130 271,95 297,102 305,130" fill="#1a2733"/>
-  <polygon points="163,130 169,107 186,112 192,130" fill="#1a2733"/>
+  <polygon points="171,130 180,107 203,112 210,130" fill="#1a2733"/>
+  <polygon points="70,130 77,101 98,107 105,130" fill="#1a2733"/>
+  <polygon points="27,130 33,95 49,102 55,130" fill="#1a2733"/>
+  <polygon points="438,130 444,92 459,100 464,130" fill="#1a2733"/>
+  <polygon points="313,130 319,97 336,104 342,130" fill="#1a2733"/>
+  <polygon points="370,130 382,106 412,110 422,130" fill="#1a2733"/>
+  <polygon points="298,130 308,103 336,108 346,130" fill="#1a2733"/>
+  <polygon points="490,130 497,93 513,100 519,130" fill="#1a2733"/>
+  <polygon points="481,130 491,101 516,107 525,130" fill="#1a2733"/>
 </svg>

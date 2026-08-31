@@ -29,6 +29,23 @@ const UnitArt := preload("res://scripts/core/UnitArt.gd")
 const GRID_COLS := 10
 const GRID_ROWS := 8
 
+# --- Token-Groesse (It. 36) ------------------------------------------------
+# In der komponierten Ansicht bei echter Geraetegroesse (Zelle 104 px) waren
+# die Kreaturen verloren: die Scheibe nahm 0.40 der Zelle ein, das Sprite
+# 0.92 - und weil die Figur im SVG nur rund 85 % der Bildhoehe fuellt, kam
+# eine Figur von etwa 45 px auf einer 104-px-Zelle heraus. Auf dem Handy
+# sind das keine Kreaturen, sondern Spielsteine.
+#
+# Jetzt fuellt das Sprite die Zelle ganz und ragt bewusst leicht darueber
+# hinaus (HoMM3 macht es genauso: grosse Kreaturen ueberlappen ihr Feld).
+# LIFT hebt die Figur, damit ihre Fuesse auf der Scheibe stehen statt in
+# der Zellmitte zu schweben.
+# Als Konstanten, weil tools/preview_battle_full.gd sie AUSLIEST - eine
+# Kopie im Vorschau-Werkzeug waere die naechste Stelle, die auseinanderlaeuft.
+const TOKEN_DISC_FRAC := 0.44
+const TOKEN_SPRITE_FRAC := 1.14
+const TOKEN_SPRITE_LIFT := 0.10
+
 # --- Effekte (It. 17) -----------------------------------------------------
 # Queue mit laufenden Effekten. Die Zugkette wartet, solange ein
 # blockierender Effekt lebt (siehe _advance).
@@ -917,7 +934,11 @@ const TERRAIN_GROUND := [
 # tools/gen_battle_art.py. Fehlt eine Datei, greift ueberall der alte Weg.
 const BATTLE_ART := "res://assets/battle/%s"
 const TERRAIN_ART_NAMES := ["grass", "forest", "coast", "mountain", "sand", "swamp"]
-const GROUND_VARIANTS := 4
+# It. 36: von 4 auf 6. Bei 80 Zellen und 4 Varianten kam jede rund 20 Mal
+# vor - genug, dass die Deko als Raster lesbar wurde. Muss zu
+# tools/gen_battle_art.py GROUND_VARIANTS passen (test_battle prueft die
+# Dateien).
+const GROUND_VARIANTS := 6
 # Hindernis-Art -> Sprite. Schluessel sind Integer-Literale wie in
 # _dijkstra_for: cross-class class_name-Referenzen sind im Android-Export
 # unzuverlaessig. 0=Stein, 1=Baumstamm, 2=Busch, 3=Sumpf, 4=Mauer.
@@ -1048,7 +1069,7 @@ func _draw_grid() -> void:
 		var y: float = o.y + row * c
 		_grid_area.draw_line(Vector2(o.x, y), Vector2(o.x + gw, y), lc, 1.5)
 
-	var r_active: float = c * 0.40
+	var r_active: float = c * TOKEN_DISC_FRAC
 	for i in range(_p_stacks.size()):
 		var s: Dictionary = _p_stacks[i]
 		if int(s["count"]) <= 0: continue
@@ -1462,9 +1483,10 @@ func _draw_token(ctr: Vector2, cell: float, r: float, s: Dictionary,
 	# Fraktionsfarbe, und Menschen-Gold auf goldener Scheibe war praktisch
 	# unsichtbar. Seite steckt jetzt im Ring, nicht in der Flaeche.
 	_grid_area.draw_circle(ctr, r, fill.darkened(0.72))
-	var size: float = cell * 0.92
+	var size: float = cell * TOKEN_SPRITE_FRAC
 	_grid_area.draw_texture_rect(tex,
-		Rect2(ctr - Vector2(size, size) * 0.5, Vector2(size, size)), false)
+		Rect2(ctr - Vector2(size * 0.5, size * (0.5 + TOKEN_SPRITE_LIFT)),
+			Vector2(size, size)), false)
 	_grid_area.draw_arc(ctr, r, 0, TAU, 32, ring, 3.0)
 
 

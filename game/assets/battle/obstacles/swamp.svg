@@ -2,8 +2,8 @@
 <!-- Kampf-Hindernis swamp
      Erzeugt von tools/gen_battle_art.py. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <rect x="0" y="0" width="64" height="64" fill="#2b3520" opacity="0.92"/>
-  <ellipse cx="30" cy="36" rx="24" ry="15" fill="#39481f" stroke="#1a2210" stroke-width="2"/>
+  <path d="M 6 38 q 2 -14 14 -17 q 12 -3 22 1 q 12 4 15 14 q 2 10 -8 14 q -14 5 -28 2 q -13 -3 -15 -14 Z" fill="#2b3520" opacity="0.75"/>
+  <ellipse cx="32" cy="37" rx="23" ry="14" fill="#39481f" stroke="#1a2210" stroke-width="2"/>
   <circle cx="20" cy="30" r="4" fill="none" stroke="#8fae62" stroke-width="2" opacity="0.8"/>
   <circle cx="38" cy="42" r="5" fill="none" stroke="#8fae62" stroke-width="2" opacity="0.8"/>
   <circle cx="30" cy="22" r="3" fill="none" stroke="#8fae62" stroke-width="2" opacity="0.8"/>

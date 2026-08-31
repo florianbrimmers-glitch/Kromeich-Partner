@@ -5,45 +5,45 @@
   <defs><linearGradient id="fg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#2e4728"/><stop offset="1" stop-color="#1d2f1a"/></linearGradient></defs>
   <rect width="540" height="130" fill="url(#fg)"/>
   <rect x="0" y="0" width="540" height="6" fill="#1d2f1a" opacity="0.6"/>
-  <ellipse cx="185" cy="104" rx="39" ry="31" fill="#1d2f1a"/>
-  <ellipse cx="466" cy="105" rx="36" ry="29" fill="#1d2f1a"/>
-  <ellipse cx="166" cy="106" rx="27" ry="22" fill="#1d2f1a"/>
-  <ellipse cx="147" cy="104" rx="37" ry="30" fill="#1d2f1a"/>
-  <ellipse cx="77" cy="106" rx="29" ry="23" fill="#1d2f1a"/>
-  <ellipse cx="245" cy="105" rx="36" ry="28" fill="#1d2f1a"/>
-  <ellipse cx="431" cy="104" rx="39" ry="31" fill="#1d2f1a"/>
-  <ellipse cx="241" cy="105" rx="32" ry="26" fill="#1d2f1a"/>
-  <ellipse cx="408" cy="104" rx="40" ry="32" fill="#1d2f1a"/>
-  <ellipse cx="15" cy="103" rx="42" ry="33" fill="#1d2f1a"/>
-  <ellipse cx="360" cy="104" rx="37" ry="29" fill="#1d2f1a"/>
+  <ellipse cx="219" cy="104" rx="40" ry="32" fill="#1d2f1a"/>
+  <ellipse cx="493" cy="105" rx="35" ry="28" fill="#1d2f1a"/>
+  <ellipse cx="25" cy="107" rx="23" ry="18" fill="#1d2f1a"/>
+  <ellipse cx="245" cy="103" rx="42" ry="33" fill="#1d2f1a"/>
+  <ellipse cx="102" cy="107" rx="25" ry="20" fill="#1d2f1a"/>
+  <ellipse cx="6" cy="107" rx="23" ry="19" fill="#1d2f1a"/>
+  <ellipse cx="3" cy="104" rx="38" ry="30" fill="#1d2f1a"/>
+  <ellipse cx="458" cy="104" rx="37" ry="30" fill="#1d2f1a"/>
+  <ellipse cx="337" cy="107" rx="26" ry="21" fill="#1d2f1a"/>
+  <ellipse cx="182" cy="106" rx="30" ry="24" fill="#1d2f1a"/>
+  <ellipse cx="503" cy="107" rx="24" ry="19" fill="#1d2f1a"/>
   <g stroke="#2e4728" stroke-width="3" stroke-linecap="round">
-    <line x1="70" y1="94" x2="72" y2="74"/>
-    <line x1="75" y1="94" x2="76" y2="64"/>
-    <line x1="80" y1="94" x2="85" y2="71"/>
+    <line x1="462" y1="94" x2="464" y2="75"/>
+    <line x1="467" y1="94" x2="466" y2="67"/>
+    <line x1="472" y1="94" x2="472" y2="74"/>
   </g>
   <g stroke="#2e4728" stroke-width="3" stroke-linecap="round">
-    <line x1="360" y1="94" x2="358" y2="67"/>
-    <line x1="365" y1="94" x2="361" y2="66"/>
-    <line x1="370" y1="94" x2="368" y2="66"/>
+    <line x1="47" y1="94" x2="52" y2="71"/>
+    <line x1="52" y1="94" x2="52" y2="77"/>
+    <line x1="57" y1="94" x2="60" y2="64"/>
   </g>
   <g stroke="#2e4728" stroke-width="3" stroke-linecap="round">
-    <line x1="328" y1="94" x2="332" y2="68"/>
-    <line x1="333" y1="94" x2="334" y2="65"/>
-    <line x1="338" y1="94" x2="334" y2="68"/>
+    <line x1="236" y1="94" x2="240" y2="71"/>
+    <line x1="241" y1="94" x2="242" y2="73"/>
+    <line x1="246" y1="94" x2="244" y2="64"/>
   </g>
   <g stroke="#2e4728" stroke-width="3" stroke-linecap="round">
-    <line x1="502" y1="94" x2="500" y2="72"/>
-    <line x1="507" y1="94" x2="502" y2="75"/>
-    <line x1="512" y1="94" x2="507" y2="65"/>
+    <line x1="296" y1="94" x2="295" y2="72"/>
+    <line x1="301" y1="94" x2="297" y2="74"/>
+    <line x1="306" y1="94" x2="307" y2="77"/>
   </g>
   <g stroke="#2e4728" stroke-width="3" stroke-linecap="round">
-    <line x1="201" y1="94" x2="198" y2="70"/>
-    <line x1="206" y1="94" x2="210" y2="74"/>
-    <line x1="211" y1="94" x2="214" y2="77"/>
+    <line x1="486" y1="94" x2="487" y2="69"/>
+    <line x1="491" y1="94" x2="497" y2="75"/>
+    <line x1="496" y1="94" x2="496" y2="64"/>
   </g>
   <g stroke="#2e4728" stroke-width="3" stroke-linecap="round">
-    <line x1="165" y1="94" x2="161" y2="73"/>
-    <line x1="170" y1="94" x2="171" y2="69"/>
-    <line x1="175" y1="94" x2="176" y2="68"/>
+    <line x1="5" y1="94" x2="4" y2="76"/>
+    <line x1="10" y1="94" x2="10" y2="73"/>
+    <line x1="15" y1="94" x2="19" y2="65"/>
   </g>
 </svg>

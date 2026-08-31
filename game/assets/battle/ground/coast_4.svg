@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Kampfboden coast, Variante 4
+     Erzeugt von tools/gen_battle_art.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <rect width="64" height="64" fill="#293a4d"/>
+  <ellipse cx="34.2" cy="12.1" rx="20.6" ry="13.8" fill="#33485e" opacity="0.19"/>
+  <ellipse cx="54.6" cy="11.3" rx="25.6" ry="10.5" fill="#33485e" opacity="0.18"/>
+  <ellipse cx="16.7" cy="24.3" rx="25.2" ry="17.1" fill="#33485e" opacity="0.26"/>
+  <path d="M 34.5 19.2 q 6.2 -3.5 12.5 0" fill="none" stroke="#41586f" stroke-width="2" stroke-linecap="round" opacity="0.23"/>
+  <path d="M 21.3 36.5 q 9.7 -3.5 19.4 0" fill="none" stroke="#41586f" stroke-width="2" stroke-linecap="round" opacity="0.19"/>
+</svg>

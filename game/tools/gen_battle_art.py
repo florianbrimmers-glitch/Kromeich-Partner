@@ -86,15 +86,18 @@ def ground_tile(cfg, v):
         r = rng.uniform(10, 30)
         out += ('  <ellipse cx="%.1f" cy="%.1f" rx="%.1f" ry="%.1f" fill="%s" '
                 'opacity="%.2f"/>\n' % (x, y, r, r * rng.uniform(0.35, 0.7),
-                                        cfg["deco"], rng.uniform(0.10, 0.20)))
+                                        cfg["deco"], rng.uniform(0.16, 0.30)))
     name = cfg["name"]
-    if name in ("grass", "forest", "swamp"):
-        # Nur ein Bueschel mit zwei breiten Halmen. Drei feine Striche
-        # sahen auf 96 px hochskaliert wie Schriftzeichen aus.
+    # Bueschel nur in ZWEI von sechs Varianten (It. 36). Vorher lag es in
+    # jeder Variante, also bei 80 Zellen rund 20 Mal an derselben Stelle
+    # relativ zur Kachel - in der komponierten Ansicht ein sichtbares
+    # Raster aus "V"-Zeichen. Dasselbe Muster-Problem wie bei den
+    # Weltkarten-Kacheln (It. 34).
+    if name in ("grass", "forest", "swamp") and v in (1, 4):
         x = rng.uniform(INSET + 6, T - INSET - 6)
         y = rng.uniform(INSET + 8, T - INSET)
-        out += ('  <g stroke="%s" stroke-width="2.6" stroke-linecap="round" '
-                'opacity="0.22">\n' % cfg["lit"])
+        out += ('  <g stroke="%s" stroke-width="2.4" stroke-linecap="round" '
+                'opacity="0.16">\n' % cfg["lit"])
         for k in (0, 1):
             out += ('    <line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f"/>\n'
                     % (x + k * 5.0, y, x + k * 5.0 + (2.5 if k else -2.5), y - 8.0))
@@ -130,12 +133,42 @@ def _ridge(rng, y0, amp, col, op=1.0, steps=9):
             % (" ".join(pts), col, op))
 
 
+def _far_horizon(rng, cfg):
+    """Zwei ferne Kammlinien im OBEREN Drittel des Bandes (It. 36).
+    Vorher lag der ganze Inhalt der Kulisse in den unteren 80 von 200
+    Einheiten - auf dem Geraet (Band 326 px hoch) blieben oben rund 200 px
+    fast leer. Drei Tiefenlagen statt einer geben dem Band Raum."""
+    out = ""
+    out += _ridge(rng, 52, 26, cfg["dark"], 0.45, steps=7)
+    out += _ridge(rng, 88, 20, cfg["dark"], 0.62, steps=9)
+    # Zwei sehr flache Duenste darueber, damit die Kaemme nicht als
+    # gezeichnete Kanten in der Leere stehen.
+    for k in range(2):
+        out += ('  <rect x="0" y="%.0f" width="%d" height="%.0f" fill="%s" '
+                'opacity="0.06"/>\n' % (40 + k * 26, BAND_W, 26, cfg["lit"]))
+    return out
+
+
 def backdrop(cfg):
     """Ferne oberhalb des Gitters. Transparent nach oben, damit der
     Verlauf des Screens durchscheint."""
     rng = random.Random(hash(cfg["name"]) % 7919)
     name = cfg["name"]
     out = head("Kampf-Kulisse %s (Ferne, ueber dem Gitter)" % name, BAND_W, BACK_H)
+    # Himmel: gestaffelte Baender von oben (fast durchsichtig) zum Horizont.
+    # Vorher war die obere Haelfte des Bandes LEER - auf dem Geraet ergab
+    # das oberhalb des Gitters rund 150 px dunkelgruene Leere, weil der
+    # Screen dort nur seinen eigenen Verlauf zeigt (It. 36). Kein
+    # SVG-Gradient, sondern Baender: derselbe Grund wie bei den Kacheln,
+    # nur dass es hier ums Rastern in ungewohnter Groesse geht.
+    sky_steps = 7
+    for i in range(sky_steps):
+        y0 = BACK_H * 0.05 + i * (BACK_H * 0.62 / sky_steps)
+        out += ('  <rect x="0" y="%.0f" width="%d" height="%.0f" fill="%s" '
+                'opacity="%.3f"/>\n'
+                % (y0, BAND_W, BACK_H * 0.62 / sky_steps + 1.0, cfg["lit"],
+                   0.04 + 0.035 * i))
+    out += _far_horizon(rng, cfg)
     # Dunst am Horizont
     out += ('  <rect x="0" y="%d" width="%d" height="%d" fill="%s" opacity="0.35"/>\n'
             % (BACK_H - 70, BAND_W, 70, cfg["deco"]))
@@ -190,11 +223,13 @@ def backdrop(cfg):
                     'opacity="0.10"/>\n' % (BAND_W * (0.2 + 0.3 * k), 172, 120))
     else:
         # Gras und Wald: gestaffelter Baumsaum.
-        rows = 2 if name == "grass" else 3
+        rows = 3 if name == "grass" else 4
         for row in range(rows):
             ridge_col = cfg["dark"] if row == 0 else cfg["base"]
             crown_col = cfg["base"] if row == 0 else cfg["deco"]
-            base_y = 150 + row * 16
+            # Hoeher ansetzen und weiter staffeln (It. 36): mit 150+16*row
+            # klebte der ganze Saum am unteren Rand des Bandes.
+            base_y = 122 + row * 22
             out += _ridge(rng, base_y - 24, 12, ridge_col, 0.9)
             n = 9 + row * 3
             for i in range(n):
@@ -290,9 +325,14 @@ def obstacle(kind):
         out += '  <ellipse cx="27" cy="26" rx="6" ry="5" fill="#5d9542" opacity="0.9"/>\n'
         out += '  <circle cx="46" cy="46" r="3" fill="#c93a2c"/>\n'
     elif kind == "swamp":
-        out += ('  <rect x="0" y="0" width="64" height="64" fill="#2b3520" '
-                'opacity="0.92"/>\n')
-        out += ('  <ellipse cx="30" cy="36" rx="24" ry="15" fill="#39481f" '
+        # KEIN Vollflaechen-Rechteck (It. 36): das deckte die ganze Kachel
+        # und ergab in der komponierten Ansicht ein hartes 104-px-Quadrat
+        # mitten auf dem Feld - das einzige rechtwinklige Element im Bild.
+        # Der Tuempel ist jetzt eine unregelmaessige Lache mit weichem Rand.
+        out += ('  <path d="M 6 38 q 2 -14 14 -17 q 12 -3 22 1 q 12 4 15 14 '
+                'q 2 10 -8 14 q -14 5 -28 2 q -13 -3 -15 -14 Z" '
+                'fill="#2b3520" opacity="0.75"/>\n')
+        out += ('  <ellipse cx="32" cy="37" rx="23" ry="14" fill="#39481f" '
                 'stroke="#1a2210" stroke-width="2"/>\n')
         for cx, cy, r in ((20, 30, 4), (38, 42, 5), (30, 22, 3)):
             out += ('  <circle cx="%d" cy="%d" r="%d" fill="none" stroke="#8fae62" '
@@ -325,7 +365,7 @@ def obstacle(kind):
 
 
 OBSTACLES = ["stone", "log", "bush", "swamp", "wall", "wall_cracked"]
-GROUND_VARIANTS = 4
+GROUND_VARIANTS = 6
 
 
 def main():

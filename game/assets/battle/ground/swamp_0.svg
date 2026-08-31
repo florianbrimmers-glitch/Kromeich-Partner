@@ -3,13 +3,9 @@
      Erzeugt von tools/gen_battle_art.py. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
   <rect width="64" height="64" fill="#333b29"/>
-  <ellipse cx="22.7" cy="51.3" rx="24.6" ry="17.2" fill="#414a33" opacity="0.10"/>
-  <ellipse cx="52.8" cy="26.5" rx="25.0" ry="12.1" fill="#414a33" opacity="0.13"/>
-  <ellipse cx="51.5" cy="10.1" rx="20.3" ry="8.9" fill="#414a33" opacity="0.13"/>
-  <g stroke="#4d5840" stroke-width="2.6" stroke-linecap="round" opacity="0.22">
-    <line x1="25.9" y1="53.0" x2="23.4" y2="45.0"/>
-    <line x1="30.9" y1="53.0" x2="33.4" y2="45.0"/>
-  </g>
-  <circle cx="54.8" cy="21.6" r="2.8" fill="none" stroke="#4d5840" stroke-width="1.6" opacity="0.55"/>
-  <circle cx="48.7" cy="11.2" r="2.5" fill="none" stroke="#4d5840" stroke-width="1.6" opacity="0.55"/>
+  <ellipse cx="33.9" cy="51.4" rx="13.5" ry="5.2" fill="#414a33" opacity="0.24"/>
+  <ellipse cx="25.2" cy="27.0" rx="27.5" ry="13.6" fill="#414a33" opacity="0.25"/>
+  <ellipse cx="9.8" cy="13.4" rx="21.5" ry="8.2" fill="#414a33" opacity="0.28"/>
+  <circle cx="13.3" cy="22.8" r="3.0" fill="none" stroke="#4d5840" stroke-width="1.6" opacity="0.55"/>
+  <circle cx="13.5" cy="11.6" r="2.5" fill="none" stroke="#4d5840" stroke-width="1.6" opacity="0.55"/>
 </svg>
