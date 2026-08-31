@@ -73,6 +73,32 @@ static func remove(army: Dictionary, uid: String, n: int) -> void:
 		army[uid] = left
 
 
+# Einheiten von einer Armee in eine andere schieben (It. 44).
+#
+# EINE Funktion fuer alle Umschlagstellen: Held <-> Held im Feld, Held <->
+# Garnison in der Stadt. Rueckgabe ist die Zahl, die WIRKLICH gewandert
+# ist - sie kann kleiner sein als gewuenscht, denn `to` hat ein
+# Slot-Limit (Hero.MAX_ARMY_SLOTS) und `from` hat vielleicht weniger.
+#
+# `max_slots` <= 0 heisst "kein Limit" (die Stadt-Garnison kennt keins).
+static func transfer(from: Dictionary, to: Dictionary, uid: String,
+		n: int, max_slots: int = 0) -> int:
+	if n <= 0 or not from.has(uid):
+		return 0
+	var have: int = int(from[uid])
+	if have <= 0:
+		return 0
+	# Ein NEUER Stack braucht einen freien Slot; ein bestehender waechst
+	# ohne Grenze. Genau die Regel aus Hero.can_add_unit - hier, damit
+	# jede Umschlagstelle sie bekommt und nicht nur der Held.
+	if max_slots > 0 and not to.has(uid) and to.size() >= max_slots:
+		return 0
+	var moved: int = mini(n, have)
+	remove(from, uid, moved)
+	add(to, uid, moved)
+	return moved
+
+
 static func apply_casualties(army: Dictionary, cas: Dictionary) -> void:
 	for k in cas.keys():
 		remove(army, String(k), int(cas[k]))

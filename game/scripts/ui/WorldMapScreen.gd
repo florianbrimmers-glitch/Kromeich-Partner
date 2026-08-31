@@ -2116,7 +2116,15 @@ func _handle_tap(pos: Vector2) -> void:
 	# aufgehen.
 	var tapped_hero: int = _hero_index_at(target)
 	if tapped_hero >= 0 and tapped_hero != _active_hero:
-		_switch_hero(tapped_hero)
+		# BENACHBART heisst Armee tauschen, FERN heisst umschalten (It. 44).
+		# Dieselbe Trennung wie in HoMM3: wer auf seinen eigenen Helden
+		# zieht, oeffnet den Austausch; wer ihn nur anklickt, waehlt ihn.
+		# Ohne die Nachbarschafts-Bedingung koennte man Truppen ueber die
+		# ganze Karte teleportieren.
+		if _hero != null and _neighbours(_hero.position, target):
+			_open_army_exchange(tapped_hero)
+		else:
+			_switch_hero(tapped_hero)
 		return
 
 	var target_city_idx: int = _city_at(target)
@@ -2318,6 +2326,16 @@ func _on_hire_hero() -> void:
 		Garrison.summary(h.army)])
 	if _city_screen != null and _city_screen.visible:
 		_city_screen.call("refresh", _city_ctx(_selected_city))
+
+
+# Liegen die zwei Felder nebeneinander? ORTHOGONAL, weil die Bewegung auf
+# der Weltkarte orthogonal ist: `_dijkstra` expandiert vier Richtungen.
+# Diagonal zu tauschen waere ein Weg, den ein Held nicht gehen kann.
+#
+# (Der Kampf hat mit `_adj` dieselbe Regel, aber ein eigenes Gitter - die
+# beiden gehoeren nicht zusammengelegt.)
+func _neighbours(a: Vector2i, b: Vector2i) -> bool:
+	return absi(a.x - b.x) + absi(a.y - b.y) == 1
 
 
 # --- Helden-Wechsel (M13a) ------------------------------------------------
@@ -3361,6 +3379,186 @@ func _cast_adventure(spell: String) -> void:
 		Sound.play("spell_hit")
 		_fill_hero_panel()
 		return
+
+
+# --- Armee-Austausch zwischen zwei eigenen Helden (It. 44) ---------------
+#
+# Die Luecke, die M13b hinterlassen hat: ein angeworbener Held startet mit
+# zwei Einheiten, und die einzige Umschlagstelle war die Stadt-Garnison -
+# man musste also beide Helden in dieselbe Stadt laufen lassen, um dem
+# Neuen etwas mitzugeben. HoMM3 tauscht im Feld, sobald zwei eigene Helden
+# sich beruehren.
+#
+# Bedienung fuer den Daumen: je Stack zwei Knoepfe, ">" schiebt EINE
+# Einheit, ">>" den ganzen Stack. Kein Schieberegler - der braucht auf
+# einem Handy zu viel Feinmotorik.
+const EXCHANGE_ICON_PX := 72
+
+var _xchg_panel: Panel = null
+var _xchg_rows: VBoxContainer = null
+var _xchg_title: Label = null
+var _xchg_other: int = -1
+
+
+func _open_army_exchange(other_idx: int) -> void:
+	if _hero == null or other_idx < 0 or other_idx >= _heroes.size():
+		return
+	if other_idx == _active_hero:
+		return
+	_xchg_other = other_idx
+	if _xchg_panel == null:
+		_build_exchange_panel()
+	_fill_exchange_panel()
+	_xchg_panel.visible = true
+	Sound.play("ui_tap")
+
+
+func _build_exchange_panel() -> void:
+	var panel := Panel.new()
+	panel.visible = false
+	panel.anchor_left = 0.5
+	panel.anchor_top = 0.5
+	panel.anchor_right = 0.5
+	panel.anchor_bottom = 0.5
+	panel.offset_left = -500
+	panel.offset_top = -600
+	panel.offset_right = 500
+	panel.offset_bottom = 600
+	add_child(panel)
+	_xchg_panel = panel
+
+	var bg := ColorRect.new()
+	bg.color = Color(0.07, 0.08, 0.11, 1.0)
+	bg.anchor_right = 1.0
+	bg.anchor_bottom = 1.0
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(bg)
+
+	var vb := VBoxContainer.new()
+	vb.anchor_right = 1.0
+	vb.anchor_bottom = 1.0
+	vb.offset_left = 26
+	vb.offset_top = 26
+	vb.offset_right = -26
+	vb.offset_bottom = -26
+	vb.add_theme_constant_override("separation", 14)
+	panel.add_child(vb)
+
+	_xchg_title = Label.new()
+	_xchg_title.add_theme_font_size_override("font_size", 36)
+	_xchg_title.add_theme_color_override("font_color", Color(0.95, 0.85, 0.40))
+	_xchg_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vb.add_child(_xchg_title)
+
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	vb.add_child(scroll)
+
+	_xchg_rows = VBoxContainer.new()
+	_xchg_rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_xchg_rows.add_theme_constant_override("separation", 8)
+	scroll.add_child(_xchg_rows)
+
+	var close_btn := Button.new()
+	close_btn.text = "Fertig"
+	close_btn.custom_minimum_size = Vector2(0, 96)
+	close_btn.add_theme_font_size_override("font_size", 30)
+	close_btn.pressed.connect(func() -> void:
+		_xchg_panel.visible = false
+		_xchg_other = -1
+		_update_labels()
+		_request_redraw()
+		Sound.play("ui_back"))
+	vb.add_child(close_btn)
+
+
+func _fill_exchange_panel() -> void:
+	if _xchg_rows == null or _hero == null:
+		return
+	if _xchg_other < 0 or _xchg_other >= _heroes.size():
+		return
+	var other: Hero = _heroes[_xchg_other] as Hero
+	if other == null:
+		return
+	for c in _xchg_rows.get_children():
+		c.queue_free()
+	if _xchg_title != null:
+		_xchg_title.text = "Armee tauschen: Held %d (%d) <-> Held %d (%d)" % [
+			_active_hero + 1, _hero.total_count(),
+			_xchg_other + 1, other.total_count()]
+	_exchange_side(_hero, other, "Held %d" % (_active_hero + 1), true)
+	var sep := Panel.new()
+	sep.custom_minimum_size = Vector2(0, 3)
+	_xchg_rows.add_child(sep)
+	_exchange_side(other, _hero, "Held %d" % (_xchg_other + 1), false)
+
+
+# Eine Seite des Austauschs. `to_right` steuert nur die Pfeilrichtung in
+# der Beschriftung - die Logik ist fuer beide Seiten dieselbe.
+func _exchange_side(from: Hero, to: Hero, who: String, to_right: bool) -> void:
+	var head := Label.new()
+	head.text = "%s  -  %s" % [who, Garrison.summary(from.army)]
+	head.add_theme_font_size_override("font_size", 26)
+	head.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_xchg_rows.add_child(head)
+	if from.army.is_empty():
+		return
+	var ids: Array = []
+	for k in from.army.keys():
+		ids.append(String(k))
+	ids.sort_custom(func(a, b): return UnitType.tier_of(a) < UnitType.tier_of(b))
+	var arrow: String = ">" if to_right else "<"
+	for uid in ids:
+		var u: String = String(uid)
+		var cnt: int = int(from.army[u])
+		if cnt <= 0:
+			continue
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 10)
+		_xchg_rows.add_child(row)
+		var icon: TextureRect = UnitArt.icon(u, EXCHANGE_ICON_PX)
+		if icon != null:
+			row.add_child(icon)
+		var lbl := Label.new()
+		lbl.text = "%d x %s" % [cnt, UnitType.name_of(u)]
+		lbl.add_theme_font_size_override("font_size", 26)
+		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(lbl)
+		# Blockiert das Slot-Limit der Gegenseite? Dann sagen die Knoepfe
+		# das, statt beim Druecken nichts zu tun.
+		var blocked: bool = not to.army.has(u) \
+			and to.army.size() >= Hero.MAX_ARMY_SLOTS
+		for pair in [[1, arrow], [cnt, arrow + arrow]]:
+			var n: int = int(pair[0])
+			var b := Button.new()
+			b.text = String(pair[1])
+			b.add_theme_font_size_override("font_size", 30)
+			b.custom_minimum_size = Vector2(96, 78)
+			b.disabled = blocked
+			b.tooltip_text = "%d Einheit(en)" % n
+			b.pressed.connect(func() -> void: _do_exchange(from, to, u, n))
+			row.add_child(b)
+		if blocked:
+			var full := Label.new()
+			full.text = "voll"
+			full.add_theme_font_size_override("font_size", 22)
+			row.add_child(full)
+
+
+func _do_exchange(from: Hero, to: Hero, uid: String, n: int) -> void:
+	var moved: int = Garrison.transfer(from.army, to.army, uid, n,
+		Hero.MAX_ARMY_SLOTS)
+	if moved <= 0:
+		return
+	# Kein Held darf durch den Tausch LEER dastehen und dabei die
+	# Kampfkraft-Anzeige verfaelschen - die Reichweite haengt an der Armee
+	# nicht, aber die Bedrohungsfarben tun es.
+	_recompute_costs()
+	_fill_exchange_panel()
+	_update_labels()
+	_request_redraw()
+	Sound.play("ui_tap")
 
 
 # EIN Ort fuer die Heldenwerte.# EIN Ort fuer die Heldenwerte. Der String stand vorher zweimal wortgleich

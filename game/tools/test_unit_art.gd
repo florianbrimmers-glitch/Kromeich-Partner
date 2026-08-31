@@ -33,6 +33,7 @@ func _init() -> void:
 	_test_recruit_panel()
 	_test_garrison_panel()
 	await _test_hero_panel()
+	_test_unit_ids_exist()
 
 	# Abschluss-Marken: die Soll-Liste kommt aus der Methodentabelle des
 	# Skripts selbst (It. 31, vorher eine Liste von Hand). Damit faellt
@@ -54,6 +55,71 @@ func _init() -> void:
 	else:
 		print("Kreatur-Bild-Tests: %d CHECK(S) ROT" % _fails)
 		quit(1)
+
+
+# JEDE Einheiten-ID, die irgendwo im Baum als String steht, muss es in
+# units.json geben (It. 44).
+#
+# Der Anlass: in einer Test-Zeile stand "men_pikeman" - ein Name, den es
+# nie gab. UnitType antwortet auf eine unbekannte ID mit Tier 0, ohne
+# Sprite und ohne Preis, und NICHTS wird rot: die Zeile war einfach
+# schmaler als eine echte, und der Geometrie-Test hat damit die falsche
+# Breite gemessen. Im Spielcode waere derselbe Tippfehler eine Einheit,
+# die man kaufen kann und die nichts kann.
+func _test_unit_ids_exist() -> void:
+	print("")
+	print("== Einheiten-IDs im ganzen Baum ==")
+	var known: Dictionary = {}
+	for uid in UnitType.all_ids():
+		known[String(uid)] = true
+	_check(known.size() >= 20, "%d Einheiten in units.json" % known.size())
+	var re := RegEx.new()
+	re.compile('"((?:men|elf|nec|ork)_[a-z_]+)"')
+	var bad: Array = []
+	var checked: int = 0
+	for dir_path in ["res://tools", "res://scripts/core", "res://scripts/ui"]:
+		for fname in _gd_files(dir_path):
+			var f := FileAccess.open(fname, FileAccess.READ)
+			if f == null:
+				continue
+			var text: String = f.get_as_text()
+			f.close()
+			checked += 1
+			# KOMMENTARZEILEN AUSLASSEN. Ein Kommentar darf eine
+			# ausgemusterte ID nennen - genau das tut die Begruendung ueber
+			# dieser Funktion, und der erste Lauf hat sich prompt selbst
+			# angezeigt. Nur Code zaehlt.
+			for m in re.search_all(_without_comments(text)):
+				var id: String = m.get_string(1)
+				if not known.has(id) and not bad.has(id):
+					bad.append("%s in %s" % [id, fname.get_file()])
+	_check(checked > 10, "%d Skripte durchsucht" % checked)
+	_check(bad.is_empty(), "keine erfundene Einheiten-ID (%s)" % str(bad))
+	_done.append("_test_unit_ids_exist")
+
+
+func _without_comments(text: String) -> String:
+	var keep: Array = []
+	for line in text.split("\n"):
+		if String(line).strip_edges().begins_with("#"):
+			continue
+		keep.append(line)
+	return "\n".join(keep)
+
+
+func _gd_files(dir_path: String) -> Array:
+	var out: Array = []
+	var d := DirAccess.open(dir_path)
+	if d == null:
+		return out
+	d.list_dir_begin()
+	var name: String = d.get_next()
+	while name != "":
+		if not d.current_is_dir() and name.ends_with(".gd"):
+			out.append(dir_path + "/" + name)
+		name = d.get_next()
+	d.list_dir_end()
+	return out
 
 
 func _check(cond: bool, msg: String) -> void:

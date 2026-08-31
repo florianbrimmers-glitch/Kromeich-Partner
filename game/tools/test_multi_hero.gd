@@ -24,6 +24,10 @@ extends SceneTree
 # Jede Test-Funktion setzt am Ende eine Marke; die Soll-Liste kommt aus
 # get_method_list() (It. 31).
 
+# Geraetegroesse (Portrait, wie im Export).
+const DEVICE_W := 1080
+const DEVICE_H := 1920
+
 var _fails: int = 0
 var _done: Array = []
 var _wm = null
@@ -48,6 +52,7 @@ func _init() -> void:
 	_test_defeat_keeps_playing()
 	_test_city_defense_any_hero()
 	_test_retreat()
+	await _test_exchange()
 
 	var missing: Array = []
 	for m in get_method_list():
@@ -511,6 +516,134 @@ func _test_retreat() -> void:
 	_check(h.position == pos_before and h.total_count() == 0,
 		"Rueckzug ohne Ziel: Armee weg, Held bleibt stehen")
 	_done.append("_test_retreat")
+
+
+func _test_exchange() -> void:
+	print("")
+	print("== Armee tauschen zwischen zwei Helden (It. 44) ==")
+	_wm.call("_start", 4711, 1)
+	var heroes: Array = _wm.get("_heroes")
+	var a: Hero = heroes[0] as Hero
+	a.army = {"men_spearman": 6, "men_archer": 2}
+	# Held B genau NEBEN A (orthogonal - die Weltkarte laeuft in vier
+	# Richtungen, also darf auch nur orthogonal getauscht werden).
+	var b: Hero = _add_hero(a.position + Vector2i(1, 0))
+	b.army = {}
+	_wm.set("_active_hero", 0)
+
+	# 1) Die Nachbarschafts-Regel selbst.
+	_check(bool(_wm.call("_neighbours", a.position, b.position)),
+		"orthogonal benachbart")
+	_check(not bool(_wm.call("_neighbours", a.position,
+		a.position + Vector2i(1, 1))), "diagonal NICHT (dort kann er nicht hin)")
+	_check(not bool(_wm.call("_neighbours", a.position, a.position)),
+		"und auf sich selbst auch nicht")
+
+	# 2) Der reine Umschlag (Garrison.transfer) - Grenzen inklusive.
+	var f: Dictionary = {"men_spearman": 5}
+	var t: Dictionary = {}
+	_check(int(Garrison.transfer(f, t, "men_spearman", 2, 6)) == 2,
+		"zwei wandern")
+	_check(int(f["men_spearman"]) == 3 and int(t["men_spearman"]) == 2,
+		"und stehen genau einmal da (%d / %d)" % [int(f["men_spearman"]), int(t["men_spearman"])])
+	_check(int(Garrison.transfer(f, t, "men_spearman", 99, 6)) == 3,
+		"mehr als vorhanden gibt nur das Vorhandene")
+	_check(not f.has("men_spearman"), "der leere Stack verschwindet")
+	_check(int(Garrison.transfer(f, t, "men_archer", 1, 6)) == 0,
+		"was nicht da ist, wandert nicht")
+	# Slot-Limit: eine volle Armee nimmt keinen NEUEN Typ mehr.
+	var full: Dictionary = {}
+	for i in range(Hero.MAX_ARMY_SLOTS):
+		full["u%d" % i] = 1
+	var src: Dictionary = {"men_angel": 3}
+	_check(int(Garrison.transfer(src, full, "men_angel", 1, Hero.MAX_ARMY_SLOTS)) == 0,
+		"volle Armee nimmt keinen neuen Typ")
+	_check(int(Garrison.transfer(src, full, "men_angel", 1, 0)) == 1,
+		"ohne Limit (Garnison) schon")
+
+	# 3) Ueber die Oberflaeche: Panel oeffnet, Knopf schiebt, Zahlen stimmen.
+	_wm.call("_open_army_exchange", 1)
+	_check(_wm.get("_xchg_panel") != null and _wm.get("_xchg_panel").visible,
+		"Tausch-Panel steht")
+	_wm.call("_do_exchange", a, b, "men_spearman", 4)
+	_check(a.count_of("men_spearman") == 2 and b.count_of("men_spearman") == 4,
+		"vier Speertraeger sind bei B (%d / %d)"
+		% [a.count_of("men_spearman"), b.count_of("men_spearman")])
+	# Und zurueck.
+	_wm.call("_do_exchange", b, a, "men_spearman", 1)
+	_check(a.count_of("men_spearman") == 3 and b.count_of("men_spearman") == 3,
+		"und einer zurueck (%d / %d)"
+		% [a.count_of("men_spearman"), b.count_of("men_spearman")])
+	# Die Gesamtzahl darf sich NIE aendern - das ist der Test, der ein
+	# doppeltes Buchen faengt.
+	_check(a.total_count() + b.total_count() == 8,
+		"nichts entsteht und nichts verschwindet (%d)"
+		% (a.total_count() + b.total_count()))
+
+	# 4) Tap auf den Nachbarn oeffnet den Tausch, Tap auf einen FERNEN
+	#    Helden wechselt weiterhin nur.
+	_wm.get("_xchg_panel").visible = false
+	var far: Hero = _add_hero(a.position + Vector2i(4, 4))
+	far.army = {"men_spearman": 1}
+	_wm.set("_active_hero", 0)
+	var far_idx: int = (_wm.get("_heroes") as Array).find(far)
+	_wm.call("_switch_hero", 0)
+	_tap_tile(far.position)
+	_check(int(_wm.get("_active_hero")) == far_idx,
+		"Tap auf fernen Helden wechselt (%d)" % int(_wm.get("_active_hero")))
+	_check(not bool(_wm.get("_xchg_panel").visible),
+		"und oeffnet KEINEN Tausch")
+
+	# 5) Tap auf den NACHBARN oeffnet ihn - der eigentliche Spielweg.
+	_wm.call("_switch_hero", 0)
+	_tap_tile(b.position)
+	_check(bool(_wm.get("_xchg_panel").visible),
+		"Tap auf den benachbarten Helden oeffnet den Tausch")
+	_check(int(_wm.get("_active_hero")) == 0,
+		"und wechselt den aktiven Helden NICHT (%d)" % int(_wm.get("_active_hero")))
+
+	# 6) GEOMETRIE in Geraetegroesse. Das Panel hat eine feste Groesse und
+	#    listet ZWEI Armeen mit je bis zu sechs Stacks - das ist die
+	#    laengste Liste im Spiel.
+	# Sechs ECHTE Einheiten-IDs (Hero.MAX_ARMY_SLOTS): eine erfundene ID
+	# haette hier eine Zeile ohne Bild und mit Tier 0 gemessen, also
+	# schmaler als die echte.
+	a.army = {"men_spearman": 9, "men_archer": 5, "men_griffin": 3,
+		"men_crusader": 2, "men_monk": 4, "men_angel": 1}
+	b.army = {"nec_skeleton": 7, "nec_zombie": 3, "nec_wight": 2}
+	_wm.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	_wm.size = Vector2(DEVICE_W, DEVICE_H)
+	await process_frame
+	_wm.call("_fill_exchange_panel")
+	await process_frame
+	var panel: Panel = _wm.get("_xchg_panel")
+	var screen := Rect2(Vector2.ZERO, Vector2(DEVICE_W, DEVICE_H))
+	_check(screen.encloses(panel.get_rect()),
+		"Tausch-Panel liegt ganz auf dem Schirm %s" % str(panel.get_rect()))
+	var done_btn: Button = null
+	for c2 in panel.get_children():
+		if c2 is VBoxContainer:
+			for c3 in (c2 as VBoxContainer).get_children():
+				if c3 is Button:
+					done_btn = c3 as Button
+	_check(done_btn != null and screen.encloses(done_btn.get_global_rect()),
+		"und der Fertig-Knopf ist erreichbar")
+	# Jede Zeile muss in die Panel-Breite passen; die Liste selbst scrollt.
+	var too_wide: Array = []
+	for r in (_wm.get("_xchg_rows") as VBoxContainer).get_children():
+		var rc: Control = r as Control
+		if rc.get_rect().size.x > (_wm.get("_xchg_rows") as Control).get_rect().size.x + 1.0:
+			too_wide.append(rc.get_class())
+	_check(too_wide.is_empty(), "keine Zeile ist zu breit (%s)" % str(too_wide))
+	_done.append("_test_exchange")
+
+
+# Tap auf ein Kartenfeld, wie es der Spieler macht.
+func _tap_tile(cell: Vector2i) -> void:
+	var origin: Vector2 = _wm.call("_map_origin")
+	var ts: float = float(_wm.get("_tile_size"))
+	_wm.call("_handle_tap", origin + Vector2(float(cell.x) + 0.5,
+		float(cell.y) + 0.5) * ts)
 
 
 # Wie viele Felder sind aufgedeckt? (Nur fuer den Nebel-Check beim
