@@ -31,6 +31,37 @@ var army: Dictionary = {}
 var xp: int = 0
 var level: int = 1
 
+# --- Primaerwerte und Skills (M7 Teil 1) ---------------------------------
+# att/def gehen als getrennte Boni in die Kampfformel (CombatMath.damage
+# nimmt att_bonus und def_bonus schon immer entgegen - vorher fuellte beide
+# derselbe Pauschalwert, ein Angriffsbonus hob also auch die Verteidigung).
+# spell_power/knowledge wachsen noch NICHT: sie wirken erst mit den Zaubern
+# (M8). Die Felder stehen trotzdem hier, damit der Save schon passt.
+var att: int = 0
+var def: int = 0
+var spell_power: int = 0
+var knowledge: int = 0
+# {skill_id: stufe 1..3}
+var skills: Dictionary = {}
+
+
+func skill_tier(skill_id: String) -> int:
+	return int(skills.get(skill_id, 0))
+
+
+func raise_skill(skill_id: String, max_tier: int = 3) -> int:
+	var t: int = min(max_tier, skill_tier(skill_id) + 1)
+	skills[skill_id] = t
+	return t
+
+
+func add_primary(stat_id: String, amount: int = 1) -> void:
+	match stat_id:
+		"attack": att += amount
+		"defense": def += amount
+		"spell_power": spell_power += amount
+		"knowledge": knowledge += amount
+
 func _init(start: Vector2i, max_movement: int = 12) -> void:
 	position = start
 	max_mp = max_movement
@@ -132,6 +163,11 @@ func to_dict() -> Dictionary:
 		"army": army.duplicate(),
 		"xp": xp,
 		"level": level,
+		"att": att,
+		"def": def,
+		"spell_power": spell_power,
+		"knowledge": knowledge,
+		"skills": skills.duplicate(),
 	}
 
 static func from_dict(d: Dictionary) -> Hero:
@@ -147,4 +183,11 @@ static func from_dict(d: Dictionary) -> Hero:
 	h.army = SaveCodec.int_dict(d.get("army", {}))
 	h.xp = int(d.get("xp", 0))
 	h.level = int(d.get("level", 1))
+	# M7: reine Feld-Ergaenzung, also KEIN SAVE_VERSION-Bump - alte Saves
+	# laden mit Nullwerten (siehe Kommentar oben bei to_dict).
+	h.att = int(d.get("att", 0))
+	h.def = int(d.get("def", 0))
+	h.spell_power = int(d.get("spell_power", 0))
+	h.knowledge = int(d.get("knowledge", 0))
+	h.skills = SaveCodec.int_dict(d.get("skills", {}))
 	return h

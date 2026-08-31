@@ -40,6 +40,15 @@ var _fx_delay: float = 0.0
 var _player_name: String = "Held"
 var _enemy_name: String = "Gegner"
 var _player_bonus: int = 0
+# M7: getrennte Helden-Boni. Vorher fuellte _player_bonus beide Seiten der
+# Formel, ein Angriffsbonus hob also auch die Verteidigung.
+var _p_att: int = 0
+var _p_def: int = 0
+# Skill-Prozente, fertig gerechnet vom Weltkarten-Screen. Der Kampf kennt
+# keine Skills, nur Zahlen.
+var _p_archery_pct: int = 0
+var _p_offense_pct: int = 0
+var _p_armorer_pct: int = 0
 var _allow_flee: bool = true
 var _rng: RandomNumberGenerator
 var _art_seed: int = 42
@@ -97,6 +106,11 @@ func set_battle(ctx: Dictionary) -> void:
 	_player_name = String(ctx.get("player_name", "Held"))
 	_enemy_name  = String(ctx.get("enemy_name",  "Gegner"))
 	_player_bonus = int(ctx.get("player_bonus", 0))
+	_p_att = int(ctx.get("player_att", _player_bonus))
+	_p_def = int(ctx.get("player_def", _player_bonus))
+	_p_archery_pct = int(ctx.get("player_archery_pct", 0))
+	_p_offense_pct = int(ctx.get("player_offense_pct", 0))
+	_p_armorer_pct = int(ctx.get("player_armorer_pct", 0))
 	_allow_flee  = bool(ctx.get("allow_flee", true))
 	_rng = RandomNumberGenerator.new()
 	_rng.seed = int(ctx.get("seed", 42))
@@ -128,7 +142,10 @@ func set_battle(ctx: Dictionary) -> void:
 		_ob_map[Vector2i(o["pos"])] = int(o["kind"])
 	_p_stacks = _make_stacks(ctx.get("player_stacks", []), 0)
 	_e_stacks = _make_stacks(ctx.get("enemy_stacks", []), 1)
-	_p_morale = Mor.morale_for(_p_stacks)
+	# Fuehrung (M7) addiert auf die Armee-Moral; Clamp wie in Morale.gd,
+	# sonst koennte der Skill den +-3-Rahmen sprengen.
+	_p_morale = clampi(Mor.morale_for(_p_stacks)
+		+ int(ctx.get("player_morale_bonus", 0)), -3, 3)
 	_e_morale = Mor.morale_for(_e_stacks)
 	_p_luck = int(ctx.get("player_luck", 0))
 	_e_luck = int(ctx.get("enemy_luck", 0))
@@ -1317,7 +1334,7 @@ func _try_attack_enemy(e_idx: int) -> void:
 		for _v in range(volleys):
 			if int(estack["count"]) <= 0 or int(active["shots_left"]) <= 0:
 				break
-			var d1: int = _dmg(active, estack, adjacent)
+			var d1: int = _dmg(active, estack, adjacent, true)
 			if bool(mod["halve"]):
 				d1 = max(1, d1 / 2)
 			dmg += d1
@@ -1463,7 +1480,7 @@ func _ai_turn() -> void:
 			for _v in range(volleys):
 				if int(best_target["count"]) <= 0 or int(estack["shots_left"]) <= 0:
 					break
-				var d1: int = _dmg(estack, best_target, adjacent)
+				var d1: int = _dmg(estack, best_target, adjacent, true)
 				if bool(mod["halve"]):
 					d1 = max(1, d1 / 2)
 				dmg += d1
@@ -1636,9 +1653,10 @@ func _attack_cell_for(from: Vector2i, target_pos: Vector2i, dist_map: Dictionary
 	return best
 
 
-func _dmg(attacker: Dictionary, defender: Dictionary, melee_penalty: bool) -> int:
-	var a_bonus: int = _player_bonus if int(attacker["side"]) == 0 else 0
-	var d_bonus: int = _player_bonus if int(defender["side"]) == 0 else 0
+func _dmg(attacker: Dictionary, defender: Dictionary, melee_penalty: bool,
+		shooting: bool = false) -> int:
+	var a_bonus: int = _p_att if int(attacker["side"]) == 0 else 0
+	var d_bonus: int = _p_def if int(defender["side"]) == 0 else 0
 	# Belagerung: die Stadt-Seite (1) steht hinter der Mauer und ist
 	# schwerer zu treffen, solange kein Segment gefallen ist.
 	if _siege and int(defender["side"]) == 1 and _walls_standing():
@@ -1647,6 +1665,15 @@ func _dmg(attacker: Dictionary, defender: Dictionary, melee_penalty: bool) -> in
 	var opts: Dictionary = {"tiles_moved": int(attacker.get("tiles_moved", 0))}
 	var dmg: int = CombatMath.damage(attacker, defender, melee_penalty, a_bonus, d_bonus, _rng, opts)
 	# Glueck wirkt auf den einzelnen Schlag (M6): Volltreffer x2, Pech x0.5.
+	# Skill-Prozente (M7): Bogenkampf/Offensive auf den ausgeteilten,
+	# Ruestungskunde auf den erlittenen Schaden - beide nur fuer die
+	# Spielerseite, der Held steht auf keiner anderen.
+	if int(attacker["side"]) == 0:
+		var out_pct: int = _p_archery_pct if shooting else _p_offense_pct
+		if out_pct != 0:
+			dmg = max(1, int(round(float(dmg) * (1.0 + float(out_pct) / 100.0))))
+	if int(defender["side"]) == 0 and _p_armorer_pct != 0:
+		dmg = max(1, int(round(float(dmg) * (1.0 - float(_p_armorer_pct) / 100.0))))
 	var luck: int = _p_luck if int(attacker["side"]) == 0 else _e_luck
 	_last_luck = 1.0
 	if luck != 0:

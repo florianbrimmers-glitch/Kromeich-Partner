@@ -5,6 +5,11 @@ extends Control
 # koennen. Das Autoload /root/SaveManager wird nur fuer pending_load
 # (Menue-Uebergabe) per get_node_or_null angesprochen.
 const SaveLib := preload("res://scripts/core/SaveManager.gd")
+# Helden-Skills (M7 Teil 1) per preload und ohne class_name - dieselbe
+# Android-Export-Vorsicht wie bei Abilities/StatusFx im Kampf-Screen.
+# Diese Schicht rechnet Skill-Stufen in Zahlen um; der Kampf-Screen
+# bekommt nur Prozentwerte im Kontext und kennt keine Skills.
+const Skills := preload("res://scripts/core/HeroSkills.gd")
 
 # Weltkarten-Screen. Rendert eine deterministische Zufallskarte per
 # _draw() und erlaubt den Helden per Tap zu bewegen. Dijkstra berechnet
@@ -784,7 +789,7 @@ func _recompute_fog_player() -> void:
 		if int(arr[i]) == FOG_VISIBLE:
 			arr[i] = FOG_EXPLORED
 	if _hero != null:
-		_fog_mark(arr, _hero.position, HERO_SIGHT)
+		_fog_mark(arr, _hero.position, _hero_sight())
 	for city in _cities:
 		if int(city["owner"]) == OWNER_HERO:
 			_fog_mark(arr, Vector2i(city["pos"]), CITY_SIGHT)
@@ -1926,7 +1931,18 @@ func _open_battle(opp_name: String, opp_army: int, allow_flee: bool, terrain_id:
 		overlay.call("set_battle", {
 			"player_name": "Held",
 			"player_stacks": p_stacks,
+			# player_bonus bleibt fuer Alt-Aufrufer und Tests. NEU sind die
+			# getrennten Werte: vorher hob derselbe Pauschalwert Angriff UND
+			# Verteidigung, ein Angriffsbonus machte den Helden also auch
+			# zaeher. Die Skill-Prozente rechnet der Weltkarten-Screen aus,
+			# der Kampf-Screen sieht nie einen Skill.
 			"player_bonus": bonus,
+			"player_att": bonus + int(_hero.att),
+			"player_def": bonus + int(_hero.def),
+			"player_morale_bonus": Skills.morale_bonus(_hero.skills),
+			"player_archery_pct": Skills.archery_pct(_hero.skills),
+			"player_offense_pct": Skills.offense_pct(_hero.skills),
+			"player_armorer_pct": Skills.armorer_pct(_hero.skills),
 			"enemy_name": opp_name,
 			"enemy_stacks": e_stacks,
 			"allow_flee": allow_flee,
@@ -2277,7 +2293,7 @@ func _show_victory_panel() -> void:
 	if vb != null:
 		var stats := vb.get_node_or_null("Stats") as Label
 		if stats != null:
-			stats.text = "Level " + str(_hero.level) + "   XP " + str(_hero.xp) + "\nGold " + str(_hero.gold) + "   Armee " + str(_hero.total_count())
+			stats.text = _hero_stats_text()
 	_victory_panel.visible = true
 
 
@@ -2305,14 +2321,154 @@ func _player_luck() -> int:
 
 func _check_level_up() -> bool:
 	# Schleife, falls sehr viele XP auf einmal (z.B. spaeter aus Quests).
-	# Jeder Level-Up gibt sofort Armee und hebt max_mp um LEVEL_BONUS_MP
-	# (wirksam beim naechsten Ende-Zug, wenn max_mp neu berechnet wird).
+	# Jeder Aufstieg gibt Armee, hebt max_mp um LEVEL_BONUS_MP (wirksam beim
+	# naechsten Ende-Zug) und - seit M7 - EINEN Primaerwert plus EINE
+	# Skill-Wahl. Die Wahl kann nicht sofort erledigt werden (mehrere
+	# Aufstiege auf einmal, und der Kampf-Overlay liegt evtl. noch oben),
+	# deshalb landet sie in einer Warteschlange, die _drain_skill_queue
+	# nacheinander abarbeitet.
 	var leveled := false
 	while _hero.level < LEVEL_THRESHOLDS.size() and _hero.xp >= int(LEVEL_THRESHOLDS[_hero.level]):
 		_hero.level += 1
 		_hero.add_units(UnitType.starter_id_for_faction(_player_faction), LEVEL_BONUS_ARMY)
+		# Primaerwert fraktionsgewichtet. Eigener RNG aus Seed UND Stufe,
+		# damit derselbe Spielstand denselben Aufstieg liefert und _rng
+		# (Kartenlogik) unberuehrt bleibt.
+		var lrng := RandomNumberGenerator.new()
+		lrng.seed = _seed * 7919 + _hero.level * 104729
+		var stat: String = Skills.roll_primary(lrng, _player_faction)
+		_hero.add_primary(stat, 1)
+		_last_level_stat = stat
+		var offer: Array = Skills.offer(lrng, _hero.skills)
+		if not offer.is_empty():
+			_skill_queue.append(offer)
 		leveled = true
+	# Deferred: _check_level_up laeuft mitten in Kampf-Callbacks und im
+	# Tageswechsel. Erst wenn der aktuelle Frame fertig ist (Kampf-Overlay
+	# abgeraeumt, Statuszeilen gesetzt), darf die Wahl aufgehen.
+	if leveled and not _skill_queue.is_empty():
+		call_deferred("_drain_skill_queue")
 	return leveled
+
+
+# Warteschlange der offenen Skill-Wahlen. Jeder Eintrag ist ein Array mit
+# bis zu zwei Skill-IDs.
+var _skill_queue: Array = []
+var _last_level_stat: String = ""
+var _skill_panel: Panel = null
+
+
+
+# EIN Ort fuer die Heldenwerte. Der String stand vorher zweimal wortgleich
+# im Code; mit Primaerwerten und Skills waere er auseinandergelaufen.
+func _hero_stats_text() -> String:
+	var lines: Array = [
+		"Stufe %d   %d XP" % [int(_hero.level), int(_hero.xp)],
+		"Angriff %d   Verteidigung %d" % [int(_hero.att), int(_hero.def)],
+		"%d Gold   Armee %d" % [int(_hero.gold), _hero.total_count()],
+	]
+	if not _hero.skills.is_empty():
+		var parts: Array = []
+		for sid in _hero.skills.keys():
+			parts.append(Skills.summary_line(String(sid), int(_hero.skills[sid])))
+		lines.append("  ".join(parts))
+	return "\n".join(lines)
+
+
+func _drain_skill_queue() -> void:
+	if _skill_queue.is_empty():
+		if _skill_panel != null:
+			_skill_panel.visible = false
+		return
+	_show_skill_choice(_skill_queue[0] as Array)
+
+
+func _show_skill_choice(offer: Array) -> void:
+	if _skill_panel == null:
+		_build_skill_panel()
+	var vb := _skill_panel.get_node("VB") as VBoxContainer
+	for child in vb.get_children():
+		child.queue_free()
+	var title := Label.new()
+	title.text = "Stufe %d erreicht" % int(_hero.level)
+	title.add_theme_font_size_override("font_size", 46)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(title)
+	var sub := Label.new()
+	sub.text = "%s +1 - jetzt eine Faehigkeit waehlen:" % Skills.PRIMARY_NAMES.get(
+		_last_level_stat, _last_level_stat)
+	sub.add_theme_font_size_override("font_size", 28)
+	sub.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(sub)
+	for sid in offer:
+		var skill_id: String = String(sid)
+		var cur: int = _hero.skill_tier(skill_id)
+		var btn := Button.new()
+		btn.custom_minimum_size = Vector2(0, 150)
+		btn.add_theme_font_size_override("font_size", 30)
+		btn.text = "%s %s\n%s" % [
+			Skills.display_name(skill_id),
+			"(neu)" if cur == 0 else "-> Stufe %d" % (cur + 1),
+			Skills.next_tier_text(skill_id, _hero.skills)]
+		btn.pressed.connect(_on_skill_picked.bind(skill_id))
+		vb.add_child(btn)
+	_skill_panel.visible = true
+
+
+func _build_skill_panel() -> void:
+	var panel := Panel.new()
+	panel.visible = false
+	panel.anchor_right = 1.0
+	panel.anchor_bottom = 1.0
+	add_child(panel)
+	var bg := ColorRect.new()
+	bg.color = Color(0.05, 0.06, 0.09, 0.96)
+	bg.anchor_right = 1.0
+	bg.anchor_bottom = 1.0
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(bg)
+	var vb := VBoxContainer.new()
+	vb.name = "VB"
+	vb.anchor_right = 1.0
+	vb.anchor_bottom = 1.0
+	vb.offset_left = 50
+	vb.offset_right = -50
+	vb.offset_top = 240
+	vb.offset_bottom = -240
+	vb.add_theme_constant_override("separation", 28)
+	panel.add_child(vb)
+	_skill_panel = panel
+
+
+func _on_skill_picked(skill_id: String) -> void:
+	_hero.raise_skill(skill_id, Skills.MAX_TIER)
+	if not _skill_queue.is_empty():
+		_skill_queue.remove_at(0)
+	_set_combat("%s gelernt: %s" % [
+		Skills.display_name(skill_id),
+		Skills.summary_line(skill_id, _hero.skill_tier(skill_id))])
+	_recalc_max_mp()
+	_update_labels()
+	_request_redraw()
+	# Naechste offene Wahl (mehrere Aufstiege auf einmal).
+	_drain_skill_queue()
+
+
+# EINE Stelle fuer max_mp: Basis + Spaeher-Gebaeude + Stufen-Bonus, darauf
+# der Prozentaufschlag aus Logistik. Vorher stand die Formel nur im
+# Tageswechsel; mit dem Skill muss sie auch nach einer Wahl neu laufen,
+# sonst wirkt Logistik erst am naechsten Tag.
+func _recalc_max_mp() -> void:
+	var base_mp: int = BASE_MAX_MP \
+		+ MP_BONUS_SPAEHER * _count_own_buildings("spaeher") \
+		+ LEVEL_BONUS_MP * max(0, _hero.level - 1)
+	var pct: int = Skills.move_pct(_hero.skills)
+	_hero.max_mp = base_mp + int(round(float(base_mp) * float(pct) / 100.0))
+
+
+# Sichtweite des Helden: Grundwert plus Aufklaeren.
+func _hero_sight() -> int:
+	return HERO_SIGHT + Skills.sight_bonus(_hero.skills)
 
 
 func _build_victory_panel() -> void:
@@ -3136,7 +3292,7 @@ func _show_defeat_panel() -> void:
 	if vb != null:
 		var stats := vb.get_node_or_null("Stats") as Label
 		if stats != null:
-			stats.text = "Level " + str(_hero.level) + "   XP " + str(_hero.xp) + "\nGold " + str(_hero.gold) + "   Armee " + str(_hero.total_count())
+			stats.text = _hero_stats_text()
 	_victory_panel.visible = true
 
 
@@ -3149,21 +3305,17 @@ func _on_end_turn() -> void:
 	#   Kapelle  -> +10 XP pro Tag, kann Level-Up ausloesen
 	# Level-Up-Bonus: pro Level (ueber 1) zusaetzlich +1 max_mp.
 	var owned := 0
-	var spaeher_count := 0
 	var markt_count := 0
 	var kapelle_count := 0
 	for city in _cities:
 		if int(city["owner"]) == OWNER_HERO:
 			owned += 1
 			var bl: Array = city["buildings"]
-			if bl.has("spaeher"):
-				spaeher_count += 1
 			if bl.has("markt"):
 				markt_count += 1
 			if bl.has("kapelle"):
 				kapelle_count += 1
-	var level_bonus_mp: int = LEVEL_BONUS_MP * max(0, _hero.level - 1)
-	_hero.max_mp = BASE_MAX_MP + MP_BONUS_SPAEHER * spaeher_count + level_bonus_mp
+	_recalc_max_mp()
 	_hero.end_turn()
 	# Goldminen im Besitz: +MINE_GOLD_PER_TURN pro Mine (bereits als
 	# obj["gold"] hinterlegt, damit spaeter Minen unterschiedlichen
@@ -3177,7 +3329,8 @@ func _on_end_turn() -> void:
 			else:
 				# Nicht-Gold-Minen zahlen ihre Ressource direkt ins Wallet.
 				_hero.wallet.add(mres, int(obj["gold"]))
-	var income: int = owned * CITY_INCOME + markt_count * INCOME_MARKT + mine_income
+	var income: int = owned * CITY_INCOME + markt_count * INCOME_MARKT + mine_income \
+		+ Skills.estates_gold(_hero.skills)
 	_hero.gold += income
 	var xp_gain: int = kapelle_count * KAPELLE_XP_PER_TURN
 	if xp_gain > 0:
