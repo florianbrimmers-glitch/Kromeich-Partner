@@ -43,7 +43,19 @@ static func damage(attacker: Dictionary, defender: Dictionary,
 	var dut: Dictionary = UnitType.get_type(did)
 	var def_val: int = Abil.def_after_ignore(uid,
 		int(dut.get("def", 4)) + def_bonus + Fx.def_mod(defender))
-	var base: int = rng.randi_range(int(ut.get("dmg_min", 1)), int(ut.get("dmg_max", 3)))
+	# Segen (M8 Teil 2) verschiebt den Wurf auf den Hoechstwert. Der Wurf
+	# passiert TROTZDEM, damit die RNG-Folge gleich lang bleibt - sonst
+	# haetten Segen und Nicht-Segen unterschiedliche Zufallsketten und der
+	# Balance-Simulator waere nicht mehr vergleichbar.
+	var dmin: int = int(ut.get("dmg_min", 1))
+	var dmax: int = int(ut.get("dmg_max", 3))
+	var roll: int = rng.randi_range(dmin, dmax)
+	var bias: int = Fx.damage_bias(attacker)
+	var base: int = roll
+	if bias > 0:
+		base = dmax
+	elif bias < 0:
+		base = dmin
 	var total: float = float(base * int(attacker["count"]))
 	var diff: int = att - def_val
 	var mod: float = 1.0 + clampf(float(diff) * 0.05, -0.7, 1.5)
@@ -52,7 +64,9 @@ static func damage(attacker: Dictionary, defender: Dictionary,
 		mod *= 1.0 + float(bonus_pct) / 100.0
 	# Fluch schwaecht den Angreifer, Alterung macht das Ziel anfaelliger.
 	mod *= Fx.dealt_factor(attacker)
-	mod *= Fx.taken_factor(defender)
+	# Der Schild-Zauber wirkt nur gegen Nahkampf; ob geschossen wird, weiss
+	# nur der Aufrufer (opts["shooting"]).
+	mod *= Fx.taken_factor(defender, not bool(opts.get("shooting", false)))
 	if melee_penalty:
 		var abilities: Array = ut.get("abilities", []) as Array
 		if abilities.has("no_melee_penalty"):
@@ -87,13 +101,19 @@ static func apply(stack: Dictionary, dmg: int) -> int:
 # angeschlagene vorderste Einheit, dann (Lebensentzug der Vampire)
 # gefallene Einheiten zurueck, aber nie ueber die Startstaerke hinaus.
 # Ein vernichteter Stack bleibt tot. Rueckgabe: tatsaechlich geheilte HP.
-static func heal(stack: Dictionary, hp: int) -> int:
+# `allow_revive` false deckelt bei der AKTUELLEN Stackgroesse, statt
+# gefallene Einheiten zurueckzubringen. Der Heil-Zauber (M8) braucht das:
+# Heilen fuellt auf, Wiederbeleben ist ein eigener Zauber. Standard true,
+# damit Lebensentzug und Regeneration unveraendert bleiben.
+static func heal(stack: Dictionary, hp: int, allow_revive: bool = true) -> int:
 	if hp <= 0 or int(stack["count"]) <= 0:
 		return 0
 	var hp_per: int = UnitType.hp_of(String(stack["type"]))
 	if hp_per <= 0:
 		return 0
 	var cap_count: int = int(stack.get("count_start", stack["count"]))
+	if not allow_revive:
+		cap_count = int(stack["count"])
 	var cur: int = (int(stack["count"]) - 1) * hp_per + int(stack["top_hp"])
 	var new_total: int = min(cap_count * hp_per, cur + hp)
 	var healed: int = new_total - cur

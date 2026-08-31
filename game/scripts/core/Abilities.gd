@@ -69,13 +69,16 @@ static func attacks_per_turn(uid: String, shooting: bool) -> int:
 
 # Darf der Verteidiger (defender_uid) diesen Nahkampf-Angriff kontern?
 # times_retaliated = wie oft er in dieser Runde schon gekontert hat.
+# `extra` sind zusaetzlich erlaubte Konter aus Status-Effekten
+# (Konterschlag-Zauber, M8 Teil 2). Standard 0, damit bestehende Aufrufer
+# und der Balance-Simulator unveraendert weiterlaufen.
 static func retaliation_allowed(defender_uid: String, attacker_uid: String,
-		times_retaliated: int) -> bool:
+		times_retaliated: int, extra: int = 0) -> bool:
 	if UnitType.has_ability(attacker_uid, "no_retaliation"):
 		return false
 	if UnitType.has_ability(defender_uid, "unlimited_retaliations"):
 		return true
-	return times_retaliated <= 0
+	return times_retaliated <= extra
 
 
 static func def_after_ignore(attacker_uid: String, def_val: int) -> int:

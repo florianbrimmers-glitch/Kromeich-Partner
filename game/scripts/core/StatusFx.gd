@@ -37,6 +37,11 @@ const HASTENED := "beschleunigt"
 const SLOWED := "verlangsamt"
 const STONE_SKIN := "steinhaut"
 const WEAKENED := "geschwaecht"
+# M8 Teil 2
+const BLESSED := "gesegnet"       # richtet immer Hoechstschaden an
+const SHIELDED := "geschirmt"     # weniger NAHKAMPF-Schaden erlitten
+const PRAYED := "gebet"           # +2 Angriff, Verteidigung, Geschwindigkeit
+const READY := "konterbereit"     # ein zusaetzlicher Konter pro Runde
 
 # Ability-Flag -> Status, Trefferwahrscheinlichkeit, Dauer in Runden.
 const ON_HIT := {
@@ -55,6 +60,7 @@ const MARKERS := {
 	# Zauber-Status (M8). Grossbuchstaben bleiben fuer Treffer-Status,
 	# damit man im Gitter auf einen Blick sieht, woher etwas kommt.
 	HASTENED: "h", SLOWED: "l", STONE_SKIN: "d", WEAKENED: "w",
+	BLESSED: "+", SHIELDED: "s", PRAYED: "p", READY: "k",
 }
 
 const DISEASE_STAT_MALUS: int = 2
@@ -63,6 +69,10 @@ const HASTE_SPD_BONUS: int = 3
 const SLOW_SPD_MALUS: int = 3
 const STONE_SKIN_DEF_BONUS: int = 3
 const WEAKNESS_ATT_MALUS: int = 3
+# M8 Teil 2. Quelle: data/spells.json.
+const PRAYER_STAT_BONUS: int = 2
+const SHIELD_MELEE_FACTOR: float = 0.85   # -15 % Nahkampf-Schaden
+const READY_EXTRA_RETALIATIONS: int = 1
 const CURSE_DEALT_FACTOR: float = 0.75
 const AGED_TAKEN_FACTOR: float = 1.25
 
@@ -124,6 +134,8 @@ static func att_mod(stack: Dictionary) -> int:
 		m -= DISEASE_STAT_MALUS
 	if has(stack, WEAKENED):
 		m -= WEAKNESS_ATT_MALUS
+	if has(stack, PRAYED):
+		m += PRAYER_STAT_BONUS
 	return m
 
 
@@ -133,6 +145,8 @@ static func def_mod(stack: Dictionary) -> int:
 		m -= DISEASE_STAT_MALUS
 	if has(stack, STONE_SKIN):
 		m += STONE_SKIN_DEF_BONUS
+	if has(stack, PRAYED):
+		m += PRAYER_STAT_BONUS
 	return m
 
 
@@ -145,6 +159,8 @@ static func spd_mod(stack: Dictionary) -> int:
 		m += HASTE_SPD_BONUS
 	if has(stack, SLOWED):
 		m -= SLOW_SPD_MALUS
+	if has(stack, PRAYED):
+		m += PRAYER_STAT_BONUS
 	return m
 
 
@@ -154,8 +170,32 @@ static func dealt_factor(stack: Dictionary) -> float:
 
 
 # Faktor auf den Schaden, den dieser Stack ERLEIDET.
-static func taken_factor(stack: Dictionary) -> float:
-	return AGED_TAKEN_FACTOR if has(stack, AGED) else 1.0
+#
+# `melee` unterscheidet Nahkampf von Fernkampf: der Schild-Zauber wirkt
+# laut spells.json nur gegen Nahkampf. Standard true, damit bestehende
+# Aufrufer (und der Balance-Simulator) unveraendert weiterlaufen.
+static func taken_factor(stack: Dictionary, melee: bool = true) -> float:
+	var f: float = AGED_TAKEN_FACTOR if has(stack, AGED) else 1.0
+	if melee and has(stack, SHIELDED):
+		f *= SHIELD_MELEE_FACTOR
+	return f
+
+
+# Verschiebung des Schadenswurfs: +1 = immer Hoechstwert, -1 = immer
+# Mindestwert, 0 = normal wuerfeln.
+#
+# Der Fluch bleibt bewusst ein FAKTOR (CURSE_DEALT_FACTOR) und keine
+# Wurf-Verschiebung, obwohl spells.json "dmg_min" sagt: derselbe Status
+# kommt aus der Schwarzritter-Faehigkeit `curse_on_hit_10pct`, und ein
+# Mechanik-Wechsel wuerde die in Balance-Pass 10 getunten Zahlen
+# verschieben.
+static func damage_bias(stack: Dictionary) -> int:
+	return 1 if has(stack, BLESSED) else 0
+
+
+# Zusaetzlich erlaubte Konter pro Runde (Konterschlag-Zauber).
+static func extra_retaliations(stack: Dictionary) -> int:
+	return READY_EXTRA_RETALIATIONS if has(stack, READY) else 0
 
 
 # Verliert der Stack seinen Zug (und kontert nicht)?

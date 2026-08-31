@@ -33,25 +33,25 @@ const BASE_SPELL_LEVEL := 1
 const CASTS_PER_ROUND := 1
 
 # Umgesetzt und wirksam. Der Rest aus spells.json bleibt bewusst draussen:
-#   bless, prayer, shield, protection_fire, counterstrike
-#       -> brauchen Modifikatoren, die es noch nicht gibt
-#   resurrect, animate_dead
-#       -> muessen `count` wieder anheben (Stack-Semantik, Teil 2)
-#   summon_boat, town_gate
-#       -> Abenteuerkarten-Zauber, es gibt keine Boote
-#   implosion, armageddon
-#       -> Stufe 5, ohne Relikt nicht lernbar
+#   protection_fire  -> es gibt keinen Schadenstyp "Feuer"
+#   summon_boat, town_gate -> Abenteuerkarten-Zauber, es gibt keine Boote
+#   resurrect, implosion, armageddon -> Stufe 5, ohne Relikt nicht lernbar
 const IMPLEMENTED := [
-	"heal",          # licht   L1
-	"haste",         # ordnung L1
-	"slow",          # ordnung L2
-	"stone_skin",    # natur   L1
-	"magic_arrow",   # chaos   L1
-	"fire_bolt",     # chaos   L2
-	"fireball",      # chaos   L3
-	"weakness",      # tod     L1
-	"curse",         # tod     L2
-	"blind",         # tod     L3
+	"heal",           # licht   L1
+	"bless",          # licht   L1
+	"prayer",         # licht   L3
+	"haste",          # ordnung L1
+	"shield",         # ordnung L1
+	"slow",           # ordnung L2
+	"counterstrike",  # ordnung L4
+	"stone_skin",     # natur   L1
+	"magic_arrow",    # chaos   L1
+	"fire_bolt",      # chaos   L2
+	"fireball",       # chaos   L3
+	"weakness",       # tod     L1
+	"curse",          # tod     L2
+	"blind",          # tod     L3
+	"animate_dead",   # tod     L4
 ]
 
 # Zauber -> Status und Dauer. Die JSON schreibt "-3_spd_for_3_turns"; die
@@ -64,6 +64,23 @@ const STATUS_SPELLS := {
 	"weakness":   {"status": "geschwaecht",  "rounds": 3, "friendly": false},
 	"curse":      {"status": "verflucht",    "rounds": 3, "friendly": false},
 	"blind":      {"status": "geblendet",    "rounds": 1, "friendly": false},
+	# M8 Teil 2
+	"bless":         {"status": "gesegnet",     "rounds": 3, "friendly": true},
+	"shield":        {"status": "geschirmt",    "rounds": 3, "friendly": true},
+	"counterstrike": {"status": "konterbereit", "rounds": 3, "friendly": true},
+	# Gebet trifft die GANZE eigene Seite - target ist all_friendly.
+	"prayer":        {"status": "gebet",        "rounds": 3, "friendly": true},
+}
+
+# Zauber, die die ganze eigene Seite treffen und deshalb KEIN Ziel-Tippen
+# brauchen. Wird aus dem `target`-Feld der JSON abgeleitet, hier nur als
+# Nachschlagehilfe.
+const NO_TARGET_TARGETS := ["all_friendly", "battlefield"]
+
+# Wiederbelebung: hebt `count` wieder an (CombatMath.heal mit
+# allow_revive). Nur Untote, so steht es in spells.json.
+const REVIVE_SPELLS := {
+	"animate_dead": {"base": 30, "per_power": 40, "undead_only": true},
 }
 
 # Zauber -> Schadensformel aus der JSON, als Zahlenpaar (Basis, je Kraft).
@@ -127,7 +144,27 @@ static func target_of(spell_id: String) -> String:
 
 
 static func is_friendly_target(spell_id: String) -> bool:
-	return target_of(spell_id).begins_with("friendly")
+	var tgt: String = target_of(spell_id)
+	return tgt.begins_with("friendly") or tgt == "all_friendly"
+
+
+# Braucht dieser Zauber ein angetipptes Ziel? Gebet und Flaechen-Zauber
+# nicht - sie wirken sofort auf die ganze Seite.
+static func needs_target(spell_id: String) -> bool:
+	return not NO_TARGET_TARGETS.has(target_of(spell_id))
+
+
+# Nur auf untote Stacks wirkbar (Untote erwecken).
+static func undead_only(spell_id: String) -> bool:
+	var d: Dictionary = REVIVE_SPELLS.get(spell_id, {}) as Dictionary
+	return bool(d.get("undead_only", false))
+
+
+static func revive_of(spell_id: String, power: int) -> int:
+	var d: Dictionary = REVIVE_SPELLS.get(spell_id, {}) as Dictionary
+	if d.is_empty():
+		return 0
+	return int(d["base"]) + int(d["per_power"]) * max(0, power)
 
 
 static func display_name(spell_id: String) -> String:
@@ -141,6 +178,8 @@ const NAMES := {
 	"stone_skin": "Steinhaut", "magic_arrow": "Magischer Pfeil",
 	"fire_bolt": "Feuerblitz", "fireball": "Feuerball",
 	"weakness": "Schwaeche", "curse": "Fluch", "blind": "Blenden",
+	"bless": "Segen", "prayer": "Gebet", "shield": "Schild",
+	"counterstrike": "Konterschlag", "animate_dead": "Untote erwecken",
 }
 
 
@@ -247,10 +286,14 @@ static func book_line(spell_id: String, power: int) -> String:
 	if DAMAGE_SPELLS.has(spell_id):
 		var dmg: int = damage_of(spell_id, power)
 		parts.append("%d Schaden%s" % [dmg, " (+Umfeld)" if is_aoe(spell_id) else ""])
+	elif REVIVE_SPELLS.has(spell_id):
+		parts.append("%d HP wiederbeleben" % revive_of(spell_id, power))
 	elif HEAL_SPELLS.has(spell_id):
 		parts.append("%d HP heilen" % heal_of(spell_id, power))
 	else:
 		var st: Dictionary = status_of(spell_id)
 		if not st.is_empty():
-			parts.append("%s, %d Runden" % [String(st["status"]), int(st["rounds"])])
+			var scope: String = "ganze Armee" if not needs_target(spell_id) else ""
+			parts.append("%s, %d Runden%s" % [String(st["status"]),
+				int(st["rounds"]), (" (" + scope + ")") if scope != "" else ""])
 	return "  -  ".join(parts)

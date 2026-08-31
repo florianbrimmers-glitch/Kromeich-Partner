@@ -268,6 +268,116 @@ func _test_battle() -> void:
 	bs._cast("blind", e0)
 	_check(Fx.has(e0, Fx.BLINDED), "Blenden setzt den Status")
 
+	# --- M8 Teil 2 -------------------------------------------------------
+	# Segen: Hoechstschaden. Gleicher Seed vor beiden Wuerfen, sonst
+	# vergleicht man zwei verschiedene Zufallswerte.
+	var atk: Dictionary = {"type": "men_spearman", "count": 10, "side": 0,
+		"top_hp": UnitType.hp_of("men_spearman"), "pos": Vector2i(1, 4),
+		"status": {}}
+	var dfn: Dictionary = {"type": "ork_goblin", "count": 40, "side": 1,
+		"top_hp": UnitType.hp_of("ork_goblin"), "pos": Vector2i(2, 4),
+		"status": {}}
+	bs._p_luck = 0
+	bs._e_luck = 0
+	bs._p_archery_pct = 0
+	bs._p_offense_pct = 0
+	bs._p_armorer_pct = 0
+	var max_seen: int = 0
+	for i in range(30):
+		bs._rng.seed = 100 + i
+		max_seen = max(max_seen, int(bs._dmg(atk, dfn, false, false)))
+	Fx.add(atk, Fx.BLESSED, 3)
+	var blessed_min: int = 999999
+	for i in range(30):
+		bs._rng.seed = 100 + i
+		blessed_min = min(blessed_min, int(bs._dmg(atk, dfn, false, false)))
+	_check(blessed_min >= max_seen,
+		"Segen richtet immer Hoechstschaden an (gesegnet min %d >= ungesegnet max %d)"
+		% [blessed_min, max_seen])
+	Fx.clear(atk, Fx.BLESSED)
+
+	# Schild: weniger NAHKAMPF-Schaden, im Fernkampf unveraendert.
+	var target2: Dictionary = {"type": "men_spearman", "count": 10, "side": 0,
+		"top_hp": UnitType.hp_of("men_spearman"), "pos": Vector2i(1, 4),
+		"status": {}}
+	var e_atk: Dictionary = {"type": "ork_goblin", "count": 40, "side": 1,
+		"top_hp": UnitType.hp_of("ork_goblin"), "pos": Vector2i(2, 4),
+		"status": {}}
+	bs._rng.seed = 500
+	var melee_plain: int = int(bs._dmg(e_atk, target2, false, false))
+	bs._rng.seed = 500
+	var ranged_plain: int = int(bs._dmg(e_atk, target2, false, true))
+	Fx.add(target2, Fx.SHIELDED, 3)
+	bs._rng.seed = 500
+	var melee_shield: int = int(bs._dmg(e_atk, target2, false, false))
+	bs._rng.seed = 500
+	var ranged_shield: int = int(bs._dmg(e_atk, target2, false, true))
+	_check(melee_shield < melee_plain,
+		"Schild senkt Nahkampf-Schaden (%d -> %d)" % [melee_plain, melee_shield])
+	_check(ranged_shield == ranged_plain,
+		"und laesst Fernkampf unveraendert (%d)" % ranged_plain)
+
+	# Gebet: wirkt ohne Ziel-Tippen auf die ganze eigene Seite.
+	_check(not Spl.needs_target("prayer"), "Gebet braucht kein Ziel")
+	_check(Spl.needs_target("bless"), "Segen dagegen schon")
+	# NICHT _next_round(): das laesst die KI ziehen und veraendert die
+	# Stacks (hier hat sie die Speertraeger von 4 auf 1 gehauen). Fuer
+	# "ein Zauber pro Runde" genuegt der Zaehler.
+	bs._casts_left = Spl.CASTS_PER_ROUND
+	bs._p_mana = 60
+	var p_all: Array = bs._p_stacks
+	bs._cast_no_target("prayer")
+	var prayed: int = 0
+	for s in p_all:
+		if Fx.has(s, Fx.PRAYED):
+			prayed += 1
+	_check(prayed == p_all.size(), "Gebet trifft alle eigenen Stacks (%d von %d)"
+		% [prayed, p_all.size()])
+	var one: Dictionary = p_all[0]
+	_check(Fx.att_mod(one) >= Fx.PRAYER_STAT_BONUS, "und hebt den Angriff")
+	_check(Fx.spd_mod(one) >= Fx.PRAYER_STAT_BONUS, "und die Geschwindigkeit")
+
+	# Konterschlag: ein zusaetzlicher Konter.
+	var ready: Dictionary = {"type": "men_spearman", "status": {}}
+	_check(Fx.extra_retaliations(ready) == 0, "ohne Status kein Extra-Konter")
+	Fx.add(ready, Fx.READY, 3)
+	_check(Fx.extra_retaliations(ready) == Fx.READY_EXTRA_RETALIATIONS,
+		"Konterschlag gibt einen dazu")
+	_check(not Abilities.retaliation_allowed("men_spearman", "ork_goblin", 1),
+		"normal ist nach einem Konter Schluss")
+	_check(Abilities.retaliation_allowed("men_spearman", "ork_goblin", 1, 1),
+		"mit Konterschlag geht ein zweiter")
+
+	# Untote erwecken: nur auf Untote, und es hebt count wieder an.
+	_check(Spl.undead_only("animate_dead"), "Untote erwecken ist auf Untote begrenzt")
+	_check(not Spl.undead_only("heal"), "Heilen nicht")
+	var undead: Dictionary = {"type": "nec_skeleton", "count": 4, "count_start": 10,
+		"top_hp": UnitType.hp_of("nec_skeleton"), "side": 0,
+		"pos": Vector2i(1, 5), "status": {}}
+	bs._p_stacks = [undead]
+	# NICHT _next_round(): das laesst die KI ziehen und veraendert die
+	# Stacks (hier hat sie die Speertraeger von 4 auf 1 gehauen). Fuer
+	# "ein Zauber pro Runde" genuegt der Zaehler.
+	bs._casts_left = Spl.CASTS_PER_ROUND
+	bs._p_mana = 60
+	bs._cast("animate_dead", undead)
+	_check(int(undead["count"]) > 4,
+		"Wiederbeleben hebt die Stackgroesse (4 -> %d)" % int(undead["count"]))
+
+	# Heilen darf das NICHT: es fuellt nur auf.
+	var hurt: Dictionary = {"type": "men_spearman", "count": 4, "count_start": 10,
+		"top_hp": 1, "side": 0, "pos": Vector2i(1, 6), "status": {}}
+	bs._p_stacks = [hurt]
+	# NICHT _next_round(): das laesst die KI ziehen und veraendert die
+	# Stacks (hier hat sie die Speertraeger von 4 auf 1 gehauen). Fuer
+	# "ein Zauber pro Runde" genuegt der Zaehler.
+	bs._casts_left = Spl.CASTS_PER_ROUND
+	bs._p_mana = 60
+	bs._cast("heal", hurt)
+	_check(int(hurt["count"]) == 4,
+		"Heilen belebt NICHT wieder (count bleibt 4, ist %d)" % int(hurt["count"]))
+	_check(int(hurt["top_hp"]) > 1, "aber es heilt (top_hp %d)" % int(hurt["top_hp"]))
+
 	# Zu wenig Mana.
 	bs._next_round()
 	bs._p_mana = 1

@@ -323,7 +323,8 @@ func _melee_exchange(attacker: Dictionary, target: Dictionary) -> String:
 		# Verteidiger kontern nicht.
 		if int(target["count"]) > 0 and not Fx.blocks_turn(target) \
 				and Abil.retaliation_allowed(
-				t_uid, a_uid, int(target.get("retaliations", 0))):
+				t_uid, a_uid, int(target.get("retaliations", 0)),
+				Fx.extra_retaliations(target)):
 			target["retaliations"] = int(target.get("retaliations", 0)) + 1
 			target["retaliated"] = true
 			var rdmg: int = max(1, _dmg(target, attacker, UnitType.is_ranged(t_uid)) / 2)
@@ -1038,11 +1039,46 @@ func _build_spell_panel() -> void:
 
 func _on_spell_chosen(spell_id: String) -> void:
 	_spell_panel.visible = false
+	# Gebet und Flaechen-Zauber haben kein Einzelziel - sie wirken sofort,
+	# statt auf ein Tippen zu warten, das nie kommen kann.
+	if not Spl.needs_target(spell_id):
+		_pending_spell = ""
+		_cast_no_target(spell_id)
+		return
 	_pending_spell = spell_id
 	var friendly: bool = Spl.is_friendly_target(spell_id)
-	_set_action("%s: %s antippen." % [
-		Spl.display_name(spell_id),
-		"eigenen Stack" if friendly else "Gegner-Stack"])
+	var what: String = "eigenen Stack"
+	if Spl.undead_only(spell_id):
+		what = "eigenen UNTOTEN Stack"
+	elif not friendly:
+		what = "Gegner-Stack"
+	_set_action("%s: %s antippen." % [Spl.display_name(spell_id), what])
+
+
+# Zauber, die die ganze eigene Seite treffen (Gebet).
+func _cast_no_target(spell_id: String) -> void:
+	var cost: int = Spl.cost_of(spell_id)
+	if cost > _p_mana or _casts_left <= 0:
+		_set_action("Nicht genug Mana.")
+		return
+	var st: Dictionary = Spl.status_of(spell_id)
+	if st.is_empty():
+		return
+	_p_mana -= cost
+	_casts_left -= 1
+	Sound.play("spell_cast")
+	var hit: int = 0
+	for s in _p_stacks:
+		if int(s["count"]) <= 0:
+			continue
+		Fx.add(s, String(st["status"]), int(st["rounds"]))
+		Vfx.popup(_fx, Vector2i(s["pos"]), Spl.display_name(spell_id),
+			Color(0.75, 0.70, 1.0))
+		hit += 1
+	_set_action("%s auf %d Stack(s), %d Rd.  [Mana %d]" % [
+		Spl.display_name(spell_id), hit, int(st["rounds"]), _p_mana])
+	_refresh_spell_button()
+	_refresh()
 
 
 # Tippt der Spieler im Zielmodus auf einen Stack, wird hier gewirkt.
@@ -1060,6 +1096,13 @@ func _try_cast_on(cell: Vector2i) -> bool:
 			break
 	if target.is_empty():
 		_set_action("Kein gueltiges Ziel dort.")
+		return true
+	# Untote erwecken geht nur auf untote Stacks - so steht es in
+	# spells.json, und ohne die Pruefung waere der Zauber auf jedem Stack
+	# wirksam.
+	if Spl.undead_only(spell_id) \
+			and not UnitType.has_ability(String(target["type"]), "undead"):
+		_set_action("%s wirkt nur auf Untote." % Spl.display_name(spell_id))
 		return true
 	_pending_spell = ""
 	_cast(spell_id, target)
@@ -1103,11 +1146,22 @@ func _cast(spell_id: String, target: Dictionary) -> void:
 					hit += 1
 			if hit > 0:
 				msg += "  (+%d Nachbar, je %d)" % [hit, splash]
+	elif Spl.revive_of(spell_id, _p_power) > 0:
+		# Wiederbeleben darf `count` wieder anheben (allow_revive), Heilen
+		# nicht - das ist der ganze Unterschied zwischen den beiden.
+		var rev: int = Spl.revive_of(spell_id, _p_power)
+		var c_before: int = int(target["count"])
+		CombatMath.heal(target, rev, true)
+		var back: int = int(target["count"]) - c_before
+		Vfx.healed(_fx, Vector2i(target["pos"]), rev)
+		Sound.play("heal")
+		msg = "%s -> %s: %d zurueck" % [name,
+			UnitType.short_of(String(target["type"])), back]
 	else:
 		var heal: int = Spl.heal_of(spell_id, _p_power)
 		if heal > 0:
 			var before: int = int(target["top_hp"])
-			CombatMath.heal(target, heal)
+			CombatMath.heal(target, heal, false)
 			var gained: int = int(target["top_hp"]) - before
 			Vfx.healed(_fx, Vector2i(target["pos"]), gained)
 			Sound.play("heal")
@@ -1888,7 +1942,8 @@ func _dmg(attacker: Dictionary, defender: Dictionary, melee_penalty: bool,
 	if _siege and int(defender["side"]) == 1 and _walls_standing():
 		d_bonus += SIEGE_DEF_BONUS
 	# tiles_moved speist den Jousting-Bonus (Kavalier/Wolfsreiter).
-	var opts: Dictionary = {"tiles_moved": int(attacker.get("tiles_moved", 0))}
+	var opts: Dictionary = {"tiles_moved": int(attacker.get("tiles_moved", 0)),
+		"shooting": shooting}
 	var dmg: int = CombatMath.damage(attacker, defender, melee_penalty, a_bonus, d_bonus, _rng, opts)
 	# Glueck wirkt auf den einzelnen Schlag (M6): Volltreffer x2, Pech x0.5.
 	# Skill-Prozente (M7): Bogenkampf/Offensive auf den ausgeteilten,
