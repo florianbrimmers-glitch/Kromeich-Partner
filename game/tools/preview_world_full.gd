@@ -90,6 +90,24 @@ func _tex(rel: String) -> Image:
 	return img
 
 
+const UnitArt := preload("res://scripts/core/UnitArt.gd")
+
+
+func _unit_image(uid: String) -> Image:
+	var key: String = "unit:" + uid
+	if _tex_cache.has(key):
+		return _tex_cache[key] as Image
+	var img: Image = null
+	var tex: Texture2D = UnitArt.texture_for(uid)
+	if tex != null:
+		img = tex.get_image()
+		if img.is_compressed():
+			img.decompress()
+		img.convert(Image.FORMAT_RGBA8)
+	_tex_cache[key] = img
+	return img
+
+
 func _terrain_name(t: int) -> String:
 	match t:
 		0: return "grass"
@@ -234,7 +252,7 @@ func _compose(mw: int, mh: int, with_fog: bool) -> Image:
 			_outline(canvas, cp.x * TILE + inset2, cp.y * TILE + inset2,
 				TILE - 2 * inset2, TILE - 2 * inset2, Color(0.85, 0.15, 0.15, 1.0), 4)
 
-	# 5. Monster als dunkle Scheibe mit Rand (wie im Screen)
+	# 5. Monster: dunkle Scheibe plus Kreatur-Sprite (wie im Screen, It. 35)
 	for m in (_wm.get("_monsters") as Array):
 		var mp: Vector2i = m["pos"]
 		if with_fog and int(_wm.call("_fog_get", fog, mp)) == hidden:
@@ -251,6 +269,10 @@ func _compose(mw: int, mh: int, with_fog: bool) -> Image:
 					canvas.set_pixel(ix, iy, Color(0.20, 0.20, 0.22))
 				elif dd <= float(r):
 					canvas.set_pixel(ix, iy, Color(0.85, 0.35, 0.35))
+		# Kreatur aus dem Screen erfragen, nicht selbst herleiten.
+		var muid: String = String(_wm.call("_monster_unit", m))
+		var msz: int = int(float(r) * 1.72)
+		_put(canvas, _unit_image(muid), ccx - msz / 2, ccy - msz / 2, msz, msz)
 
 	# 6. Held und Gegner-Helden
 	var hero = _wm.get("_hero")

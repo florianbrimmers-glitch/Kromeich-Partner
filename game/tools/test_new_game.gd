@@ -56,6 +56,7 @@ func _init() -> void:
 
 	_test_tileset(wm)
 	_test_city_margins(wm)
+	_test_monsters(wm)
 
 	wm.queue_free()
 	await process_frame
@@ -199,3 +200,102 @@ func _test_city_margins(wm) -> void:
 	_check(starts_at_edge.is_empty(),
 		"kein Start in der Kartenecke (%s)" % str(starts_at_edge))
 	_done.append("_test_city_margins")
+
+
+# Wandernde Monster (It. 35): echte Kreatur auf der Karte UND im Kampf,
+# ohne dass die Begegnung staerker wird als vorher.
+func _test_monsters(wm) -> void:
+	print("")
+	print("== Wandernde Monster: Kreatur und Kraft ==")
+	wm.call("_start", 2468, 1)
+	var monsters: Array = wm.get("_monsters")
+	_check(monsters.size() == int(wm.get("MONSTER_COUNT")),
+		"%d Monster platziert" % monsters.size())
+
+	var pool: Array = wm.get("MONSTER_POOL")
+	var per: int = int(wm.get("MONSTER_HP_PER_STRENGTH"))
+	var tol: float = float(wm.get("MONSTER_HP_TOLERANCE"))
+	var bad_unit: Array = []
+	var bad_budget: Array = []
+	var too_big: Array = []
+	for m in monsters:
+		var uid: String = String(wm.call("_monster_unit", m))
+		var cnt: int = int(wm.call("_monster_count", m))
+		var hp: int = UnitType.hp_of(uid)
+		var budget: int = int(m["strength"]) * per
+		if not pool.has(uid):
+			bad_unit.append(uid)
+		if cnt < 1:
+			bad_budget.append("%s x%d" % [uid, cnt])
+		# Kraft-Neutralitaet: die Trefferpunkte des Stacks muessen im
+		# Rahmen des Budgets bleiben. Ohne diese Schranke koennte ein
+		# Staerke-1-Monster ploetzlich ein Oger sein.
+		if float(cnt * hp) > float(budget) * tol + 0.001:
+			too_big.append("%s x%d = %d HP, Budget %d"
+				% [uid, cnt, cnt * hp, budget])
+	_check(bad_unit.is_empty(), "jede Kreatur kommt aus MONSTER_POOL (%s)" % str(bad_unit))
+	_check(bad_budget.is_empty(), "jeder Stack hat mindestens 1 Kreatur (%s)" % str(bad_budget))
+	_check(too_big.is_empty(), "kein Stack sprengt sein HP-Budget (%s)" % str(too_big))
+
+	# Verschiedene Kreaturen ueber die Karte - sonst waere die Auswahl
+	# wirkungslos (dasselbe Problem wie die Kachel-Variante in It. 19).
+	var kinds: Array = []
+	for seed_value in [1, 42, 2468, 7777]:
+		wm.call("_start", seed_value, 1)
+		for m2 in (wm.get("_monsters") as Array):
+			var u2: String = String(wm.call("_monster_unit", m2))
+			if not kinds.has(u2):
+				kinds.append(u2)
+	_check(kinds.size() >= 4, "%d verschiedene Kreaturen ueber 4 Seeds (%s)"
+		% [kinds.size(), str(kinds)])
+
+	# Staerke 1 darf nie eine schwere Kreatur sein.
+	var heavy: Array = []
+	for h in range(64):
+		var u3: String = String(wm.call("_pick_monster_unit", 1, h * 7919))
+		if float(UnitType.hp_of(u3)) > float(per) * tol + 0.001:
+			heavy.append(u3)
+	_check(heavy.is_empty(), "Staerke 1 bleibt leicht (%s)" % str(heavy))
+
+	# ALTER SPIELSTAND ohne "unit": Kreatur wird abgeleitet, bleibt aber
+	# ueber Aufrufe stabil - sonst wechselte das Monsterbild bei jedem
+	# Neuzeichnen.
+	var legacy: Dictionary = {"pos": Vector2i(5, 9), "strength": 2}
+	var a: String = String(wm.call("_monster_unit", legacy))
+	var b: String = String(wm.call("_monster_unit", legacy))
+	_check(a != "" and a == b,
+		"Alt-Monster ohne Feld 'unit' bekommt stabil eine Kreatur (%s)" % a)
+	_check(int(wm.call("_monster_count", legacy)) >= 1,
+		"und eine Stackgroesse")
+
+	# Der Kampf bekommt genau diese Kreatur.
+	var army: Dictionary = wm.call("_monster_army", legacy)
+	_check(army.size() == 1 and army.has(a),
+		"Kampf-Armee enthaelt die gezeigte Kreatur (%s)" % str(army))
+
+	# Objekt-Wachen laufen ueber dieselbe Herleitung - vorher waren ALLE
+	# Wachen menschliche Speertraeger, auch im Ork-Gebiet.
+	wm.call("_start", 2468, 1)
+	var guarded: int = 0
+	var human_only: bool = true
+	var empty_army: Array = []
+	for obj in (wm.get("_objects") as Array):
+		var g: int = int(obj.get("guard", 0))
+		if g <= 0:
+			continue
+		guarded += 1
+		var ga: Dictionary = wm.call("_object_guard_army", obj)
+		if ga.is_empty():
+			empty_army.append(str(obj.get("pos", Vector2i.ZERO)))
+		for k in ga.keys():
+			if String(k) != "men_spearman":
+				human_only = false
+	_check(guarded > 0, "%d bewachte Objekte auf der Karte" % guarded)
+	_check(empty_army.is_empty(),
+		"jede Wache hat eine Kampf-Armee (%s)" % str(empty_army))
+	_check(not human_only,
+		"Wachen sind nicht mehr alle menschliche Speertraeger")
+	# Wache 0 = kein Kampf, also auch keine Armee.
+	_check((wm.call("_object_guard_army", {"guard": 0}) as Dictionary).is_empty(),
+		"unbewachtes Objekt hat keine Armee")
+	_done.append("_test_monsters")

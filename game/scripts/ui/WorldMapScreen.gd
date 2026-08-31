@@ -76,6 +76,28 @@ const STARTING_UNIT_COUNT := 3
 
 # Monster
 const MONSTER_COUNT := 8
+# Wandernde Monster (It. 35). Vorher war ein Monster "Staerke 1-3" und im
+# Kampf 1-3 MENSCHLICHE Speertraeger - auf der Karte ein grauer Kreis mit
+# Zahl. Jetzt hat jedes Monster eine echte Kreatur, deren Sprite auf der
+# Karte steht und die im Kampf auch antritt.
+#
+# KRAFT BLEIBT GLEICH: die Staerke wird als TREFFERPUNKT-Budget gelesen
+# (Staerke x MONSTER_HP_PER_STRENGTH), und die Stackgroesse ergibt sich aus
+# den HP der gewaehlten Kreatur. Ein Speertraeger hat 10 HP, also entspricht
+# Budget 10 genau dem alten "1 Speertraeger". Nur Kreaturen, die einzeln ins
+# Budget passen (mit etwas Spielraum), kommen in Frage - deshalb ist ein
+# Oger niemals ein Staerke-1-Monster.
+const MONSTER_HP_PER_STRENGTH := 10
+const MONSTER_HP_TOLERANCE := 1.45
+const MONSTER_MAX_COUNT := 20
+# Kandidaten fuer wandernde Monster: bewusst aus allen vier Fraktionen,
+# aber nur Kreaturen, die als Wildnis-Begegnung taugen (keine Engel,
+# keine Zitadellen-Einheiten).
+const MONSTER_POOL := [
+	"ork_goblin", "nec_skeleton", "men_spearman", "elf_dwarf",
+	"ork_wolfrider", "nec_zombie", "ork_orc", "men_archer",
+	"nec_wight", "men_griffin", "elf_pegasus", "elf_archer",
+]
 const MONSTER_MIN_DIST := 5
 const MONSTER_VICTORY_GOLD := 120
 
@@ -739,7 +761,14 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 				break
 		if blocked:
 			continue
-		_monsters.append({ "pos": mpos, "strength": rng.next_int(1, 3) })
+		var m_str: int = rng.next_int(1, 3)
+		_monsters.append({
+			"pos": mpos,
+			"strength": m_str,
+			# Kreatur gleich festlegen und mitspeichern - so zeigt die
+			# Karte dieselbe Einheit, die im Kampf antritt.
+			"unit": _pick_monster_unit(m_str, rng.next_int(0, 1 << 20)),
+		})
 
 	# Karten-Objekte platzieren: erst Minen, dann Schatzkisten. Gras/Wald
 	# wie Monster, Mindestabstand zu Spawn/Staedten/Monstern/anderen
@@ -822,6 +851,11 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 			"kind": kind,
 			"owner": OWNER_NEUTRAL,
 			"guard": guard_amt,
+			# Wach-Kreatur gleich festlegen (It. 35), damit Karte und Kampf
+			# dasselbe zeigen. Alte Spielstaende ohne das Feld leiten sie
+			# aus Position und Wachstaerke ab (_object_guard_army).
+			"guard_unit": _pick_monster_unit(max(1, guard_amt),
+				rng.next_int(0, 1 << 20)) if guard_amt > 0 else "",
 			"gold": gold_amt,
 			"resource": resource,
 		})
@@ -1378,7 +1412,10 @@ func _draw_map() -> void:
 		# Staerke steht erst unter halber Held-Sichtweite fest (Nahaufklae-
 		# rung). Darueber hinaus bleibt das Monster sichtbar, aber mit "?".
 		if mfog == FOG_VISIBLE and dist <= (HERO_SIGHT / 2):
-			txt = str(mstr)
+			# Angezeigt wird die ANZAHL der Kreaturen; die Farbe kommt
+			# weiter aus der Staerke (dem HP-Budget), denn nur die ist mit
+			# der eigenen Armee vergleichbar.
+			txt = str(_monster_count(m))
 			if eff < mstr:
 				tcol = Color(1.0, 0.35, 0.35)       # rot: kannst nicht schlagen
 			elif mstr - cbonus <= 0:
@@ -1388,7 +1425,18 @@ func _draw_map() -> void:
 		else:
 			txt = "?"
 			tcol = Color(0.75, 0.75, 0.75)
+		# Kreatur-Sprite statt abstrakter Scheibe (It. 35). Die Scheibe
+		# bleibt als Untergrund - sie traegt den Prognose-Ring und hebt die
+		# Figur vom Gelaende ab. Fehlt ein Sprite, bleibt es beim alten Bild.
 		_map_area.draw_circle(mpx, mrad, Color(0.20, 0.20, 0.22))
+		var mon_tex: Texture2D = UnitArt.texture_for(_monster_unit(m))
+		if mon_tex != null:
+			var msz: float = mrad * 1.72
+			_map_area.draw_texture_rect(mon_tex,
+				Rect2(mpx - Vector2(msz * 0.5, msz * 0.5), Vector2(msz, msz)),
+				false)
+			if mfog == FOG_EXPLORED:
+				_map_area.draw_circle(mpx, mrad, Color(0, 0, 0, 0.5))
 		_map_area.draw_arc(mpx, mrad, 0.0, TAU, 20, tcol, 4.0)
 		var ts := mfont.get_string_size(txt, HORIZONTAL_ALIGNMENT_CENTER, -1, mfsize)
 		var tp := mpx + Vector2(-ts.x * 0.5, ts.y * 0.35)
@@ -1606,10 +1654,15 @@ func _tile_variant(x: int, y: int, count: int) -> int:
 	# ~17 %) - also ein verstecktes Schachbrett aus geraden und ungeraden
 	# Varianten. Die zwei Shift-Multiply-Runden ziehen die hohen Bits nach
 	# unten und loesen das auf.
-	var h: int = (x * 73856093) ^ (y * 19349663) ^ (_seed * 83492791)
-	h = (h ^ (h >> 13)) * 1274126177
-	h = h ^ (h >> 16)
-	return absi(h) % count
+	return absi(_mix_hash((x * 73856093) ^ (y * 19349663) ^ (_seed * 83492791))) % count
+
+
+# Bit-Mischung als EIGENE Funktion (It. 35), weil sie jetzt zweimal
+# gebraucht wird: fuer die Kachel-Variante und fuer die Monster-Kreatur.
+# Zwei Shift-Multiply-Runden ziehen die hohen Bits nach unten.
+func _mix_hash(h_in: int) -> int:
+	var h: int = (h_in ^ (h_in >> 13)) * 1274126177
+	return h ^ (h >> 16)
 
 
 func _terrain_texture(t: int, variant: int = -1) -> Texture2D:
@@ -1944,9 +1997,14 @@ func _handle_tap(pos: Vector2) -> void:
 	if mon_idx >= 0:
 		var mstr_m: int = int(_monsters[mon_idx]["strength"])
 		var mon_pos: Vector2i = _monsters[mon_idx]["pos"]
+		# Echte Kreatur in den Kampf geben statt der Menschen-Synthese.
+		# "enemy_army" gibt es schon fuer Belagerungen - derselbe Weg.
+		var mon_ctx: Dictionary = {
+			"enemy_army": _monster_army(_monsters[mon_idx]),
+		}
 		_open_battle("Monster", mstr_m, true, battle_terrain, func(r: Dictionary) -> void:
 			_on_monster_result(r, mon_pos, target, cost)
-		)
+		, mon_ctx)
 		return
 
 	# Gegner-Held auf Zielfeld: Pflichtkampf (keine Flucht), bevor wir
@@ -1972,9 +2030,12 @@ func _handle_tap(pos: Vector2) -> void:
 			var ogd: int = int(obj.get("guard", 0))
 			if ogd > 0:
 				var opos: Vector2i = target
+				var guard_ctx: Dictionary = {
+					"enemy_army": _object_guard_army(obj),
+				}
 				_open_battle("Wache", ogd, true, battle_terrain, func(r: Dictionary) -> void:
 					_on_object_result(r, opos, target, cost)
-				)
+				, guard_ctx)
 				return
 			# guard == 0: direktes Betreten / Einsammeln (siehe unten)
 
@@ -2046,6 +2107,66 @@ func _city_at(p: Vector2i) -> int:
 		if _cities[i]["pos"] == p:
 			return i
 	return -1
+
+
+# --- Wandernde Monster (It. 35) -------------------------------------------
+
+# Welche Kreatur steht auf diesem Monster-Feld, und wie viele?
+#
+# Die Kreatur steht im Monster-Dictionary ("unit"), sobald das Monster
+# platziert wurde. ALTE SPIELSTAENDE haben das Feld nicht - dann wird es
+# deterministisch aus Position und Staerke abgeleitet, damit kein
+# SAVE_VERSION-Bump noetig ist und dasselbe Monster nach dem Laden dieselbe
+# Kreatur zeigt.
+func _monster_unit(m: Dictionary) -> String:
+	var stored: String = String(m.get("unit", ""))
+	if stored != "" and UnitType.hp_of(stored) > 0:
+		return stored
+	var mp: Vector2i = m.get("pos", Vector2i.ZERO)
+	return _pick_monster_unit(int(m.get("strength", 1)),
+		_mix_hash(mp.x * 73856093 + mp.y * 19349663 + _seed))
+
+
+# Deterministische Wahl aus MONSTER_POOL: nur Kreaturen, die einzeln ins
+# HP-Budget passen. Der Hash wird gemischt (gleiche Begruendung wie bei
+# _tile_variant), sonst koppelt die Auswahl an die Feld-Paritaet.
+func _pick_monster_unit(strength: int, h: int) -> String:
+	var budget: float = float(max(1, strength) * MONSTER_HP_PER_STRENGTH)
+	var fits: Array = []
+	for uid in MONSTER_POOL:
+		var hp: int = UnitType.hp_of(String(uid))
+		if hp > 0 and float(hp) <= budget * MONSTER_HP_TOLERANCE:
+			fits.append(String(uid))
+	if fits.is_empty():
+		return "men_spearman"
+	return String(fits[abs(h) % fits.size()])
+
+
+# Stackgroesse aus dem HP-Budget. Mindestens 1, gedeckelt.
+func _monster_count(m: Dictionary) -> int:
+	var uid: String = _monster_unit(m)
+	var hp: int = max(1, UnitType.hp_of(uid))
+	var budget: int = max(1, int(m.get("strength", 1))) * MONSTER_HP_PER_STRENGTH
+	return clampi(int(round(float(budget) / float(hp))), 1, MONSTER_MAX_COUNT)
+
+
+func _monster_army(m: Dictionary) -> Dictionary:
+	return {_monster_unit(m): _monster_count(m)}
+
+
+# Wachen an Karten-Objekten (It. 35): dieselbe Herleitung wie beim
+# wandernden Monster. Vorher waren ALLE Wachen menschliche Speertraeger -
+# eine Truhe im Ork-Gebiet wurde von drei Menschen gehuetet.
+func _object_guard_army(obj: Dictionary) -> Dictionary:
+	var g: int = int(obj.get("guard", 0))
+	if g <= 0:
+		return {}
+	var fake: Dictionary = {
+		"pos": obj.get("pos", Vector2i.ZERO),
+		"strength": g,
+		"unit": String(obj.get("guard_unit", "")),
+	}
+	return _monster_army(fake)
 
 
 func _monster_at(p: Vector2i) -> int:
