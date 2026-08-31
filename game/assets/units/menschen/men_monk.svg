@@ -7,8 +7,9 @@
   <g transform="translate(64.0,114.0) scale(0.96) translate(-64.0,-114.0)">
   <path d="M 32.0 114.0 q -6 -46 32.0 -50 q 32.0 4 32.0 50 Z" fill="#c7b249" stroke="#27230e" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
   <path d="M 64.0 56.0 L 64.0 110.0" fill="none" stroke="#6f6429" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M 45.3 55.9 q 0 -40.8 18.7 -10.2 q 18.7 30.6 18.7 39.1 Z" fill="#f7e692" stroke="#27230e" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
-  <ellipse cx="64.0" cy="46.5" rx="10.5" ry="8.5" fill="#27230e" stroke="#27230e" stroke-width="0.0"/>
+  <path d="M 47.6 56.4 q 16.4 -30.0 32.8 0 Z" fill="#f7e692" stroke="#27230e" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <ellipse cx="64.0" cy="46.4" rx="10.0" ry="8.4" fill="#27230e" stroke="#27230e" stroke-width="0.0"/>
+  <path d="M 48.0 56.8 L 80.0 56.8" fill="none" stroke="#6f6429" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
   <path d="M 92 32 L 88 108" fill="none" stroke="#7a5a34" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
   <ellipse cx="93.0" cy="24.0" rx="10.0" ry="10.0" fill="#dac350" stroke="#27230e" stroke-width="2.5"/>
   </g>

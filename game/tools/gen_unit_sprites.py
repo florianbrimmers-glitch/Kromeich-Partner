@@ -245,12 +245,36 @@ def head(kind, p, cx, cy, r):
                                                           cx + r * 0.6, cy + r * 0.1),
                              p["line"], 3.0))
     elif kind == "helm_great":
-        o.append(poly([(cx - r, cy - r), (cx + r, cy - r),
-                       (cx + r * 0.9, cy + r), (cx - r * 0.9, cy + r)], p["metal"], p))
-        o.append(stroke_path("M %.1f %.1f L %.1f %.1f" % (cx - r * 0.7, cy,
-                                                          cx + r * 0.7, cy), p["line"], 3.5))
-        o.append(poly([(cx - 2.5, cy - r), (cx + 2.5, cy - r),
-                       (cx + 1.5, cy - r - 11), (cx - 1.5, cy - r - 11)], p["accent"], p, 2.0))
+        # Topfhelm. Vorher ein RECHTECK - und weil der Rumpf von
+        # `humanoid broad` auch eines ist und die beiden Schwerter als
+        # senkrechte Balken danebenstanden, las sich der Kreuzritter als
+        # Kiste mit Tuerrahmen (It. 47, am Kontaktbogen gesehen).
+        #
+        # Jetzt bricht die Form an drei Stellen: die Kalotte oben ist
+        # gerundet, das Kinn laeuft schmal zu, und der Helmbusch ist breit
+        # genug, um die Silhouette oben aufzureissen. Ein Helm, der sich
+        # vom Rumpf unterscheidet, macht aus zwei Rechtecken eine Figur.
+        o.append(path("M %.1f %.1f q 0 -%.1f %.1f -%.1f q %.1f 0 %.1f %.1f "
+                      "l -%.1f %.1f l -%.1f 0 Z"
+                      % (cx - r, cy + r * 0.15,
+                         r * 1.5, r, r * 1.15,
+                         r, r, r * 1.15,
+                         r * 0.35, r * 0.95,
+                         r * 1.3),
+                      p["metal"], p))
+        # Sehschlitz.
+        o.append(stroke_path("M %.1f %.1f L %.1f %.1f" % (cx - r * 0.72, cy,
+                                                          cx + r * 0.72, cy), p["line"], 3.5))
+        # Helmbusch: breit und nach hinten geneigt, nicht der duenne Dorn
+        # von vorher (der verschwand auf dem Token voellig).
+        # Hoehe bewusst knapp: der Pruefer am Ende der Datei meldet alles,
+        # was aus der 128er-Flaeche laeuft, und der erste Versuch stand mit
+        # y -6 darueber. Lieber ein kurzer Busch als ein abgeschnittener.
+        o.append(path("M %.1f %.1f q %.1f -%.1f %.1f -%.1f q -%.1f %.1f -%.1f %.1f Z"
+                      % (cx - r * 0.4, cy - r * 0.85,
+                         r * 0.1, r * 0.4, r * 0.85, r * 0.62,
+                         r * 0.18, r * 0.2, r * 0.85, r * 0.34),
+                      p["accent"], p, 1.6))
     elif kind == "helm_horned":
         o.append(ell(cx, cy, r, r * 1.05, p["metal"], p))
         for s in (-1, 1):
@@ -270,6 +294,38 @@ def head(kind, p, cx, cy, r):
                       % (cx - r * 1.1, cy + r * 0.7, r * 2.4, r * 1.1, r * 0.6,
                          r * 1.1, r * 1.8, r * 1.1, r * 2.3), p["light"], p))
         o.append(ell(cx, cy + r * 0.15, r * 0.62, r * 0.5, p["line"], p, 0.0))
+    elif kind == "cowl":
+        # Kapuze fuer die KEGEL-Silhouette (It. 47). `hood` schwingt
+        # bewusst asymmetrisch nach unten aus - auf dem schmalen Koerper
+        # des Elfen-Schuetzen und beim Gespenst liest sich das als
+        # Umhang. Auf dem breiten Moenchs-Kegel lag derselbe Schwung
+        # halb NEBEN dem Koerper und wurde zum Haken: die Figur sah aus
+        # wie eine Glocke mit Griff (am Kontaktbogen gesehen).
+        #
+        # Diese Variante ist symmetrisch und sitzt OBEN AUF: runde
+        # Kalotte, gerade Unterkante, dunkles Gesicht in der Mitte. Der
+        # Kegel bleibt Kegel, der Kopf wird ein Kopf.
+        # EIN Bogen mit dem Kontrollpunkt genau ueber der Mitte - das ist
+        # symmetrisch. Der erste Anlauf hat die zwei Boegen von `hood`
+        # uebernommen und nur die Zahlen geaendert: der linke stieg auf
+        # y 18, der rechte fiel auf y 70, und die "symmetrische" Kapuze
+        # sass wieder schief neben dem Kegel. Am Bild gesehen, nicht am
+        # Code - im Code sah die Zeile symmetrisch aus.
+        # Schmaler als die Schultern und RUND, nicht spitz: mit r Breite
+        # und Kontrollpunkt 2,2r hoch war es ein Lampenschirm. Und das
+        # Gesicht muss gross genug sein, um als Gesicht durchzugehen -
+        # ein dunkler Schlitz reicht nicht.
+        o.append(path("M %.1f %.1f q %.1f -%.1f %.1f 0 Z"
+                      % (cx - r * 0.82, cy + r * 0.62, r * 0.82, r * 1.5,
+                         r * 1.64),
+                      p["light"], p))
+        o.append(ell(cx, cy + r * 0.12, r * 0.5, r * 0.42, p["line"], p, 0.0))
+        # Schulterlinie: trennt Kapuze und Kutte, sonst laufen zwei Flaechen
+        # derselben Familie ineinander (bei den Menschen sind `light` und
+        # `main` beide gelb).
+        o.append(stroke_path("M %.1f %.1f L %.1f %.1f"
+                             % (cx - r * 0.8, cy + r * 0.64,
+                                cx + r * 0.8, cy + r * 0.64), p["dark"], 3.0))
     elif kind == "skull":
         o.append(path("M %.1f %.1f a %.1f %.1f 0 1 1 %.1f 0 l -%.1f %.1f "
                       "l -%.1f 0 Z"
@@ -416,8 +472,25 @@ def weapon(kind, p):
         o.append(poly([(82, 72), (108, 68), (109, 78), (83, 82)], p["accent"], p, 2.0))
         o.append(stroke_path("M 90 80 L 95 96", p["wood"], 5.0))
     elif kind == "twin_swords":
-        o.append(poly([(92, 62), (100, 60), (106, 20), (97, 22)], p["metal"], p, 2.0))
-        o.append(poly([(36, 60), (28, 62), (22, 22), (31, 20)], p["metal"], p, 2.0))
+        # GEKREUZT, nicht senkrecht (It. 47). Vorher standen zwei fast
+        # senkrechte Klingen links und rechts NEBEN dem Rumpf - zusammen
+        # mit dem rechteckigen Torso ergab das einen Tuerrahmen. Und ohne
+        # Parierstange fehlte das eine Merkmal, an dem man ein Schwert
+        # ueberhaupt erkennt (`sword` und `greatsword` haben sie beide).
+        #
+        # Jetzt zwei diagonale Klingen, die sich hinter den Schultern
+        # kreuzen: das ist die Lesart, die man von einem Kreuzritter
+        # erwartet, und sie bricht die Senkrechte des Rumpfes.
+        for sgn, x0, x1 in ((1, 44.0, 104.0), (-1, 84.0, 24.0)):
+            dx: float = 3.5 * sgn
+            o.append(poly([(x0 - dx, 86.0), (x0 + dx, 82.0),
+                           (x1 + dx, 16.0), (x1 - dx, 20.0)], p["metal"], p, 2.0))
+            # Parierstange quer zur Klinge, nahe am Griff.
+            gx: float = x0 + (x1 - x0) * 0.12
+            gy: float = 86.0 - 70.0 * 0.12
+            o.append(poly([(gx - 9.0 * sgn, gy - 5.0), (gx + 7.0 * sgn, gy - 10.0),
+                           (gx + 9.0 * sgn, gy - 2.0), (gx - 7.0 * sgn, gy + 3.0)],
+                          p["accent"], p, 1.6))
     elif kind == "axe":
         o.append(stroke_path("M 92 34 L 86 100", p["wood"], 5.5))
         o.append(path("M 90 32 q 20 4 16 26 q -14 -6 -20 -4 Z", p["metal"], p, 2.0))
@@ -937,7 +1010,7 @@ RECIPES = {
     "men_griffin":    dict(sil=("quadruped", "lion"),  head="beak",         wpn="claws",
                            wing=("feather", 42, 66)),
     "men_crusader":   dict(sil=("humanoid", "broad"),  head="helm_great",   wpn="twin_swords"),
-    "men_monk":       dict(sil=("robed", None),        head="hood",         wpn="staff"),
+    "men_monk":       dict(sil=("robed", None),        head="cowl",         wpn="staff"),
     "men_cavalier":   dict(sil=("mounted", "horse"),   head="helm_conical", wpn="lance"),
     "men_angel":      dict(sil=("humanoid", "broad"),  head="halo",         wpn="sword",
                            wing=("feather", 47, 44)),
@@ -1014,7 +1087,11 @@ def build(unit):
         head_at = (CX, hy, 16.0)
     elif kind == "robed":
         body, hy = sil_robed(p)
-        head_at = (CX, hy, 17.0)
+        # 20 statt 17 (It. 47): auf dem KEGEL sitzt der Kopf ueber einer
+        # sehr breiten Flaeche, und mit 17 war er auf dem Token nur noch
+        # ein Nubbel - die Figur las sich als Glocke. Am Kontaktbogen in
+        # Token-Groesse entschieden, nicht in der Vergroesserung.
+        head_at = (CX, hy, 20.0)
     elif kind == "skeletal":
         body, hy = sil_skeletal(p)
         head_at = (CX, hy, 16.0)
