@@ -29,13 +29,18 @@ func _init() -> void:
 	await _test_worldmap()
 	_test_migration()
 
-	var expected: Array = ["table", "pathfinder", "worldmap", "migration"]
-	var aborted: Array = []
-	for name in expected:
-		if not _done.has(String(name)):
-			aborted.append(String(name))
-	_check(aborted.is_empty(),
-		"jede Test-Funktion lief bis zum Ende durch (abgebrochen: %s)" % str(aborted))
+	# Abschluss-Marken: die Soll-Liste kommt aus der Methodentabelle des
+	# Skripts selbst (It. 31, vorher eine Liste von Hand). Damit faellt
+	# zweierlei auf: eine Funktion, die mitten drin abbricht, UND eine neue
+	# Testfunktion, die niemand aus _init aufruft.
+	var missing: Array = []
+	for m in get_method_list():
+		var mn: String = String(m["name"])
+		if mn.begins_with("_test") and not _done.has(mn):
+			missing.append(mn)
+	_check(missing.is_empty(),
+		"jede Test-Funktion lief bis zum Ende durch (abgebrochen: %s)"
+		% str(missing))
 
 	print("")
 	if _fails == 0:
@@ -92,7 +97,7 @@ func _test_table() -> void:
 		"MapGen.terrain_cost kommt aus Movement")
 	_check(MapGen.is_passable(5) and not MapGen.is_passable(3),
 		"MapGen.is_passable ebenfalls")
-	_done.append("table")
+	_done.append("_test_table")
 
 
 # Kleine Handkarte: Zeile 0 ist Gras, Zeile 1 Wald, Zeile 2 Sumpf.
@@ -125,7 +130,7 @@ func _test_pathfinder() -> void:
 		"mit Wegfindung III nur noch 2 x 4 (ist %d)" % int(c3.get(Vector2i(0, 2), -1)))
 	_check(int(c3.get(Vector2i(1, 0), -1)) == Move.UNIT,
 		"das Grasfeld bleibt gleich teuer")
-	_done.append("pathfinder")
+	_done.append("_test_pathfinder")
 
 
 func _test_worldmap() -> void:
@@ -193,7 +198,7 @@ func _test_worldmap() -> void:
 
 	wm.queue_free()
 	await process_frame
-	_done.append("worldmap")
+	_done.append("_test_worldmap")
 
 
 func _test_migration() -> void:
@@ -235,4 +240,4 @@ func _test_migration() -> void:
 			var m3: Dictionary = SaveLib.migrate(m2)
 			_check(int((m3["hero"] as Dictionary)["mp"]) == int(h2["mp"]),
 				"nochmal migrieren aendert nichts (idempotent)")
-	_done.append("migration")
+	_done.append("_test_migration")

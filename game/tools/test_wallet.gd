@@ -11,6 +11,7 @@ extends SceneTree
 const SaveLib := preload("res://scripts/core/SaveManager.gd")
 
 var _fails: int = 0
+var _done: Array = []
 
 
 func _init() -> void:
@@ -19,6 +20,21 @@ func _init() -> void:
 	_test_save_roundtrip()
 	await _test_mine_income()
 	_test_market_and_building()
+
+	# Abschluss-Marken (It. 31): jede _test*-Funktion setzt am Ende eine
+	# Marke. Ein Laufzeitfehler bricht in GDScript nur die betroffene
+	# Funktion ab - die Suite laeuft weiter und meldet gruen. Genau so hat
+	# It. 24 einen halben Test verschluckt (geratener Funktionsname). Die
+	# Liste kommt aus der Methodentabelle des Skripts selbst, damit auch
+	# eine NEUE Testfunktion auffaellt, die niemand aufruft.
+	var missing: Array = []
+	for m in get_method_list():
+		var mn: String = String(m["name"])
+		if mn.begins_with("_test") and not _done.has(mn):
+			missing.append(mn)
+	_check(missing.is_empty(),
+		"jede Test-Funktion lief bis zum Ende durch (abgebrochen: %s)"
+		% str(missing))
 
 	print("")
 	if _fails == 0:
@@ -59,6 +75,7 @@ func _test_wallet_math() -> void:
 	_check(Wallet.cost_text({"gold": 800, "wood": 5, "ore": 2}) == "800G 5H 2E",
 		"cost_text kompakt + stabile Reihenfolge")
 	_check(Wallet.cost_text({}) == "", "cost_text leer")
+	_done.append("_test_wallet_math")
 
 
 func _test_market_and_building() -> void:
@@ -111,6 +128,7 @@ func _test_market_and_building() -> void:
 	_check(hero.wallet.get_amount("gems") == 0 and hero.gold == 100,
 		"Kauf ohne Gold aendert nichts")
 	wm.queue_free()
+	_done.append("_test_market_and_building")
 
 
 func _test_hero_gold_property() -> void:
@@ -122,6 +140,7 @@ func _test_hero_gold_property() -> void:
 	_check(h.gold == 800, "gold-Getter liest aus dem Wallet")
 	h.gold -= 300
 	_check(h.gold == 500, "compound assignment (-=) laeuft")
+	_done.append("_test_hero_gold_property")
 
 
 func _test_save_roundtrip() -> void:
@@ -144,6 +163,7 @@ func _test_save_roundtrip() -> void:
 		var fx: Dictionary = JSON.parse_string(ff.get_as_text())
 		var fh := Hero.from_dict(fx["hero"])
 		_check(fh.gold >= 0, "Fixture-Hero laedt (gold=%d)" % fh.gold)
+	_done.append("_test_save_roundtrip")
 
 
 func _test_mine_income() -> void:
@@ -185,3 +205,4 @@ func _test_mine_income() -> void:
 	_check(JSON.stringify(s1) == JSON.stringify(s2), "capture->restore->capture stabil")
 	wm.queue_free()
 	await process_frame
+	_done.append("_test_mine_income")

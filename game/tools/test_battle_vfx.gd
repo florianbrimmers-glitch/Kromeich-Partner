@@ -18,6 +18,7 @@ const Vfx := preload("res://scripts/core/BattleVfx.gd")
 const TBS := preload("res://scripts/ui/TacticalBattleScreen.gd")
 
 var _fails: int = 0
+var _done: Array = []
 
 
 func _init() -> void:
@@ -26,6 +27,21 @@ func _init() -> void:
 	_test_brake()
 	_test_curves()
 	await _test_in_battle()
+
+	# Abschluss-Marken (It. 31): jede _test*-Funktion setzt am Ende eine
+	# Marke. Ein Laufzeitfehler bricht in GDScript nur die betroffene
+	# Funktion ab - die Suite laeuft weiter und meldet gruen. Genau so hat
+	# It. 24 einen halben Test verschluckt (geratener Funktionsname). Die
+	# Liste kommt aus der Methodentabelle des Skripts selbst, damit auch
+	# eine NEUE Testfunktion auffaellt, die niemand aufruft.
+	var missing: Array = []
+	for m in get_method_list():
+		var mn: String = String(m["name"])
+		if mn.begins_with("_test") and not _done.has(mn):
+			missing.append(mn)
+	_check(missing.is_empty(),
+		"jede Test-Funktion lief bis zum Ende durch (abgebrochen: %s)"
+		% str(missing))
 
 	print("")
 	if _fails == 0:
@@ -72,6 +88,7 @@ func _test_queue() -> void:
 	Vfx.spawn(q2, Vfx.NUMBER, {"at": Vector2i.ZERO, "text": "7"})
 	Vfx.spawn(q2, Vfx.POPUP, {"at": Vector2i.ZERO, "text": "Moral!"})
 	_check(not Vfx.busy(q2), "Zahlen und Einblendungen blocken nicht")
+	_done.append("_test_queue")
 
 
 func _test_delay() -> void:
@@ -103,6 +120,7 @@ func _test_delay() -> void:
 	_check(Vfx.time_left_of(q3, Vfx.MOVE) > 0.0, "Anmarsch hat Restzeit")
 	_check(Vfx.time_left_of(q3, Vfx.IMPACT) == 0.0,
 		"time_left_of filtert nach Art")
+	_done.append("_test_delay")
 
 
 func _test_brake() -> void:
@@ -116,6 +134,7 @@ func _test_brake() -> void:
 	_check(changed, "advance mit speed 0 meldet Aenderung")
 	_check(q.is_empty(), "EIN Schritt raeumt alles ab, auch die verzoegerten")
 	_check(not Vfx.busy(q), "Kette laeuft synchron durch")
+	_done.append("_test_brake")
 
 
 func _test_curves() -> void:
@@ -152,6 +171,7 @@ func _test_curves() -> void:
 	rf = Vfx.rise_fade(0.5)
 	_check(float(rf[1]) == 1.0 and float(rf[0]) > 0.0,
 		"in der Mitte schon gestiegen, aber noch voll lesbar")
+	_done.append("_test_curves")
 
 
 func _test_in_battle() -> void:
@@ -225,6 +245,7 @@ func _test_in_battle() -> void:
 
 # Setzt den aktiven Slot auf den ersten lebenden Spieler-Stack, damit
 # _try_attack_enemy den richtigen Angreifer findet.
+	_done.append("_test_in_battle")
 func _activate_player_slot(bs) -> void:
 	bs._rebuild_order()
 	for i in range(bs._turn_order.size()):

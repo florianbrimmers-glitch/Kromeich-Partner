@@ -17,12 +17,28 @@ extends SceneTree
 const SaveLib := preload("res://scripts/core/SaveManager.gd")
 
 var _fails: int = 0
+var _done: Array = []
 
 
 func _init() -> void:
 	_test_codec()
 	_test_file_roundtrip()
 	await _test_scene_roundtrip()
+
+	# Abschluss-Marken (It. 31): jede _test*-Funktion setzt am Ende eine
+	# Marke. Ein Laufzeitfehler bricht in GDScript nur die betroffene
+	# Funktion ab - die Suite laeuft weiter und meldet gruen. Genau so hat
+	# It. 24 einen halben Test verschluckt (geratener Funktionsname). Die
+	# Liste kommt aus der Methodentabelle des Skripts selbst, damit auch
+	# eine NEUE Testfunktion auffaellt, die niemand aufruft.
+	var missing: Array = []
+	for m in get_method_list():
+		var mn: String = String(m["name"])
+		if mn.begins_with("_test") and not _done.has(mn):
+			missing.append(mn)
+	_check(missing.is_empty(),
+		"jede Test-Funktion lief bis zum Ende durch (abgebrochen: %s)"
+		% str(missing))
 
 	print("")
 	if _fails == 0:
@@ -98,6 +114,7 @@ func _test_codec() -> void:
 	r2.set_state_string(s)
 	var a2 := r2.next_int(0, 1000000)
 	_check(a1 == a2, "RNG-State-String stellt Sequenz wieder her")
+	_done.append("_test_codec")
 
 
 func _test_file_roundtrip() -> void:
@@ -116,6 +133,7 @@ func _test_file_roundtrip() -> void:
 	_check(SaveLib.read_save().is_empty(), "korruptes Save -> {}")
 	SaveLib.delete_autosave()
 	_check(not SaveLib.has_autosave(), "delete_autosave entfernt Datei")
+	_done.append("_test_file_roundtrip")
 
 
 func _test_scene_roundtrip() -> void:
@@ -168,3 +186,4 @@ func _test_scene_roundtrip() -> void:
 		_check(conv > 0, "alte Staerke-Zahl wurde zu echten Verteidigern (%d Staedte)" % conv)
 	wm.queue_free()
 	await process_frame
+	_done.append("_test_scene_roundtrip")

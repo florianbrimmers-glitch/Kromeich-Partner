@@ -22,6 +22,7 @@ const Fx := preload("res://scripts/core/StatusFx.gd")
 const TBS := preload("res://scripts/ui/TacticalBattleScreen.gd")
 
 var _fails: int = 0
+var _done: Array = []
 # GDScript-Lambdas fangen lokale Variablen als KOPIE. Ein
 # "func(r): got = r" auf eine lokale Variable schreibt also ins Nichts -
 # das Kampf-Ergebnis muss in einem Feld landen.
@@ -34,6 +35,21 @@ func _init() -> void:
 	_test_status()
 	await _test_battle()
 	await _test_worldmap()
+
+	# Abschluss-Marken (It. 31): jede _test*-Funktion setzt am Ende eine
+	# Marke. Ein Laufzeitfehler bricht in GDScript nur die betroffene
+	# Funktion ab - die Suite laeuft weiter und meldet gruen. Genau so hat
+	# It. 24 einen halben Test verschluckt (geratener Funktionsname). Die
+	# Liste kommt aus der Methodentabelle des Skripts selbst, damit auch
+	# eine NEUE Testfunktion auffaellt, die niemand aufruft.
+	var missing: Array = []
+	for m in get_method_list():
+		var mn: String = String(m["name"])
+		if mn.begins_with("_test") and not _done.has(mn):
+			missing.append(mn)
+	_check(missing.is_empty(),
+		"jede Test-Funktion lief bis zum Ende durch (abgebrochen: %s)"
+		% str(missing))
 
 	print("")
 	if _fails == 0:
@@ -119,6 +135,7 @@ func _test_data() -> void:
 	# Stufe 5 bleibt unerreichbar - genau deshalb sind Implosion und
 	# Armageddon nicht umgesetzt.
 	_check(Spl.max_spell_level(9) == 4, "kein Weg auf Stufe 5 (Relikt fehlt)")
+	_done.append("_test_data")
 
 
 func _test_known() -> void:
@@ -180,6 +197,7 @@ func _test_known() -> void:
 	# Mana begrenzt die Auswahl.
 	_check(Spl.castable(men, 3, 0).is_empty(), "ohne Mana nichts wirkbar")
 	_check(not Spl.castable(men, 3, 999).is_empty(), "mit viel Mana wirkbar")
+	_done.append("_test_known")
 
 
 func _test_status() -> void:
@@ -212,6 +230,7 @@ func _test_status() -> void:
 			unknown.append("%s -> %s" % [String(sid), nm])
 	_check(unknown.is_empty(),
 		"jeder Status-Zauber trifft einen bekannten Status (%s)" % str(unknown))
+	_done.append("_test_status")
 
 
 func _test_battle() -> void:
@@ -427,6 +446,7 @@ func _test_battle() -> void:
 
 	bs2.queue_free()
 	await process_frame
+	_done.append("_test_battle")
 
 
 func _test_worldmap() -> void:
@@ -466,6 +486,7 @@ func _test_worldmap() -> void:
 
 	wm.queue_free()
 	await process_frame
+	_done.append("_test_worldmap")
 
 
 func _on_battle_result(r: Dictionary) -> void:

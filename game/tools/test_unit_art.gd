@@ -30,13 +30,18 @@ func _init() -> void:
 	_test_garrison_panel()
 	await _test_hero_panel()
 
-	var expected: Array = ["module", "recruit", "garrison", "hero_panel"]
-	var aborted: Array = []
-	for name in expected:
-		if not _done.has(String(name)):
-			aborted.append(String(name))
-	_check(aborted.is_empty(),
-		"jede Test-Funktion lief bis zum Ende durch (abgebrochen: %s)" % str(aborted))
+	# Abschluss-Marken: die Soll-Liste kommt aus der Methodentabelle des
+	# Skripts selbst (It. 31, vorher eine Liste von Hand). Damit faellt
+	# zweierlei auf: eine Funktion, die mitten drin abbricht, UND eine neue
+	# Testfunktion, die niemand aus _init aufruft.
+	var missing: Array = []
+	for m in get_method_list():
+		var mn: String = String(m["name"])
+		if mn.begins_with("_test") and not _done.has(mn):
+			missing.append(mn)
+	_check(missing.is_empty(),
+		"jede Test-Funktion lief bis zum Ende durch (abgebrochen: %s)"
+		% str(missing))
 
 	print("")
 	if _fails == 0:
@@ -90,7 +95,7 @@ func _test_module() -> void:
 	_check(line.contains("Schuss"), "Fernkaempfer zeigen ihre Munition")
 	_check(not UnitArt.stat_line("men_spearman").contains("Schuss"),
 		"Nahkaempfer nicht")
-	_done.append("module")
+	_done.append("_test_module")
 
 
 func _city_ctx(hero: Hero, city: Dictionary) -> Dictionary:
@@ -144,7 +149,7 @@ func _test_recruit_panel() -> void:
 	_check(lbl != null and lbl.text.contains("+%d/Wo" % UnitType.growth_of("men_archer")),
 		"Wachstum weiterhin drin")
 	cs.queue_free()
-	_done.append("recruit")
+	_done.append("_test_recruit_panel")
 
 
 func _test_garrison_panel() -> void:
@@ -172,7 +177,7 @@ func _test_garrison_panel() -> void:
 			no_icon += 1
 	_check(no_icon == 0, "jede Zeile zeigt ein Kreatur-Bild (%d ohne)" % no_icon)
 	cs.queue_free()
-	_done.append("garrison")
+	_done.append("_test_garrison_panel")
 
 
 func _test_hero_panel() -> void:
@@ -230,4 +235,4 @@ func _test_hero_panel() -> void:
 
 	wm.queue_free()
 	await process_frame
-	_done.append("hero_panel")
+	_done.append("_test_hero_panel")

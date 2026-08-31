@@ -24,6 +24,7 @@ const Fx := preload("res://scripts/core/StatusFx.gd")
 const Mor := preload("res://scripts/core/Morale.gd")
 
 var _fails: int = 0
+var _done: Array = []
 
 
 func _init() -> void:
@@ -39,6 +40,21 @@ func _init() -> void:
 	await _test_ability_combat()
 	await _test_status_combat()
 	await _test_morale_combat()
+
+	# Abschluss-Marken (It. 31): jede _test*-Funktion setzt am Ende eine
+	# Marke. Ein Laufzeitfehler bricht in GDScript nur die betroffene
+	# Funktion ab - die Suite laeuft weiter und meldet gruen. Genau so hat
+	# It. 24 einen halben Test verschluckt (geratener Funktionsname). Die
+	# Liste kommt aus der Methodentabelle des Skripts selbst, damit auch
+	# eine NEUE Testfunktion auffaellt, die niemand aufruft.
+	var missing: Array = []
+	for m in get_method_list():
+		var mn: String = String(m["name"])
+		if mn.begins_with("_test") and not _done.has(mn):
+			missing.append(mn)
+	_check(missing.is_empty(),
+		"jede Test-Funktion lief bis zum Ende durch (abgebrochen: %s)"
+		% str(missing))
 
 	print("")
 	if _fails == 0:
@@ -150,6 +166,7 @@ func _test_sprite_coverage() -> void:
 
 
 # Iteration 16: Layout-Invarianten des Kampf-Bildschirms.
+	_done.append("_test_sprite_coverage")
 func _test_layout() -> void:
 	print("== Kampf-Layout ==")
 	var bs = TBS.new()
@@ -177,6 +194,7 @@ func _test_layout() -> void:
 	_check(bs.LOG_LINES == 3, "Kampf-Log auf 3 Zeilen gekuerzt")
 	bs.queue_free()
 	await process_frame
+	_done.append("_test_layout")
 
 
 func _test_getters() -> void:
@@ -187,6 +205,7 @@ func _test_getters() -> void:
 	_check(UnitType.has_ability("men_archer", "melee_penalty_half"), "Armbruster: melee_penalty_half")
 	_check(not UnitType.has_ability("ork_orc", "no_melee_penalty"), "Orkschuetze: Standard-Malus")
 	_check(not UnitType.has_ability("elf_treant", "ranged"), "Treant ist kein Schuetze")
+	_done.append("_test_getters")
 
 
 func _test_melee_penalty_flags() -> void:
@@ -210,6 +229,7 @@ func _test_melee_penalty_flags() -> void:
 			_check(absf(float(d_pen) - float(d_no) * factor) <= 1.0,
 				"%s: Malus x%.2f (%d von %d)" % [uid, factor, d_pen, d_no])
 		_check(d_no >= 10, "%s: Basis-Schaden plausibel (%d)" % [uid, d_no])
+	_done.append("_test_melee_penalty_flags")
 
 
 func _test_ability_rules() -> void:
@@ -255,6 +275,7 @@ func _test_ability_rules() -> void:
 	_check(Abil.ignores_obstacles("men_angel") and Abil.ignores_obstacles("nec_bonedragon"),
 		"Engel und Knochendrache fliegen")
 	_check(not Abil.ignores_obstacles("men_spearman"), "Speertraeger fliegt nicht")
+	_done.append("_test_ability_rules")
 
 
 func _test_heal() -> void:
@@ -272,6 +293,7 @@ func _test_heal() -> void:
 	var dead: Dictionary = {"type": "men_spearman", "count": 0, "count_start": 5, "top_hp": 0}
 	_check(CombatMath.heal(dead, 50) == 0 and int(dead["count"]) == 0,
 		"vernichteter Stack bleibt tot")
+	_done.append("_test_heal")
 
 
 func _test_status_rules() -> void:
@@ -321,6 +343,7 @@ func _test_status_rules() -> void:
 		"vernichteter Stack bekommt keinen Status")
 	_check(Fx.aoe_fraction("nec_lich") > 0.0 and Fx.aoe_fraction("men_archer") == 0.0,
 		"nur der Lich hat eine Todeswolke")
+	_done.append("_test_status_rules")
 
 
 func _test_morale_rules() -> void:
@@ -386,6 +409,7 @@ func _test_morale_rules() -> void:
 
 
 # Kleiner Stack-Helfer fuer die Moral-Tests.
+	_done.append("_test_morale_rules")
 func _st(uid: String, count: int = 5) -> Dictionary:
 	return {"type": uid, "count": count, "top_hp": UnitType.hp_of(uid)}
 
@@ -471,6 +495,7 @@ func _test_morale_combat() -> void:
 
 	bs.queue_free()
 	await process_frame
+	_done.append("_test_morale_combat")
 
 
 func _test_status_combat() -> void:
@@ -549,6 +574,7 @@ func _test_status_combat() -> void:
 
 	bs.queue_free()
 	await process_frame
+	_done.append("_test_status_combat")
 
 
 func _test_limited_shots() -> void:
@@ -599,6 +625,7 @@ func _test_limited_shots() -> void:
 	await create_timer(0.6).timeout
 	bs.queue_free()
 	await process_frame
+	_done.append("_test_limited_shots")
 
 
 func _test_ability_combat() -> void:
@@ -675,6 +702,7 @@ func _test_ability_combat() -> void:
 
 
 # Turn-Order-Slot des Spieler-Stacks aktivieren, egal welche Speed.
+	_done.append("_test_ability_combat")
 func _activate_player_slot(bs) -> void:
 	bs._rebuild_order()
 	for i in range(bs._turn_order.size()):

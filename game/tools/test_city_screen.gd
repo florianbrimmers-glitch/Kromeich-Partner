@@ -12,6 +12,7 @@ extends SceneTree
 var _got_recruit: String = ""
 var _got_build: String = ""
 var _got_plaza: String = ""
+var _done: Array = []
 
 
 func _init() -> void:
@@ -183,6 +184,21 @@ func _init() -> void:
 	#    diese Suite jetzt rot.
 	ok = _test_assets_complete(cs) and ok
 
+	# Abschluss-Marken (It. 31): jede _test*-Funktion setzt am Ende eine
+	# Marke. Ein Laufzeitfehler bricht in GDScript nur die betroffene
+	# Funktion ab - die Suite laeuft weiter und meldet gruen. Genau so hat
+	# It. 24 einen halben Test verschluckt (geratener Funktionsname). Die
+	# Liste kommt aus der Methodentabelle des Skripts selbst, damit auch
+	# eine NEUE Testfunktion auffaellt, die niemand aufruft.
+	var missing: Array = []
+	for m in get_method_list():
+		var mn: String = String(m["name"])
+		if mn.begins_with("_test") and not _done.has(mn):
+			missing.append(mn)
+	ok = _check(missing.is_empty(),
+		"jede Test-Funktion lief bis zum Ende durch (abgebrochen: %s)"
+		% str(missing)) and ok
+
 	print("")
 	if ok:
 		print("CityScreen-Smoke-Test: ALLE CHECKS GRUEN")
@@ -249,4 +265,5 @@ func _test_assets_complete(cs) -> bool:
 	ok = _check(plain_fallback.is_empty(),
 		"alle Fraktionen haben einen gemalten Hintergrund (ohne: %s)"
 		% str(plain_fallback)) and ok
+	_done.append("_test_assets_complete")
 	return ok

@@ -63,9 +63,17 @@ geprueft hat. Zugnummer aus Woche: `turn = (week - 1) * 7`.
 **Test-Falle: ein Laufzeitfehler in einer Test-Funktion faellt NICHT auf.**
 GDScript bricht nur die betroffene Funktion ab; die Suite laeuft weiter und
 meldet gruen. In It. 24 hat ein geratener Funktionsname (`collect_state`
-statt `_capture_state`) so einen halben Test verschluckt. Gegenmittel in
-`test_map_objects.gd`: jede Test-Funktion setzt am Ende eine Marke, und ein
-Abschluss-Check verlangt alle Marken.
+statt `_capture_state`) so einen halben Test verschluckt.
+
+Seit It. 31 haben ALLE 17 Suiten die Gegenmassnahme: jede `_test*`-Funktion
+setzt als letzte Zeile `_done.append("<name>")`, und ein Abschluss-Check
+vergleicht das mit `get_method_list()` - die Soll-Liste kommt also aus dem
+Skript selbst. Damit faellt zweierlei auf: eine Funktion, die mitten drin
+abbricht, UND eine neue Testfunktion, die niemand aus `_init` aufruft.
+Beides gegengeprueft mit absichtlich kaputten Kopien (Aufruf entfernt bzw.
+nil-Zugriff in einer awaited Funktion) - in beiden Faellen wird die Suite
+rot und nennt die Funktion. **Wer eine Testfunktion hinzufuegt, braucht die
+Marke**, sonst ist die Suite rot; das ist Absicht.
 
 **Test-Falle: GDScript-Lambdas fangen lokale Variablen als KOPIE.** Ein
 `signal.connect(func(r): got = r)` auf eine LOKALE Variable schreibt ins

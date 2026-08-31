@@ -38,13 +38,18 @@ func _init() -> void:
 	await _test_battle()
 	await _test_worldmap()
 
-	var expected_marks: Array = ["files", "bus", "battle", "worldmap"]
-	var aborted: Array = []
-	for name in expected_marks:
-		if not _done.has(String(name)):
-			aborted.append(String(name))
-	_check(aborted.is_empty(),
-		"jede Test-Funktion lief bis zum Ende durch (abgebrochen: %s)" % str(aborted))
+	# Abschluss-Marken: die Soll-Liste kommt aus der Methodentabelle des
+	# Skripts selbst (It. 31, vorher eine Liste von Hand). Damit faellt
+	# zweierlei auf: eine Funktion, die mitten drin abbricht, UND eine neue
+	# Testfunktion, die niemand aus _init aufruft.
+	var missing: Array = []
+	for m in get_method_list():
+		var mn: String = String(m["name"])
+		if mn.begins_with("_test") and not _done.has(mn):
+			missing.append(mn)
+	_check(missing.is_empty(),
+		"jede Test-Funktion lief bis zum Ende durch (abgebrochen: %s)"
+		% str(missing))
 
 	print("")
 	if _fails == 0:
@@ -92,7 +97,7 @@ func _test_files() -> void:
 	_check(total_bytes < 2 * 1024 * 1024,
 		"Gesamtgroesse unter 2 MB (ist %d KB)" % (total_bytes / 1024))
 	print("        %d KB fuer %d Dateien" % [total_bytes / 1024, EXPECTED.size()])
-	_done.append("files")
+	_done.append("_test_files")
 
 
 func _test_bus() -> void:
@@ -135,7 +140,7 @@ func _test_bus() -> void:
 	bus.queue_free()
 	await process_frame
 	_check(not Sound.available(), "nach dem Entfernen wieder still")
-	_done.append("bus")
+	_done.append("_test_bus")
 
 
 # Haengt einen frischen Bus ein und gibt ihn zurueck.
@@ -201,7 +206,7 @@ func _test_battle() -> void:
 	bs.queue_free()
 	bus.queue_free()
 	await process_frame
-	_done.append("battle")
+	_done.append("_test_battle")
 
 
 func _test_worldmap() -> void:
@@ -246,4 +251,4 @@ func _test_worldmap() -> void:
 	wm.queue_free()
 	bus.queue_free()
 	await process_frame
-	_done.append("worldmap")
+	_done.append("_test_worldmap")

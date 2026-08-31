@@ -32,13 +32,18 @@ func _init() -> void:
 	_test_growth()
 	await _test_worldmap()
 
-	var expected: Array = ["determinism", "distribution", "growth", "worldmap"]
-	var aborted: Array = []
-	for name in expected:
-		if not _done.has(String(name)):
-			aborted.append(String(name))
-	_check(aborted.is_empty(),
-		"jede Test-Funktion lief bis zum Ende durch (abgebrochen: %s)" % str(aborted))
+	# Abschluss-Marken: die Soll-Liste kommt aus der Methodentabelle des
+	# Skripts selbst (It. 31, vorher eine Liste von Hand). Damit faellt
+	# zweierlei auf: eine Funktion, die mitten drin abbricht, UND eine neue
+	# Testfunktion, die niemand aus _init aufruft.
+	var missing: Array = []
+	for m in get_method_list():
+		var mn: String = String(m["name"])
+		if mn.begins_with("_test") and not _done.has(mn):
+			missing.append(mn)
+	_check(missing.is_empty(),
+		"jede Test-Funktion lief bis zum Ende durch (abgebrochen: %s)"
+		% str(missing))
 
 	print("")
 	if _fails == 0:
@@ -106,7 +111,7 @@ func _test_determinism() -> void:
 	var no_units: Dictionary = WeekFx.for_week(99, 3, [])
 	_check(String(no_units.get("kind", "")) != WeekFx.KIND_UNIT,
 		"ohne Einheitenliste keine Einheiten-Woche")
-	_done.append("determinism")
+	_done.append("_test_determinism")
 
 
 func _test_distribution() -> void:
@@ -134,7 +139,7 @@ func _test_distribution() -> void:
 		if int(counts.get(String(kind), 0)) == 0:
 			missing.append(String(kind))
 	_check(missing.is_empty(), "jede Ereignis-Art kommt vor (fehlt: %s)" % str(missing))
-	_done.append("distribution")
+	_done.append("_test_distribution")
 
 
 func _test_growth() -> void:
@@ -164,7 +169,7 @@ func _test_growth() -> void:
 	var harvest: Dictionary = {"kind": WeekFx.KIND_HARVEST, "unit": ""}
 	_check(WeekFx.apply_growth(harvest, uid, base) == base,
 		"Ernte aendert das Wachstum nicht")
-	_done.append("growth")
+	_done.append("_test_growth")
 
 
 func _test_worldmap() -> void:
@@ -256,4 +261,4 @@ func _test_worldmap() -> void:
 
 	_wm.queue_free()
 	await process_frame
-	_done.append("worldmap")
+	_done.append("_test_worldmap")

@@ -9,6 +9,7 @@ extends SceneTree
 # Exit 0 = gruen, Exit 1 = mindestens ein Check rot (CI-tauglich).
 
 var _fails: int = 0
+var _done: Array = []
 
 
 func _init() -> void:
@@ -18,6 +19,21 @@ func _init() -> void:
 	_test_hero_losses()
 	_test_unit_type()
 	_test_other_modules_parse()
+
+	# Abschluss-Marken (It. 31): jede _test*-Funktion setzt am Ende eine
+	# Marke. Ein Laufzeitfehler bricht in GDScript nur die betroffene
+	# Funktion ab - die Suite laeuft weiter und meldet gruen. Genau so hat
+	# It. 24 einen halben Test verschluckt (geratener Funktionsname). Die
+	# Liste kommt aus der Methodentabelle des Skripts selbst, damit auch
+	# eine NEUE Testfunktion auffaellt, die niemand aufruft.
+	var missing: Array = []
+	for m in get_method_list():
+		var mn: String = String(m["name"])
+		if mn.begins_with("_test") and not _done.has(mn):
+			missing.append(mn)
+	_check(missing.is_empty(),
+		"jede Test-Funktion lief bis zum Ende durch (abgebrochen: %s)"
+		% str(missing))
 
 	print("")
 	if _fails == 0:
@@ -62,6 +78,7 @@ func _test_calendar() -> void:
 
 
 # --- GameCalendar: Bresenham-Wachstum ---
+	_done.append("_test_calendar")
 
 func _test_growth_math() -> void:
 	print("== Wachstums-Verteilung ==")
@@ -80,6 +97,7 @@ func _test_growth_math() -> void:
 
 
 # --- Hero: Armee-Slots ---
+	_done.append("_test_growth_math")
 
 func _test_hero_army() -> void:
 	print("== Hero: Armee-Slots ==")
@@ -99,6 +117,7 @@ func _test_hero_army() -> void:
 
 
 # --- Hero: Verlust-Verteilung ---
+	_done.append("_test_hero_army")
 
 func _test_hero_losses() -> void:
 	print("== Hero: Verluste ==")
@@ -116,6 +135,7 @@ func _test_hero_losses() -> void:
 
 
 # --- UnitType: Lookups ---
+	_done.append("_test_hero_losses")
 
 func _test_unit_type() -> void:
 	print("== UnitType (units.json-Fassade, M4) ==")
@@ -168,6 +188,7 @@ func _test_unit_type() -> void:
 # zu kompilieren - sonst gleitet ein Parse-Fehler in MapGen/Pathfinder
 # durch --quit (siehe Run 27363969609, Android-Export hat es erst beim
 # Build erwischt).
+	_done.append("_test_unit_type")
 func _test_other_modules_parse() -> void:
 	print("== Andere Module (Parse-Smoke) ==")
 	var rng := DeterministicRng.new(42)
@@ -177,3 +198,4 @@ func _test_other_modules_parse() -> void:
 	var costs: Dictionary = Pathfinder.compute_costs(map, Vector2i(0, 0))
 	_check(int(costs.get(Vector2i(0, 0), -1)) == 0,
 		"Pathfinder.compute_costs kompiliert + Start-Kosten == 0")
+	_done.append("_test_other_modules_parse")

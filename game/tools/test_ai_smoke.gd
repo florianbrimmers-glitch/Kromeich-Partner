@@ -12,6 +12,10 @@ extends SceneTree
 var _fails: int = 0
 
 
+# KEINE Abschluss-Marken in dieser Suite: sie ist vollstaendig linear, es
+# gibt keine _test*-Funktionen. Ein Abbruch in _init selbst erreicht `quit()`
+# nicht und laesst den CI-Schritt in den Timeout laufen - unschoen, aber
+# sichtbar. Eine Marke waere hier ein Check, der immer gruen ist (It. 31).
 func _init() -> void:
 	var scene := load("res://scenes/WorldMap.tscn") as PackedScene
 	var wm := scene.instantiate()

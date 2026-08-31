@@ -11,6 +11,7 @@ extends SceneTree
 # Karte unabhaengig von der Fraktionswahl (Determinismus-Invariante).
 
 var _fails: int = 0
+var _done: Array = []
 
 
 func _init() -> void:
@@ -57,6 +58,21 @@ func _init() -> void:
 
 	wm.queue_free()
 	await process_frame
+
+	# Abschluss-Marken (It. 31): jede _test*-Funktion setzt am Ende eine
+	# Marke. Ein Laufzeitfehler bricht in GDScript nur die betroffene
+	# Funktion ab - die Suite laeuft weiter und meldet gruen. Genau so hat
+	# It. 24 einen halben Test verschluckt (geratener Funktionsname). Die
+	# Liste kommt aus der Methodentabelle des Skripts selbst, damit auch
+	# eine NEUE Testfunktion auffaellt, die niemand aufruft.
+	var missing: Array = []
+	for m in get_method_list():
+		var mn: String = String(m["name"])
+		if mn.begins_with("_test") and not _done.has(mn):
+			missing.append(mn)
+	_check(missing.is_empty(),
+		"jede Test-Funktion lief bis zum Ende durch (abgebrochen: %s)"
+		% str(missing))
 
 	print("")
 	if _fails == 0:
@@ -148,3 +164,4 @@ func _test_tileset(wm) -> void:
 	_check(ratio > expect * 0.5 and ratio < expect * 2.0,
 		"Nachbarn streuen wie erwartet (%.0f%% gleich, erwartet %.0f%%, erlaubt %.0f-%.0f%%)"
 		% [ratio * 100.0, expect * 100.0, expect * 50.0, expect * 200.0])
+	_done.append("_test_tileset")

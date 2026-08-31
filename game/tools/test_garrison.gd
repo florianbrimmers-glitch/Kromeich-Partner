@@ -16,12 +16,28 @@ extends SceneTree
 const SaveLib := preload("res://scripts/core/SaveManager.gd")
 
 var _fails: int = 0
+var _done: Array = []
 
 
 func _init() -> void:
 	_test_math()
 	await _test_map_and_recruit()
 	await _test_battle_paths()
+
+	# Abschluss-Marken (It. 31): jede _test*-Funktion setzt am Ende eine
+	# Marke. Ein Laufzeitfehler bricht in GDScript nur die betroffene
+	# Funktion ab - die Suite laeuft weiter und meldet gruen. Genau so hat
+	# It. 24 einen halben Test verschluckt (geratener Funktionsname). Die
+	# Liste kommt aus der Methodentabelle des Skripts selbst, damit auch
+	# eine NEUE Testfunktion auffaellt, die niemand aufruft.
+	var missing: Array = []
+	for m in get_method_list():
+		var mn: String = String(m["name"])
+		if mn.begins_with("_test") and not _done.has(mn):
+			missing.append(mn)
+	_check(missing.is_empty(),
+		"jede Test-Funktion lief bis zum Ende durch (abgebrochen: %s)"
+		% str(missing))
 
 	print("")
 	if _fails == 0:
@@ -73,6 +89,7 @@ func _test_math() -> void:
 		"from_stacks ist die Umkehrung")
 	_check(Garrison.summary({}) == "leer", "summary fuer leere Garnison")
 	_check(Garrison.summary({"men_spearman": 3}).contains("3"), "summary nennt die Anzahl")
+	_done.append("_test_math")
 
 
 func _world():
@@ -146,6 +163,7 @@ func _test_map_and_recruit() -> void:
 		"voller Held: Einheit bleibt in der Garnison")
 	wm.queue_free()
 	await process_frame
+	_done.append("_test_map_and_recruit")
 
 
 func _test_battle_paths() -> void:
@@ -234,3 +252,4 @@ func _test_battle_paths() -> void:
 		if UnitType.faction_of(String(uid)) != 2:
 			_check(false, "migrierte Garnison nutzt die Stadt-Fraktion")
 	_check(true, "migrierte Garnison passt zur Fraktion")
+	_done.append("_test_battle_paths")

@@ -17,6 +17,7 @@ const TBS := preload("res://scripts/ui/TacticalBattleScreen.gd")
 const Obst := preload("res://scripts/core/BattleObstacles.gd")
 
 var _fails: int = 0
+var _done: Array = []
 
 
 func _init() -> void:
@@ -25,6 +26,21 @@ func _init() -> void:
 	await _test_pathing_and_breach()
 	await _test_defender_bonus_and_tower()
 	await _test_faction_guards()
+
+	# Abschluss-Marken (It. 31): jede _test*-Funktion setzt am Ende eine
+	# Marke. Ein Laufzeitfehler bricht in GDScript nur die betroffene
+	# Funktion ab - die Suite laeuft weiter und meldet gruen. Genau so hat
+	# It. 24 einen halben Test verschluckt (geratener Funktionsname). Die
+	# Liste kommt aus der Methodentabelle des Skripts selbst, damit auch
+	# eine NEUE Testfunktion auffaellt, die niemand aufruft.
+	var missing: Array = []
+	for m in get_method_list():
+		var mn: String = String(m["name"])
+		if mn.begins_with("_test") and not _done.has(mn):
+			missing.append(mn)
+	_check(missing.is_empty(),
+		"jede Test-Funktion lief bis zum Ende durch (abgebrochen: %s)"
+		% str(missing))
 
 	print("")
 	if _fails == 0:
@@ -48,6 +64,7 @@ func _test_wall_kind() -> void:
 	_check(not Obst.halves_damage(Obst.KIND_WALL), "Mauer halbiert nicht (sie blockt ganz)")
 	_check(Obst.display_name(Obst.KIND_WALL) == "Mauer", "Anzeigename")
 	_check(Obst.WALL_SEGMENT_HP == 2, "Segment haelt 2 Katapult-Treffer")
+	_done.append("_test_wall_kind")
 
 
 func _test_wall_layout() -> void:
@@ -70,6 +87,7 @@ func _test_wall_layout() -> void:
 	_check(gate_free, "Tor-Reihe %d bleibt frei" % gate)
 	# Die Mauer muss VOR der Verteidiger-Startreihe (cols-2) liegen.
 	_check(col < 10 - 2, "Mauer liegt vor der Verteidiger-Reihe")
+	_done.append("_test_wall_layout")
 
 
 func _siege_screen(player: Array, enemy: Array, tower: int = 0):
@@ -135,6 +153,7 @@ func _test_pathing_and_breach() -> void:
 	_check(after_breach.has(breach), "Fussvolk kann durch die Bresche laufen")
 	bs.queue_free()
 	await process_frame
+	_done.append("_test_pathing_and_breach")
 
 
 func _test_defender_bonus_and_tower() -> void:
@@ -185,6 +204,7 @@ func _test_defender_bonus_and_tower() -> void:
 	_check(not bs._try_attack_wall(spear, seg), "ohne attack_wall keine Mauer-Attacke")
 	bs.queue_free()
 	await process_frame
+	_done.append("_test_defender_bonus_and_tower")
 
 
 func _test_faction_guards() -> void:
@@ -216,6 +236,7 @@ func _test_faction_guards() -> void:
 		"Stadt ohne Mauer: keine Belagerung")
 	wm.queue_free()
 	await process_frame
+	_done.append("_test_faction_guards")
 
 
 func _stack_hp(s: Dictionary) -> int:

@@ -41,14 +41,18 @@ func _init() -> void:
 	await _test_tactics()
 	await _test_necromancy()
 
-	var expected: Array = ["data", "offer", "hero", "worldmap", "battle",
-		"tactics", "necromancy"]
-	var aborted: Array = []
-	for name in expected:
-		if not _done.has(String(name)):
-			aborted.append(String(name))
-	_check(aborted.is_empty(),
-		"jede Test-Funktion lief bis zum Ende durch (abgebrochen: %s)" % str(aborted))
+	# Abschluss-Marken: die Soll-Liste kommt aus der Methodentabelle des
+	# Skripts selbst (It. 31, vorher eine Liste von Hand). Damit faellt
+	# zweierlei auf: eine Funktion, die mitten drin abbricht, UND eine neue
+	# Testfunktion, die niemand aus _init aufruft.
+	var missing: Array = []
+	for m in get_method_list():
+		var mn: String = String(m["name"])
+		if mn.begins_with("_test") and not _done.has(mn):
+			missing.append(mn)
+	_check(missing.is_empty(),
+		"jede Test-Funktion lief bis zum Ende durch (abgebrochen: %s)"
+		% str(missing))
 
 	print("")
 	if _fails == 0:
@@ -138,7 +142,7 @@ func _test_data() -> void:
 			empty_text.append(String(sid2))
 	_check(empty_text.is_empty(), "jeder Skill beschreibt seine Stufe (%s)"
 		% str(empty_text))
-	_done.append("data")
+	_done.append("_test_data")
 
 
 func _test_offer() -> void:
@@ -232,7 +236,7 @@ func _test_offer() -> void:
 	_check(int(counts.get("spell_power", 0)) < int(counts.get("attack", 0)) / 2,
 		"Orks zaubern kaum (Zauberkraft %d vs Angriff %d)"
 		% [int(counts.get("spell_power", 0)), int(counts.get("attack", 0))])
-	_done.append("offer")
+	_done.append("_test_offer")
 
 
 func _test_hero() -> void:
@@ -260,7 +264,7 @@ func _test_hero() -> void:
 	var h3: Hero = Hero.from_dict(old_save)
 	_check(h3.att == 0 and h3.skills.is_empty(),
 		"Save ohne M7-Felder laedt mit Nullwerten (keine Migration noetig)")
-	_done.append("hero")
+	_done.append("_test_hero")
 
 
 func _test_worldmap() -> void:
@@ -309,7 +313,7 @@ func _test_worldmap() -> void:
 
 	wm.queue_free()
 	await process_frame
-	_done.append("worldmap")
+	_done.append("_test_worldmap")
 
 
 func _test_battle() -> void:
@@ -398,7 +402,7 @@ func _test_battle() -> void:
 	bs.queue_free()
 	bs2.queue_free()
 	await process_frame
-	_done.append("battle")
+	_done.append("_test_battle")
 
 
 # --- M7 Teil 2: Taktik-Aufstellung ---------------------------------------
@@ -499,7 +503,7 @@ func _test_tactics() -> void:
 		"und kein Knopf dafuer")
 	bs2.queue_free()
 	await process_frame
-	_done.append("tactics")
+	_done.append("_test_tactics")
 
 
 # --- M7 Teil 2: Totenerweckung -------------------------------------------
@@ -595,4 +599,4 @@ func _test_necromancy() -> void:
 
 	wm.queue_free()
 	await process_frame
-	_done.append("necromancy")
+	_done.append("_test_necromancy")

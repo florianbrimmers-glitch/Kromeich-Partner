@@ -38,14 +38,18 @@ func _init() -> void:
 	_test_windmill()
 	await _test_save()
 
-	var expected: Array = ["placement", "shrines", "well", "learning",
-		"windmill", "save"]
-	var aborted: Array = []
-	for name in expected:
-		if not _done.has(String(name)):
-			aborted.append(String(name))
-	_check(aborted.is_empty(),
-		"jede Test-Funktion lief bis zum Ende durch (abgebrochen: %s)" % str(aborted))
+	# Abschluss-Marken: die Soll-Liste kommt aus der Methodentabelle des
+	# Skripts selbst (It. 31, vorher eine Liste von Hand). Damit faellt
+	# zweierlei auf: eine Funktion, die mitten drin abbricht, UND eine neue
+	# Testfunktion, die niemand aus _init aufruft.
+	var missing: Array = []
+	for m in get_method_list():
+		var mn: String = String(m["name"])
+		if mn.begins_with("_test") and not _done.has(mn):
+			missing.append(mn)
+	_check(missing.is_empty(),
+		"jede Test-Funktion lief bis zum Ende durch (abgebrochen: %s)"
+		% str(missing))
 
 	_wm.queue_free()
 	await process_frame
@@ -114,7 +118,7 @@ func _test_placement() -> void:
 		if String(_wm.call("_visit_bonus_object", _obj(int(kind3)))) == "":
 			silent.append(str(int(kind3)))
 	_check(silent.is_empty(), "jede Bonus-Art gibt eine Rueckmeldung (%s)" % str(silent))
-	_done.append("placement")
+	_done.append("_test_placement")
 
 
 func _test_shrines() -> void:
@@ -142,7 +146,7 @@ func _test_shrines() -> void:
 	var garden: Dictionary = _obj(int(_wm.get("OBJECT_SHRINE_KNOW")))
 	_wm.call("_visit_bonus_object", garden)
 	_check(int(hero.mana) > 0, "Garten hebt das Mana sofort mit (ist %d)" % int(hero.mana))
-	_done.append("shrines")
+	_done.append("_test_shrines")
 
 
 func _field_of(stat_id: String) -> String:
@@ -181,7 +185,7 @@ func _test_well() -> void:
 	_check(msg3.contains("voll"), "bei vollem Mana Hinweis statt Verbrauch (%s)" % msg3)
 	_check(int(w.get("used_turn", -1)) != int(_wm.get("_turn_number")),
 		"und der Brunnen bleibt fuer heute nutzbar")
-	_done.append("well")
+	_done.append("_test_well")
 
 
 func _test_learning() -> void:
@@ -204,7 +208,7 @@ func _test_learning() -> void:
 		var l2: Dictionary = _obj(int(_wm.get("OBJECT_LEARNING")), Vector2i(5, 5))
 		var msg3: String = String(_wm.call("_visit_bonus_object", l2))
 		_check(int(hero.level) > lvl, "loest eine Stufe aus (%s)" % msg3)
-	_done.append("learning")
+	_done.append("_test_learning")
 
 
 func _test_windmill() -> void:
@@ -237,7 +241,7 @@ func _test_windmill() -> void:
 	var gain_b: Dictionary = _resource_delta(snap_b, hero)
 	_check(str(gain_a) == str(gain_b),
 		"gleiche Woche und Feld -> gleiche Ausbeute (%s vs %s)" % [str(gain_a), str(gain_b)])
-	_done.append("windmill")
+	_done.append("_test_windmill")
 
 
 func _total_resources(hero) -> int:
@@ -295,4 +299,4 @@ func _test_save() -> void:
 			found = bool(od.get("used", false))
 			break
 	_check(found, "'used' ueberlebt Speichern und Laden (reine Feld-Ergaenzung)")
-	_done.append("save")
+	_done.append("_test_save")
