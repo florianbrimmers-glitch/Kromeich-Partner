@@ -210,10 +210,13 @@ func _test_battle_paths() -> void:
 	own["garrison_army"] = {"men_spearman": 10}
 	wm._hero.army = {"men_archer": 3}
 	wm._hero.position = Vector2i(99, 99)   # Held NICHT in der Stadt
+	# Letztes Argument ist der INDEX des verteidigenden Helden, nicht ein
+	# bool: -1 heisst "nur die Garnison kaempft". Ein bool wuerde hier zu 0
+	# werden - und 0 ist ein gueltiger Held-Index (M13b).
 	wm.call("_on_city_defense_result", {
 		"outcome": "victory", "casualties": {},
 		"player_remaining": {"men_spearman": 6}, "enemy_remaining": {},
-	}, own_idx, 0, 99, false)
+	}, own_idx, 0, 99, -1)
 	_check(int(own["owner"]) == 0, "Sieg: Stadt bleibt beim Spieler")
 	_check(Garrison.total(own["garrison_army"]) == 6,
 		"Sieg: Ueberlebende bleiben Garnison (%d)" % Garrison.total(own["garrison_army"]))
@@ -231,7 +234,7 @@ func _test_battle_paths() -> void:
 	wm.call("_on_city_defense_result", {
 		"outcome": "defeat", "casualties": {},
 		"player_remaining": {}, "enemy_remaining": {"ork_goblin": 4},
-	}, own_idx, att_idx, 99, false)
+	}, own_idx, att_idx, 99, -1)
 	_check(int(own["owner"]) != 0, "Niederlage: Stadt wechselt den Besitzer")
 	_check(Garrison.is_empty(own["garrison_army"]), "Niederlage: Garnison ist gefallen")
 	wm.queue_free()

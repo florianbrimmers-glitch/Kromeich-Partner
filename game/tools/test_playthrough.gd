@@ -115,12 +115,15 @@ func _play(seed_value: int) -> void:
 	wm.call("_start", seed_value, 1)
 	await process_frame
 
-	var hero = wm.get("_hero")
 	# Gold liegt seit M13a im Spieler-Beutel, nicht im Helden.
 	var purse: Wallet = wm.get("_purse")
 	var gold0: int = purse.get_amount("gold")
-	var xp0: int = int(hero.xp)
-	var army0: int = int(hero.total_count())
+	# XP und Armee werden ueber ALLE Helden summiert und JEDES MAL frisch
+	# aus wm gelesen. Ein am Anfang gemerktes Hero-Objekt waere ein Fehler:
+	# faellt gerade dieser Held, ist er aus _heroes verschwunden und der
+	# Test wuerde die Zahlen einer Leiche vergleichen (M13b).
+	var xp0: int = _total_xp(wm)
+	var army0: int = _total_army(wm)
 	var fog0: int = _explored(wm)
 	var own0: int = _own_cities(wm)
 	_battles = 0
@@ -135,8 +138,21 @@ func _play(seed_value: int) -> void:
 	for t in range(MAX_TURNS):
 		if bool(wm.get("_game_won")) or bool(wm.get("_game_lost")):
 			break
-		_manage_city(wm)
-		await _move_and_fight(wm, seed_value, t)
+		# JEDER Held zieht, nicht immer derselbe: _move_and_fight arbeitet
+		# am aktiven Helden, also wird ueber die Liste rotiert. Genau das
+		# deckt den Weg auf, den ein Spieler mit drei Helden geht - und
+		# _switch_hero ist der Pfad, der die Reichweite neu rechnet.
+		for hi in range((wm.get("_heroes") as Array).size()):
+			if bool(wm.get("_game_won")) or bool(wm.get("_game_lost")):
+				break
+			# Die Liste kann WAEHREND der Runde kuerzer werden: faellt ein
+			# Held im Kampf, verschwindet er sofort. Darum jedes Mal neu
+			# gegen die aktuelle Groesse pruefen.
+			if hi >= (wm.get("_heroes") as Array).size():
+				break
+			wm.call("_switch_hero", hi)
+			_manage_city(wm)
+			await _move_and_fight(wm, seed_value, t)
 		wm.call("_on_end_turn")
 		await process_frame
 		# WICHTIG: auch NACH dem Tagesende nachsehen. Greift eine KI eine
@@ -169,11 +185,11 @@ func _play(seed_value: int) -> void:
 	# 2. FORTSCHRITT. Ein Spiel, in dem nach 40 Zuegen nichts passiert
 	#    ist, ist kaputt - auch wenn es nicht abstuerzt.
 	var gold1: int = purse.get_amount("gold")
-	var xp1: int = int(hero.xp)
+	var xp1: int = _total_xp(wm)
 	var fog1: int = _explored(wm)
-	print("        Gold %d -> %d, XP %d -> %d, Armee %d -> %d, erkundet %d -> %d, Staedte %d -> %d"
-		% [gold0, gold1, xp0, xp1, army0, int(hero.total_count()),
-			fog0, fog1, own0, _own_cities(wm)])
+	print("        Gold %d -> %d, XP %d -> %d, Armee %d -> %d, erkundet %d -> %d, Staedte %d -> %d, Helden %d"
+		% [gold0, gold1, xp0, xp1, army0, _total_army(wm),
+			fog0, fog1, own0, _own_cities(wm), (wm.get("_heroes") as Array).size()])
 	# Pro Seed nur das, was IMMER gelten muss: die Wirtschaft laeuft und
 	# die Karte wird aufgedeckt. Beides haengt nicht am Kampfglueck.
 	_check(gold1 > gold0, "Gold ist gewachsen (%d -> %d)" % [gold0, gold1])
@@ -190,6 +206,21 @@ func _play(seed_value: int) -> void:
 
 	wm.queue_free()
 	await process_frame
+
+
+# Summen ueber alle lebenden Helden des Spielers.
+func _total_xp(wm) -> int:
+	var n: int = 0
+	for h in (wm.get("_heroes") as Array):
+		n += int((h as Hero).xp)
+	return n
+
+
+func _total_army(wm) -> int:
+	var n: int = 0
+	for h in (wm.get("_heroes") as Array):
+		n += int((h as Hero).total_count())
+	return n
 
 
 # Bauen und rekrutieren, wenn der Held auf einer eigenen Stadt steht.
@@ -209,6 +240,17 @@ func _manage_city(wm) -> void:
 	for uid in pools.keys():
 		if int(pools[uid]) > 0:
 			wm.call("_recruit_unit", idx, String(uid))
+	# Held anwerben, wenn Gold und Platz da sind (M13b). Damit laeuft der
+	# Mehr-Helden-Pfad durch die ECHTE Zugkette - test_multi_hero prueft
+	# ihn nur isoliert. _on_hire_hero liest die Stadt aus _selected_city,
+	# genau wie der Knopf im Stadtschirm.
+	var purse: Wallet = wm.get("_purse")
+	if purse.can_afford(wm.get("HERO_HIRE_COST") as Dictionary) \
+			and (wm.get("_heroes") as Array).size() < int(wm.get("MAX_HEROES")):
+		var keep: int = int(wm.get("_selected_city"))
+		wm.set("_selected_city", idx)
+		wm.call("_on_hire_hero")
+		wm.set("_selected_city", keep)
 
 
 # Naechstes sinnvolles Ziel antippen und einen entstehenden Kampf
@@ -229,6 +271,15 @@ func _move_and_fight(wm, seed_value: int, turn: int) -> void:
 	for c in (wm.get("_cities") as Array):
 		if int(c["owner"]) != int(wm.get("OWNER_HERO")):
 			candidates.append(c["pos"])
+	# Heimweg: mit Gold fuer einen Helden und einem freien Platz ist die
+	# EIGENE Stadt ein Ziel - dort wird angeworben. Ohne diese Regel lief
+	# der Test-Spieler nie wieder nach Hause, und der Anwerbe-Pfad kam in
+	# der echten Zugkette nie vor (M13b).
+	if (wm.get("_purse") as Wallet).can_afford(wm.get("HERO_HIRE_COST") as Dictionary) \
+			and (wm.get("_heroes") as Array).size() < int(wm.get("MAX_HEROES")):
+		for c2 in (wm.get("_cities") as Array):
+			if int(c2["owner"]) == int(wm.get("OWNER_HERO")):
+				candidates.append(c2["pos"])
 	# Kampfkraft wie in der Oberflaeche - in GOLD (It. 38). Der
 	# Test-Spieler geht KEINEN Kampf ein, den die Karte rot anzeigt:
 	# sonst prueft der Test nur, dass ein aussichtsloser Angriff verliert.
@@ -244,6 +295,11 @@ func _move_and_fight(wm, seed_value: int, turn: int) -> void:
 		if pp == hero.position:
 			continue
 		if not costs.has(pp):
+			continue
+		# Auf einem Feld mit einem ANDEREN eigenen Helden wechselt ein Tap
+		# den aktiven Helden statt zu laufen (M13a) - der Zug waere
+		# verpufft. Solche Ziele also auslassen.
+		if int(wm.call("_hero_index_at", pp)) >= 0:
 			continue
 		var threat: int = _threat_at(wm, pp)
 		if threat > 0 and float(eff) < float(threat) * safe:

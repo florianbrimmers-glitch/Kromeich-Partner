@@ -9,6 +9,10 @@ extends SceneTree
 # _draw selbst laeuft headless nicht, daher wird _plots wie im echten Frame
 # manuell aus _compute_plots gefuellt.
 
+# Geraetegroesse fuer die Geometrie-Messung (Portrait, wie im Export).
+const DEVICE_W := 1080
+const DEVICE_H := 1920
+
 var _got_recruit: String = ""
 var _got_build: String = ""
 var _got_plaza: String = ""
@@ -19,8 +23,21 @@ func _init() -> void:
 	var ok: bool = true
 
 	var cs := CityScreen.new()
-	cs.size = Vector2(1080, 1920)
-	root.add_child(cs)   # loest _ready aus (Layout + HUD)
+	root.add_child(cs)
+	# WICHTIG: _ready laeuft in einem headless SceneTree-Skript NICHT
+	# synchron beim add_child, sondern erst im naechsten Frame. Ohne dieses
+	# await gab es hier gar kein HUD - _build_hud war nie gelaufen, und die
+	# Suite war trotzdem gruen, weil open() das Layout selbst nachlaedt
+	# (gefunden beim Anwerbe-Knopf in M13b).
+	await process_frame
+	# _ready setzt anchor_right/bottom auf 1.0 - der Screen deckt damit das
+	# ganze Fenster, und das ist headless die Fenstergroesse des
+	# Test-Rechners, nicht die des Handys. Fuer eine Messung in
+	# GERAETEGROESSE muss die Verankerung geloest und die Groesse gesetzt
+	# werden, sonst landen die rechts verankerten Knoepfe bei x=2760.
+	cs.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	cs.size = Vector2(DEVICE_W, DEVICE_H)
+	await process_frame
 
 	cs.recruit_requested.connect(func(uid: String) -> void: _got_recruit = uid)
 	cs.build_requested.connect(func(bid: String) -> void: _got_build = bid)
@@ -203,6 +220,12 @@ func _init() -> void:
 	#    diese Suite jetzt rot.
 	ok = _test_assets_complete(cs) and ok
 
+	# 9) HUD-GEOMETRIE (M13b). Der Anwerbe-Knopf ist der vierte Eintrag in
+	#    der rechten Spalte, und alle vier sind mit festen Offsets gesetzt.
+	#    Ein fuenfter oder ein groesserer Knopf schiebt sich lautlos unter
+	#    den davor - headless sieht man das nicht, gemessen schon.
+	ok = _test_hud_geometry(cs) and ok
+
 	# Abschluss-Marken (It. 31): jede _test*-Funktion setzt am Ende eine
 	# Marke. Ein Laufzeitfehler bricht in GDScript nur die betroffene
 	# Funktion ab - die Suite laeuft weiter und meldet gruen. Genau so hat
@@ -285,4 +308,44 @@ func _test_assets_complete(cs) -> bool:
 		"alle Fraktionen haben einen gemalten Hintergrund (ohne: %s)"
 		% str(plain_fallback)) and ok
 	_done.append("_test_assets_complete")
+	return ok
+# Kein Knopf der rechten HUD-Spalte darf einen anderen ueberdecken, und
+# keiner darf in die Buehne ragen, in der die Bauplaetze liegen.
+func _test_hud_geometry(cs) -> bool:
+	var ok: bool = true
+	var boxes: Array = []
+	for ch in cs.get_children():
+		if ch is Button:
+			boxes.append({"text": String((ch as Button).text).split("\n")[0],
+				"rect": (ch as Control).get_rect()})
+	ok = _check(boxes.size() >= 3,
+		"HUD hat die Knopfspalte (%d Knoepfe)" % boxes.size()) and ok
+	var clashes: Array = []
+	for i in range(boxes.size()):
+		for j in range(i + 1, boxes.size()):
+			if (boxes[i]["rect"] as Rect2).intersects(boxes[j]["rect"] as Rect2):
+				clashes.append("%s/%s" % [boxes[i]["text"], boxes[j]["text"]])
+	ok = _check(clashes.is_empty(),
+		"keine zwei HUD-Knoepfe ueberdecken sich (%s)" % str(clashes)) and ok
+	# Die Buehne beginnt unter dem HUD-Band; ein Knopf darf nicht auf einem
+	# Bauplatz landen, sonst frisst er den Tap.
+	var stage: Rect2 = cs._stage_rect()
+	var plots: Array = cs._compute_plots(stage)
+	var on_plot: Array = []
+	for b in boxes:
+		for pl in plots:
+			if (b["rect"] as Rect2).intersects(pl["rect"] as Rect2):
+				on_plot.append("%s/%s" % [b["text"], String(pl["id"])])
+	ok = _check(on_plot.is_empty(),
+		"kein HUD-Knopf liegt auf einem Bauplatz (%s)" % str(on_plot)) and ok
+	# Und jeder Knopf muss ganz auf dem Schirm liegen: rechts verankert mit
+	# festem Offset heisst auf einem schmalen Geraet schnell "halb draussen".
+	var screen := Rect2(Vector2.ZERO, Vector2(DEVICE_W, DEVICE_H))
+	var outside: Array = []
+	for b2 in boxes:
+		if not screen.encloses(b2["rect"] as Rect2):
+			outside.append("%s %s" % [b2["text"], str(b2["rect"])])
+	ok = _check(outside.is_empty(),
+		"jeder HUD-Knopf liegt ganz auf dem Schirm (%s)" % str(outside)) and ok
+	_done.append("_test_hud_geometry")
 	return ok

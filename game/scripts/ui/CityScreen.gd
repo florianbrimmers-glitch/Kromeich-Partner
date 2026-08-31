@@ -20,6 +20,9 @@ signal plaza_tapped(stats: String)
 signal market_trade_requested(res: String, buy: bool)
 # Einheiten zwischen Held und Stadt-Garnison verschieben (M9b).
 signal garrison_move_requested(unit_id: String, to_city: bool, all: bool)
+# Zweiten (dritten) Helden anwerben (M13b). Der Screen zeigt nur den Knopf -
+# Kosten, Obergrenze und Startarmee entscheidet der WorldMapScreen.
+signal hire_hero_requested()
 signal closed()
 
 const LAYOUT_PATH := "res://data/city_layout.json"
@@ -89,6 +92,7 @@ var _recruit_buttons: Dictionary = {}
 var _gar_panel: Panel
 var _gar_rows: VBoxContainer
 var _gar_title: Label
+var _hire_btn: Button
 var _cal: Label
 var _status: Label
 var _font: Font
@@ -167,6 +171,24 @@ func _build_hud() -> void:
 	gar_btn.pressed.connect(_open_garrison_panel)
 	add_child(gar_btn)
 
+	# Held anwerben (M13b). KEIN eigenes Gebaeude: ein zehnter Bauplatz
+	# passt nur mit Verrenkungen in den Mauerring - `check_layout()` in
+	# tools/gen_city_bg.py meldet die Schmiede als zu nah. Das waere eine
+	# Art-Iteration (4 Fraktions-Sprites + Baustelle + Layout-Slot) und
+	# haette mit dem Gameplay nichts zu tun. Dokumentierte Vereinfachung,
+	# wie "keine Magiergilde" in M8.
+	_hire_btn = Button.new()
+	_hire_btn.text = "Held anwerben"
+	_hire_btn.add_theme_font_size_override("font_size", 26)
+	_hire_btn.custom_minimum_size = Vector2(280, 90)
+	_hire_btn.anchor_left = 1.0
+	_hire_btn.anchor_right = 1.0
+	_hire_btn.offset_left = -320
+	_hire_btn.offset_top = 250
+	_hire_btn.offset_right = -20
+	_hire_btn.pressed.connect(func() -> void: hire_hero_requested.emit())
+	add_child(_hire_btn)
+
 	var close_btn := Button.new()
 	close_btn.text = "Schliessen"
 	close_btn.add_theme_font_size_override("font_size", 30)
@@ -232,6 +254,18 @@ func _update_hud() -> void:
 	_title.text = "Stadt " + fname
 	var purse: Wallet = _wallet()
 	_gold.text = "Gold: " + str(purse.get_amount("gold")) if purse != null else "Gold: 0"
+	# Anwerben (M13b): Text und Zustand kommen aus dem Kontext - der Screen
+	# rechnet nichts selbst.
+	if _hire_btn != null:
+		var cost: Dictionary = _ctx.get("hire_cost", {}) as Dictionary
+		var slots_left: int = int(_ctx.get("hire_slots_left", 0))
+		var here: bool = bool(_ctx.get("hero_here", false))
+		_hire_btn.text = "Held anwerben\n%s" % Wallet.cost_text(cost)
+		var afford: bool = purse != null and purse.can_afford(cost)
+		_hire_btn.disabled = slots_left <= 0 or not afford
+		if slots_left <= 0:
+			_hire_btn.text = "Held anwerben\n(Maximum erreicht)"
+		_hire_btn.visible = bool(_ctx.get("own_city", true))
 	# Kalender plus Wochenereignis (M12). Ruhige Wochen bleiben stumm,
 	# sonst stuende dort in drei von vier Wochen "Ruhige Woche".
 	var cal_text: String = String(_ctx.get("calendar", ""))

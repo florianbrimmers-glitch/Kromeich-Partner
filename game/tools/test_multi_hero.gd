@@ -17,6 +17,9 @@ extends SceneTree
 #   6. Save/Load mit zwei Helden, inklusive aktivem Index
 #   7. `_hero` liefert null bei leerer Liste - 16 Stellen im Screen pruefen
 #      auf null und wuerden sonst auf einem kaputten Zugriff sterben
+#   8. M13b: Anwerben (Kosten, Obergrenze, Startarmee der STADT-Fraktion,
+#      Nebel) und die Niederlage-Regel - ein gefallener Held beendet das
+#      Spiel nur, wenn er der letzte war
 #
 # Jede Test-Funktion setzt am Ende eine Marke; die Soll-Liste kommt aus
 # get_method_list() (It. 31).
@@ -41,6 +44,9 @@ func _init() -> void:
 	_test_end_turn_all()
 	await _test_save_roundtrip()
 	_test_empty_list()
+	_test_hire()
+	_test_defeat_keeps_playing()
+	_test_city_defense_any_hero()
 
 	var missing: Array = []
 	for m in get_method_list():
@@ -279,3 +285,179 @@ func _test_empty_list() -> void:
 	_wm.set("_active_hero", 0)
 	_check(_wm.get("_hero") != null, "und wieder da, sobald die Liste steht")
 	_done.append("_test_empty_list")
+
+
+# --- M13b -----------------------------------------------------------------
+
+func _test_hire() -> void:
+	print("")
+	print("== Held anwerben ==")
+	# Frischer Zustand: ein Held, eine eigene Stadt, Held steht darauf.
+	_wm.call("_start", 4711, 1)
+	var heroes: Array = _wm.get("_heroes")
+	_check(heroes.size() == 1, "ein Held zum Start (%d)" % heroes.size())
+	var city_idx: int = -1
+	var cities: Array = _wm.get("_cities")
+	for i in range(cities.size()):
+		if int(cities[i]["owner"]) == int(_wm.get("OWNER_HERO")):
+			city_idx = i
+			break
+	_check(city_idx >= 0, "eigene Stadt gefunden")
+	_wm.set("_selected_city", city_idx)
+	var purse: Wallet = _wm.get("_purse")
+	var cost: Dictionary = _wm.get("HERO_HIRE_COST")
+
+	# Zu wenig Gold: nichts passiert.
+	purse.set_amount("gold", 10)
+	_wm.call("_on_hire_hero")
+	_check((_wm.get("_heroes") as Array).size() == 1,
+		"ohne Gold kein Held (%d)" % (_wm.get("_heroes") as Array).size())
+
+	# Mit Gold: Held kommt, Gold weg.
+	purse.set_amount("gold", int(cost.get("gold", 0)) + 100)
+	var fog_before: int = _explored(_wm)
+	_wm.call("_on_hire_hero")
+	var heroes2: Array = _wm.get("_heroes")
+	_check(heroes2.size() == 2, "Held angeworben (%d)" % heroes2.size())
+	_check(purse.get_amount("gold") == 100,
+		"Gold bezahlt (Rest %d)" % purse.get_amount("gold"))
+	var nh: Hero = heroes2[1] as Hero
+	_check(nh.position == Vector2i(cities[city_idx]["pos"]),
+		"er steht in der Stadt %s" % str(nh.position))
+	_check(nh.total_count() == int(_wm.get("HERO_HIRE_UNITS")),
+		"mit %d Einheiten (sind %d)" % [int(_wm.get("HERO_HIRE_UNITS")), nh.total_count()])
+	# Startarmee in der Fraktion DER STADT - das macht den Moral-Mix zur
+	# Entscheidung (M6) und ist bei einer erobereten Fremdstadt der ganze
+	# Witz.
+	var city_fid: int = int(cities[city_idx].get("faction", -1))
+	var army_fid: int = -2
+	for uid in nh.army.keys():
+		army_fid = int(UnitType.faction_of(String(uid)))
+	_check(army_fid == city_fid,
+		"Einheiten in der Fraktion der Stadt (%d == %d)" % [army_fid, city_fid])
+	_check(int(nh.mp) == int(nh.max_mp), "und mit vollen Bewegungspunkten")
+	_check(int(nh.mana) > 0, "und mit Mana (%d)" % int(nh.mana))
+	# Nebel: der neue Held deckt auf. Er steht in der eigenen Stadt, die
+	# ohnehin Sicht gibt - deshalb wird hier nur geprueft, dass NICHTS
+	# verloren geht.
+	_check(_explored(_wm) >= fog_before,
+		"Nebel nicht geschrumpft (%d -> %d)" % [fog_before, _explored(_wm)])
+
+	# Obergrenze.
+	var maxh: int = int(_wm.get("MAX_HEROES"))
+	for k in range(maxh + 2):
+		purse.set_amount("gold", int(cost.get("gold", 0)) + 50)
+		_wm.call("_on_hire_hero")
+	_check((_wm.get("_heroes") as Array).size() == maxh,
+		"Obergrenze %d haelt (%d)" % [maxh, (_wm.get("_heroes") as Array).size()])
+	_check(purse.get_amount("gold") == int(cost.get("gold", 0)) + 50,
+		"und der letzte, abgelehnte Versuch kostet nichts")
+	_done.append("_test_hire")
+
+
+func _test_defeat_keeps_playing() -> void:
+	print("")
+	print("== Ein gefallener Held ist nicht das Spielende ==")
+	_wm.call("_start", 4711, 1)
+	var heroes: Array = _wm.get("_heroes")
+	_add_hero(heroes[0].position + Vector2i(2, 0))
+	_wm.set("_active_hero", 1)
+	_check((_wm.get("_heroes") as Array).size() == 2, "zwei Helden")
+
+	# Der aktive (zweite) Held faellt.
+	_wm.call("_on_battle_defeat")
+	_check(not bool(_wm.get("_game_lost")),
+		"Spiel laeuft weiter, solange ein Held lebt")
+	_check((_wm.get("_heroes") as Array).size() == 1,
+		"der gefallene ist aus der Liste (%d)" % (_wm.get("_heroes") as Array).size())
+	_check(int(_wm.get("_active_hero")) == 0,
+		"der aktive Index zeigt auf einen lebenden Helden (%d)"
+		% int(_wm.get("_active_hero")))
+	_check(_wm.get("_hero") != null, "und _hero liefert ihn")
+
+	# Der letzte Held faellt: JETZT ist Schluss. Er bleibt aber in der
+	# Liste stehen - siehe die Begruendung in _on_battle_defeat: der ganze
+	# Screen darf sich darauf verlassen, dass `_hero` nie null ist, und ein
+	# Weltzustand ohne Helden hat vor M13b nie existiert.
+	_wm.call("_on_battle_defeat")
+	_check(bool(_wm.get("_game_lost")), "das Spiel ist verloren")
+	_check((_wm.get("_heroes") as Array).size() == 1,
+		"der letzte Held bleibt als Objekt stehen (Invariante _hero != null)")
+	_check(_wm.get("_hero") != null, "und _hero liefert weiter etwas")
+
+	# Ein NICHT aktiver Held kann fallen (Verteidigungskampf um eine Stadt,
+	# in der ein anderer Held stand) - dann muss genau DER verschwinden.
+	_wm.call("_start", 4711, 1)
+	var h0 = (_wm.get("_heroes") as Array)[0]
+	var hb: Hero = _add_hero(h0.position + Vector2i(2, 0))
+	hb.army = {"men_archer": 5}
+	_wm.set("_active_hero", 0)
+	_wm.call("_on_battle_defeat", 1)
+	var rest: Array = _wm.get("_heroes")
+	_check(rest.size() == 1 and rest[0] == h0,
+		"der benannte Held ist gefallen, nicht der aktive")
+	_check(not bool(_wm.get("_game_lost")), "und das Spiel laeuft weiter")
+	_done.append("_test_defeat_keeps_playing")
+
+
+func _test_city_defense_any_hero() -> void:
+	print("")
+	print("== Jeder Held in der Stadt verteidigt sie ==")
+	_wm.call("_start", 4711, 1)
+	var cities: Array = _wm.get("_cities")
+	var city_idx: int = -1
+	for i in range(cities.size()):
+		if int(cities[i]["owner"]) == int(_wm.get("OWNER_HERO")):
+			city_idx = i
+			break
+	_check(city_idx >= 0, "eigene Stadt gefunden")
+	var city_pos: Vector2i = Vector2i(cities[city_idx]["pos"])
+	# Der AKTIVE Held steht woanders, ein zweiter steht in der Stadt.
+	var heroes: Array = _wm.get("_heroes")
+	(heroes[0] as Hero).position = city_pos + Vector2i(3, 0)
+	var hb: Hero = _add_hero(city_pos)
+	hb.army = {"men_archer": 6}
+	_wm.set("_active_hero", 0)
+	_check(int(_wm.call("_hero_index_at", city_pos)) == 1,
+		"_hero_index_at findet den nicht-aktiven Helden")
+
+	# Sieg: er bekommt zurueck, was von SEINEM Beitrag uebrig ist.
+	cities[city_idx]["garrison_army"] = {"men_spearman": 10}
+	# WICHTIG: das letzte Argument ist ein INDEX. Ein bool wuerde zu 0 -
+	# und 0 ist ein gueltiger Held.
+	_wm.call("_on_city_defense_result", {
+		"outcome": "victory", "casualties": {},
+		"player_remaining": {"men_spearman": 8, "men_archer": 4},
+		"enemy_remaining": {},
+	}, city_idx, -1, 99, 1)
+	_check(hb.count_of("men_archer") == 4,
+		"der Verteidiger bekommt seine Ueberlebenden (%d)" % hb.count_of("men_archer"))
+	_check((heroes[0] as Hero).count_of("men_archer") == 0,
+		"und der aktive Held nicht")
+	_check(int(cities[city_idx]["owner"]) == int(_wm.get("OWNER_HERO")),
+		"Sieg: die Stadt bleibt beim Spieler")
+
+	# Niederlage: GENAU dieser Held faellt, der aktive lebt weiter.
+	_wm.call("_on_city_defense_result", {
+		"outcome": "defeat", "casualties": {},
+		"player_remaining": {}, "enemy_remaining": {},
+	}, city_idx, -1, 99, 1)
+	var rest: Array = _wm.get("_heroes")
+	_check(rest.size() == 1, "der Verteidiger ist gefallen (%d uebrig)" % rest.size())
+	_check(rest[0] == heroes[0], "und zwar er, nicht der aktive")
+	_check(not bool(_wm.get("_game_lost")), "das Spiel laeuft weiter")
+	_done.append("_test_city_defense_any_hero")
+
+
+# Wie viele Felder sind aufgedeckt? (Nur fuer den Nebel-Check beim
+# Anwerben; test_playthrough.gd hat dieselbe Hilfsfunktion - sie ist drei
+# Zeilen lang und ein gemeinsames Modul dafuer waere mehr Aufwand als
+# Nutzen.)
+func _explored(wm) -> int:
+	var fog: Array = wm.get("_fog_player")
+	var hidden: int = int(wm.get("FOG_HIDDEN"))
+	var n: int = 0
+	for v in fog:
+		if int(v) != hidden:
+			n += 1
+	return n

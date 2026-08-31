@@ -40,6 +40,18 @@ const CITY_COUNT := 8
 const CITY_BORDER_MARGIN := 2
 # Schonfrist ohne eigene Stadt, in Tagen (HoMM3-Regel, It. 38).
 const LOSS_GRACE_DAYS := 7
+
+# --- Helden anwerben (M13b) ----------------------------------------------
+# HoMM3 laesst acht Helden zu; auf einer Handy-Karte mit 18x26 Feldern sind
+# drei genug und die Oberflaeche bleibt bedienbar (Wechsel-Zeile im
+# Heldenblatt, kein eigener Verwaltungsbildschirm).
+const MAX_HEROES := 3
+# 2500 Gold wie in der HoMM3-Taverne.
+const HERO_HIRE_COST := {"gold": 2500}
+# Ein angeworbener Held kommt nicht nackt: zwei Einheiten der
+# Stadt-Fraktion. Ohne Truppen koennte er nur laufen und Objekte
+# einsammeln, was ihn zu einem 2500 Gold teuren Boten machen wuerde.
+const HERO_HIRE_UNITS := 2
 const CITY_MIN_DIST := 7
 const CITY_INCOME := 500
 const OWNER_NEUTRAL := -1
@@ -929,6 +941,10 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 
 
 func _recompute_costs() -> void:
+	# Ohne Helden gibt es keine Reichweite (M13b: der letzte kann fallen).
+	if _hero == null:
+		_costs = {}
+		return
 	_costs = _dijkstra(_hero.position, true, Skills.pathfinding_tier(_hero.skills))
 
 
@@ -1216,6 +1232,11 @@ const TOPBAR_FONT_SIZE := 21
 func _update_labels() -> void:
 	var ml := get_node_or_null(mp_label_path) as Label
 	if ml == null:
+		return
+	# Ohne Helden nur den Kalender zeigen (M13b: der letzte kann fallen,
+	# und die Niederlage-Anzeige laeuft danach noch durch diese Funktion).
+	if _hero == null:
+		ml.text = "%s\nkein Held" % _calendar_long()
 		return
 	if ml.get_theme_font_size("font_size") != TOPBAR_FONT_SIZE:
 		ml.add_theme_font_size_override("font_size", TOPBAR_FONT_SIZE)
@@ -2218,6 +2239,51 @@ func _city_at(p: Vector2i) -> int:
 	return -1
 
 
+# --- Helden anwerben (M13b) -----------------------------------------------
+
+# Neuer Held in der gerade offenen eigenen Stadt. Kosten, Obergrenze und
+# Startarmee entscheidet diese Funktion - der Stadtbildschirm zeigt nur
+# einen Knopf.
+func _on_hire_hero() -> void:
+	if _selected_city < 0 or _selected_city >= _cities.size():
+		return
+	var city: Dictionary = _cities[_selected_city]
+	if int(city.get("owner", OWNER_NEUTRAL)) != OWNER_HERO:
+		_set_status("Anwerben nur in einer eigenen Stadt")
+		return
+	if _heroes.size() >= MAX_HEROES:
+		_set_status("Maximal %d Helden" % MAX_HEROES)
+		return
+	if not _purse.can_afford(HERO_HIRE_COST):
+		_set_status("Zu teuer: braucht %s" % Wallet.cost_text(HERO_HIRE_COST))
+		return
+	_purse.pay(HERO_HIRE_COST)
+	var h := Hero.new(Vector2i(city["pos"]), BASE_MAX_MP)
+	# Startarmee in der Fraktion DER STADT - nicht in der des Spielers:
+	# eine erobere Ork-Stadt wirbt Orks an, und die Moral-Regel aus M6
+	# (Fraktions-Mix kostet) wird damit zu einer echten Entscheidung.
+	var fid: int = int(city.get("faction", _player_faction))
+	h.add_units(UnitType.starter_id_for_faction(fid), HERO_HIRE_UNITS)
+	h.mana = Spells.max_mana(int(h.knowledge))
+	_heroes.append(h)
+	_recalc_max_mp()
+	h.mp = h.max_mp
+	# PFLICHT bei jedem "Held dazu"-Pfad: Nebel und Reichweite neu rechnen.
+	# Ohne das deckt der neue Held nichts auf und ein Save-Roundtrip
+	# liefert ein anderes Nebelbild als der Zustand davor (Lehrgeld aus
+	# M13a, festgehalten in test_multi_hero._add_hero).
+	_recompute_fog_player()
+	_recompute_costs()
+	_update_labels()
+	_request_redraw()
+	Sound.play("recruit")
+	_set_combat("Held angeworben (%d von %d) - %s" % [
+		_heroes.size(), MAX_HEROES,
+		Garrison.summary(h.army)])
+	if _city_screen != null and _city_screen.visible:
+		_city_screen.call("refresh", _city_ctx(_selected_city))
+
+
 # --- Helden-Wechsel (M13a) ------------------------------------------------
 
 # Index des eigenen Helden auf diesem Feld, oder -1.
@@ -2570,12 +2636,50 @@ func _ensure_hero_in_view() -> void:
 		_center_view_on(_hero.position)
 
 
-func _on_battle_defeat() -> void:
-	_game_lost = true
-	SaveLib.delete_autosave()
-	_set_status("NIEDERLAGE")
-	_set_combat("NIEDERLAGE: Held gefallen")
-	_show_defeat_panel()
+# Ein Held ist gefallen (M13b). `fallen_idx` = -1 heisst "der aktive" - das
+# ist der Normalfall, denn wer kaempft, ist der aktive Held. Der
+# Verteidigungskampf um eine Stadt uebergibt den Index des Helden, der dort
+# stand; das muss NICHT der aktive sein.
+#
+# Vorher endete hier IMMER das Spiel. Mit mehreren Helden waere das die
+# Regel "verliere einen Helden, verliere alles" gewesen - dann waere ein
+# zweiter Held nur ein Risiko und kein Gewinn.
+func _on_battle_defeat(fallen_idx: int = -1) -> void:
+	var idx: int = fallen_idx if fallen_idx >= 0 else _active_hero
+	var fallen_name: String = "Held"
+	# WICHTIG: der LETZTE Held bleibt in der Liste stehen.
+	#
+	# Vor M13b gab es immer genau einen Helden, und `_on_battle_defeat`
+	# liess ihn stehen - der ganze Code darf sich also darauf verlassen,
+	# dass `_hero` nie null ist. Wer ihn beim Spielende entfernt, bricht
+	# diese Invariante an Dutzenden Stellen gleichzeitig: die
+	# Niederlage-Anzeige, die Kopfzeile, die Reichweite und drei Suiten
+	# liefen sofort in Nil-Zugriffe. Das Spiel ist dann ohnehin vorbei -
+	# es gibt keinen Grund, dafuer einen Weltzustand zu erfinden, den es
+	# nie gab.
+	if _heroes.size() <= 1:
+		_game_lost = true
+		SaveLib.delete_autosave()
+		_set_status("NIEDERLAGE")
+		_set_combat("NIEDERLAGE: letzter Held gefallen")
+		_show_defeat_panel()
+		return
+	if idx >= 0 and idx < _heroes.size():
+		fallen_name = "Held %d" % (idx + 1)
+		_heroes.remove_at(idx)
+	if not _heroes.is_empty():
+		# Weiterspielen mit den uebrigen Helden.
+		_active_hero = clampi(_active_hero if _active_hero < idx else _active_hero - 1,
+			0, _heroes.size() - 1)
+		_set_combat("%s gefallen - %d Held(en) bleiben" % [fallen_name, _heroes.size()])
+		Sound.play("defeat")
+		_recompute_fog_player()
+		_recompute_costs()
+		_update_labels()
+		_request_redraw()
+		# Ohne Stadt laeuft ab jetzt die Schonfrist (It. 38) - der Verlust
+		# eines Helden kann also mittelbar doch das Spiel beenden.
+		_check_defeat()
 
 
 func _on_monster_result(result: Dictionary, mon_pos: Vector2i, target: Vector2i, cost: int) -> void:
@@ -2845,6 +2949,8 @@ const HERO_PANEL_ICON_PX := 96
 
 var _hero_panel: Panel = null
 var _hero_panel_stats: Label = null
+var _hero_panel_switch: HBoxContainer = null
+var _hero_panel_title: Label = null
 var _hero_panel_army: VBoxContainer = null
 
 
@@ -2889,9 +2995,17 @@ func _build_hero_panel() -> void:
 
 	var title := Label.new()
 	title.text = "Heldenblatt"
+	_hero_panel_title = title
 	title.add_theme_font_size_override("font_size", 40)
 	title.add_theme_color_override("font_color", Color(0.95, 0.85, 0.40))
 	vb.add_child(title)
+
+	# Wechsel-Zeile (M13b): ein Knopf je Held. Kein neuer Platz in der
+	# Kopfzeile noetig - das Blatt gibt es schon, und wer den Helden
+	# wechseln will, schaut ohnehin auf seine Werte.
+	_hero_panel_switch = HBoxContainer.new()
+	_hero_panel_switch.add_theme_constant_override("separation", 12)
+	vb.add_child(_hero_panel_switch)
 
 	_hero_panel_stats = Label.new()
 	_hero_panel_stats.add_theme_font_size_override("font_size", 26)
@@ -2928,6 +3042,28 @@ func _build_hero_panel() -> void:
 func _fill_hero_panel() -> void:
 	if _hero_panel_stats == null or _hero_panel_army == null:
 		return
+	# Wechsel-Knoepfe neu aufbauen: die Zahl der Helden aendert sich
+	# (anwerben, fallen).
+	if _hero_panel_switch != null:
+		for c in _hero_panel_switch.get_children():
+			c.queue_free()
+		if _heroes.size() > 1:
+			for i in range(_heroes.size()):
+				var b := Button.new()
+				var hh: Hero = _heroes[i] as Hero
+				b.text = "Held %d (%d)" % [i + 1, hh.total_count() if hh != null else 0]
+				b.add_theme_font_size_override("font_size", 26)
+				b.custom_minimum_size = Vector2(0, 78)
+				b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+				b.disabled = (i == _active_hero)
+				var idx: int = i
+				b.pressed.connect(func() -> void:
+					_switch_hero(idx)
+					_fill_hero_panel())
+				_hero_panel_switch.add_child(b)
+	if _hero_panel_title != null:
+		_hero_panel_title.text = "Heldenblatt" if _heroes.size() <= 1 \
+			else "Heldenblatt - Held %d von %d" % [_active_hero + 1, _heroes.size()]
 	_hero_panel_stats.text = _hero_stats_text()
 	for c in _hero_panel_army.get_children():
 		c.queue_free()
@@ -2965,6 +3101,12 @@ func _fill_hero_panel() -> void:
 # EIN Ort fuer die Heldenwerte. Der String stand vorher zweimal wortgleich
 # im Code; mit Primaerwerten und Skills waere er auseinandergelaufen.
 func _hero_stats_text() -> String:
+	# Nach dem Tod des LETZTEN Helden gibt es keinen mehr - und genau dann
+	# ruft `_show_defeat_panel` diese Funktion (M13b). Vorher lief das in
+	# einen Nil-Zugriff auf `_hero.level`; der Test war trotzdem gruen, der
+	# Fehler stand nur im Protokoll.
+	if _hero == null:
+		return "Kein Held mehr.\n%d Gold" % _purse.get_amount("gold")
 	var lines: Array = [
 		"Stufe %d   %d XP" % [int(_hero.level), int(_hero.xp)],
 		"Angriff %d   Verteidigung %d" % [int(_hero.att), int(_hero.def)],
@@ -3315,6 +3457,7 @@ func _build_city_screen() -> void:
 	cs.plaza_tapped.connect(_set_status)
 	cs.market_trade_requested.connect(_on_market_trade)
 	cs.garrison_move_requested.connect(_on_garrison_move)
+	cs.hire_hero_requested.connect(_on_hire_hero)
 	cs.closed.connect(_on_city_closed)
 	_city_screen = cs
 
@@ -3332,6 +3475,10 @@ func _city_ctx(city_idx: int) -> Dictionary:
 		# lesen.
 		"hero": _hero,
 		"wallet": _purse,
+		# Anwerben (M13b): der Screen zeigt nur an, gerechnet wird hier.
+		"hire_cost": HERO_HIRE_COST,
+		"hire_slots_left": max(0, MAX_HEROES - _heroes.size()),
+		"own_city": int(city.get("owner", OWNER_NEUTRAL)) == OWNER_HERO,
 		"buildings": BUILDINGS,
 		"faction_names": FACTION_NAMES,
 		"faction_colors": FACTION_COLORS,
@@ -3984,10 +4131,16 @@ func _run_enemy_turn_for(idx: int) -> bool:
 				var sctx_def: Dictionary = _siege_ctx_for(tc)
 				# Verteidiger = Garnison, plus Held wenn er in der Stadt steht.
 				var def_army: Dictionary = gar.duplicate()
-				var hero_in_city: bool = _hero != null and _hero.position == target_pos
+				# JEDER eigene Held in der Stadt verteidigt mit (M13b) -
+				# vorher wurde nur der AKTIVE geprueft, ein zweiter Held in
+				# derselben Stadt haette tatenlos zugesehen und waere bei
+				# Verlust der Stadt trotzdem verschont geblieben.
+				var def_hero_idx: int = _hero_index_at(target_pos)
+				var hero_in_city: bool = def_hero_idx >= 0
 				if hero_in_city:
-					for hk in _hero.army.keys():
-						Garrison.add(def_army, String(hk), int(_hero.army[hk]))
+					var dh: Hero = _heroes[def_hero_idx] as Hero
+					for hk in dh.army.keys():
+						Garrison.add(def_army, String(hk), int(dh.army[hk]))
 				sctx_def["player_army"] = def_army
 				# Fuer die Totenerweckung: nur wenn der Held selbst
 				# mitkaempft, bekommt er die Skelette.
@@ -4000,7 +4153,7 @@ func _run_enemy_turn_for(idx: int) -> bool:
 				var nxt: int = idx + 1
 				_open_battle("Belagerer", eh.total_count(), false, terr_def,
 					func(r: Dictionary) -> void:
-						_on_city_defense_result(r, c_idx, ai_idx, nxt, hero_in_city)
+						_on_city_defense_result(r, c_idx, ai_idx, nxt, def_hero_idx)
 				, sctx_def)
 				return false
 			# Fremde/neutrale Stadt oder leere eigene Stadt: wie bisher ohne
@@ -4067,8 +4220,11 @@ func _check_defeat() -> void:
 		# Stadt (wieder) da: Frist zurueck auf Anfang.
 		_no_city_since = -1
 		return
-	# Kein Held mehr, keine Stadt: das ist endgueltig.
-	if _hero == null or _hero.total_count() <= 0:
+	# Kein Held mehr UND keine Stadt: das ist endgueltig. Ein Held ohne
+	# Truppen zaehlt weiter - er kann eine leere Stadt einnehmen, und genau
+	# dafuer ist die Schonfrist da (M13b; vorher galt `total_count() <= 0`
+	# als "kein Held", was einen Helden ohne Armee sofort verloren gab).
+	if _heroes.is_empty():
 		_lose_now()
 		return
 	if _no_city_since < 0:
@@ -4249,8 +4405,13 @@ func _on_ai_attack_result(result: Dictionary, ai_idx: int, next_idx: int) -> voi
 # Der Spieler hat Garnison (+ Held, falls anwesend) gesteuert; die
 # Ueberlebenden kommen aus result.player_remaining zurueck.
 # hero_joined = der Held stand in der Stadt und hat mitgekaempft.
+# `def_hero_idx` ist der Index des verteidigenden Helden in `_heroes`, oder
+# -1 wenn nur die Garnison gekaempft hat (M13b). Vorher war das ein Bool und
+# der Code griff auf `_hero` zu - mit mehreren Helden waere das der falsche.
 func _on_city_defense_result(result: Dictionary, city_idx: int, ai_idx: int,
-		next_idx: int, hero_joined: bool) -> void:
+		next_idx: int, def_hero_idx: int) -> void:
+	var hero_joined: bool = def_hero_idx >= 0 and def_hero_idx < _heroes.size()
+	var def_hero: Hero = _heroes[def_hero_idx] as Hero if hero_joined else null
 	var outcome: String = String(result.get("outcome", "defeat"))
 	var remaining: Dictionary = SaveCodec.int_dict(result.get("player_remaining", {}))
 	if city_idx < 0 or city_idx >= _cities.size():
@@ -4261,15 +4422,15 @@ func _on_city_defense_result(result: Dictionary, city_idx: int, ai_idx: int,
 		# Stadt gehalten. Reste zurueckverteilen: der Held bekommt
 		# zuerst, was er beigesteuert hatte, der Rest bleibt Garnison.
 		var left: Dictionary = remaining.duplicate()
-		if hero_joined and _hero != null:
+		if def_hero != null:
 			var new_hero_army: Dictionary = {}
-			for k in _hero.army.keys():
+			for k in def_hero.army.keys():
 				var uid: String = String(k)
-				var take: int = min(int(_hero.army[uid]), int(left.get(uid, 0)))
+				var take: int = min(int(def_hero.army[uid]), int(left.get(uid, 0)))
 				if take > 0:
 					new_hero_army[uid] = take
 					Garrison.remove(left, uid, take)
-			_hero.army = new_hero_army
+			def_hero.army = new_hero_army
 		city["garrison_army"] = left
 		if ai_idx >= 0 and ai_idx < _enemies.size():
 			# Der Belagerer verliert genau, was im Kampf gefallen ist -
@@ -4299,7 +4460,9 @@ func _on_city_defense_result(result: Dictionary, city_idx: int, ai_idx: int,
 					att.army = left_att
 		if hero_joined:
 			_update_labels()
-			_on_battle_defeat()
+			# GENAU der Held, der in der Stadt stand, ist gefallen - nicht
+			# zwangslaeufig der aktive (M13b).
+			_on_battle_defeat(def_hero_idx)
 			return
 		_set_combat("Stadt verloren - Garnison gefallen")
 	_update_labels()
