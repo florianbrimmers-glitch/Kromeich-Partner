@@ -32,6 +32,9 @@ const HUD_BOTTOM := 180.0
 # Sprites durch spaeter gelieferte gemalte PNGs einfach ueberschrieben
 # werden koennen. Datei-Konvention siehe game/assets/city/ART_SPEC.md.
 const ART_EXTENSIONS := [".svg", ".png"]
+
+# Geraeusche (M11) ueber die statische Fassade, siehe SfxBus.gd.
+const Sound := preload("res://scripts/core/SfxBus.gd")
 const ART_FACTION_DIR := "res://assets/city/%s/%s"            # %s=Fraktion, %s=building_id (ohne Ext)
 const ART_BG := "res://assets/city/%s/bg"                     # %s=Fraktion
 # Gemalter Hintergrund mit gebauter Stadtmauer. Wenn vorhanden UND
@@ -651,6 +654,9 @@ func _show_plaza_stats() -> void:
 
 
 func _act_on_plot(p: Dictionary) -> void:
+	# Ein Klick auf jeden Bauplatz-Tap. Das eigentliche Bauen bzw.
+	# Rekrutieren macht sein eigenes Geraeusch im WorldMapScreen.
+	Sound.play("ui_tap")
 	var bid: String = String(p["id"])
 	var fid: int = _faction_id()
 	if not bool(p["built"]):

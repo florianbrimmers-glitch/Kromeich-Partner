@@ -15,6 +15,10 @@ const Spells := preload("res://scripts/core/HeroSpells.gd")
 # Wochenereignisse (M12). Leiten sich aus Seed und Wochennummer ab, es wird
 # also nichts gespeichert.
 const WeekFx := preload("res://scripts/core/WeekEvents.gd")
+# Geraeusche (M11) ueber die statische Fassade - der Sfx-Autoload
+# fehlt bei "godot --script tools/x.gd", ein direkter Aufruf wuerde
+# dort zur Laufzeit scheitern und die Testfunktion abbrechen.
+const Sound := preload("res://scripts/core/SfxBus.gd")
 
 # Weltkarten-Screen. Rendert eine deterministische Zufallskarte per
 # _draw() und erlaubt den Helden per Tap zu bewegen. Dijkstra berechnet
@@ -254,6 +258,7 @@ const MARKET_SELL := {"wood": 50, "ore": 50, "mercury": 150, "sulfur": 150, "cry
 @export var map_area_path: NodePath        = ^"MapArea"
 @export var minimap_path: NodePath         = ^"Minimap"
 @export var minimap_toggle_path: NodePath  = ^"TopBar/MinimapToggleBtn"
+@export var sound_toggle_path: NodePath    = ^"TopBar/SoundToggleBtn"
 
 var _map: Dictionary
 var _hero: Hero
@@ -360,6 +365,15 @@ func _ready() -> void:
 	var mm_toggle := get_node_or_null(minimap_toggle_path) as Button
 	if mm_toggle != null:
 		mm_toggle.pressed.connect(_toggle_minimap)
+	# Stumm-Knopf (M11). Auf dem Handy will man Ton abschalten koennen, ohne
+	# das Spiel zu verlassen. Ohne Autoload (Tools-Skript) bleibt er
+	# unsichtbar, statt einen toten Knopf anzubieten.
+	var snd_toggle := get_node_or_null(sound_toggle_path) as Button
+	if snd_toggle != null:
+		if Sound.available():
+			snd_toggle.pressed.connect(_toggle_sound)
+		else:
+			snd_toggle.visible = false
 	_build_combat_label()
 	_build_city_screen()
 	_build_victory_panel()
@@ -1680,6 +1694,14 @@ func _request_redraw() -> void:
 		_minimap.queue_redraw()
 
 
+func _toggle_sound() -> void:
+	var on: bool = Sound.toggle()
+	var btn := get_node_or_null(sound_toggle_path) as Button
+	if btn != null:
+		btn.text = "Ton" if on else "Stumm"
+	_set_status("Geraeusche %s" % ("an" if on else "aus"))
+
+
 func _toggle_minimap() -> void:
 	# Die Minimap liegt als Overlay oben rechts auf der Karte und fing
 	# vorher Taps auf Staedte/Helden in dieser Region ab - das Panel
@@ -1954,16 +1976,20 @@ func _handle_tap(pos: Vector2) -> void:
 			var reward: int = int(obj2["gold"])
 			_hero.gold += reward
 			_objects.remove_at(obj_idx)
+			Sound.play("coin")
 			_set_combat("Schatz gefunden: +%d G" % reward)
 		elif okind2 == OBJECT_PILE:
 			var pres: String = String(obj2.get("resource", "gold"))
 			var pamt: int = int(obj2["gold"])
 			_hero.wallet.add(pres, pamt)
 			_objects.remove_at(obj_idx)
+			Sound.play("resource")
 			_set_combat("Gefunden: +%d %s" % [pamt, Wallet.display_name(pres)])
 		elif okind2 >= OBJECT_SHRINE_ATT:
 			var bmsg: String = _visit_bonus_object(obj2)
 			if bmsg != "":
+				# "schon besucht" ist kein Erfolg - dann nur der Tap-Klick.
+				Sound.play("ui_tap" if bmsg.contains("schon") else "recruit")
 				_set_combat(bmsg)
 
 	_hero.mp -= cost
@@ -2399,6 +2425,7 @@ func _check_victory() -> void:
 
 
 func _show_victory_panel() -> void:
+	Sound.play("victory")
 	if _victory_panel == null:
 		return
 	if _victory_title != null:
@@ -2461,6 +2488,8 @@ func _check_level_up() -> bool:
 	# Deferred: _check_level_up laeuft mitten in Kampf-Callbacks und im
 	# Tageswechsel. Erst wenn der aktuelle Frame fertig ist (Kampf-Overlay
 	# abgeraeumt, Statuszeilen gesetzt), darf die Wahl aufgehen.
+	if leveled:
+		Sound.play("level_up")
 	if leveled and not _skill_queue.is_empty():
 		call_deferred("_drain_skill_queue")
 	return leveled
@@ -2873,6 +2902,7 @@ func _buy_building(city_idx: int, bld_idx: int) -> void:
 			return
 	built.append(bid)
 	_prime_pool_for_building(city, bid)
+	Sound.play("build")
 	_hero.wallet.pay(cost)
 	_update_labels()
 	_set_status("Gebaut: " + str(b["name"]))
@@ -2933,6 +2963,7 @@ func _recruit_unit(city_idx: int, unit_id: String) -> void:
 		Garrison.add(gar, unit_id, 1)
 		city["garrison_army"] = gar
 		_set_status("In die Garnison: +1 %s" % UnitType.name_of(unit_id))
+	Sound.play("recruit")
 	pools[unit_id] = int(pools[unit_id]) - 1
 	city["pools"] = pools
 	_update_labels()
@@ -3501,6 +3532,7 @@ func _check_defeat() -> void:
 
 
 func _show_defeat_panel() -> void:
+	Sound.play("defeat")
 	if _victory_panel == null:
 		return
 	if _victory_title != null:
@@ -3605,10 +3637,12 @@ func _finalize_turn() -> void:
 	if new_week:
 		# Der Wochenwechsel ist die wichtigere Nachricht als die
 		# Tagesbilanz - er bestimmt, was diese Woche wachsen wird.
+		Sound.play("week_event")
 		var ev: Dictionary = _week_event()
 		_set_status("Neue Woche: %s" % String(ev.get("title", "")))
 		_set_combat(String(ev.get("detail", "")))
 	else:
+		Sound.play("day_end")
 		_set_status("Tag %d beendet: +%d G, +%d XP (%d Staedte)"
 			% [_turn_number, _turn_income, _turn_xp_gain, _turn_owned])
 	_check_defeat()

@@ -17,6 +17,7 @@ config/icon="res://assets/icon.svg"
 [autoload]
 
 SaveManager="*res://scripts/core/SaveManager.gd"
+Sfx="*res://scripts/core/Sfx.gd"
 
 [display]
 

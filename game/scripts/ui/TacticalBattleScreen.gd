@@ -19,6 +19,10 @@ const Vfx := preload("res://scripts/core/BattleVfx.gd")
 # Zauber (M8). Wie HeroSkills eine reine Datenschicht: sie loest die
 # Formeln aus spells.json in Zahlen auf, der Screen wirkt sie nur.
 const Spl := preload("res://scripts/core/HeroSpells.gd")
+# Geraeusche (M11) ueber die statische Fassade - der Sfx-Autoload
+# fehlt bei "godot --script tools/x.gd", ein direkter Aufruf wuerde
+# dort zur Laufzeit scheitern und die Testfunktion abbrechen.
+const Sound := preload("res://scripts/core/SfxBus.gd")
 
 const GRID_COLS := 10
 const GRID_ROWS := 8
@@ -282,6 +286,7 @@ func _melee_exchange(attacker: Dictionary, target: Dictionary) -> String:
 	# Laeuft noch ein Anmarsch? Dann erst danach zuschlagen.
 	var march: float = Vfx.time_left_of(_fx, Vfx.MOVE)
 	Vfx.spawn(_fx, Vfx.LUNGE, {"from": a_pos, "to": t_pos, "delay": march})
+	Sound.play("melee_hit")
 	_fx_delay = march + Vfx.lunge_delay()
 	# Leergeschossene Fernkaempfer schlagen mit Malus zu (M4 Teil 3).
 	var a_ranged: bool = UnitType.is_ranged(a_uid)
@@ -501,6 +506,7 @@ func _damage_wall(pos: Vector2i, dmg: int) -> String:
 			keep.append(o)
 	_obstacles = keep
 	Vfx.wall_break(_fx, pos)
+	Sound.play("wall_break")
 	return "Bresche!"
 
 
@@ -524,6 +530,7 @@ func _catapult_shot() -> void:
 	# selbst steht nicht auf dem Gitter - Startfeld links vor der Reihe.
 	var from := Vector2i(-1, best.y)
 	var flight: float = Vfx.shot(_fx, from, best, true)
+	Sound.play("catapult")
 	_fx_delay = flight
 	var res: String = _damage_wall(best, 1)
 	if res == "":
@@ -1066,6 +1073,7 @@ func _cast(spell_id: String, target: Dictionary) -> void:
 		return
 	_p_mana -= cost
 	_casts_left -= 1
+	Sound.play("spell_cast")
 	var name: String = Spl.display_name(spell_id)
 	var msg: String = ""
 	var st: Dictionary = Spl.status_of(spell_id)
@@ -1078,6 +1086,7 @@ func _cast(spell_id: String, target: Dictionary) -> void:
 	elif Spl.damage_of(spell_id, _p_power) > 0:
 		var dmg: int = Spl.damage_of(spell_id, _p_power)
 		var killed: int = _apply_dmg(target, dmg)
+		Sound.play("spell_hit")
 		msg = "%s -> %s: %d Sch., -%d" % [name,
 			UnitType.short_of(String(target["type"])), dmg, killed]
 		if Spl.is_aoe(spell_id):
@@ -1101,6 +1110,7 @@ func _cast(spell_id: String, target: Dictionary) -> void:
 			CombatMath.heal(target, heal)
 			var gained: int = int(target["top_hp"]) - before
 			Vfx.healed(_fx, Vector2i(target["pos"]), gained)
+			Sound.play("heal")
 			msg = "%s -> %s: +%d HP" % [name,
 				UnitType.short_of(String(target["type"])), gained]
 	_set_action("%s  [Mana %d]" % [msg, _p_mana])
@@ -1539,6 +1549,7 @@ func _try_attack_enemy(e_idx: int) -> void:
 			return
 		var adjacent: bool = _adj(apos, epos)
 		_fx_delay = Vfx.shot(_fx, apos, epos)
+		Sound.play("arrow_shot")
 		# Doppelschuss (Erz-Elfen) feuert zweimal - kostet 2 Munition.
 		var volleys: int = Abil.attacks_per_turn(uid, true)
 		var dmg: int = 0
@@ -1686,6 +1697,7 @@ func _ai_turn() -> void:
 			var adjacent: bool = _adj(epos, tpos)
 			_fx_delay = Vfx.time_left_of(_fx, Vfx.MOVE) \
 				+ Vfx.shot(_fx, epos, tpos)
+			Sound.play("arrow_shot")
 			var volleys: int = Abil.attacks_per_turn(uid, true)
 			var dmg: int = 0
 			var killed: int = 0
@@ -1929,6 +1941,7 @@ func _apply_dmg(stack: Dictionary, dmg: int) -> int:
 	# ihr count schon 0 ist.
 	if before > 0 and int(stack["count"]) <= 0:
 		Vfx.died(_fx, at, String(stack["type"]), side, _fx_delay)
+		Sound.play("death")
 	return killed
 
 
