@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Gelaende sand, Variante 5 von 6
+     Erzeugt von tools/gen_world_tiles.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <rect width="64" height="64" fill="#c9ad73"/>
+  <ellipse cx="31.2" cy="10.0" rx="9.4" ry="4.0" fill="#e3cb9a" opacity="0.29"/>
+  <ellipse cx="20.0" cy="43.3" rx="9.0" ry="3.8" fill="#e3cb9a" opacity="0.38"/>
+  <path d="M 15.6 23.5 q 11.7 -4.5 23.4 0" fill="none" stroke="#a8894f" stroke-width="1.6" stroke-linecap="round" opacity="0.45"/>
+  <path d="M 18.1 12.4 q 12.8 -4.5 25.6 0" fill="none" stroke="#a8894f" stroke-width="1.6" stroke-linecap="round" opacity="0.39"/>
+  <path d="M 10.1 32.4 q 11.9 -4.5 23.9 0" fill="none" stroke="#a8894f" stroke-width="1.6" stroke-linecap="round" opacity="0.47"/>
+</svg>

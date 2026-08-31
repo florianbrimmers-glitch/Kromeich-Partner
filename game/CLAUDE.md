@@ -23,6 +23,7 @@ wie HoMM3, 7 Einheiten-Tiers (units.json migrieren!), CC0-Sound.
 | Grafik-Politur (It. 16) | FERTIG. Stadt: Effekt-Text von der Buehne runter (er lief in den Nachbar-Plot; steht jetzt beim Tap in der Statuszeile), Beschriftung auf 2 Zeilen mit Breiten-Begrenzung (`_centered_text(..., max_w)`), Kapelle/Zitadelle im gemalten Layout auf x 0.33/0.67 auseinandergerueckt, `HUD_TOP` 150->250 (Garnison-Button ragte in die Kopfzeile). NEU `buildings_plain` in city_layout.json: Fraktionen OHNE gemalten Hintergrund verteilen dieselben 9 Plots ueber y 0.14-0.86 (`_active_layout()` waehlt anhand `_has_painted_bg()`), dazu ein Platzhalter-Verlauf statt Volltonflaeche - **kein Asset**, wird von gemalten bg.png ersetzt. Kampf: Kopfzeile 330->125 px, Log unter das Gitter (3 statt 5 Zeilen), Gitterflaeche 1485 statt 1357 px, Terrain-Boden je `terrain_id` (TERRAIN_GROUND) mit Schachbrett-Nuance + Verlauf statt Schwarz, Beschriftung auf cell*0.52 UNTER das Token (lag vorher auf dem Sprite). **Test-Falle:** das Kampf-Log ist als Test-Quelle unbrauchbar (3 Zeilen, Zug-Kette laeuft synchron weiter) - dafuer gibt es `_skips_status`/`_skips_moral` als Zaehler; Einzelwert-Marker reichen nicht, weil die naechste Aktion sie ueberschreibt. |
 | Kampf-Effekte (It. 17) | FERTIG. Neu `core/BattleVfx.gd` (preload-Alias `Vfx`, weil `Fx` schon StatusFx ist): reine DATEN-Schicht, Effekte sind Dictionaries in einer Array-Queue, `advance()` laesst die Zeit laufen. Arten: Ausfallschritt, Projektil (Parabel), Einschlag (Ring + Splitter), Schadenszahl, Zerfall, Shake, Heilung, Wort-Einblendung, Mauerbruch, Gleiten. **Zwei Trichter statt zwanzig Aufrufstellen:** `_apply_dmg` erzeugt Treffer+Zahl+Zerfall (dort laufen Nahkampf, Konter, Schuss, Todeswolke und Pfeilturm ALLE durch), `_melee_exchange` den Ausfallschritt. Staffelung ueber `cfg["delay"]` (t startet negativ, `Vfx.pending()` = noch nicht zeichnen) - sonst blitzt der Treffer, waehrend der Pfeil fliegt; `Vfx.time_left_of(q, MOVE)` schiebt den Nahkampf hinter einen laufenden Anmarsch. Einschlag-Geometrie (`impact_radius`/`impact_spoke`) steht IM MODUL, weil `tools/preview_battle_fx.gd` dieselben Werte zeichnet. 10. Suite `tools/test_battle_vfx.gd`. |
 | Stadt komplett (It. 18) | FERTIG. Der Nutzer hat Screenshots vom Geraet geschickt: auf dem Kaserne-Platz stand ein violetter Iso-Quader. Ursache war `_draw_plot` -> `_draw_iso_block` als Fallback fuer ein GEBAUTES Gebaeude ohne Sprite; **28 von 36 Sprites fehlten** (Waldvolk/Totenreich/Orks komplett, Menschen die Zitadelle). Jetzt zwei Generatoren: `tools/gen_city_bg.py` (4 Hintergruende + 4 bg_walled-Varianten mit Mauerring; ersetzt das gemalte Canva-PNG der Menschen) und `tools/gen_city_buildings.py` (36 Gebaeude + 9 Baustellen aus einer Teile-Bibliothek: Iso-Koerper, 5 Dachformen, Zierteile, 9 Rezepte, 4 Paletten). **Bild-Grenzen-Pruefung** `check_bounds()` im Generator - die Zitadelle war zuerst oben abgeschnitten und im Sprite-Blatt fiel es kaum auf. Fallback-Quader bleibt als Notausgang, aber entsaettigt. |
+| Weltkarte lesbar (It. 19) | FERTIG. Drei Befunde aus den Geraete-Screenshots. (1) Je Gelaendeart lag EINE Kachel - `grass.svg` hatte seine Bluete auf Pixel (52,20), also stand auf jeder Wiese dieselbe Bluete an derselben Stelle: Tapetenmuster. Jetzt `tools/gen_world_tiles.py` mit SECHS Varianten je Gelaendeart, Auswahl deterministisch aus Feldkoordinate + Seed (`_tile_variant`). (2) Gelaendearten stiessen kerzengerade aneinander - jetzt weiche Uebergangs-Fransen (`fringe_<seite>.svg`, weiss, wird mit der Nachbarfarbe moduliert; vier Dateien decken alle Kombinationen). (3) Unerforscht war Volltonschwarz mit Gitterlinien - jetzt gewolkte Nebelkacheln. Dazu die HUD-Zeile aufgebrochen: statt "T4 W1 M1 J1 L2 0/10 G872 H15 E5 K3 1 Sk / 2 Zo ... XP140" in EINEM Label jetzt zwei gruppierte Zeilen mit `GameCalendar.calendar_long()`; die Armee ist raus (steht im Helden-Panel). **Falle:** der erste `_tile_variant`-Hash koppelte die Paritaet an x - waagerechte Nachbarn bekamen NIE dieselbe Variante (0 % statt 1/6), ein verstecktes Schachbrett. Zwei Shift-Multiply-Runden loesen das; der Test prueft jetzt BEIDE Schranken, eine Obergrenze allein haette den Fehler durchgelassen. |
 | M5-M12 Parallel-Band (Objekte, Sound, Events) | offen |
 | M7/M8 Heldenstats/Skills, Zauber | offen (nach M4) |
 | M13 Mehrere Helden (vorher Struktur-Iteration!), M14 MP | zurueckgestellt |
@@ -55,8 +56,9 @@ fertig"). Entschieden:
 - Kampf: **gemalte Kreatur direkt im Gitter**, nicht Token + Detail-Panel.
   Bei ~86 px Zellgroesse heisst das: grobe, kontrastreiche Silhouetten.
 - Reihenfolge (nach den Geraete-Screenshots umsortiert - ein sichtbarer
-  Defekt geht vor einer schlichten Flaeche): 17 Effekte -> **18 Stadt
-  komplett** -> 19 Weltkarte -> 20 Kreaturen -> 21 Schlachtfeld-Kulisse.
+  Defekt geht vor einer schlichten Flaeche): 17 Effekte -> 18 Stadt
+  komplett -> 19 Weltkarte lesbar -> **20 Karten-Objekte + Kreaturen** ->
+  21 Schlachtfeld-Kulisse.
 
 ### Verbindliche Asset-Konventionen
 
@@ -74,6 +76,11 @@ fertig"). Entschieden:
   Suite rot, statt still einen Quader zu zeichnen.
 - `ART_EXTENSIONS` ist `[".svg", ".png"]` - eine neue .svg gewinnt ohne
   Code-Change gegen eine bestehende .png.
+- **Weltkarten-Kacheln:** 64x64, FLACHE Grundfarbe (ein senkrechter Verlauf
+  je Kachel ergibt im Feld Querstreifen alle 64 px - ein Verlauf kann nicht
+  kacheln), Deko mit Abstand zum Rand (`INSET`), damit die Kacheln seitlich
+  passen. Sechs Varianten je Art; vier waren bei ~30 Kacheln im Blick noch
+  als Muster erkennbar.
 - Silhouette ist das Unterscheidungsmerkmal, nicht die Farbe: die Sprites
   sind auf dem Handy ~150 px breit. Reiterei/Kaserne/Mauer sahen im ersten
   Anlauf identisch aus (Kasten mit Dach) - die Mauer hat jetzt einen eigenen

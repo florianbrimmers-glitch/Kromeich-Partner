@@ -53,6 +53,8 @@ func _init() -> void:
 		pos_b.append(c["pos"])
 	_check(str(pos_a) == str(pos_b), "Seed 2024: Stadt-Layout unabhaengig von Fraktionswahl")
 
+	_test_tileset(wm)
+
 	wm.queue_free()
 	await process_frame
 
@@ -69,3 +71,80 @@ func _check(cond: bool, msg: String) -> void:
 	if not cond:
 		_fails += 1
 	print(("[OK]   " if cond else "[FAIL] ") + msg)
+
+
+# Weltkarten-Tileset (It. 19). Sperre gegen zwei Fehler, die man nur auf dem
+# Geraet sieht: fehlt eine Variante, faellt der Screen still auf die alte
+# Einzelkachel zurueck und die Karte kachelt wieder sichtbar; ist
+# _tile_variant nicht deterministisch, sieht dieselbe Karte nach Save/Load
+# anders aus.
+func _test_tileset(wm) -> void:
+	print("")
+	print("== Weltkarten-Tileset ==")
+	var names: Array = wm.get("TERRAIN_NAMES").values()
+	var variants: int = int(wm.get("TERRAIN_VARIANTS"))
+	var missing: Array = []
+	for n in names:
+		for v in range(variants):
+			var path: String = "res://assets/world/terrain/%s_%d.svg" % [String(n), v]
+			if not ResourceLoader.exists(path):
+				missing.append("%s_%d" % [String(n), v])
+	_check(missing.is_empty(), "%d Gelaende x %d Varianten vorhanden (fehlen: %s)"
+		% [names.size(), variants, str(missing)])
+
+	var missing_fringe: Array = []
+	for side in wm.get("FRINGE_SIDES"):
+		if not ResourceLoader.exists("res://assets/world/terrain/fringe_%s.svg" % String(side)):
+			missing_fringe.append(String(side))
+	_check(missing_fringe.is_empty(),
+		"Uebergangs-Fransen fuer alle vier Seiten (fehlen: %s)" % str(missing_fringe))
+
+	var missing_fog: Array = []
+	for v2 in range(int(wm.get("FOG_VARIANTS"))):
+		if not ResourceLoader.exists("res://assets/world/terrain/fog_%d.svg" % v2):
+			missing_fog.append(str(v2))
+	_check(missing_fog.is_empty(), "Nebelkacheln vorhanden (fehlen: %s)" % str(missing_fog))
+
+	# Determinismus + Wertebereich.
+	wm.call("_start", 4242, 1)
+	var first: Array = []
+	for x in range(12):
+		for y in range(12):
+			first.append(int(wm.call("_tile_variant", x, y, variants)))
+	var in_range := true
+	for v3 in first:
+		if int(v3) < 0 or int(v3) >= variants:
+			in_range = false
+			break
+	_check(in_range, "alle Varianten-Indizes liegen in 0..%d" % (variants - 1))
+	wm.call("_start", 4242, 1)
+	var second: Array = []
+	for x2 in range(12):
+		for y2 in range(12):
+			second.append(int(wm.call("_tile_variant", x2, y2, variants)))
+	_check(str(first) == str(second), "gleicher Seed -> gleiche Varianten")
+	# Und: verschiedene Seeds streuen anders, sonst waere der Seed wirkungslos.
+	wm.call("_start", 777, 1)
+	var third: Array = []
+	for x3 in range(12):
+		for y3 in range(12):
+			third.append(int(wm.call("_tile_variant", x3, y3, variants)))
+	_check(str(first) != str(third), "anderer Seed -> andere Streuung")
+	# Nachbarfelder duerfen nicht systematisch dieselbe Variante bekommen,
+	# sonst entstehen sichtbare Bloecke gleicher Kacheln.
+	var same_as_right: int = 0
+	for x4 in range(11):
+		for y4 in range(12):
+			if int(wm.call("_tile_variant", x4, y4, variants)) \
+					== int(wm.call("_tile_variant", x4 + 1, y4, variants)):
+				same_as_right += 1
+	# Erwartungswert ist 1/count. BEIDE Schranken pruefen: zu viele gleiche
+	# Nachbarn ergeben Bloecke, ZU WENIGE ein Schachbrett. Der erste Hash
+	# lieferte exakt 0 % - waagerechte Nachbarn konnten wegen der
+	# Paritaets-Kopplung nie uebereinstimmen - und eine reine
+	# Obergrenzen-Pruefung haette das durchgelassen.
+	var ratio: float = float(same_as_right) / float(11 * 12)
+	var expect: float = 1.0 / float(variants)
+	_check(ratio > expect * 0.5 and ratio < expect * 2.0,
+		"Nachbarn streuen wie erwartet (%.0f%% gleich, erwartet %.0f%%, erlaubt %.0f-%.0f%%)"
+		% [ratio * 100.0, expect * 100.0, expect * 50.0, expect * 200.0])

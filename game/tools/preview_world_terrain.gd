@@ -1,17 +1,48 @@
 extends SceneTree
 
-# Voll-Preview der Weltkarten-Terrain-Tiles: rendert eine Beispiel-Karte
-# (15x22 Tiles, wie das Spiel) auf ein PNG, sodass man die neuen Texturen
-# in Spiel-Aufloesung sehen kann ohne APK-Build.
+# Voll-Vorschau der Weltkarte: rendert eine Beispielkarte in Spiel-
+# Aufloesung auf ein PNG, ohne APK-Build. Der echte WorldMapScreen laesst
+# sich headless nicht rendern (kein Display, siehe game/CLAUDE.md).
 #
 #   godot --headless --path game/ --script tools/preview_world_terrain.gd
 #
-# Output: user://world-terrain-preview.png
+# Spiegelt bewusst die Zeichenreihenfolge aus WorldMapScreen._draw_map:
+#   1. Nebelkachel wenn unerforscht
+#   2. sonst Gelaende-Kachel in der Variante aus _tile_variant
+#   3. darauf die Uebergangs-Fransen der abweichenden Nachbarn
+# Nur so faellt auf, wenn Varianten oder Fransen im Feld falsch wirken -
+# einzelne Kacheln nebeneinander sehen immer gut aus.
+#
+# Output: user://world-map-preview.png (links komplett erkundet,
+#         rechts mit Kriegsnebel wie im Spiel)
 
-const MAP_W := 15
-const MAP_H := 22
+const MAP_W := 18
+const MAP_H := 26
 const TILE := 64
 const SEED := 42
+
+# Muss zu WorldMapScreen passen.
+const TERRAIN_VARIANTS := 6
+const FOG_VARIANTS := 6
+const FRINGE_ALPHA := 0.40
+const FRINGE_SIDES := ["top", "right", "bottom", "left"]
+const TERRAIN_NAMES := {
+	MapGen.TILE_GRASS: "grass", MapGen.TILE_FOREST: "forest",
+	MapGen.TILE_WATER: "water", MapGen.TILE_MOUNTAIN: "mountain",
+	MapGen.TILE_SAND: "sand", MapGen.TILE_SWAMP: "swamp",
+}
+# Fallback-Farben wie WorldMapScreen._terrain_color - die Franse wird damit
+# eingefaerbt.
+const TERRAIN_COLORS := {
+	MapGen.TILE_GRASS: Color(0.30, 0.48, 0.22),
+	MapGen.TILE_FOREST: Color(0.18, 0.33, 0.15),
+	MapGen.TILE_WATER: Color(0.16, 0.36, 0.52),
+	MapGen.TILE_MOUNTAIN: Color(0.40, 0.38, 0.35),
+	MapGen.TILE_SAND: Color(0.76, 0.66, 0.42),
+	MapGen.TILE_SWAMP: Color(0.26, 0.32, 0.18),
+}
+
+var _cache: Dictionary = {}
 
 
 func _init() -> void:
@@ -19,74 +50,109 @@ func _init() -> void:
 	var map: Dictionary = MapGen.generate(MAP_W, MAP_H, rng)
 	var tiles: Array = map["tiles"]
 
-	# Lade alle Terrain-Texturen einmal.
-	var tex_map: Dictionary = {}
-	for ti in [MapGen.TILE_GRASS, MapGen.TILE_FOREST, MapGen.TILE_WATER,
-	           MapGen.TILE_MOUNTAIN, MapGen.TILE_SAND, MapGen.TILE_SWAMP]:
-		var name: String = ""
-		match ti:
-			MapGen.TILE_GRASS:    name = "grass"
-			MapGen.TILE_FOREST:   name = "forest"
-			MapGen.TILE_WATER:    name = "water"
-			MapGen.TILE_MOUNTAIN: name = "mountain"
-			MapGen.TILE_SAND:     name = "sand"
-			MapGen.TILE_SWAMP:    name = "swamp"
-		var path := "res://assets/world/terrain/%s.svg" % name
-		if ResourceLoader.exists(path):
-			var tex: Texture2D = load(path) as Texture2D
-			tex_map[ti] = tex.get_image()
-		else:
-			print("MISSING: ", path)
+	var gap: int = 16
+	var pw: int = MAP_W * TILE
+	var canvas := Image.create(pw * 2 + gap, MAP_H * TILE, false, Image.FORMAT_RGBA8)
+	canvas.fill(Color(0.02, 0.02, 0.03, 1.0))
 
-	var w_px: int = MAP_W * TILE
-	var h_px: int = MAP_H * TILE
-	var canvas := Image.create(w_px, h_px, false, Image.FORMAT_RGBA8)
-	canvas.fill(Color(0.04, 0.04, 0.06, 1.0))
-
-	for y in range(MAP_H):
-		for x in range(MAP_W):
-			var ti: int = int(tiles[y * MAP_W + x])
-			if not tex_map.has(ti):
-				continue
-			var src_img: Image = tex_map[ti]
-			# Wenn die SVG nicht exakt TILE-Pixel gross ist, einmal resize.
-			if src_img.get_width() != TILE or src_img.get_height() != TILE:
-				var resized := Image.create(TILE, TILE, false, Image.FORMAT_RGBA8)
-				resized.copy_from(src_img)
-				resized.resize(TILE, TILE, Image.INTERPOLATE_LANCZOS)
-				src_img = resized
-			canvas.blend_rect(src_img,
-				Rect2i(0, 0, TILE - 1, TILE - 1),
-				Vector2i(x * TILE, y * TILE))
-
-	# Demo-Overlay: 4 Staedte, 1 Held, 1 Gegner, 1 Truhe, 1 Mine - damit
-	# man im PNG sieht, wie die neuen Welt-Sprites zusammen aussehen.
-	_blit(canvas, "res://assets/world/cities/menschen.svg",   3,  2)
-	_blit(canvas, "res://assets/world/cities/waldvolk.svg",  10,  3)
-	_blit(canvas, "res://assets/world/cities/totenreich.svg", 2, 14)
-	_blit(canvas, "res://assets/world/cities/orks.svg",      11, 18)
-	_blit(canvas, "res://assets/world/units/hero.svg",        5,  5)
-	_blit(canvas, "res://assets/world/units/enemy.svg",       9, 12)
-	_blit(canvas, "res://assets/world/objects/chest.svg",     7,  8)
-	_blit(canvas, "res://assets/world/objects/mine.svg",      6, 16)
-
-	var save_err: int = canvas.save_png("user://world-terrain-preview.png")
-	print("size=%dx%d save_err=%d -> %s" % [
-		w_px, h_px, save_err,
-		ProjectSettings.globalize_path("user://world-terrain-preview.png")])
+	# Linke Haelfte: alles erkundet. Rechte Haelfte: Nebel um einen Punkt,
+	# damit der Uebergang erforscht/unerforscht beurteilbar ist.
+	var hero := Vector2i(MAP_W / 2, MAP_H / 2 + 3)
+	for pass_i in range(2):
+		var ox: int = pass_i * (pw + gap)
+		var fogged: bool = pass_i == 1
+		for y in range(MAP_H):
+			for x in range(MAP_W):
+				var ti: int = int(tiles[y * MAP_W + x])
+				var dist: int = absi(x - hero.x) + absi(y - hero.y)
+				if fogged and dist > 7:
+					_blit(canvas, "fog_%d" % _variant(x, y, FOG_VARIANTS),
+						ox + x * TILE, y * TILE)
+					continue
+				var name: String = String(TERRAIN_NAMES.get(ti, "grass"))
+				_blit(canvas, "%s_%d" % [name, _variant(x, y, TERRAIN_VARIANTS)],
+					ox + x * TILE, y * TILE)
+				_fringes(canvas, tiles, x, y, ti, ox)
+				if fogged and dist > 4:
+					# Erkundet aber nicht in Sicht: gedimmt wie im Screen.
+					_dim(canvas, ox + x * TILE, y * TILE, 0.55)
+	var err: int = canvas.save_png("user://world-map-preview.png")
+	print("save_err=%d -> %s" % [err,
+		ProjectSettings.globalize_path("user://world-map-preview.png")])
 	quit(0)
 
 
-func _blit(canvas: Image, path: String, tx: int, ty: int) -> void:
-	if not ResourceLoader.exists(path):
-		print("MISSING blit: ", path)
+# Muss identisch zu WorldMapScreen._tile_variant sein, sonst zeigt die
+# Vorschau eine andere Karte als das Spiel.
+func _variant(x: int, y: int, count: int) -> int:
+	var h: int = (x * 73856093) ^ (y * 19349663) ^ (SEED * 83492791)
+	h = (h ^ (h >> 13)) * 1274126177
+	h = h ^ (h >> 16)
+	return absi(h) % count
+
+
+func _fringes(canvas: Image, tiles: Array, x: int, y: int, own: int, ox: int) -> void:
+	var dirs := [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0)]
+	for i in range(4):
+		var nx: int = x + dirs[i].x
+		var ny: int = y + dirs[i].y
+		if nx < 0 or ny < 0 or nx >= MAP_W or ny >= MAP_H:
+			continue
+		var other: int = int(tiles[ny * MAP_W + nx])
+		if other == own:
+			continue
+		var col: Color = TERRAIN_COLORS.get(other, Color(1, 1, 1))
+		col.a = FRINGE_ALPHA
+		_blit_tinted(canvas, "fringe_%s" % String(FRINGE_SIDES[i]),
+			ox + x * TILE, y * TILE, col)
+
+
+func _image(name: String) -> Image:
+	if _cache.has(name):
+		return _cache[name] as Image
+	var path: String = "res://assets/world/terrain/%s.svg" % name
+	var img: Image = null
+	if ResourceLoader.exists(path):
+		var tex: Texture2D = load(path) as Texture2D
+		if tex != null:
+			img = tex.get_image()
+			if img.is_compressed():
+				img.decompress()
+			img.convert(Image.FORMAT_RGBA8)
+			if img.get_width() != TILE:
+				img.resize(TILE, TILE, Image.INTERPOLATE_LANCZOS)
+	else:
+		print("[FEHLT] %s" % path)
+	_cache[name] = img
+	return img
+
+
+func _blit(canvas: Image, name: String, px: int, py: int) -> void:
+	var img: Image = _image(name)
+	if img == null:
 		return
-	var tex: Texture2D = load(path) as Texture2D
-	var img: Image = tex.get_image()
-	if img.get_width() != TILE or img.get_height() != TILE:
-		var resized := Image.create(TILE, TILE, false, Image.FORMAT_RGBA8)
-		resized.copy_from(img)
-		resized.resize(TILE, TILE, Image.INTERPOLATE_LANCZOS)
-		img = resized
-	canvas.blend_rect(img, Rect2i(0, 0, TILE - 1, TILE - 1),
-		Vector2i(tx * TILE, ty * TILE))
+	canvas.blit_rect(img, Rect2i(0, 0, TILE, TILE), Vector2i(px, py))
+
+
+# Franse mit Nachbarfarbe multiplizieren und alpha-blenden - entspricht
+# draw_texture_rect(..., modulate) im Screen.
+func _blit_tinted(canvas: Image, name: String, px: int, py: int, col: Color) -> void:
+	var img: Image = _image(name)
+	if img == null:
+		return
+	for j in range(TILE):
+		for i in range(TILE):
+			var src: Color = img.get_pixel(i, j)
+			var a: float = src.a * col.a
+			if a <= 0.004:
+				continue
+			var dst: Color = canvas.get_pixel(px + i, py + j)
+			canvas.set_pixel(px + i, py + j, dst.lerp(
+				Color(src.r * col.r, src.g * col.g, src.b * col.b), a))
+
+
+func _dim(canvas: Image, px: int, py: int, amount: float) -> void:
+	for j in range(TILE):
+		for i in range(TILE):
+			var dst: Color = canvas.get_pixel(px + i, py + j)
+			canvas.set_pixel(px + i, py + j, dst.lerp(Color(0, 0, 0), amount))

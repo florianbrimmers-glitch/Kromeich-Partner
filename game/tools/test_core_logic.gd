@@ -51,6 +51,14 @@ func _test_calendar() -> void:
 	_check(GameCalendar.year_num(336) == 2, "turn 336 = Jahr 2")
 	_check(GameCalendar.calendar_text(336) == "T1 W1 M1 J2",
 		"turn 336 -> T1 W1 M1 J2 (ist %s)" % GameCalendar.calendar_text(336))
+	# Lange Form fuer die Anzeige (It. 19): das Jahr erscheint erst ab Jahr 2,
+	# sonst frisst es Platz in der Kopfzeile ohne Information.
+	_check(not GameCalendar.calendar_long(0).contains("Jahr"),
+		"Jahr 1 wird nicht genannt (ist '%s')" % GameCalendar.calendar_long(0))
+	_check(GameCalendar.calendar_long(0).begins_with("Tag 1"),
+		"lange Form beginnt mit dem Tag (ist '%s')" % GameCalendar.calendar_long(0))
+	_check(GameCalendar.calendar_long(336).contains("Jahr 2"),
+		"ab Jahr 2 steht es drin (ist '%s')" % GameCalendar.calendar_long(336))
 
 
 # --- GameCalendar: Bresenham-Wachstum ---

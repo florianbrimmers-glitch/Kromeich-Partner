@@ -47,6 +47,23 @@ static func calendar_text(turn_number: int) -> String:
 		month_of_year(turn_number), year_num(turn_number)]
 
 
+# Lange Form fuer die Anzeige. `calendar_text` bleibt die kompakte Form
+# ("T4 W1 M1 J1") - sie steckt in Save-/Kontext-Dictionaries und ist
+# getestet. Im HUD war sie unlesbar: der Nutzer sah nur einen Code-Streifen.
+static func calendar_long(turn_number: int) -> String:
+	var parts: Array = [
+		"Tag %d" % day_of_week(turn_number),
+		"Woche %d" % week_of_month(turn_number),
+		"Monat %d" % month_of_year(turn_number),
+	]
+	# Jahr nur nennen, wenn es eins gibt, das nicht das erste ist - sonst
+	# frisst es Platz ohne Information.
+	var yr: int = year_num(turn_number)
+	if yr > 1:
+		parts.append("Jahr %d" % yr)
+	return "  ".join(parts)
+
+
 # Tagesration eines Wochen-Wachstums via Bresenham: die 7 Tageswerte
 # summieren sich exakt auf cap, egal wie krumm cap/7 ist.
 # dow: 1..DAYS_PER_WEEK.

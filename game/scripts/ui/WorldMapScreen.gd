@@ -987,27 +987,39 @@ func _center_view_on(tile: Vector2i) -> void:
 	_request_redraw()
 
 
+# Kopfzeile. Vorher stand ALLES in einem rechtsbuendigen Label:
+# "T4 W1 M1 J1 L2 0/10 G872 H15 E5 K3 1 Sk / 2 Zo / 1 Ge / 1 Va (+1) XP140".
+# Auf dem Geraet war das ein Code-Streifen, den niemand lesen kann. Jetzt
+# ZWEI gruppierte Zeilen, und die Armee ist ganz raus - die steht schon im
+# Helden-Panel, wo Platz dafuer ist.
+const TOPBAR_FONT_SIZE := 21
+
+
 func _update_labels() -> void:
 	var ml := get_node_or_null(mp_label_path) as Label
-	if ml != null:
-		var mp: int = int(_hero.mp)
-		var mmax: int = int(_hero.max_mp)
-		var gold: int = int(_hero.gold)
-		var lvl: int = int(_hero.level)
-		var xp: int = int(_hero.xp)
-		var bonus: int = _combat_bonus()
-		var bonus_str: String = " (+" + str(bonus) + ")" if bonus > 0 else ""
-		# Kompakte Ressourcenzeile (M3): nur Bestaende != 0 anzeigen,
-		# damit die Topbar auf schmalen Displays lesbar bleibt.
-		var res_str: String = ""
-		for rid in Wallet.RESOURCE_IDS:
-			if rid == "gold":
-				continue
-			var amt: int = _hero.wallet.get_amount(rid)
-			if amt > 0:
-				res_str += "  %s%d" % [Wallet.short_name(rid), amt]
-		ml.text = "%s  L%d  %d/%d  G%d%s  %s%s  XP%d" % [
-			_calendar_text(), lvl, mp, mmax, gold, res_str, _hero.army_summary(), bonus_str, xp]
+	if ml == null:
+		return
+	if ml.get_theme_font_size("font_size") != TOPBAR_FONT_SIZE:
+		ml.add_theme_font_size_override("font_size", TOPBAR_FONT_SIZE)
+	var bonus: int = _combat_bonus()
+	var line1: Array = [
+		_calendar_long(),
+		"Stufe %d" % int(_hero.level),
+		"Zug %d/%d" % [int(_hero.mp), int(_hero.max_mp)],
+	]
+	if bonus > 0:
+		line1.append("Kampf +%d" % bonus)
+	# Ressourcen: nur Bestaende ungleich null, sonst wird die Zeile auf
+	# schmalen Displays zu lang.
+	var line2: Array = ["%d Gold" % int(_hero.gold)]
+	for rid in Wallet.RESOURCE_IDS:
+		if rid == "gold":
+			continue
+		var amt: int = _hero.wallet.get_amount(rid)
+		if amt > 0:
+			line2.append("%d %s" % [amt, Wallet.short_name(rid)])
+	line2.append("%d XP" % int(_hero.xp))
+	ml.text = "  ".join(line1) + "\n" + "  ".join(line2)
 
 
 # --- Kalender-Helper: duenne Delegates auf GameCalendar (core/), wo die
@@ -1020,6 +1032,9 @@ func _day_of_week() -> int:
 
 func _calendar_text() -> String:
 	return GameCalendar.calendar_text(_turn_number)
+
+func _calendar_long() -> String:
+	return GameCalendar.calendar_long(_turn_number)
 
 
 # --- Pool-Helper ---
@@ -1110,15 +1125,22 @@ func _draw_map() -> void:
 			var key := Vector2i(x, y)
 			var fog: int = _fog_get(_fog_player, key)
 			if fog == FOG_HIDDEN:
-				_map_area.draw_rect(rect, Color(0.04, 0.04, 0.06), true)
+				# Gewolkte Nebelkachel statt Volltonschwarz - das schwarze
+				# Raster nahm im Screenshot die halbe Karte ein.
+				var ftex: Texture2D = _fog_texture(x, y)
+				if ftex != null:
+					_map_area.draw_texture_rect(ftex, rect, false)
+				else:
+					_map_area.draw_rect(rect, Color(0.04, 0.04, 0.06), true)
 				continue
 			var reachable: bool = _costs.has(key) and int(_costs[key]) <= _hero.mp
 			# Terrain: zuerst Textur, sonst Color-Fallback. Fog-/Reachability-
 			# Dim laeuft als schwarzes Alpha-Overlay, damit das Texturen-Bild
 			# nicht doppelt eingefaerbt wird.
-			var tex: Texture2D = _terrain_texture(ti)
+			var tex: Texture2D = _terrain_texture(ti, _tile_variant(x, y, TERRAIN_VARIANTS))
 			if tex != null:
 				_map_area.draw_texture_rect(tex, rect, false)
+				_draw_fringes(x, y, ti, rect, tiles)
 				if fog == FOG_EXPLORED:
 					_map_area.draw_rect(rect, Color(0, 0, 0, 0.55), true)
 				elif not reachable:
@@ -1414,20 +1436,97 @@ const TERRAIN_NAMES := {
 	MapGen.TILE_SAND:     "sand",
 	MapGen.TILE_SWAMP:    "swamp",
 }
+# Je Gelaendeart mehrere Kachel-Varianten (tools/gen_world_tiles.py).
+# Vorher lag EINE Datei je Art - dieselbe Bluete an derselben Pixelposition
+# auf jeder Wiese der Karte, auf dem Geraet ein Tapetenmuster.
+const TERRAIN_VARIANTS := 6
+const FOG_VARIANTS := 6
+const FRINGE_SIDES := ["top", "right", "bottom", "left"]
+# Deckkraft der Uebergangs-Franse. Hoeher wirkt wie ein Farbrand, niedriger
+# ist auf dem Handy nicht mehr zu sehen.
+const FRINGE_ALPHA := 0.40
 var _terrain_tex_cache: Dictionary = {}
 
 
-func _terrain_texture(t: int) -> Texture2D:
-	if _terrain_tex_cache.has(t):
-		return _terrain_tex_cache[t] as Texture2D
+# Variante deterministisch aus Feldkoordinate UND Karten-Seed: dieselbe
+# Karte sieht nach Save/Load identisch aus, verschiedene Seeds streuen
+# anders. Ganzzahl-Hash, damit kein RNG-Objekt pro Frame entsteht.
+func _tile_variant(x: int, y: int, count: int) -> int:
+	# Bit-Mischung ist noetig, nicht Kosmetik: mit dem rohen
+	# "x*A ^ y*B ^ seed*C" wechselt die PARITAET des Hashs bei jedem Schritt
+	# in x, weil A ungerade ist. Modulo 6 heisst das: waagerechte Nachbarn
+	# bekamen NIE dieselbe Variante (der Test misst 0 % statt der erwarteten
+	# ~17 %) - also ein verstecktes Schachbrett aus geraden und ungeraden
+	# Varianten. Die zwei Shift-Multiply-Runden ziehen die hohen Bits nach
+	# unten und loesen das auf.
+	var h: int = (x * 73856093) ^ (y * 19349663) ^ (_seed * 83492791)
+	h = (h ^ (h >> 13)) * 1274126177
+	h = h ^ (h >> 16)
+	return absi(h) % count
+
+
+func _terrain_texture(t: int, variant: int = -1) -> Texture2D:
+	var key: String = "%d:%d" % [t, variant]
+	if _terrain_tex_cache.has(key):
+		return _terrain_tex_cache[key] as Texture2D
 	var name: String = String(TERRAIN_NAMES.get(t, ""))
 	var tex: Texture2D = null
 	if name != "":
-		var path: String = TERRAIN_ASSET_PATH % name
-		if ResourceLoader.exists(path):
-			tex = load(path) as Texture2D
-	_terrain_tex_cache[t] = tex
+		# Erst die Variante, dann die alte Datei ohne Suffix als Fallback -
+		# so bleibt der Screen lauffaehig, falls der Generator nicht lief.
+		var candidates: Array = []
+		if variant >= 0:
+			candidates.append(TERRAIN_ASSET_PATH % ("%s_%d" % [name, variant]))
+		candidates.append(TERRAIN_ASSET_PATH % name)
+		for path in candidates:
+			if ResourceLoader.exists(String(path)):
+				tex = load(String(path)) as Texture2D
+				break
+	_terrain_tex_cache[key] = tex
 	return tex
+
+
+func _fog_texture(x: int, y: int) -> Texture2D:
+	var v: int = _tile_variant(x, y, FOG_VARIANTS)
+	var key: String = "fog:%d" % v
+	if _terrain_tex_cache.has(key):
+		return _terrain_tex_cache[key] as Texture2D
+	var path: String = TERRAIN_ASSET_PATH % ("fog_%d" % v)
+	var tex: Texture2D = load(path) as Texture2D if ResourceLoader.exists(path) else null
+	_terrain_tex_cache[key] = tex
+	return tex
+
+
+func _fringe_texture(side: String) -> Texture2D:
+	var key: String = "fringe:%s" % side
+	if _terrain_tex_cache.has(key):
+		return _terrain_tex_cache[key] as Texture2D
+	var path: String = TERRAIN_ASSET_PATH % ("fringe_%s" % side)
+	var tex: Texture2D = load(path) as Texture2D if ResourceLoader.exists(path) else null
+	_terrain_tex_cache[key] = tex
+	return tex
+
+
+# Weiche Uebergaenge: laeuft an einer Kante ein anderes Gelaende, wird die
+# Franse in der Farbe des Nachbarn darueber gezeichnet - das Material des
+# Nachbarn laeuft in die Kachel hinein. Vorher stiessen Gelaendearten mit
+# kerzengeraden Kanten aneinander, die Karte las sich als Farbschachbrett.
+func _draw_fringes(x: int, y: int, own: int, rect: Rect2, tiles: Array) -> void:
+	var neighbours := [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0)]
+	for i in range(4):
+		var nx: int = x + neighbours[i].x
+		var ny: int = y + neighbours[i].y
+		if nx < 0 or ny < 0 or nx >= MAP_WIDTH or ny >= MAP_HEIGHT:
+			continue
+		var other: int = int(tiles[ny * MAP_WIDTH + nx])
+		if other == own:
+			continue
+		var tex: Texture2D = _fringe_texture(String(FRINGE_SIDES[i]))
+		if tex == null:
+			continue
+		var col: Color = _terrain_color(other)
+		col.a = FRINGE_ALPHA
+		_map_area.draw_texture_rect(tex, rect, false, col)
 
 
 # Welt-Sprite-Cache (Staedte, Helden, Objekte). Schluessel = beliebiger
@@ -2314,7 +2413,7 @@ func _city_ctx(city_idx: int) -> Dictionary:
 		"faction_colors": FACTION_COLORS,
 		"market_buy": MARKET_BUY,
 		"market_sell": MARKET_SELL,
-		"calendar": _calendar_text(),
+		"calendar": _calendar_long(),
 		"hero_here": _hero != null and _hero.position == Vector2i(city["pos"]),
 	}
 
