@@ -147,6 +147,11 @@ jobs:
           ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
             --headless --path game/ --script tools/test_unit_art.gd
 
+      - name: Durchspiel-Test (Weltkarte -> Kampf -> Callback -> Weltkarte)
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/test_playthrough.gd
+
       - name: Balance-Simulator (informativ, bricht nicht)
         continue-on-error: true
         run: |

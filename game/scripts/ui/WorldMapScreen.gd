@@ -38,6 +38,8 @@ const CITY_COUNT := 8
 # Mindestabstand jeder Stadt zum Kartenrand in Feldern. Eine Stadt IST der
 # Startpunkt des Helden, deshalb ist das keine Kosmetik.
 const CITY_BORDER_MARGIN := 2
+# Schonfrist ohne eigene Stadt, in Tagen (HoMM3-Regel, It. 38).
+const LOSS_GRACE_DAYS := 7
 const CITY_MIN_DIST := 7
 const CITY_INCOME := 500
 const OWNER_NEUTRAL := -1
@@ -81,14 +83,29 @@ const MONSTER_COUNT := 8
 # Zahl. Jetzt hat jedes Monster eine echte Kreatur, deren Sprite auf der
 # Karte steht und die im Kampf auch antritt.
 #
-# KRAFT BLEIBT GLEICH: die Staerke wird als TREFFERPUNKT-Budget gelesen
-# (Staerke x MONSTER_HP_PER_STRENGTH), und die Stackgroesse ergibt sich aus
-# den HP der gewaehlten Kreatur. Ein Speertraeger hat 10 HP, also entspricht
-# Budget 10 genau dem alten "1 Speertraeger". Nur Kreaturen, die einzeln ins
-# Budget passen (mit etwas Spielraum), kommen in Frage - deshalb ist ein
-# Oger niemals ein Staerke-1-Monster.
-const MONSTER_HP_PER_STRENGTH := 10
-const MONSTER_HP_TOLERANCE := 1.45
+# KRAFT-BUDGET IN GOLD (It. 38, korrigiert): eine Staerke entspricht
+# MONSTER_GOLD_PER_STRENGTH Gold, und die Stackgroesse ergibt sich aus dem
+# Preis der Kreatur. Nur Kreaturen, die EINZELN ins Budget passen (mit
+# etwas Spielraum), kommen in Frage.
+#
+# It. 35 hat dafuer TREFFERPUNKTE genommen - das war falsch, und der
+# Durchspiel-Test (It. 38) hat es aufgedeckt: der Spieler verlor in Zug 1
+# seine ganze Armee an einen Kampf, den die Karte als machbar anzeigte.
+# 30 HP als EIN Greif (Tier 3, Angriff 8, fliegend) schlagen 30 HP als
+# drei Speertraeger (Tier 1, Angriff 4) muehelos. HP sind ueber die Tiers
+# hinweg nicht vergleichbar - GOLD ist es, denn genau darauf ist die
+# Balance getunt (Balance-Pass 10, data/balance_notes.md).
+#
+# 60 Gold = ein Speertraeger. Staerke 3 = 180 Gold entspricht also der
+# Startarmee des Spielers (3 Einheiten Tier 1) - ein knapper Kampf, kein
+# aussichtsloser. Teure Kreaturen fallen automatisch aus: ein Greif kostet
+# 200 und passt in kein Staerke-3-Budget.
+const MONSTER_GOLD_PER_STRENGTH := 60
+# Spielraum bei der Kreatur-Wahl. 1.0 heisst: die Kreatur muss EINZELN ins
+# Budget passen. Der erste Anlauf stand auf 1.25 - damit war ein Greif
+# (200 Gold) fuer Staerke 3 (180) zulaessig, also genau der Kampf, der die
+# Startarmee ausloescht. Der Test in test_new_game haelt das jetzt fest.
+const MONSTER_GOLD_TOLERANCE := 1.0
 const MONSTER_MAX_COUNT := 20
 # Kandidaten fuer wandernde Monster: bewusst aus allen vier Fraktionen,
 # aber nur Kreaturen, die als Wildnis-Begegnung taugen (keine Engel,
@@ -339,6 +356,9 @@ var _victory_panel: Panel
 var _victory_title: Label
 var _game_won: bool = false
 var _game_lost: bool = false
+# Zugnummer, ab der der Spieler keine Stadt mehr hat. -1 = alles in
+# Ordnung. Wird gespeichert (reine Feld-Ergaenzung, kein Versions-Bump).
+var _no_city_since: int = -1
 # Gegner-KIs. Jede KI ist ein Dictionary mit:
 #   "hero": Hero (null wenn im Kampf gefallen)
 #   "owner_id": int (1..3) - wird in city/object["owner"] gespiegelt
@@ -446,6 +466,7 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 	_seed = seed_value
 	_game_won = false
 	_game_lost = false
+	_no_city_since = -1
 	_enemies.clear()
 	_ai_seen_by_player.clear()
 	if _victory_panel != null:
@@ -1011,6 +1032,24 @@ func _ai_index_at(pos: Vector2i) -> int:
 	return -1
 
 
+# EINE Regel fuer alle drei Prognosen (Monster, Objekt-Wache, Garnison).
+# Vorher stand die Dreifach-Abfrage dreimal im Zeichencode, jedes Mal mit
+# eigenen Vergleichen - und alle drei verglichen Stueckzahlen.
+#   rot  = die Verteidigung ist wertvoller als die eigene Armee
+#   gelb = knapp: Sieg wahrscheinlich, aber mit Verlusten
+#   gruen = mindestens doppelt so stark
+const THREAT_SAFE_FACTOR := 2.0
+
+func _threat_color(own_gold: int, threat_gold: int) -> Color:
+	if threat_gold <= 0:
+		return Color(0.45, 1.0, 0.45)
+	if own_gold < threat_gold:
+		return Color(1.0, 0.35, 0.35)
+	if float(own_gold) >= float(threat_gold) * THREAT_SAFE_FACTOR:
+		return Color(0.45, 1.0, 0.45)
+	return Color(1.0, 0.92, 0.35)
+
+
 func _ai_ring_color(owner_id: int) -> Color:
 	# Ring-/Hero-Farbe pro KI-owner_id. Rot fuer die klassische "Gegner"-
 	# Rolle (owner_id 1), violett und orange als Reserve fuer 2 und 3.
@@ -1155,6 +1194,11 @@ func _update_labels() -> void:
 		line1.append(String(wev.get("title", "")))
 	if bonus > 0:
 		line1.append("Kampf +%d" % bonus)
+	# Laufende Schonfrist ohne Stadt (It. 38) - das ist die wichtigste
+	# Information auf dem Bildschirm, solange sie laeuft.
+	var grace: int = _grace_left()
+	if grace >= 0:
+		line1.append("OHNE STADT: %d Tage" % grace)
 	# Ressourcen: nur Bestaende ungleich null, sonst wird die Zeile auf
 	# schmalen Displays zu lang.
 	var line2: Array = ["%d Gold" % int(_hero.gold)]
@@ -1288,6 +1332,13 @@ func _draw_map() -> void:
 	# Monster die gleiche Bonus-Logik fuer ihre Zahlen verwenden.
 	var cbonus: int = _combat_bonus()
 	var eff: int = _hero.total_count() + cbonus
+	# Prognose-Farbe seit It. 38 ueber GOLD, nicht ueber Stueckzahlen. Der
+	# Durchspiel-Test hat gezeigt, dass die alte Regel luegt: sie verglich
+	# die ANZAHL eigener Einheiten mit der Monster-Staerke, und seit die
+	# Monster echte Kreaturen sind, entspricht eine Staerke nicht mehr
+	# einer vergleichbaren Einheit. Der Spieler verlor seine Armee an
+	# einen Kampf, den die Karte gelb (= Sieg mit Verlusten) anzeigte.
+	var eff_gold: int = _player_gold_power()
 	var mfont: Font = ThemeDB.fallback_font
 	for y in range(MAP_HEIGHT):
 		for x in range(MAP_WIDTH):
@@ -1374,12 +1425,8 @@ func _draw_map() -> void:
 			var gcol: Color
 			if cdist <= MONSTER_VIEW_RANGE:
 				gtxt = str(garrison)
-				if eff < garrison:
-					gcol = Color(1.0, 0.35, 0.35)
-				elif garrison - cbonus <= 0:
-					gcol = Color(0.45, 1.0, 0.45)
-				else:
-					gcol = Color(1.0, 0.92, 0.35)
+				gcol = _threat_color(eff_gold,
+					_army_gold(city.get("garrison_army", {}) as Dictionary))
 			else:
 				gtxt = "?"
 				gcol = Color(0.75, 0.75, 0.75)
@@ -1412,16 +1459,10 @@ func _draw_map() -> void:
 		# Staerke steht erst unter halber Held-Sichtweite fest (Nahaufklae-
 		# rung). Darueber hinaus bleibt das Monster sichtbar, aber mit "?".
 		if mfog == FOG_VISIBLE and dist <= (HERO_SIGHT / 2):
-			# Angezeigt wird die ANZAHL der Kreaturen; die Farbe kommt
-			# weiter aus der Staerke (dem HP-Budget), denn nur die ist mit
-			# der eigenen Armee vergleichbar.
+			# Angezeigt wird die ANZAHL der Kreaturen (das sieht man auf
+			# dem Feld), die FARBE kommt aus dem Gold-Vergleich.
 			txt = str(_monster_count(m))
-			if eff < mstr:
-				tcol = Color(1.0, 0.35, 0.35)       # rot: kannst nicht schlagen
-			elif mstr - cbonus <= 0:
-				tcol = Color(0.45, 1.0, 0.45)       # gruen: ohne Verluste
-			else:
-				tcol = Color(1.0, 0.92, 0.35)       # gelb: Sieg mit Verlusten
+			tcol = _threat_color(eff_gold, _threat_gold_of_monster(m))
 		else:
 			txt = "?"
 			tcol = Color(0.75, 0.75, 0.75)
@@ -1518,13 +1559,13 @@ func _draw_map() -> void:
 			var otxt: String
 			var ocol: Color
 			if odist <= MONSTER_VIEW_RANGE:
-				otxt = str(ogd)
-				if eff < ogd:
-					ocol = Color(1.0, 0.35, 0.35)
-				elif ogd - cbonus <= 0:
-					ocol = Color(0.45, 1.0, 0.45)
-				else:
-					ocol = Color(1.0, 0.92, 0.35)
+				# Zahl = Kreaturen der Wache, Farbe = Gold-Vergleich.
+				var g_army: Dictionary = _object_guard_army(obj)
+				var g_cnt: int = 0
+				for gk in g_army.keys():
+					g_cnt += int(g_army[gk])
+				otxt = str(maxi(1, g_cnt))
+				ocol = _threat_color(eff_gold, _army_gold(g_army))
 			else:
 				otxt = "?"
 				ocol = Color(0.75, 0.75, 0.75)
@@ -2131,23 +2172,50 @@ func _monster_unit(m: Dictionary) -> String:
 # HP-Budget passen. Der Hash wird gemischt (gleiche Begruendung wie bei
 # _tile_variant), sonst koppelt die Auswahl an die Feld-Paritaet.
 func _pick_monster_unit(strength: int, h: int) -> String:
-	var budget: float = float(max(1, strength) * MONSTER_HP_PER_STRENGTH)
+	var budget: float = float(max(1, strength) * MONSTER_GOLD_PER_STRENGTH)
 	var fits: Array = []
 	for uid in MONSTER_POOL:
-		var hp: int = UnitType.hp_of(String(uid))
-		if hp > 0 and float(hp) <= budget * MONSTER_HP_TOLERANCE:
+		var price: int = UnitType.cost_of(String(uid))
+		if price > 0 and float(price) <= budget * MONSTER_GOLD_TOLERANCE:
 			fits.append(String(uid))
 	if fits.is_empty():
-		return "men_spearman"
+		return "ork_goblin"
 	return String(fits[abs(h) % fits.size()])
 
 
-# Stackgroesse aus dem HP-Budget. Mindestens 1, gedeckelt.
+# Stackgroesse aus dem Gold-Budget. Mindestens 1, gedeckelt.
 func _monster_count(m: Dictionary) -> int:
 	var uid: String = _monster_unit(m)
-	var hp: int = max(1, UnitType.hp_of(uid))
-	var budget: int = max(1, int(m.get("strength", 1))) * MONSTER_HP_PER_STRENGTH
-	return clampi(int(round(float(budget) / float(hp))), 1, MONSTER_MAX_COUNT)
+	var price: int = max(1, UnitType.cost_of(uid))
+	var budget: int = max(1, int(m.get("strength", 1))) * MONSTER_GOLD_PER_STRENGTH
+	# ABRUNDEN, nicht runden: mit round() ergaben 60 Gold Budget bei einem
+	# 40-Gold-Goblin zwei Goblins (80 Gold) - ein Drittel ueber Budget.
+	# Aufgerundet wird nur die Untergrenze von einer Kreatur.
+	return clampi(int(floor(float(budget) / float(price))), 1, MONSTER_MAX_COUNT)
+
+
+# Gold-Wert einer Armee - das Kraftmass des Spiels (die Preise sind
+# balanciert, siehe data/balance_notes.md). Basis fuer die Prognose-Farbe.
+func _army_gold(army: Dictionary) -> int:
+	var total: int = 0
+	for uid in army.keys():
+		total += UnitType.cost_of(String(uid)) * int(army[uid])
+	return total
+
+
+# Kampfkraft des Spielers in Gold: Armee plus Kampfkraft-Bonus, wobei ein
+# Bonuspunkt wie eine Tier-1-Einheit zaehlt.
+func _player_gold_power() -> int:
+	if _hero == null:
+		return 0
+	return _army_gold(_hero.army) \
+		+ _combat_bonus() * MONSTER_GOLD_PER_STRENGTH
+
+
+# Verteidigungswert eines Feldes in Gold. Monster und Objekt-Wachen
+# rechnen ueber ihre Kreatur, Staedte ueber ihre echte Garnison.
+func _threat_gold_of_monster(m: Dictionary) -> int:
+	return _army_gold(_monster_army(m))
 
 
 func _monster_army(m: Dictionary) -> Dictionary:
@@ -2190,6 +2258,36 @@ func _open_battle(opp_name: String, opp_army: int, allow_flee: bool, terrain_id:
 		return
 	var overlay = scene.instantiate()
 	add_child(overlay)
+	# ZUERST verbinden, DANN set_battle (It. 38). Ein Kampf kann schon in
+	# set_battle entschieden sein: der Screen ruft dort _step(), die
+	# schnellere Gegnerseite zieht sofort, und faellt dabei der einzige
+	# Verteidiger-Stack, feuert battle_finished noch INNERHALB von
+	# set_battle. War der Empfaenger da noch nicht verbunden, ging das
+	# Signal ins Leere: das Overlay blieb fuer immer im Baum stehen und der
+	# Callback lief nie. Bei einem Verteidigungskampf setzt genau dieser
+	# Callback die KI-Phase fort - die KI war ab da eingefroren, ohne
+	# Absturz und ohne Meldung. Der Durchspiel-Test hat es gefunden: ab
+	# Zug 3 fand er 14 Mal dasselbe tote Overlay.
+	#
+	# Kaempfte die Armee des HELDEN mit? Bei einem Verteidigungskampf um die
+	# eigene Stadt steuert der Spieler die Garnison; Skelette gehoeren dann
+	# nur dem Helden, wenn er selbst in der Stadt stand.
+	var hero_fought: bool = (not siege_ctx.has("player_army")) \
+		or bool(siege_ctx.get("hero_present", false))
+	overlay.connect("battle_finished", func(result: Dictionary) -> void:
+		# Verbrauchtes Mana zuerst uebernehmen - EIN Ort fuer alle
+		# Kampf-Ausgaenge (Sieg, Niederlage, Flucht), statt in jedem der
+		# fuenf Callbacks daran zu denken.
+		if result.has("mana_left"):
+			_hero.mana = clampi(int(result["mana_left"]), 0, _hero_max_mana())
+		on_result.call(result)
+		# Totenerweckung NACH dem Callback: der Verteidigungskampf verteilt
+		# dort die Ueberlebenden neu und SETZT _hero.army komplett neu -
+		# vorher eingehaengte Skelette waeren wieder verschwunden.
+		if hero_fought and String(result.get("outcome", "")) == "victory":
+			_apply_necromancy(int(result.get("enemy_killed_hp", 0)))
+		overlay.queue_free()
+	)
 	if overlay.has_method("set_battle"):
 		# Spieler-Seite: normalerweise die Heldenarmee. Bei einem
 		# Verteidigungskampf um die eigene Stadt steuert der Spieler
@@ -2239,25 +2337,6 @@ func _open_battle(opp_name: String, opp_army: int, allow_flee: bool, terrain_id:
 			"siege": bool(siege_ctx.get("siege", false)),
 			"tower_dmg": int(siege_ctx.get("tower_dmg", 0)),
 		})
-	# Kaempfte die Armee des HELDEN mit? Bei einem Verteidigungskampf um die
-	# eigene Stadt steuert der Spieler die Garnison; Skelette gehoeren dann
-	# nur dem Helden, wenn er selbst in der Stadt stand.
-	var hero_fought: bool = (not siege_ctx.has("player_army")) \
-		or bool(siege_ctx.get("hero_present", false))
-	overlay.connect("battle_finished", func(result: Dictionary) -> void:
-		# Verbrauchtes Mana zuerst uebernehmen - EIN Ort fuer alle
-		# Kampf-Ausgaenge (Sieg, Niederlage, Flucht), statt in jedem der
-		# fuenf Callbacks daran zu denken.
-		if result.has("mana_left"):
-			_hero.mana = clampi(int(result["mana_left"]), 0, _hero_max_mana())
-		on_result.call(result)
-		# Totenerweckung NACH dem Callback: der Verteidigungskampf verteilt
-		# dort die Ueberlebenden neu und SETZT _hero.army komplett neu -
-		# vorher eingehaengte Skelette waeren wieder verschwunden.
-		if hero_fought and String(result.get("outcome", "")) == "victory":
-			_apply_necromancy(int(result.get("enemy_killed_hp", 0)))
-		overlay.queue_free()
-	)
 
 
 # Zerlegt eine Gegner-Armee-Groesse in gemischte Stacks, abhaengig von
@@ -3839,9 +3918,19 @@ func _run_enemy_turn_for(idx: int) -> bool:
 
 
 func _check_defeat() -> void:
-	# Niederlage: Spieler hat keine Stadt mehr, es gibt aber noch mind.
-	# eine KI-Stadt. In Step 1 reicht das als Signal - die feinere
-	# Free-for-All-Siegbedingung kommt in Schritt 5.
+	# Niederlage bei Stadtverlust - aber MIT SCHONFRIST (It. 38).
+	#
+	# Vorher war der Verlust der letzten Stadt sofortiges Spielende, auch
+	# mit lebendem Helden und voller Armee. Der Durchspiel-Test hat genau
+	# das produziert: die KI lief in die leere Startstadt (der Spieler hatte
+	# alle Truppen beim Helden), und das Spiel war in Zug 13 vorbei, obwohl
+	# der Held unversehrt daneben stand und eine Stadt zurueckerobern
+	# konnte.
+	#
+	# HoMM3 macht es anders und das ist die Vorlage: ohne Stadt laeuft eine
+	# Frist von sieben Tagen. Erobert man in der Zeit eine Stadt, geht es
+	# weiter. Ist der Held gefallen, gilt weiterhin sofortige Niederlage -
+	# das entscheidet _on_battle_defeat.
 	if _cities.size() == 0:
 		return
 	var player_cities: int = 0
@@ -3852,10 +3941,37 @@ func _check_defeat() -> void:
 			player_cities += 1
 		elif ow >= OWNER_AI_MIN:
 			ai_cities += 1
-	if player_cities == 0 and ai_cities > 0:
-		_game_lost = true
-		SaveLib.delete_autosave()
-		_show_defeat_panel()
+	if player_cities > 0 or ai_cities <= 0:
+		# Stadt (wieder) da: Frist zurueck auf Anfang.
+		_no_city_since = -1
+		return
+	# Kein Held mehr, keine Stadt: das ist endgueltig.
+	if _hero == null or _hero.total_count() <= 0:
+		_lose_now()
+		return
+	if _no_city_since < 0:
+		_no_city_since = _turn_number
+		_set_combat("Letzte Stadt verloren! %d Tage, um eine zu erobern."
+			% LOSS_GRACE_DAYS)
+		return
+	if _turn_number - _no_city_since >= LOSS_GRACE_DAYS:
+		_lose_now()
+
+
+func _lose_now() -> void:
+	if _game_lost:
+		return
+	_game_lost = true
+	SaveLib.delete_autosave()
+	_show_defeat_panel()
+
+
+# Restliche Schonfrist in Tagen, oder -1 wenn keine laeuft. Fuer die
+# Kopfzeile - eine laufende Frist MUSS sichtbar sein.
+func _grace_left() -> int:
+	if _no_city_since < 0:
+		return -1
+	return maxi(0, LOSS_GRACE_DAYS - (_turn_number - _no_city_since))
 
 
 func _show_defeat_panel() -> void:
@@ -4123,6 +4239,7 @@ func _capture_state() -> Dictionary:
 	return {
 		"seed": _seed,
 		"turn_number": _turn_number,
+		"no_city_since": _no_city_since,
 		"player_faction": _player_faction,
 		"hero": _hero.to_dict(),
 		"cities": cities_out,
@@ -4142,6 +4259,7 @@ func _restore_state(d: Dictionary) -> bool:
 	_start(int(d["seed"]))
 	# 2) Zustand ueberschreiben.
 	_turn_number = int(d.get("turn_number", 0))
+	_no_city_since = int(d.get("no_city_since", -1))
 	_player_faction = int(d.get("player_faction", 1))
 	_hero = Hero.from_dict(d["hero"])
 	_cities.clear()

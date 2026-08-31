@@ -213,29 +213,41 @@ func _test_monsters(wm) -> void:
 		"%d Monster platziert" % monsters.size())
 
 	var pool: Array = wm.get("MONSTER_POOL")
-	var per: int = int(wm.get("MONSTER_HP_PER_STRENGTH"))
-	var tol: float = float(wm.get("MONSTER_HP_TOLERANCE"))
+	# GOLD, nicht HP (It. 38): Trefferpunkte sind ueber die Tiers hinweg
+	# nicht vergleichbar - 30 HP als ein Greif schlagen 30 HP als drei
+	# Speertraeger muehelos. Die Preise sind das balancierte Kraftmass.
+	var per: int = int(wm.get("MONSTER_GOLD_PER_STRENGTH"))
+	var tol: float = float(wm.get("MONSTER_GOLD_TOLERANCE"))
 	var bad_unit: Array = []
 	var bad_budget: Array = []
 	var too_big: Array = []
 	for m in monsters:
 		var uid: String = String(wm.call("_monster_unit", m))
 		var cnt: int = int(wm.call("_monster_count", m))
-		var hp: int = UnitType.hp_of(uid)
+		var price: int = UnitType.cost_of(uid)
 		var budget: int = int(m["strength"]) * per
 		if not pool.has(uid):
 			bad_unit.append(uid)
 		if cnt < 1:
 			bad_budget.append("%s x%d" % [uid, cnt])
-		# Kraft-Neutralitaet: die Trefferpunkte des Stacks muessen im
-		# Rahmen des Budgets bleiben. Ohne diese Schranke koennte ein
-		# Staerke-1-Monster ploetzlich ein Oger sein.
-		if float(cnt * hp) > float(budget) * tol + 0.001:
-			too_big.append("%s x%d = %d HP, Budget %d"
-				% [uid, cnt, cnt * hp, budget])
+		# Kraft-Schranke: der Gold-Wert des Stacks muss im Rahmen des
+		# Budgets bleiben. Ohne sie waere aus der Anzeige-Aenderung von
+		# It. 35 still eine Schwierigkeits-Aenderung geworden - und genau
+		# das ist passiert, bis der Durchspiel-Test es zeigte.
+		if float(cnt * price) > float(budget) * tol + 0.001:
+			too_big.append("%s x%d = %d Gold, Budget %d"
+				% [uid, cnt, cnt * price, budget])
 	_check(bad_unit.is_empty(), "jede Kreatur kommt aus MONSTER_POOL (%s)" % str(bad_unit))
 	_check(bad_budget.is_empty(), "jeder Stack hat mindestens 1 Kreatur (%s)" % str(bad_budget))
-	_check(too_big.is_empty(), "kein Stack sprengt sein HP-Budget (%s)" % str(too_big))
+	_check(too_big.is_empty(), "kein Stack sprengt sein Gold-Budget (%s)" % str(too_big))
+	# Und die Startarmee muss gegen ein Staerke-1-Monster klar vorn liegen:
+	# das ist der erste Kampf des Spiels.
+	var start_gold: int = UnitType.cost_of("men_spearman") * 3
+	var s1_gold: int = int(wm.call("_army_gold",
+		wm.call("_monster_army", {"pos": Vector2i(3, 3), "strength": 1})))
+	_check(s1_gold * 2 <= start_gold * 2 and s1_gold <= start_gold,
+		"Staerke-1-Monster (%d Gold) ist schwaecher als die Startarmee (%d Gold)"
+		% [s1_gold, start_gold])
 
 	# Verschiedene Kreaturen ueber die Karte - sonst waere die Auswahl
 	# wirkungslos (dasselbe Problem wie die Kachel-Variante in It. 19).
@@ -249,13 +261,23 @@ func _test_monsters(wm) -> void:
 	_check(kinds.size() >= 4, "%d verschiedene Kreaturen ueber 4 Seeds (%s)"
 		% [kinds.size(), str(kinds)])
 
-	# Staerke 1 darf nie eine schwere Kreatur sein.
+	# Staerke 1 darf nie eine teure Kreatur sein. Genau das hat It. 35
+	# nicht verhindert: ueber HP gemessen war ein Greif (25 HP) fuer
+	# Staerke 3 zulaessig, obwohl er 200 Gold wert ist - mehr als die
+	# ganze Startarmee.
 	var heavy: Array = []
 	for h in range(64):
 		var u3: String = String(wm.call("_pick_monster_unit", 1, h * 7919))
-		if float(UnitType.hp_of(u3)) > float(per) * tol + 0.001:
+		if float(UnitType.cost_of(u3)) > float(per) * tol + 0.001:
 			heavy.append(u3)
-	_check(heavy.is_empty(), "Staerke 1 bleibt leicht (%s)" % str(heavy))
+	_check(heavy.is_empty(), "Staerke 1 bleibt billig (%s)" % str(heavy))
+	var heavy3: Array = []
+	for h2 in range(64):
+		var u4: String = String(wm.call("_pick_monster_unit", 3, h2 * 6151))
+		if UnitType.cost_of(u4) > 3 * per:
+			heavy3.append(u4)
+	_check(heavy3.is_empty(),
+		"auch Staerke 3 bleibt im Budget (%s)" % str(heavy3))
 
 	# ALTER SPIELSTAND ohne "unit": Kreatur wird abgeleitet, bleibt aber
 	# ueber Aufrufe stabil - sonst wechselte das Monsterbild bei jedem
