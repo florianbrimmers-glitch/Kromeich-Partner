@@ -362,10 +362,15 @@ def head(kind, p, cx, cy, r):
         o.append(ell(cx, cy, r * 1.05, r, p["light"], p))
         for s in (-1, 1):
             o.append(blob(cx + s * r * 0.42, cy - r * 0.2, r * 0.16, r * 0.2, p["line"]))
+            # HAUER, die den Kopfumriss BRECHEN (It. 48). Vorher endeten
+            # sie innerhalb des Kopfes: fast weiss auf hellem Ork-Rosa,
+            # und der Orkschuetze hatte auf dem Token ein Smiley-Gesicht.
+            # Ein Hauer liest sich nur, wenn er ueber die Silhouette
+            # hinausragt.
             o.append(path("M %.1f %.1f q %.1f %.1f %.1f -%.1f"
-                          % (cx + s * r * 0.3, cy + r * 0.45,
-                             s * r * 0.25, r * 0.5, s * r * 0.55, r * 0.25),
-                          "#efe6cf", p, 2.0))
+                          % (cx + s * r * 0.34, cy + r * 0.5,
+                             s * r * 0.5, r * 0.55, s * r * 0.95, r * 0.55),
+                          "#efe6cf", p, 2.2))
     elif kind == "eared":
         o.append(ell(cx, cy, r * 0.95, r, p["light"], p))
         for s in (-1, 1):
@@ -514,18 +519,43 @@ def weapon(kind, p):
         o.append(ell(95, 21, 12, 12, p["glow"], p, 2.5))
         o.append(blob(92, 18, 4, 4, "#ffffff"))
     elif kind == "bow":
-        o.append(path("M 96 26 q 20 32 0 64", None, p, 5.0))
-        o.append(stroke_path("M 96 26 L 96 90", "#f2e8c8", 2.5))
+        # Umriss + Holzfarbe, gleiche Begruendung wie bei `longbow` unten:
+        # ein reiner p["line"]-Strich ist auf dem dunklen Token unsichtbar,
+        # und uebrig bleibt die helle Sehne als senkrechter Balken.
+        o.append(path("M 96 26 q 20 32 0 64", None, p, 7.5))
+        o.append(stroke_path("M 96 26 q 20 32 0 64", p["wood"], 4.5))
+        o.append(stroke_path("M 96 26 L 96 90", "#f2e8c8", 2.0))
         o.append(poly([(96, 58), (74, 55), (74, 61)], p["metal"], p, 1.5))
     elif kind == "longbow":
-        o.append(path("M 98 18 q 24 40 0 80", None, p, 5.0))
-        o.append(stroke_path("M 98 18 L 98 98", "#f2e8c8", 2.5))
+        # Der Bogen wird ZWEIMAL gezogen: dicker dunkler Umriss, darauf die
+        # Holzfarbe. `path(..., None, p, w)` zeichnet nur einen Strich in
+        # p["line"] - also dunkel auf dunklem Grund, und genau deshalb war
+        # vom Langbogen auf dem Token nur die helle SEHNE zu sehen: ein
+        # senkrechter Balken neben der Figur (It. 48). Alles andere im
+        # Spritesatz ist umrandet und gefuellt; der Bogen war die Ausnahme.
+        o.append(path("M 98 18 q 24 40 0 80", None, p, 7.5))
+        o.append(stroke_path("M 98 18 q 24 40 0 80", p["wood"], 4.5))
+        # Sehne duenn und ruhig - sie ist nicht das Erkennungsmerkmal.
+        o.append(stroke_path("M 98 18 L 98 98", "#f2e8c8", 2.0))
         o.append(stroke_path("M 98 58 L 68 58", p["wood"], 3.0))
         o.append(poly([(70, 58), (60, 54), (60, 62)], p["metal"], p, 1.5))
     elif kind == "crossbow":
-        o.append(stroke_path("M 74 62 L 104 56", p["wood"], 6.0))
-        o.append(path("M 98 40 q 14 16 0 32", None, p, 4.5))
-        o.append(stroke_path("M 98 40 L 98 72", "#f2e8c8", 2.2))
+        # Vorher: ein 30 px kurzer Stiel plus ein enger Bogen am Ende -
+        # auf dem Token ein senkrechter Balken, und der Ork sah aus, als
+        # halte er ein Brett (It. 48). Eine Armbrust erkennt man an der
+        # T-FORM: langer Schaft quer vor dem Koerper, dazu ein BREITER
+        # Bogen quer zum Schaft, und die Sehne dahinter.
+        # Unsere Figuren stehen FRONTAL. Ein Bogen, der senkrecht aufspannt,
+        # ist von vorn ein Strich - der zweite Versuch las sich als
+        # Schwertklinge. Von vorn liest sich eine Armbrust als T: SCHAFT
+        # senkrecht, BOGEN breit und quer darueber, Sehne als Gerade
+        # dahinter. Genau das steht hier.
+        o.append(stroke_path("M 94 34 L 86 96", p["wood"], 6.0))
+        o.append(path("M 66 46 q 28 -20 56 0", None, p, 7.5))
+        o.append(stroke_path("M 66 46 q 28 -20 56 0", p["wood"], 4.5))
+        o.append(stroke_path("M 67 47 L 121 47", "#f2e8c8", 2.2))
+        # Buegel am unteren Ende (Steigbuegel der Armbrust).
+        o.append(path("M 86 92 q 10 6 0 12", None, p, 3.5))
     elif kind == "claws":
         for s in (-1, 1):
             for k in range(3):
@@ -934,20 +964,36 @@ def sil_mounted(p, mount="horse"):
 
 
 def sil_bird(p):
-    """Aufrechter Riesenvogel: eierfoermiger Rumpf, Schwanzfedern nach
-    hinten, kraeftige Standbeine mit Faengen, Kopf auf kurzem Hals."""
+    """Greifvogel im Anflug: gestreckter, nach vorn geneigter Rumpf,
+    Schwanzfedern nach HINTEN OBEN, Faenge nach vorn, Kopf tief und
+    vorgestreckt.
+
+    Vorher war es ein aufrechter Vogel mit fast rundem Rumpf, Federn nach
+    unten und Fluegeln in Rumpfhoehe - am Kontaktbogen ein TRUTHAHN
+    (It. 48). Die drei Aenderungen, die daraus einen Raubvogel machen:
+    Rumpf breiter als hoch, Schwanz nach oben statt nach unten, und die
+    Fluegel setzen ueber der Rumpfmitte an (Datenfeld `wing`, deshalb dort
+    geaendert). `bird` hat genau EINEN Nutzer (ork_roc), das war ohne
+    Nebenwirkung moeglich.
+    """
     o = []
-    # Schwanzfedern zuerst (hinter dem Rumpf), knapp und nach unten.
+    # Schwanzfedern hinter dem Rumpf, nach hinten OBEN gefaechert.
+    # Schwanz WAAGERECHT nach hinten, nicht nach oben: nach oben
+    # gefaechert kam er mit den (jetzt erhobenen) Fluegeln ins Gehege -
+    # zwei helle Faecher links oben, die um dieselbe Lesart konkurrierten.
+    # Nach UNTEN war es der Truthahn. Waagerecht ist beides nicht.
     for k in (-1, 0, 1):
-        o.append(poly([(BX - 10.0, 62.0 + k * 3.0),
-                       (BX - 34.0, 84.0 + k * 6.0),
-                       (BX - 10.0, 70.0 + k * 3.0)], p["mid"], p, 2.0))
-    o += animal_leg(p, BX + 2.0, 74.0, "talon", True, 9.0, -4.0)
-    o += animal_leg(p, BX + 15.0, 76.0, "talon", False, 10.0, 3.0)
-    o.append(ell(BX + 7.0, 58.0, 20.0, 22.0, p["main"], p))
-    o.append(blob(BX + 13.0, 62.0, 11.0, 14.0, p["light"]))
-    o.append(_neck(p, (BX + 14.0, 44.0), (BX + 24.0, 30.0), 15.0, 11.0))
-    return o, (BX + 26.0, 26.0)
+        o.append(poly([(BX - 8.0, 60.0 + k * 2.0),
+                       (BX - 40.0, 60.0 + k * 8.0),
+                       (BX - 8.0, 68.0 + k * 2.0)], p["mid"], p, 2.0))
+    o += animal_leg(p, BX + 6.0, 74.0, "talon", True, 9.0, -5.0)
+    o += animal_leg(p, BX + 19.0, 76.0, "talon", False, 10.0, 4.0)
+    # Rumpf: breiter als hoch und nach vorn gekippt.
+    o.append(ell(BX + 8.0, 62.0, 25.0, 18.0, p["main"], p))
+    o.append(blob(BX + 15.0, 66.0, 13.0, 11.0, p["light"]))
+    # Kurzer, VORGESTRECKTER Hals - nicht der aufgerichtete Truthahnhals.
+    o.append(_neck(p, (BX + 18.0, 52.0), (BX + 32.0, 42.0), 14.0, 11.0))
+    return o, (BX + 34.0, 38.0)
 
 
 # Mittellinie des Drachenkoerpers: Schweifspitze unten links, Rumpf in der
@@ -1040,7 +1086,9 @@ RECIPES = {
     "ork_orc":        dict(sil=("humanoid", "broad"),  head="tusked",       wpn="crossbow"),
     "ork_ogre":       dict(sil=("brute", None),        head="small",        wpn="club"),
     "ork_roc":        dict(sil=("bird", None),         head="beak",         wpn="none",
-                           wing=("feather", 40, 62)),
+                           # Ansatz UEBER der Rumpfmitte: in Rumpfhoehe
+                           # faecherten die Fluegel wie beim Haushuhn.
+                           wing=("feather", 46, 44)),
     "ork_cyclops":    dict(sil=("brute", None),        head="one_eye",      wpn="boulder"),
     "ork_behemoth":   dict(sil=("quadruped", "heavy"), head="horned",       wpn="none"),
 }

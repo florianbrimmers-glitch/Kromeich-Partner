@@ -41,9 +41,9 @@
   <ellipse cx="99.8" cy="40.8" rx="1.7" ry="1.9" fill="#270e0c"/>
   <ellipse cx="53.0" cy="24.0" rx="13.7" ry="13.0" fill="#f79289" stroke="#270e0c" stroke-width="2.5"/>
   <ellipse cx="47.5" cy="21.4" rx="2.1" ry="2.6" fill="#270e0c"/>
-  <path d="M 49.1 29.9 q -3.2 6.5 -7.2 -3.2" fill="#efe6cf" stroke="#270e0c" stroke-width="2.0" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M 48.6 30.5 q -6.5 7.2 -12.3 -7.2" fill="#efe6cf" stroke="#270e0c" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
   <ellipse cx="58.5" cy="21.4" rx="2.1" ry="2.6" fill="#270e0c"/>
-  <path d="M 56.9 29.9 q 3.2 6.5 7.2 -3.2" fill="#efe6cf" stroke="#270e0c" stroke-width="2.0" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M 57.4 30.5 q 6.5 7.2 12.3 -7.2" fill="#efe6cf" stroke="#270e0c" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
   <path d="M 92 30 L 76 104" fill="none" stroke="#7a5a34" stroke-width="5.0" stroke-linecap="round" stroke-linejoin="round"/>
   <polygon points="94.0,20.0 99.0,34.0 88.0,34.0" fill="#c8d2dc" stroke="#270e0c" stroke-width="2.0" stroke-linejoin="round"/>
   </g>
