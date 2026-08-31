@@ -5,39 +5,34 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
   <ellipse cx="64.0" cy="117.0" rx="38.8" ry="7" fill="#000" opacity="0.42"/>
   <g transform="translate(64.0,114.0) scale(1.00) translate(-64.0,-114.0)">
-  <polygon points="78.0,50.0 68.9,31.4 53.5,34.9 62.0,45.4 58.8,55.8 67.3,48.3 65.7,59.3 73.2,51.2 72.7,61.6 76.9,53.5" fill="#356435" stroke="#122312" stroke-width="2.4" stroke-linejoin="round"/>
-  <polygon points="66.0,62.0 50.4,30.0 23.7,36.0 38.4,54.0 32.9,72.0 47.6,59.0 44.8,78.0 57.7,64.0 56.8,82.0 64.2,68.0" fill="#a2e6a2" stroke="#122312" stroke-width="2.4" stroke-linejoin="round"/>
-  <path d="M 64.0 62.0 L 38.4 54.0" fill="none" stroke="#356435" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M 64.0 62.0 L 47.6 59.0" fill="none" stroke="#356435" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M 64.0 62.0 L 57.7 64.0" fill="none" stroke="#356435" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M 34.0 68 Q 10.0 74 4.0 109.0 L 13.0 113.0 Q 18.0 82 40.0 86 Z" fill="#478647" stroke="#122312" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
-  <polygon points="41.4,84.0 54.6,84.0 50.6,99.0 47.3,107.0 40.7,107.0 40.9,99.0" fill="#478647" stroke="#122312" stroke-width="2.2" stroke-linejoin="round"/>
+  <polygon points="75.0,63.0 65.3,46.9 47.3,44.4 53.7,53.1 52.4,59.3 60.8,55.6 60.2,61.8 68.6,58.0 68.6,64.2" fill="#356435" stroke="#122312" stroke-width="2.4" stroke-linejoin="round"/>
+  <polygon points="66.0,58.0 50.4,32.0 21.3,28.0 31.7,42.0 29.6,52.0 43.1,46.0 42.1,56.0 55.6,50.0 55.6,60.0" fill="#a2e6a2" stroke="#122312" stroke-width="2.4" stroke-linejoin="round"/>
+  <path d="M 64.0 56.0 L 31.7 44.0" fill="none" stroke="#356435" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 64.0 56.0 L 43.1 48.0" fill="none" stroke="#356435" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 64.0 56.0 L 55.6 52.0" fill="none" stroke="#356435" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <polygon points="41.4,82.0 54.6,82.0 50.6,98.0 47.3,107.0 40.7,107.0 40.9,98.0" fill="#478647" stroke="#122312" stroke-width="2.2" stroke-linejoin="round"/>
   <polygon points="40.7,105.0 47.3,105.0 47.3,111.0 40.7,111.0" fill="#67c367" stroke="#122312" stroke-width="1.8" stroke-linejoin="round"/>
   <path d="M 44.0 110.0 q -4.0 4 -7.0 5" fill="none" stroke="#67c367" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
   <path d="M 44.0 110.0 q 0.0 4 0.0 5" fill="none" stroke="#67c367" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
   <path d="M 44.0 110.0 q 4.0 4 7.0 5" fill="none" stroke="#67c367" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M 30.0 74 Q 34.0 58 54.0 58 Q 74.0 58 80.0 70 Q 84.0 84 64.0 90 Q 42.0 92 32.0 84 Z" fill="#5eb25e" stroke="#122312" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
-  <ellipse cx="66.0" cy="74.0" rx="13.0" ry="13.0" fill="#a2e6a2"/>
-  <polygon points="56.8,86.0 71.2,86.0 70.5,100.0 70.6,107.0 63.4,107.0 60.0,100.0" fill="#5eb25e" stroke="#122312" stroke-width="2.2" stroke-linejoin="round"/>
-  <polygon points="63.4,105.0 70.6,105.0 70.6,111.0 63.4,111.0" fill="#67c367" stroke="#122312" stroke-width="1.8" stroke-linejoin="round"/>
-  <path d="M 67.0 110.0 q -4.0 4 -7.0 5" fill="none" stroke="#67c367" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M 67.0 110.0 q 0.0 4 0.0 5" fill="none" stroke="#67c367" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M 67.0 110.0 q 4.0 4 7.0 5" fill="none" stroke="#67c367" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
-  <path d="M 42.0 84.0 l 10 2" fill="none" stroke="#a2e6a2" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>
-  <path d="M 53.0 85.0 l 10 2" fill="none" stroke="#a2e6a2" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>
-  <path d="M 64.0 86.0 l 10 2" fill="none" stroke="#a2e6a2" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>
-  <polygon points="64.0,62.0 80.0,64.0 96.0,38.0 85.0,32.0" fill="#5eb25e" stroke="#122312" stroke-width="2.5" stroke-linejoin="round"/>
-  <polygon points="38.0,62.0 42.5,56.0 47.0,61.0" fill="#67c367" stroke="#122312" stroke-width="1.8" stroke-linejoin="round"/>
-  <polygon points="47.0,60.8 51.5,53.6 56.0,59.8" fill="#67c367" stroke="#122312" stroke-width="1.8" stroke-linejoin="round"/>
-  <polygon points="56.0,59.6 60.5,51.2 65.0,58.6" fill="#67c367" stroke="#122312" stroke-width="1.8" stroke-linejoin="round"/>
-  <polygon points="65.0,58.4 69.5,48.8 74.0,57.4" fill="#67c367" stroke="#122312" stroke-width="1.8" stroke-linejoin="round"/>
-  <polygon points="74.0,57.2 78.5,46.4 83.0,56.2" fill="#67c367" stroke="#122312" stroke-width="1.8" stroke-linejoin="round"/>
-  <polygon points="82.0,56.0 89.0,49.0 86.0,60.0" fill="#67c367" stroke="#122312" stroke-width="1.8" stroke-linejoin="round"/>
-  <polygon points="88.0,46.0 95.0,39.0 92.0,50.0" fill="#67c367" stroke="#122312" stroke-width="1.8" stroke-linejoin="round"/>
-  <path d="M 79.1 35.2 q 7.8 -16.9 32.5 -9.1 l 5.2 11.7 q -11.7 6.5 -37.7 2.6 Z" fill="#a2e6a2" stroke="#122312" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
-  <ellipse cx="103.2" cy="25.4" rx="2.9" ry="3.1" fill="#122312"/>
-  <path d="M 89.5 23.5 l 6.5 -14.3" fill="none" stroke="#122312" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>
-  <path d="M 98.6 23.5 l 6.5 -14.3" fill="none" stroke="#122312" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <polygon points="6.6,111.4 19.4,108.2 32.6,98.9 45.1,97.3 58.3,93.5 72.2,86.3 83.0,71.4 87.8,54.1 91.5,41.5 94.9,33.5 85.1,28.5 80.5,36.5 74.2,47.9 65.0,58.6 55.8,63.7 45.7,68.5 34.9,76.7 23.4,87.1 14.6,101.8 5.4,108.6" fill="#5eb25e" stroke="#122312" stroke-width="2.5" stroke-linejoin="round"/>
+  <polygon points="30.2,103.5 42.9,98.8 54.9,92.8 66.2,85.5 61.8,76.5 49.1,81.2 37.1,87.2 25.8,94.5" fill="#a2e6a2" stroke="#122312" stroke-width="0.0" stroke-linejoin="round"/>
+  <polygon points="57.8,84.0 72.2,84.0 71.5,99.0 71.6,107.0 64.4,107.0 61.0,99.0" fill="#5eb25e" stroke="#122312" stroke-width="2.2" stroke-linejoin="round"/>
+  <polygon points="64.4,105.0 71.6,105.0 71.6,111.0 64.4,111.0" fill="#67c367" stroke="#122312" stroke-width="1.8" stroke-linejoin="round"/>
+  <path d="M 68.0 110.0 q -4.0 4 -7.0 5" fill="none" stroke="#67c367" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 68.0 110.0 q 0.0 4 0.0 5" fill="none" stroke="#67c367" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 68.0 110.0 q 4.0 4 7.0 5" fill="none" stroke="#67c367" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <polygon points="32.5,79.6 33.3,73.6 38.6,76.5" fill="#67c367" stroke="#122312" stroke-width="1.6" stroke-linejoin="round"/>
+  <polygon points="43.4,71.3 43.9,64.8 49.5,68.3" fill="#67c367" stroke="#122312" stroke-width="1.6" stroke-linejoin="round"/>
+  <polygon points="53.9,66.9 53.0,59.9 59.4,62.9" fill="#67c367" stroke="#122312" stroke-width="1.6" stroke-linejoin="round"/>
+  <polygon points="64.3,62.3 60.7,55.6 68.2,56.7" fill="#67c367" stroke="#122312" stroke-width="1.6" stroke-linejoin="round"/>
+  <polygon points="74.1,51.6 68.8,45.4 77.0,45.4" fill="#67c367" stroke="#122312" stroke-width="1.6" stroke-linejoin="round"/>
+  <polygon points="80.5,40.3 74.6,33.9 83.3,34.1" fill="#67c367" stroke="#122312" stroke-width="1.6" stroke-linejoin="round"/>
+  <polygon points="80.2,19.4 110.2,24.2 111.4,30.2 90.4,36.2 81.4,30.2" fill="#a2e6a2" stroke="#122312" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M 87.4 29.6 L 110.1 27.4" fill="none" stroke="#122312" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <ellipse cx="94.6" cy="23.8" rx="2.4" ry="2.6" fill="#122312"/>
+  <polygon points="85.0,20.6 77.8,9.8 88.6,19.4" fill="#67c367" stroke="#122312" stroke-width="1.8" stroke-linejoin="round"/>
+  <polygon points="89.1,20.6 81.4,9.8 92.7,19.4" fill="#67c367" stroke="#122312" stroke-width="1.8" stroke-linejoin="round"/>
   </g>
   <circle cx="37.0" cy="122.0" r="2.6" fill="#a2e6a2" opacity="0.75"/>
   <circle cx="46.0" cy="122.0" r="2.6" fill="#a2e6a2" opacity="0.75"/>

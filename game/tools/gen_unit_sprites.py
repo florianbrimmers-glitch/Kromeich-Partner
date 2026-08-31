@@ -29,6 +29,7 @@ Zwei Selbstpruefungen brechen den Lauf ab: Bildgrenzen und
 Rezept-Eindeutigkeit (siehe check_bounds / check_unique).
 """
 import json
+import math
 import os
 import re
 
@@ -94,6 +95,65 @@ def stroke_path(d, col, sw, op=1.0):
     o = ' opacity="%.2f"' % op if op != 1.0 else ""
     return ('  <path d="%s" fill="none" stroke="%s" stroke-width="%.1f" '
             'stroke-linecap="round" stroke-linejoin="round"%s/>' % (d, col, sw, o))
+
+
+def tapered(pts, widths, fill, p, sw=2.5):
+    """Umriss aus einer MITTELLINIE plus Breitenprofil.
+
+    Warum diese Technik (It. 32): Drachen aus gestapelten Formen (Ellipse
+    plus Hals plus Schweif) sind viermal misslungen - die Uebergaenge
+    zwischen den Massen bleiben sichtbar und das Ergebnis liest sich als
+    Vogel mit angeklebten Teilen. Hier wird der Umriss GERECHNET: entlang
+    der Mittellinie werden Normalen bestimmt und links wie rechts um die
+    halbe Breite versetzt. Ergebnis ist EIN organischer Koerper, der von
+    der Schweifspitze bis zum Kopf durchlaeuft und in der Mitte dick ist.
+    """
+    left = []
+    right = []
+    n = len(pts)
+    for i, (x, y) in enumerate(pts):
+        if i == 0:
+            dx, dy = pts[1][0] - x, pts[1][1] - y
+        elif i == n - 1:
+            dx, dy = x - pts[-2][0], y - pts[-2][1]
+        else:
+            dx, dy = pts[i + 1][0] - pts[i - 1][0], pts[i + 1][1] - pts[i - 1][1]
+        ln = math.hypot(dx, dy) or 1.0
+        nx, ny = -dy / ln, dx / ln
+        w = widths[i] * 0.5
+        left.append((x + nx * w, y + ny * w))
+        right.append((x - nx * w, y - ny * w))
+    return poly(left + right[::-1], fill, p, sw)
+
+
+def spine_spikes(pts, idxs, p, widths=None, base=5.0, grow=1.6):
+    """Zacken entlang der Mittellinie. WICHTIG: die Basis sitzt auf dem
+    UMRISS (halbe Koerperbreite nach aussen versetzt), nicht auf der
+    Mittellinie - sonst liegen die Dreiecke mitten in der Flaeche und lesen
+    sich als aufgemalte Pfeilspitzen statt als Zacken auf dem Ruecken.
+    """
+    out = []
+    n = len(pts)
+    for k, i in enumerate(idxs):
+        x, y = pts[i]
+        if i == 0:
+            dx, dy = pts[1][0] - x, pts[1][1] - y
+        elif i == n - 1:
+            dx, dy = x - pts[-2][0], y - pts[-2][1]
+        else:
+            dx, dy = pts[i + 1][0] - pts[i - 1][0], pts[i + 1][1] - pts[i - 1][1]
+        ln = math.hypot(dx, dy) or 1.0
+        tx, ty = dx / ln, dy / ln
+        nx, ny = -ty, tx
+        if ny > 0:                      # obere Normale
+            nx, ny = ty, -tx
+        off = 0.0 if widths is None else widths[i] * 0.5 - 1.5
+        bx, by = x + nx * off, y + ny * off
+        h = base + k * grow
+        out.append(poly([(bx - tx * 3.4, by - ty * 3.4),
+                         (bx + nx * h, by + ny * h),
+                         (bx + tx * 3.4, by + ty * 3.4)], p["accent"], p, 1.6))
+    return out
 
 
 def blob(cx, cy, rx, ry, fill):
@@ -267,15 +327,24 @@ def head(kind, p, cx, cy, r):
                        (cx + r * 0.5, cy + r * 0.5)], p["accent"], p, 2.0))
         o.append(blob(cx + r * 0.15, cy - r * 0.25, r * 0.2, r * 0.22, p["line"]))
     elif kind == "draconic":
-        o.append(path("M %.1f %.1f q %.1f -%.1f %.1f -%.1f l %.1f %.1f q -%.1f %.1f -%.1f %.1f Z"
-                      % (cx - r * 1.3, cy + r * 0.4, r * 0.6, r * 1.3, r * 2.5, r * 0.7,
-                         r * 0.4, r * 0.9, r * 0.9, r * 0.5, r * 2.9, r * 0.2),
-                      p["light"], p))
-        o.append(blob(cx + r * 0.55, cy - r * 0.35, r * 0.22, r * 0.24, p["line"]))
-        for s in (0, 1):
-            o.append(path("M %.1f %.1f l %.1f -%.1f" % (cx - r * 0.5 + s * r * 0.7,
-                                                        cy - r * 0.5, r * 0.5, r * 1.1),
-                          None, p, 3.5))
+        # Schnauze statt Blatt: keilfoermiger Schaedel, Kieferlinie, Auge,
+        # zwei nach HINTEN gelegte Hoerner. Die erste Fassung war ein
+        # weicher Keil mit zwei Strichen und las sich als Kapuze.
+        o.append(poly([(cx - r * 1.15, cy - r * 0.55),
+                       (cx + r * 1.35, cy - r * 0.15),
+                       (cx + r * 1.45, cy + r * 0.35),
+                       (cx - r * 0.30, cy + r * 0.85),
+                       (cx - r * 1.05, cy + r * 0.35)], p["light"], p))
+        # Kieferlinie
+        o.append(stroke_path("M %.1f %.1f L %.1f %.1f"
+                             % (cx - r * 0.55, cy + r * 0.30,
+                                cx + r * 1.34, cy + r * 0.12), p["line"], 2.2))
+        o.append(blob(cx + r * 0.05, cy - r * 0.18, r * 0.2, r * 0.22, p["line"]))
+        for k in (0, 1):
+            o.append(poly([(cx - r * 0.75 + k * r * 0.34, cy - r * 0.45),
+                           (cx - r * 1.35 + k * r * 0.30, cy - r * 1.35),
+                           (cx - r * 0.45 + k * r * 0.34, cy - r * 0.55)],
+                          p["accent"], p, 1.8))
     elif kind == "horned":
         o.append(ell(cx, cy, r * 1.05, r, p["light"], p))
         for s in (-1, 1):
@@ -487,44 +556,47 @@ def wings(kind, p, cy=52, span=44, drop=18):
                                  % (CX + s * 12, cy, CX + s * span * 0.95, cy - 15),
                                  p["line"], 2.2))
     elif kind == "dragon_membrane" or kind == "dragon_bone":
-        # PROFIL-Fluegel. Der Drache steht im Profil (Kopf rechts) - ein
-        # symmetrisches Paar, das waagerecht nach beiden Seiten absteht,
-        # hat ihn zum Huhn gemacht. Beide Fluegel gehen nach OBEN-HINTEN,
-        # der ferne deutlich kleiner und weit versetzt, damit daraus keine
-        # zusammenhaengende dunkle Platte wird.
-        #
-        # Die Hinterkante braucht TIEFE Zacken: bei flachen Zacken liest
-        # der Fluegel als gefaltetes Papier.
+        # PROFIL-Fluegel fuer den Drachenkoerper. Zwei Dinge waren vorher
+        # falsch: das Paar stand symmetrisch nach beiden Seiten ab (Huhn),
+        # und die Zackenkante lag hinter dem Rumpf, war also unsichtbar.
+        # Jetzt liegt der ganze Fluegel OBERHALB der Rueckenlinie und
+        # schwingt nach hinten-oben; nur so ist die Kante zu sehen.
         rotten = (kind == "dragon_bone")
+        ax, ay = CX + 2.0, cy          # Schulteransatz
         for far in (True, False):
-            f = 0.58 if far else 1.0
-            sx = CX + 2.0 + (12.0 if far else 0.0)
-            sy = cy + (-12.0 if far else 0.0)
-            fill = p["dark"] if far else (p["light"] if not rotten else p["mid"])
+            f = 0.62 if far else 1.0
+            ox, oy = (9.0, 5.0) if far else (0.0, 0.0)
+            # Beim Knochendrachen ist der Koerper HELL - eine hellgraue
+            # Membran verschwand darin. Der nahe Fluegel ist deshalb dunkel
+            # mit knochenfarbenen Fingern, der ferne fast schwarz.
+            if rotten:
+                fill = p["line"] if far else p["dark"]
+            else:
+                fill = p["dark"] if far else p["light"]
+            sx, sy = ax + ox, ay + oy
             pts = [
                 (sx, sy),
-                (sx - span * 0.34 * f, sy - 32.0 * f),
-                (sx - span * 0.92 * f, sy - 26.0 * f),
-                (sx - span * 0.60 * f, sy - 8.0 * f),
-                (sx - span * 0.72 * f, sy + 10.0 * f),
-                (sx - span * 0.40 * f, sy - 3.0 * f),
-                (sx - span * 0.46 * f, sy + 16.0 * f),
-                (sx - span * 0.18 * f, sy + 2.0 * f),
-                (sx - span * 0.20 * f, sy + 20.0 * f),
-                (sx - span * 0.04 * f, sy + 6.0 * f),
+                (sx - span * 0.30 * f, sy - 26.0 * f),      # Vorderkante
+                (sx - span * 0.86 * f, sy - 30.0 * f),      # Fluegelspitze
+                (sx - span * 0.66 * f, sy - 16.0 * f),      # Zacke 1 Kerbe
+                (sx - span * 0.70 * f, sy - 6.0 * f),       # Zacke 1 Spitze
+                (sx - span * 0.44 * f, sy - 12.0 * f),      # Zacke 2 Kerbe
+                (sx - span * 0.46 * f, sy - 2.0 * f),       # Zacke 2 Spitze
+                (sx - span * 0.20 * f, sy - 8.0 * f),       # Zacke 3 Kerbe
+                (sx - span * 0.20 * f, sy + 2.0 * f),       # Zacke 3 Spitze
             ]
             o.append(poly(pts, fill, p, 2.4))
             if not far:
-                for k, fr in enumerate((0.60, 0.40, 0.18)):
+                for k, fr in enumerate((0.66, 0.44, 0.20)):
                     o.append(stroke_path("M %.1f %.1f L %.1f %.1f"
-                                         % (sx - 2.0, sy,
-                                            sx - span * fr, sy - 8.0 + k * 5.0),
+                                         % (sx - 2.0, sy - 2.0,
+                                            sx - span * fr, sy - 14.0 + k * 4.0),
                                          p["bone"] if rotten else p["dark"],
-                                         3.0 if rotten else 2.4))
+                                         3.0 if rotten else 2.2))
                 if rotten:
                     for k in range(2):
-                        o.append(blob(sx - span * (0.30 + k * 0.18),
-                                      sy - 2.0 + k * 6.0, 3.6, 2.8, p["line"]))
+                        o.append(blob(sx - span * (0.34 + k * 0.18),
+                                      sy - 14.0 + k * 5.0, 3.4, 2.6, p["line"]))
     elif kind == "insect":
         for s in (-1, 1):
             o.append(ell(CX + s * span * 0.55, cy - 10, span * 0.42, 13,
@@ -558,6 +630,12 @@ def sil_humanoid(p, build="slim"):
                       p["light"], p, 1.8))
     else:
         o.append(blob(CX, GROUND - 46.0, sh * 0.5, 10.0, p["dark"]))
+    # VERSUCHT UND VERWORFEN (It. 32): Schulterstuecke (Pauldrons) am
+    # breiten Rumpf. Sie standen als freischwebende Platten neben dem
+    # Torso und machten den Kreuzritter zum Roboter mit erhobenen Armen -
+    # schlechter als der Kasten, den sie beheben sollten. Wer es erneut
+    # versucht, muss sie mit dem Rumpf-Polygon VERSCHMELZEN, nicht
+    # daneben legen.
     if build == "hunched":
         # Haengende Arme - der Zombie soll schon an der Haltung kenntlich sein.
         for s in (-1, 1):
@@ -799,56 +877,40 @@ def sil_bird(p):
     return o, (BX + 26.0, 26.0)
 
 
-def sil_dragon(p):
-    """Drache im Profil, Kopf rechts. Aufgebaut aus GETRENNTEN Massen
-    (Schweif, Rumpf, Hals), nicht aus einem durchlaufenden Umriss.
+# Mittellinie des Drachenkoerpers: Schweifspitze unten links, Rumpf in der
+# Mitte, Hals steigt nach rechts oben. Die Breiten gehoeren dazu.
+DRAGON_SPINE = [
+    (BX - 50.0, GROUND - 4.0), (BX - 39.0, GROUND - 9.0), (BX - 28.0, 93.0),
+    (BX - 16.0, 87.0), (BX - 4.0, 81.0), (BX + 8.0, 75.0),
+    (BX + 18.0, 65.0), (BX + 25.0, 51.0), (BX + 30.0, 39.0), (BX + 34.0, 31.0),
+]
+DRAGON_WIDTH = [3.0, 8.0, 15.0, 23.0, 28.0, 28.0, 22.0, 15.0, 12.0, 11.0]
 
-    Drei Anlaeufe vorher gescheitert, alle drei am selben Punkt: der
-    Drache wurde zum Vogel.
-      1. Ellipse mit zwei Striemen            -> Ente
-      2. runder Rumpf + symmetrische Fluegel  -> Huhn
-      3. ein Umriss von Schweifspitze bis Kopf -> diagonaler Streifen,
-         weil der Rumpf zwischen Rueckenlinie und Bauchlinie zu duenn wurde
-    Was den Unterschied macht: ein LANGER SCHWEIF am Boden, ein flach
-    liegender, breiter Rumpf - und Fluegel im Profil, die nicht groesser
-    sind als der Rumpf.
+
+def sil_dragon(p):
+    """Drache im Profil, Kopf oben rechts. Der Koerper ist EIN gerechneter
+    Umriss (tapered) von der Schweifspitze bis zum Halsansatz.
+
+    Vier Anlaeufe vorher, jedes Mal wurde ein Vogel daraus:
+      1. Ellipse mit zwei Striemen                       -> Ente
+      2. runder Rumpf + symmetrisches Fluegelpaar        -> Huhn
+      3. handgesetzter Umriss von Schweif bis Kopf       -> diagonaler
+         Streifen (Rumpf zwischen den Kanten zu duenn)
+      4. getrennte Massen Schweif/Rumpf/Hals             -> Teile sichtbar
+         aneinandergeklebt
+    Der Unterschied jetzt: keine Naht mehr, weil es nur einen Koerper gibt,
+    und der Schweif liegt lang am Boden.
     """
     o = []
-    # Schweif zuerst (liegt hinter dem Rumpf), dick am Ansatz, spitz.
-    o.append(path("M %.1f 68 Q %.1f 74 %.1f %.1f L %.1f %.1f Q %.1f 82 %.1f 86 Z"
-                  % (BX - 22.0, BX - 46.0, BX - 52.0, GROUND - 5.0,
-                     BX - 43.0, GROUND - 1.0, BX - 38.0, BX - 16.0),
-                  p["mid"], p))
-    o += animal_leg(p, BX - 8.0, 84.0, "talon", True, 11.0, -4.0)
-    # Rumpf: breiter als hoch, vorn hoeher (Brust).
-    o.append(path("M %.1f 74 Q %.1f 58 %.1f 58 Q %.1f 58 %.1f 70 "
-                  "Q %.1f 84 %.1f 90 Q %.1f 92 %.1f 84 Z"
-                  % (BX - 26.0, BX - 22.0, BX - 2.0, BX + 18.0, BX + 24.0,
-                     BX + 28.0, BX + 8.0, BX - 14.0, BX - 24.0),
-                  p["main"], p))
-    o.append(blob(BX + 10.0, 74.0, 13.0, 13.0, p["light"]))
-    o += animal_leg(p, BX + 8.0, 86.0, "talon", False, 12.0, 3.0)
-    # Bauchplatten
-    for k in range(3):
-        o.append(stroke_path("M %.1f %.1f l 10 2"
-                             % (BX - 14.0 + k * 11.0, 84.0 + k * 1.0),
-                             p["light"], 2.4, 0.85))
-    # Hals: sich verjuengende Masse nach oben-vorn.
-    o.append(poly([(BX + 8.0, 62.0), (BX + 24.0, 64.0),
-                   (BX + 40.0, 38.0), (BX + 29.0, 32.0)], p["main"], p))
-    # Rueckenzacken ueber Rumpf UND Hals, nach vorn wachsend.
-    for k in range(5):
-        bx = BX - 18.0 + k * 9.0
-        by = 62.0 - k * 1.2
-        hl = 6.0 + k * 1.2
-        o.append(poly([(bx, by), (bx + 4.5, by - hl), (bx + 9.0, by - 1.0)],
-                      p["accent"], p, 1.8))
-    for k in range(2):
-        bx = BX + 26.0 + k * 6.0
-        by = 56.0 - k * 10.0
-        o.append(poly([(bx, by), (bx + 7.0, by - 7.0), (bx + 4.0, by + 4.0)],
-                      p["accent"], p, 1.8))
-    return o, (BX + 40.0, 30.0)
+    o += animal_leg(p, BX - 8.0, 82.0, "talon", True, 11.0, -4.0)
+    o.append(tapered(DRAGON_SPINE, DRAGON_WIDTH, p["main"], p))
+    # Bauchseite heller: gibt dem Koerper Rundung ohne zweite Kontur.
+    belly = [(x, y + 6.0) for x, y in DRAGON_SPINE[2:6]]
+    o.append(tapered(belly, [10.0, 13.0, 13.0, 10.0], p["light"], p, 0.0))
+    o += animal_leg(p, BX + 9.0, 84.0, "talon", False, 12.0, 3.0)
+    o += spine_spikes(DRAGON_SPINE, [3, 4, 5, 6, 7, 8], p, DRAGON_WIDTH,
+                      base=5.0, grow=0.6)
+    return o, (BX + 38.0, 26.0)
 
 
 def sil_tree(p, big=False):
@@ -888,7 +950,7 @@ RECIPES = {
     "elf_unicorn":    dict(sil=("quadruped", "horse"), head="horn_single",  wpn="none"),
     "elf_treefather": dict(sil=("tree", True),         head="crown_leaf",   wpn="branch"),
     "elf_goldwyrm":   dict(sil=("dragon", None),       head="draconic",     wpn="none",
-                           wing=("dragon_membrane", 46, 62)),
+                           wing=("dragon_membrane", 52, 58)),
     # --- Totenreich
     "nec_skeleton":   dict(sil=("skeletal", None),     head="skull",        wpn="sword"),
     "nec_zombie":     dict(sil=("humanoid", "hunched"), head="rotten",      wpn="none"),
@@ -898,7 +960,7 @@ RECIPES = {
     "nec_lich":       dict(sil=("robed", None),        head="skull_glow",   wpn="staff_orb"),
     "nec_blackknight": dict(sil=("humanoid", "broad"), head="helm_horned",  wpn="greatsword"),
     "nec_bonedragon": dict(sil=("dragon", None),       head="skull",        wpn="none",
-                           wing=("dragon_bone", 46, 62)),
+                           wing=("dragon_bone", 52, 58)),
     # --- Orks
     "ork_goblin":     dict(sil=("squat", None),        head="eared",        wpn="dagger"),
     "ork_wolfrider":  dict(sil=("mounted", "wolf"),    head="tusked",       wpn="spear"),
@@ -970,7 +1032,7 @@ def build(unit):
         head_at = (hp[0], hp[1], 14.0 if arg == "heavy" else 16.0)
     elif kind == "dragon":
         body, hp = sil_dragon(p)
-        head_at = (hp[0], hp[1], 13.0)
+        head_at = (hp[0], hp[1], 12.0)
     elif kind == "mounted":
         body, hp, rp = sil_mounted(p, arg)
         head_at = (hp[0], hp[1], 12.0)
