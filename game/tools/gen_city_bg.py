@@ -17,18 +17,47 @@ kommt in das leere obere Drittel (y < 0.34) und in den Rahmen. Ein erster
 Entwurf hatte Ringstrasse und Plaza-Baum mitten auf den Bauplaetzen; das
 Gebaeude-Sprite waere in die Baumkrone gewachsen.
 """
-import math, random
+import json, math, os, random
 
 W, H = 1080, 1600
-PLOTS = [
-    ("Kapelle", 0.33, 0.475), ("Zitadelle", 0.67, 0.475),
-    ("Schmiede", 0.29, 0.535), ("Reiterei", 0.71, 0.535),
-    ("Markt", 0.23, 0.645), ("Wachturm", 0.77, 0.645),
-    ("Kaserne", 0.36, 0.72), ("Spaeher", 0.64, 0.72),
-    ("Stadtmauer", 0.50, 0.80),
-]
-# Luecken zwischen den Bauplatz-Reihen - hier duerfen Wege laufen.
-LANES = [0.415, 0.590, 0.683, 0.762, 0.870]
+# Bauplaetze und Platz kommen aus data/city_layout.json - EINE Quelle
+# (It. 33). Vorher stand hier eine zweite Kopie der Koordinaten; nach dem
+# Umbau der Komposition waeren Wege und Platz weiter der alten Aufteilung
+# gefolgt und mitten durch die Gebaeude gelaufen.
+def _layout():
+    here = os.path.dirname(os.path.abspath(__file__))
+    with open(os.path.join(here, "..", "data", "city_layout.json"),
+              encoding="utf-8") as fh:
+        d = json.load(fh)
+    plots = [(bid, float(v["x"]), float(v["y"]), float(v.get("s", 1.0)))
+             for bid, v in d["buildings"].items()]
+    plots.sort(key=lambda t: t[2])
+    return plots, d.get("plaza", {"x": 0.5, "y": 0.885, "rx": 0.135, "ry": 0.052})
+
+
+PLOTS, PLAZA = _layout()
+
+# Wege duerfen nur in die LUECKEN zwischen den Bauplatz-Reihen. Die Reihen
+# ergeben sich aus den y-Werten: zwischen zwei benachbarten y-Werten mit
+# genug Abstand liegt eine Luecke.
+def _lanes(plots, min_gap=0.055):
+    ys = sorted({round(p[2], 3) for p in plots})
+    rows = [[ys[0]]]
+    for y in ys[1:]:
+        if y - rows[-1][-1] <= 0.035:
+            rows[-1].append(y)
+        else:
+            rows.append([y])
+    mids = [sum(r) / len(r) for r in rows]
+    lanes = [mids[0] - 0.055]
+    for a, b in zip(mids, mids[1:]):
+        if b - a >= min_gap:
+            lanes.append((a + b) * 0.5)
+    lanes.append(mids[-1] + 0.055)
+    return [max(0.40, min(0.94, v)) for v in lanes]
+
+
+LANES = _lanes(PLOTS)
 SPINE_X = 0.50
 
 
@@ -102,15 +131,24 @@ def streets(rng, edge, fill, w_main=24, w_lane=14, crossing=None):
     Die Querwege sind bewusst unterschiedlich lang, versetzt und gebogen -
     gleich lange Parallelen lesen sich als Leiter, nicht als Stadt."""
     paths = []
-    sx = SPINE_X * W
-    paths.append((f"M {sx-26:.0f} {H*0.30:.0f} C {sx+32:.0f} {H*0.44:.0f} "
-                  f"{sx-30:.0f} {H*0.62:.0f} {sx+16:.0f} {H*0.78:.0f} "
-                  f"S {sx-12:.0f} {H*0.94:.0f} {sx+4:.0f} {H+60:.0f}", w_main))
-    # (Spannweite links, Spannweite rechts) je Luecke - absichtlich unsymmetrisch
+    # Hauptachse: NICHT mehr durch die Mitte (dort stehen seit It. 33
+    # Zitadelle, Kaserne und Markt), sondern vom Tor unten in einem Bogen
+    # nach rechts zum Platz und weiter zwischen den Reihen hindurch.
+    sx = 0.50 * W
+    px, py = PLAZA["x"] * W, PLAZA["y"] * H
+    paths.append((f"M {sx:.0f} {H+60:.0f} C {sx+10:.0f} {H*0.96:.0f} "
+                  f"{px-30:.0f} {py+70:.0f} {px:.0f} {py:.0f}", w_main))
+    paths.append((f"M {px:.0f} {py:.0f} C {px+70:.0f} {py-40:.0f} "
+                  f"{W*0.90:.0f} {H*0.80:.0f} {W*0.93:.0f} {H*0.62:.0f}", w_lane * 1.4))
+    paths.append((f"M {px-40:.0f} {py-18:.0f} C {W*0.30:.0f} {py-30:.0f} "
+                  f"{W*0.12:.0f} {H*0.80:.0f} {W*0.09:.0f} {H*0.64:.0f}", w_lane * 1.3))
+    # (Spannweite links, Spannweite rechts) je Luecke - absichtlich
+    # unsymmetrisch. Zyklisch, damit die Liste zu jeder Anzahl von Luecken
+    # passt (LANES wird aus dem Layout gerechnet).
     spans = [(0.30, 0.24), (0.36, 0.34), (0.26, 0.35), (0.33, 0.25), (0.22, 0.28)]
     for i, ly in enumerate(LANES):
+        sl, sr = spans[i % len(spans)]
         y = ly * H
-        sl, sr = spans[i]
         x0, x1 = W * (0.5 - sl), W * (0.5 + sr)
         bow = rng.uniform(28, 52) * (1 if i % 2 else -1)
         paths.append((f"M {x0:.0f} {y+rng.uniform(-14,14):.0f} "
@@ -122,14 +160,18 @@ def streets(rng, edge, fill, w_main=24, w_lane=14, crossing=None):
     for d, wd in paths:
         out.append(f'<path d="{d}" fill="none" stroke="{fill}" stroke-width="{wd:.0f}" stroke-linecap="round"/>')
     if crossing:
-        cx, cy = SPINE_X * W, LANES[1] * H
-        out.append(f'<ellipse cx="{cx:.0f}" cy="{cy:.0f}" rx="86" ry="42" fill="{crossing[0]}"/>')
-        out.append(f'<ellipse cx="{cx:.0f}" cy="{cy:.0f}" rx="86" ry="42" fill="none" stroke="{crossing[1]}" stroke-width="4"/>')
-        out.append(f'<ellipse cx="{cx:.0f}" cy="{cy:.0f}" rx="46" ry="23" fill="none" stroke="{crossing[1]}" stroke-width="3" opacity="0.8"/>')
+        # Platz genau dort, wo CityScreen ihn antippbar macht (PLAZA aus
+        # dem Layout) - vorher lag die Grafik auf LANES[1] und die
+        # Trefferflaeche woanders.
+        cx, cy = PLAZA["x"] * W, PLAZA["y"] * H
+        rx, ry = PLAZA["rx"] * W, PLAZA["ry"] * H
+        out.append(f'<ellipse cx="{cx:.0f}" cy="{cy:.0f}" rx="{rx:.0f}" ry="{ry:.0f}" fill="{crossing[0]}"/>')
+        out.append(f'<ellipse cx="{cx:.0f}" cy="{cy:.0f}" rx="{rx:.0f}" ry="{ry:.0f}" fill="none" stroke="{crossing[1]}" stroke-width="4"/>')
+        out.append(f'<ellipse cx="{cx:.0f}" cy="{cy:.0f}" rx="{rx*0.54:.0f}" ry="{ry*0.54:.0f}" fill="none" stroke="{crossing[1]}" stroke-width="3" opacity="0.8"/>')
         for k in range(12):
             a = k * math.tau / 12.0
-            out.append(f'<line x1="{cx+math.cos(a)*46:.0f}" y1="{cy+math.sin(a)*23:.0f}" '
-                       f'x2="{cx+math.cos(a)*86:.0f}" y2="{cy+math.sin(a)*42:.0f}" '
+            out.append(f'<line x1="{cx+math.cos(a)*rx*0.54:.0f}" y1="{cy+math.sin(a)*ry*0.54:.0f}" '
+                       f'x2="{cx+math.cos(a)*rx:.0f}" y2="{cy+math.sin(a)*ry:.0f}" '
                        f'stroke="{crossing[1]}" stroke-width="2.5" opacity="0.55"/>')
     return "\n".join(out)
 
@@ -340,11 +382,16 @@ def orks():
                sunop="0.22", sunop2="0.06", pg="#ff8a2c", pgop="0.40",
                wall_stone="#8a6c3d", wall_dark="#2b2011", wall_light="#b08c52")
     s = ['<rect x="0" y="0" width="1080" height="1600" fill="url(#ground)"/>']
-    s.append(lit_region(rng, W*0.50, H*0.655, W*0.44, H*0.275, "#816538", "#9a7c47", "#4c3a20", 19, 0.15))
+    # Hof deutlich dunkler als die Gebaeude (It. 33): vorher lagen
+    # mittelbraune Haeuser auf mittelbraunem Boden und verschwanden darin.
+    # In der komponierten Ansicht war das der auffaelligste Mangel der
+    # Ork-Stadt - im Sprite-Blatt sieht man es nicht, dort steht jedes
+    # Gebaeude auf Weiss.
+    s.append(lit_region(rng, W*0.50, H*0.655, W*0.44, H*0.275, "#6b5029", "#7d6034", "#3a2c17", 19, 0.15))
     for cx, cy, rx, ry in [(W*0.24, H*0.50, 118, 72), (W*0.76, H*0.52, 112, 70),
                            (W*0.22, H*0.75, 104, 64), (W*0.78, H*0.74, 106, 66),
                            (W*0.50, H*0.885, 206, 60)]:
-        s.append(lit_region(rng, cx, cy, rx, ry, "#8d6f3f", "#a6854d", "#59431f", 9, 0.20, 0.65))
+        s.append(lit_region(rng, cx, cy, rx, ry, "#75592d", "#8a6c3a", "#463317", 9, 0.20, 0.65))
     # ausgetretene Erde entlang der Wege
     for ly in LANES:
         s.append(lit_region(rng, W*0.5, ly*H, W*0.42, 46, "#6d5329", "#7d6132", "#4a3819", 11, 0.22, 0.55))
@@ -595,7 +642,56 @@ FACTIONS = {
 }
 
 
+# ---------------------------------------------------------------- Pruefer
+
+# Spiegelt CityScreen: hw = min(stage_w * 0.15, 150) * s, Sprite-Anker bei
+# 0.56 der Sprite-Hoehe. Die gezeichnete Figur ist schmaler als ihre Box -
+# TIGHT ist der erfahrungsgemaess bemalte Anteil.
+PLOT_HALF_W_FRAC = 0.15
+TIGHT = 0.78
+
+
+def check_layout():
+    """Meldet zwei Dinge, die im Sprite-Blatt NICHT auffallen: Bauplaetze,
+    die sich ueberdecken, und Bauplaetze, die aus dem Mauerring laufen.
+    Genau das ist in der komponierten Ansicht aufgefallen (It. 33) - zwei
+    Paare lagen 0.06 auseinander und ueberlappten, und unter dem Bauband
+    blieb ein Drittel des Hofs leer."""
+    warn = []
+    half = PLOT_HALF_W_FRAC * TIGHT
+    for i in range(len(PLOTS)):
+        bid_a, ax, ay, asc = PLOTS[i]
+        for j in range(i + 1, len(PLOTS)):
+            bid_b, bx, by, bsc = PLOTS[j]
+            dx = abs(ax - bx)
+            dy = abs(ay - by)
+            need_x = half * (asc + bsc)
+            # Reihen mit genug Tiefenabstand duerfen sich seitlich
+            # ueberschneiden - vorn verdeckt hinten, das ist gewollt.
+            if dy < 0.075 and dx < need_x:
+                warn.append("%s und %s ueberdecken sich (dx %.3f < %.3f, dy %.3f)"
+                            % (bid_a, bid_b, dx, need_x, dy))
+    # Mauerring: Ellipse um (0.5, 0.655) mit rx 0.475, ry 0.305, Bahn 76
+    # breit -> innere Kante rund 0.44 / 0.281.
+    for bid, x, y, sc in PLOTS:
+        hw = half * sc
+        for edge in (x - hw, x + hw):
+            nx = (edge - 0.5) / 0.44
+            ny = (y - 0.655) / 0.281
+            if nx * nx + ny * ny > 1.0:
+                warn.append("%s liegt mit einer Kante ausserhalb des Mauerrings "
+                            "(x %.3f, y %.3f)" % (bid, edge, y))
+                break
+    px, py = PLAZA["x"], PLAZA["y"]
+    for bid, x, y, sc in PLOTS:
+        if abs(x - px) < half * sc + PLAZA["rx"] and abs(y - py) < 0.06:
+            warn.append("Platz liegt unter %s" % bid)
+    return warn
+
+
 def main():
+    for w in check_layout():
+        print("[WARNUNG] Layout: " + w)
     import os
     for name, fn in FACTIONS.items():
         body, seed, pal = fn()

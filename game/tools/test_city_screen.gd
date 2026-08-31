@@ -106,11 +106,17 @@ func _init() -> void:
 	ok = _check(_got_build == "" and _got_recruit == "",
 		"Tap ins Leere loest nichts aus") and ok
 
-	# 6) Plaza-Tap: emittiert plaza_tapped mit Stadt-Statistik
+	# 6) Plaza-Tap: emittiert plaza_tapped mit Stadt-Statistik.
+	#    Die Lage kommt seit It. 33 aus data/city_layout.json ("plaza") -
+	#    dieselbe Quelle, aus der tools/gen_city_bg.py den Platz ZEICHNET.
+	#    Der Test fragt den Screen danach, statt eine Konstante zu spiegeln.
 	var stage := cs._stage_rect()
+	var pdef: Dictionary = cs._plaza_def()
+	ok = _check(not pdef.is_empty() and pdef.has("x") and pdef.has("rx"),
+		"Platz-Definition kommt aus dem Layout (%s)" % str(pdef)) and ok
 	var plaza_pos := stage.position + Vector2(
-		CityScreen.PLAZA_NORM_X * stage.size.x,
-		CityScreen.PLAZA_NORM_Y * stage.size.y)
+		float(pdef["x"]) * stage.size.x,
+		float(pdef["y"]) * stage.size.y)
 	_got_build = ""
 	_got_recruit = ""
 	_got_plaza = ""
@@ -119,6 +125,19 @@ func _init() -> void:
 		"Plaza-Tap loest weder build noch recruit aus") and ok
 	ok = _check(_got_plaza.contains("Menschen") and _got_plaza.contains("gebaut"),
 		"Plaza-Tap emittiert Stadt-Statistik (war '%s')" % _got_plaza) and ok
+
+	# 6b) Der Platz darf unter keinem Bauplatz liegen: ein Tap wuerde dann
+	#     das Gebaeude treffen und der gezeichnete Platz waere verdeckt.
+	#     Vor It. 33 lag er bei (0.50, 0.60) mitten im Bauband.
+	var plots_for_plaza: Array = cs._compute_plots(stage)
+	cs._plots = plots_for_plaza
+	var plaza_under: Array = []
+	for pp in plots_for_plaza:
+		var d: Vector2 = (pp["center"] as Vector2) - plaza_pos
+		if abs(d.x) < float(pp["hw"]) * 0.8 and abs(d.y) < float(pp["hh"]) * 1.6:
+			plaza_under.append(String(pp["id"]))
+	ok = _check(plaza_under.is_empty(),
+		"Platz liegt unter keinem Bauplatz (%s)" % str(plaza_under)) and ok
 
 	# 7) Layout-Wahl + Beschriftungen kollidieren nicht (Iteration 16).
 	#    Die Test-Stadt ist Fraktion 1 (Menschen). Ob deren gemalter

@@ -119,8 +119,11 @@ func _render(fac: String, fid: int, all_built: bool) -> Image:
 			missing += 1
 			continue
 		var img: Image = _image_of(tex_path)
-		# Muss zu CityScreen._draw_sprite_at passen.
-		var sprite_w: int = int(hw * (2.0 if all_built else 1.5))
+		# Muss zu CityScreen._draw_sprite_at passen - inklusive der
+		# Plot-Skalierung "s" aus dem Layout (It. 33). Ohne sie zeigt die
+		# Vorschau eine andere Stadt als das Spiel.
+		var plot_scale: float = float(lp.get("s", 1.0))
+		var sprite_w: int = int(hw * plot_scale * (2.0 if all_built else 1.5))
 		var sprite_h: int = int(float(sprite_w) * (float(img.get_height()) / float(img.get_width())))
 		img.resize(sprite_w, sprite_h, Image.INTERPOLATE_LANCZOS)
 		_blend_clipped(canvas, img, int(cx - float(sprite_w) * 0.5),

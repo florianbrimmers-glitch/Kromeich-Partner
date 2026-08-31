@@ -65,6 +65,7 @@ var _layout: Dictionary = {}
 # gemalten Menschen-Ringmauer und laesst dort keinen Platz fuer zwei
 # Textzeilen je Plot.
 var _layout_plain: Dictionary = {}
+var _plaza: Dictionary = {}
 var _plots: Array = []   # zuletzt berechnete Hotspots fuer Treffer-Tests
 
 # Cache fuer geladene Texturen: pfad -> Texture2D oder null (nicht gefunden,
@@ -113,10 +114,12 @@ func _load_layout() -> void:
 	if typeof(raw) == TYPE_DICTIONARY and (raw as Dictionary).has("buildings"):
 		_layout = (raw as Dictionary)["buildings"]
 		_layout_plain = (raw as Dictionary).get("buildings_plain", _layout)
+		_plaza = (raw as Dictionary).get("plaza", {}) as Dictionary
 	else:
 		push_warning("CityScreen: city_layout.json ohne 'buildings'")
 		_layout = {}
 		_layout_plain = {}
+		_plaza = {}
 
 
 func _build_hud() -> void:
@@ -495,8 +498,10 @@ func _compute_plots(stage: Rect2) -> Array:
 	var defs: Array = _ctx.get("buildings", [])
 	var fcolors: Array = _ctx.get("faction_colors", [])
 	var base_col: Color = fcolors[fid] if fid >= 0 and fid < fcolors.size() else Color(0.6, 0.6, 0.6)
-	var hw: float = min(stage.size.x * 0.15, 150.0)
-	var hh: float = hw * 0.5
+	# Grundgroesse eines Bauplatzes; "s" im Layout skaliert sie je Plot.
+	# Damit stehen hintere Reihen kleiner und vordere groesser - ohne das
+	# wirkt der Hof flach (It. 33).
+	var hw_base: float = min(stage.size.x * 0.15, 150.0)
 
 	for def in defs:
 		var bid: String = String(def["id"])
@@ -507,6 +512,8 @@ func _compute_plots(stage: Rect2) -> Array:
 			float(lp.get("x", 0.5)) * stage.size.x,
 			float(lp.get("y", 0.5)) * stage.size.y)
 		var is_built: bool = built.has(bid)
+		var hw: float = hw_base * float(lp.get("s", 1.0))
+		var hh: float = hw * 0.5
 		out.append({
 			"id": bid,
 			"name": String(def.get("name", bid)),
@@ -604,21 +611,31 @@ func _handle_tap(pos: Vector2) -> void:
 			return
 
 
-# Plaza/Brunnen-Treffer: passt zur Lage in den gemalten bg.png/bg_walled.png
-# (Brunnen-Plaza bei ~60 % Stage-Hoehe, mittig). Werte hier weil in den
-# Bildern fix.
-const PLAZA_NORM_X := 0.50
-const PLAZA_NORM_Y := 0.60
-const PLAZA_NORM_RX := 0.14
-const PLAZA_NORM_RY := 0.06
+# Plaza/Brunnen-Treffer. Die Werte stehen seit It. 33 in
+# data/city_layout.json unter "plaza" - dieselbe Datei, aus der auch
+# tools/gen_city_bg.py den Platz ZEICHNET. Vorher waren es Konstanten hier
+# und Koordinaten dort: nach dem Umbau der Komposition lag die Grafik an
+# einer Stelle und die Trefferflaeche an einer anderen.
+# Die Konstanten bleiben als Rueckfall, wenn die Datei den Eintrag nicht
+# hat (alte Layout-Datei).
+const PLAZA_FALLBACK := {"x": 0.63, "y": 0.885, "rx": 0.115, "ry": 0.05}
+
+
+func _plaza_def() -> Dictionary:
+	if _layout.is_empty():
+		_load_layout()
+	if _plaza.is_empty():
+		return PLAZA_FALLBACK
+	return _plaza
 
 
 func _hit_plaza(pos: Vector2) -> bool:
 	var stage := _stage_rect()
-	var cx: float = stage.position.x + PLAZA_NORM_X * stage.size.x
-	var cy: float = stage.position.y + PLAZA_NORM_Y * stage.size.y
-	var rx: float = PLAZA_NORM_RX * stage.size.x
-	var ry: float = PLAZA_NORM_RY * stage.size.y
+	var pd: Dictionary = _plaza_def()
+	var cx: float = stage.position.x + float(pd["x"]) * stage.size.x
+	var cy: float = stage.position.y + float(pd["y"]) * stage.size.y
+	var rx: float = float(pd["rx"]) * stage.size.x
+	var ry: float = float(pd["ry"]) * stage.size.y
 	if rx <= 0.0 or ry <= 0.0:
 		return false
 	var dx: float = (pos.x - cx) / rx
