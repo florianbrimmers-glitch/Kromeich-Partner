@@ -46,6 +46,12 @@ custom_minimum_size = Vector2(96, 0)
 text = "Ton"
 tooltip_text = "Geraeusche ein/aus"
 
+[node name="HeroBtn" type="Button" parent="TopBar"]
+layout_mode = 2
+custom_minimum_size = Vector2(96, 0)
+text = "Held"
+tooltip_text = "Heldenblatt: Werte, Skills, Armee"
+
 [node name="MPLabel" type="Label" parent="TopBar"]
 layout_mode = 2
 text = "MP 12/12"

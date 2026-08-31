@@ -24,6 +24,11 @@ signal closed()
 
 const LAYOUT_PATH := "res://data/city_layout.json"
 const HUD_TOP := 250.0
+# Kantenlaenge der Kreatur-Bilder in den Panels (It. 29). Die SVGs haben
+# ViewBox 128 - darunter wird die Silhouette matschig, darueber sprengt
+# die Zeile das Panel.
+const RECRUIT_ICON_PX := 112
+const GARRISON_ICON_PX := 72
 const HUD_BOTTOM := 180.0
 
 # Art-Pipeline: Pfade nach Konvention. Liegt ein PNG oder SVG dort, wird
@@ -35,6 +40,9 @@ const ART_EXTENSIONS := [".svg", ".png"]
 
 # Geraeusche (M11) ueber die statische Fassade, siehe SfxBus.gd.
 const Sound := preload("res://scripts/core/SfxBus.gd")
+# Kreatur-Sprites und Kreatur-Werte fuer Rekrutier- und Garnisons-Panel
+# (It. 29). Dieselben 28 SVGs, die im Kampf auf dem Gitter stehen.
+const UnitArt := preload("res://scripts/core/UnitArt.gd")
 const ART_FACTION_DIR := "res://assets/city/%s/%s"            # %s=Fraktion, %s=building_id (ohne Ext)
 const ART_BG := "res://assets/city/%s/bg"                     # %s=Fraktion
 # Gemalter Hintergrund mit gebauter Stadtmauer. Wenn vorhanden UND
@@ -865,9 +873,15 @@ func _open_recruit_panel(bid: String) -> void:
 		row.add_theme_constant_override("separation", 14)
 		_recruit_rows_box.add_child(row)
 
+		# Kreatur zeigen, nicht nur ihren Namen. Fehlt das Sprite, bleibt
+		# die Zeile wie vorher - kein leerer Platzhalter.
+		var icon: TextureRect = UnitArt.icon(u, RECRUIT_ICON_PX)
+		if icon != null:
+			row.add_child(icon)
+
 		var lbl := Label.new()
 		lbl.custom_minimum_size = Vector2(420, 0)
-		lbl.add_theme_font_size_override("font_size", 26)
+		lbl.add_theme_font_size_override("font_size", 24)
 		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 		row.add_child(lbl)
 		_recruit_labels[u] = lbl
@@ -1032,6 +1046,10 @@ func _fill_garrison_rows() -> void:
 		row.add_theme_constant_override("separation", 10)
 		_gar_rows.add_child(row)
 
+		var icon2: TextureRect = UnitArt.icon(u, GARRISON_ICON_PX)
+		if icon2 != null:
+			row.add_child(icon2)
+
 		var lbl := Label.new()
 		lbl.text = "%s  Held %d / Stadt %d" % [UnitType.name_of(u), in_hero2, in_city]
 		lbl.custom_minimum_size = Vector2(380, 0)
@@ -1066,8 +1084,11 @@ func _refresh_recruit_labels() -> void:
 	for uid in _recruit_labels.keys():
 		var u: String = String(uid)
 		var have: int = int(pools.get(u, 0))
-		(_recruit_labels[u] as Label).text = "%s (T%d): %d da, +%d/Wo" % [
-			UnitType.name_of(u), UnitType.tier_of(u), have, UnitType.growth_of(u)]
+		# Zweite Zeile mit den Kampfwerten: vorher kaufte der Spieler eine
+		# Einheit, ohne zu sehen, was sie kann.
+		(_recruit_labels[u] as Label).text = "%s (T%d): %d da, +%d/Wo\n%s" % [
+			UnitType.name_of(u), UnitType.tier_of(u), have, UnitType.growth_of(u),
+			UnitArt.stat_line(u)]
 		var afford: bool = hero != null \
 			and (hero.wallet as Wallet).can_afford(UnitType.cost_dict_of(u))
 		(_recruit_buttons[u] as Button).disabled = have <= 0 or not afford or not here

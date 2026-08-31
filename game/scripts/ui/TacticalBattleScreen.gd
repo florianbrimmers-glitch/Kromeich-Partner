@@ -23,6 +23,8 @@ const Spl := preload("res://scripts/core/HeroSpells.gd")
 # fehlt bei "godot --script tools/x.gd", ein direkter Aufruf wuerde
 # dort zur Laufzeit scheitern und die Testfunktion abbrechen.
 const Sound := preload("res://scripts/core/SfxBus.gd")
+# Kreatur-Sprites (It. 29). Gleiche preload-Begruendung wie oben.
+const UnitArt := preload("res://scripts/core/UnitArt.gd")
 
 const GRID_COLS := 10
 const GRID_ROWS := 8
@@ -1470,21 +1472,12 @@ func _draw_token(ctr: Vector2, cell: float, r: float, s: Dictionary,
 # Fraktions-Verzeichnis wie in CityScreen.FACTION_DIRS. Nicht gefundene
 # Pfade werden als null gecacht, damit der Render-Loop nicht jeden Frame
 # erneut sucht.
-const UNIT_FACTION_DIRS := ["waldvolk", "menschen", "totenreich", "orks"]
-var _unit_tex_cache: Dictionary = {}
-
-
+# Sprite-Zuordnung und Cache liegen seit It. 29 in core/UnitArt.gd - die
+# Stadt-Panels brauchen dieselben Bilder, und zwei Kopien der
+# Verzeichnis-Liste waeren zwei Gelegenheiten, `orkstaemme` statt `orks`
+# zu schreiben.
 func _unit_texture(uid: String) -> Texture2D:
-	if _unit_tex_cache.has(uid):
-		return _unit_tex_cache[uid] as Texture2D
-	var fid: int = UnitType.faction_of(uid)
-	var tex: Texture2D = null
-	if fid >= 0 and fid < UNIT_FACTION_DIRS.size():
-		var path: String = "res://assets/units/%s/%s.svg" % [UNIT_FACTION_DIRS[fid], uid]
-		if ResourceLoader.exists(path):
-			tex = load(path) as Texture2D
-	_unit_tex_cache[uid] = tex
-	return tex
+	return UnitArt.texture_for(uid)
 
 
 # Zeichnet die Obstacle-Formen auf dem Grid: Stein als graue Raute,

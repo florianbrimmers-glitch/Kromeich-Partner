@@ -23,6 +23,9 @@ const Sound := preload("res://scripts/core/SfxBus.gd")
 # Dijkstra hier drunter; der Skill Wegfindung greift genau dort den
 # Gelaende-Aufschlag ab.
 const Move := preload("res://scripts/core/Movement.gd")
+# Kreatur-Sprites fuers Heldenblatt (It. 29) - dieselben 28 SVGs wie im
+# Kampf, aufgeloest in core/UnitArt.gd.
+const UnitArt := preload("res://scripts/core/UnitArt.gd")
 
 # Weltkarten-Screen. Rendert eine deterministische Zufallskarte per
 # _draw() und erlaubt den Helden per Tap zu bewegen. Dijkstra berechnet
@@ -263,6 +266,7 @@ const MARKET_SELL := {"wood": 50, "ore": 50, "mercury": 150, "sulfur": 150, "cry
 @export var minimap_path: NodePath         = ^"Minimap"
 @export var minimap_toggle_path: NodePath  = ^"TopBar/MinimapToggleBtn"
 @export var sound_toggle_path: NodePath    = ^"TopBar/SoundToggleBtn"
+@export var hero_button_path: NodePath     = ^"TopBar/HeroBtn"
 
 var _map: Dictionary
 var _hero: Hero
@@ -378,6 +382,11 @@ func _ready() -> void:
 			snd_toggle.pressed.connect(_toggle_sound)
 		else:
 			snd_toggle.visible = false
+	# Heldenblatt (It. 29). get_node_or_null, damit eine aeltere Szene ohne
+	# den Knopf weiter laedt - dasselbe Muster wie beim Ton-Knopf.
+	var hero_btn := get_node_or_null(hero_button_path) as Button
+	if hero_btn != null:
+		hero_btn.pressed.connect(_open_hero_panel)
 	_build_combat_label()
 	_build_city_screen()
 	_build_victory_panel()
@@ -2520,6 +2529,133 @@ var _skill_queue: Array = []
 var _last_level_stat: String = ""
 var _skill_panel: Panel = null
 
+
+
+# --- Heldenblatt (It. 29) -------------------------------------------------
+# Die Kopfzeile hat in It. 19 die Armee-Liste abgegeben ("steht schon im
+# Helden-Panel, wo Platz dafuer ist") - nur gab es dieses Panel nicht. Die
+# eigene Armee war auf der Weltkarte damit NIRGENDS zu sehen, nur im
+# Garnisons-Panel der Stadt und im Kampf. Das hier ist das fehlende Blatt:
+# Werte, Skills und die Armee mit den Kreatur-Bildern.
+const HERO_PANEL_ICON_PX := 96
+
+var _hero_panel: Panel = null
+var _hero_panel_stats: Label = null
+var _hero_panel_army: VBoxContainer = null
+
+
+func _open_hero_panel() -> void:
+	if _hero_panel == null:
+		_build_hero_panel()
+	_fill_hero_panel()
+	_hero_panel.visible = true
+	Sound.play("ui_tap")
+
+
+func _build_hero_panel() -> void:
+	var panel := Panel.new()
+	panel.visible = false
+	panel.anchor_left = 0.5
+	panel.anchor_top = 0.5
+	panel.anchor_right = 0.5
+	panel.anchor_bottom = 0.5
+	panel.offset_left = -470
+	panel.offset_top = -620
+	panel.offset_right = 470
+	panel.offset_bottom = 620
+	add_child(panel)
+	_hero_panel = panel
+
+	var bg := ColorRect.new()
+	bg.color = Color(0.07, 0.08, 0.11, 1.0)
+	bg.anchor_right = 1.0
+	bg.anchor_bottom = 1.0
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(bg)
+
+	var vb := VBoxContainer.new()
+	vb.anchor_right = 1.0
+	vb.anchor_bottom = 1.0
+	vb.offset_left = 30
+	vb.offset_top = 30
+	vb.offset_right = -30
+	vb.offset_bottom = -30
+	vb.add_theme_constant_override("separation", 16)
+	panel.add_child(vb)
+
+	var title := Label.new()
+	title.text = "Heldenblatt"
+	title.add_theme_font_size_override("font_size", 40)
+	title.add_theme_color_override("font_color", Color(0.95, 0.85, 0.40))
+	vb.add_child(title)
+
+	_hero_panel_stats = Label.new()
+	_hero_panel_stats.add_theme_font_size_override("font_size", 26)
+	_hero_panel_stats.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	vb.add_child(_hero_panel_stats)
+
+	var army_title := Label.new()
+	army_title.text = "Armee"
+	army_title.add_theme_font_size_override("font_size", 32)
+	vb.add_child(army_title)
+
+	# Scrollbar, weil sechs Stacks mit 96-px-Bildern das Panel auf einem
+	# schmalen Geraet sonst sprengen.
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	vb.add_child(scroll)
+
+	_hero_panel_army = VBoxContainer.new()
+	_hero_panel_army.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_hero_panel_army.add_theme_constant_override("separation", 10)
+	scroll.add_child(_hero_panel_army)
+
+	var close_btn := Button.new()
+	close_btn.text = "Schliessen"
+	close_btn.custom_minimum_size = Vector2(0, 96)
+	close_btn.add_theme_font_size_override("font_size", 30)
+	close_btn.pressed.connect(func() -> void:
+		_hero_panel.visible = false
+		Sound.play("ui_back"))
+	vb.add_child(close_btn)
+
+
+func _fill_hero_panel() -> void:
+	if _hero_panel_stats == null or _hero_panel_army == null:
+		return
+	_hero_panel_stats.text = _hero_stats_text()
+	for c in _hero_panel_army.get_children():
+		c.queue_free()
+	if _hero == null or _hero.army.is_empty():
+		var empty := Label.new()
+		empty.text = "Keine Einheiten - in der Stadt rekrutieren."
+		empty.add_theme_font_size_override("font_size", 26)
+		_hero_panel_army.add_child(empty)
+		return
+	# Reihenfolge stabil nach Tier, damit die Liste nicht bei jedem Oeffnen
+	# springt (Dictionary-Reihenfolge folgt der Einfuegereihenfolge).
+	var ids: Array = []
+	for k in _hero.army.keys():
+		ids.append(String(k))
+	ids.sort_custom(func(a, b): return UnitType.tier_of(a) < UnitType.tier_of(b))
+	for uid in ids:
+		var u: String = String(uid)
+		var cnt: int = int(_hero.army[u])
+		if cnt <= 0:
+			continue
+		var row := HBoxContainer.new()
+		row.add_theme_constant_override("separation", 14)
+		_hero_panel_army.add_child(row)
+		var icon: TextureRect = UnitArt.icon(u, HERO_PANEL_ICON_PX)
+		if icon != null:
+			row.add_child(icon)
+		var lbl := Label.new()
+		lbl.text = "%d x %s (T%d)\n%s" % [cnt, UnitType.name_of(u),
+			UnitType.tier_of(u), UnitArt.stat_line(u)]
+		lbl.add_theme_font_size_override("font_size", 24)
+		lbl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(lbl)
 
 
 # EIN Ort fuer die Heldenwerte. Der String stand vorher zweimal wortgleich
