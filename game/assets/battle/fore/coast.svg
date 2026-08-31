@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Kampf-Vordergrund coast (unter dem Gitter)
+     Erzeugt von tools/gen_battle_art.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 540 130" width="540" height="130">
+  <defs><linearGradient id="fg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#293a4d"/><stop offset="1" stop-color="#1a2733"/></linearGradient></defs>
+  <rect width="540" height="130" fill="url(#fg)"/>
+  <rect x="0" y="0" width="540" height="6" fill="#1a2733" opacity="0.6"/>
+  <polygon points="82,130 90,103 110,109 117,130" fill="#1a2733"/>
+  <polygon points="470,130 481,104 507,109 517,130" fill="#1a2733"/>
+  <polygon points="371,130 380,93 404,100 412,130" fill="#1a2733"/>
+  <polygon points="275,130 282,98 301,105 308,130" fill="#1a2733"/>
+  <polygon points="314,130 324,101 352,107 362,130" fill="#1a2733"/>
+  <polygon points="347,130 358,109 387,113 397,130" fill="#1a2733"/>
+  <polygon points="149,130 161,104 192,109 203,130" fill="#1a2733"/>
+  <polygon points="261,130 271,95 297,102 305,130" fill="#1a2733"/>
+  <polygon points="163,130 169,107 186,112 192,130" fill="#1a2733"/>
+</svg>

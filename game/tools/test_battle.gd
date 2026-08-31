@@ -94,6 +94,47 @@ func _test_sprite_coverage() -> void:
 		by_content[key] = uid2
 	_check(too_small.is_empty(), "kein Token ist leer oder trivial (%s)" % str(too_small))
 	_check(dupes.is_empty(), "alle 28 Token sind verschieden (gleich: %s)" % str(dupes))
+
+	# It. 21: Schlachtfeld-Grafik vollstaendig. Fehlt eine Datei, faellt der
+	# Screen still auf die Volltonfarbe bzw. die im Code gezeichneten Formen
+	# zurueck - der Kampf sieht dann wieder aus wie vor dieser Iteration,
+	# ohne dass etwas kaputt waere.
+	var bs0 = TBS.new()
+	bs0.fx_speed = 0.0
+	var art_names: Array = bs0.TERRAIN_ART_NAMES
+	var variants: int = int(bs0.GROUND_VARIANTS)
+	var miss_art: Array = []
+	for nm in art_names:
+		for v in range(variants):
+			if not ResourceLoader.exists("res://assets/battle/ground/%s_%d.svg" % [String(nm), v]):
+				miss_art.append("ground/%s_%d" % [String(nm), v])
+		for sub in ["backdrop", "fore"]:
+			if not ResourceLoader.exists("res://assets/battle/%s/%s.svg" % [String(sub), String(nm)]):
+				miss_art.append("%s/%s" % [String(sub), String(nm)])
+	_check(miss_art.is_empty(), "%d Gelaende x (%d Boden + Kulisse + Vordergrund) (fehlen: %s)"
+		% [art_names.size(), variants, str(miss_art)])
+	var miss_ob: Array = []
+	for k in bs0.OBSTACLE_ART.values():
+		if not ResourceLoader.exists("res://assets/battle/obstacles/%s.svg" % String(k)):
+			miss_ob.append(String(k))
+	if not ResourceLoader.exists("res://assets/battle/obstacles/wall_cracked.svg"):
+		miss_ob.append("wall_cracked")
+	_check(miss_ob.is_empty(), "Hindernis-Sprites inkl. gerissener Mauer (fehlen: %s)"
+		% str(miss_ob))
+	# Boden-Varianten streuen: derselbe Fehler wie bei den Weltkarten-Kacheln
+	# waere hier ein Schachbrett aus zwei Varianten.
+	bs0._art_seed = 4242
+	var same: int = 0
+	for gx in range(9):
+		for gy in range(8):
+			if int(bs0._ground_variant(gx, gy)) == int(bs0._ground_variant(gx + 1, gy)):
+				same += 1
+	var ratio: float = float(same) / float(9 * 8)
+	var expect: float = 1.0 / float(variants)
+	_check(ratio > expect * 0.4 and ratio < expect * 2.2,
+		"Boden-Varianten streuen (%.0f%% gleich, erwartet %.0f%%)"
+		% [ratio * 100.0, expect * 100.0])
+	bs0.free()
 	# Und der Screen findet sie auch ueber seinen Cache-Pfad.
 	var bs = TBS.new()
 	# Effekte aus (It. 17): mit fx_speed > 0 wartet die Zugkette auf

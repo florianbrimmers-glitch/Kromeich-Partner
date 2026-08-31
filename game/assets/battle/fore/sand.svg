@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Kampf-Vordergrund sand (unter dem Gitter)
+     Erzeugt von tools/gen_battle_art.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 540 130" width="540" height="130">
+  <defs><linearGradient id="fg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#574d33"/><stop offset="1" stop-color="#38311f"/></linearGradient></defs>
+  <rect width="540" height="130" fill="url(#fg)"/>
+  <rect x="0" y="0" width="540" height="6" fill="#38311f" opacity="0.6"/>
+  <ellipse cx="90" cy="126" rx="78" ry="20" fill="#38311f"/>
+  <ellipse cx="160" cy="126" rx="53" ry="21" fill="#38311f"/>
+  <ellipse cx="339" cy="126" rx="50" ry="25" fill="#38311f"/>
+  <ellipse cx="78" cy="126" rx="68" ry="24" fill="#38311f"/>
+  <ellipse cx="293" cy="126" rx="65" ry="15" fill="#38311f"/>
+  <ellipse cx="303" cy="126" rx="43" ry="17" fill="#38311f"/>
+  <ellipse cx="179" cy="126" rx="62" ry="15" fill="#38311f"/>
+</svg>

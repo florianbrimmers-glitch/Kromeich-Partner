@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Kampf-Kulisse grass (Ferne, ueber dem Gitter)
+     Erzeugt von tools/gen_battle_art.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 540 200" width="540" height="200">
+  <rect x="0" y="130" width="540" height="70" fill="#3c5c33" opacity="0.35"/>
+  <polygon points="0,200 0,133 60,127 120,111 180,130 240,134 300,121 360,112 420,135 480,134 540,118 540,200" fill="#1d2f1a" opacity="0.90"/>
+  <ellipse cx="37" cy="142" rx="15" ry="13" fill="#2e4728" stroke="#1d2f1a" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="80" cy="142" rx="15" ry="13" fill="#2e4728" stroke="#1d2f1a" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="141" cy="143" rx="15" ry="13" fill="#2e4728" stroke="#1d2f1a" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="223" cy="141" rx="18" ry="15" fill="#2e4728" stroke="#1d2f1a" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="275" cy="142" rx="16" ry="14" fill="#2e4728" stroke="#1d2f1a" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="319" cy="142" rx="16" ry="14" fill="#2e4728" stroke="#1d2f1a" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="390" cy="140" rx="20" ry="17" fill="#2e4728" stroke="#1d2f1a" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="444" cy="143" rx="15" ry="13" fill="#2e4728" stroke="#1d2f1a" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="510" cy="140" rx="20" ry="17" fill="#2e4728" stroke="#1d2f1a" stroke-width="1.5" opacity="0.95"/>
+  <polygon points="0,200 0,150 60,147 120,127 180,148 240,148 300,130 360,133 420,134 480,147 540,140 540,200" fill="#2e4728" opacity="0.90"/>
+  <ellipse cx="27" cy="153" rx="26" ry="23" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="81" cy="155" rx="22" ry="19" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="123" cy="153" rx="27" ry="23" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="162" cy="154" rx="24" ry="21" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="201" cy="155" rx="22" ry="19" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="238" cy="157" rx="17" ry="15" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="286" cy="155" rx="23" ry="20" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="348" cy="155" rx="22" ry="19" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="382" cy="154" rx="24" ry="21" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="419" cy="156" rx="20" ry="17" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="472" cy="153" rx="26" ry="22" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="522" cy="157" rx="18" ry="15" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+</svg>

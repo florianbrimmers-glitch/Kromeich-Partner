@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Kampf-Kulisse coast (Ferne, ueber dem Gitter)
+     Erzeugt von tools/gen_battle_art.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 540 200" width="540" height="200">
+  <rect x="0" y="130" width="540" height="70" fill="#33485e" opacity="0.35"/>
+  <polygon points="0,200 0,137 60,118 120,102 180,132 240,140 300,114 360,109 420,125 480,129 540,111 540,200" fill="#1a2733" opacity="0.80"/>
+  <rect x="0" y="130" width="540" height="70" fill="#31536b" opacity="0.85"/>
+  <path d="M 0 142 q 30 -5 60 0 t 60 0 t 60 0 t 60 0 t 60 0 t 60 0 t 60 0 t 60 0 t 60 0" fill="none" stroke="#8fd0e8" stroke-width="2" opacity="0.35"/>
+  <path d="M 0 152 q 30 -5 60 0 t 60 0 t 60 0 t 60 0 t 60 0 t 60 0 t 60 0 t 60 0 t 60 0" fill="none" stroke="#8fd0e8" stroke-width="2" opacity="0.31"/>
+  <path d="M 0 162 q 30 -5 60 0 t 60 0 t 60 0 t 60 0 t 60 0 t 60 0 t 60 0 t 60 0 t 60 0" fill="none" stroke="#8fd0e8" stroke-width="2" opacity="0.27"/>
+  <path d="M 0 172 q 30 -5 60 0 t 60 0 t 60 0 t 60 0 t 60 0 t 60 0 t 60 0 t 60 0 t 60 0" fill="none" stroke="#8fd0e8" stroke-width="2" opacity="0.23"/>
+  <path d="M 0 182 q 30 -5 60 0 t 60 0 t 60 0 t 60 0 t 60 0 t 60 0 t 60 0 t 60 0 t 60 0" fill="none" stroke="#8fd0e8" stroke-width="2" opacity="0.19"/>
+  <path d="M 0 192 q 30 -5 60 0 t 60 0 t 60 0 t 60 0 t 60 0 t 60 0 t 60 0 t 60 0 t 60 0" fill="none" stroke="#8fd0e8" stroke-width="2" opacity="0.15"/>
+</svg>

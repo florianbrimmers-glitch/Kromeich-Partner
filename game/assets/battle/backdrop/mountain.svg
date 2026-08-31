@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Kampf-Kulisse mountain (Ferne, ueber dem Gitter)
+     Erzeugt von tools/gen_battle_art.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 540 200" width="540" height="200">
+  <rect x="0" y="130" width="540" height="70" fill="#524f4b" opacity="0.35"/>
+  <polygon points="0,200 0,123 60,121 120,58 180,73 240,108 300,121 360,40 420,66 480,106 540,63 540,200" fill="#2a2826" opacity="0.85"/>
+  <polygon points="0,200 0,152 60,120 120,92 180,145 240,147 300,136 360,90 420,140 480,149 540,135 540,200" fill="#42403d" opacity="0.95"/>
+  <polygon points="474,150 498,110 522,150" fill="#524f4b" opacity="0.9"/>
+  <polygon points="490,123 498,110 506,123" fill="#cfd6dc" opacity="0.55"/>
+  <polygon points="85,150 122,88 159,150" fill="#524f4b" opacity="0.9"/>
+  <polygon points="109,109 122,88 134,109" fill="#cfd6dc" opacity="0.55"/>
+  <polygon points="44,150 74,99 105,150" fill="#524f4b" opacity="0.9"/>
+  <polygon points="64,116 74,99 84,116" fill="#cfd6dc" opacity="0.55"/>
+  <polygon points="10,150 40,100 69,150" fill="#524f4b" opacity="0.9"/>
+  <polygon points="30,117 40,100 50,117" fill="#cfd6dc" opacity="0.55"/>
+</svg>

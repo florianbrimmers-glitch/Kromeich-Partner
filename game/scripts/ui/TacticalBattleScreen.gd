@@ -42,6 +42,7 @@ var _enemy_name: String = "Gegner"
 var _player_bonus: int = 0
 var _allow_flee: bool = true
 var _rng: RandomNumberGenerator
+var _art_seed: int = 42
 var _finished: bool = false
 var _round: int = 1
 # Moral/Glueck gelten je Seite fuer die ganze Schlacht (HoMM3-Verhalten:
@@ -99,6 +100,9 @@ func set_battle(ctx: Dictionary) -> void:
 	_allow_flee  = bool(ctx.get("allow_flee", true))
 	_rng = RandomNumberGenerator.new()
 	_rng.seed = int(ctx.get("seed", 42))
+	# Eigene Kopie fuer die Boden-Varianten: das Zeichnen darf _rng NICHT
+	# anfassen, sonst verschieben sich die Kampfwuerfel.
+	_art_seed = int(ctx.get("seed", 42))
 	_finished = false
 	_round = 1
 	_log.clear()
@@ -718,6 +722,47 @@ const TERRAIN_GROUND := [
 ]
 
 
+# --- Schlachtfeld-Grafik (It. 21) ----------------------------------------
+# Vorher: Volltonfarbe je Gelaende mit Schachbrett-Nuance, Hindernisse im
+# Code gezeichnet, und ueber/unter dem Gitter zusammen rund 40 % leere
+# Flaeche (das Gitter ist breitenbegrenzt, die Flaeche auf dem Handy viel
+# hoeher als breit). Jetzt Boden-Kacheln, Kulisse und Vordergrund aus
+# tools/gen_battle_art.py. Fehlt eine Datei, greift ueberall der alte Weg.
+const BATTLE_ART := "res://assets/battle/%s"
+const TERRAIN_ART_NAMES := ["grass", "forest", "coast", "mountain", "sand", "swamp"]
+const GROUND_VARIANTS := 4
+# Hindernis-Art -> Sprite. Schluessel sind Integer-Literale wie in
+# _dijkstra_for: cross-class class_name-Referenzen sind im Android-Export
+# unzuverlaessig. 0=Stein, 1=Baumstamm, 2=Busch, 3=Sumpf, 4=Mauer.
+const OBSTACLE_ART := {0: "stone", 1: "log", 2: "bush", 3: "swamp", 4: "wall"}
+var _battle_tex_cache: Dictionary = {}
+
+
+func _battle_texture(rel: String) -> Texture2D:
+	if _battle_tex_cache.has(rel):
+		return _battle_tex_cache[rel] as Texture2D
+	var path: String = BATTLE_ART % rel
+	var tex: Texture2D = load(path) as Texture2D if ResourceLoader.exists(path) else null
+	_battle_tex_cache[rel] = tex
+	return tex
+
+
+func _terrain_art_name() -> String:
+	if _terrain_id >= 0 and _terrain_id < TERRAIN_ART_NAMES.size():
+		return String(TERRAIN_ART_NAMES[_terrain_id])
+	return String(TERRAIN_ART_NAMES[0])
+
+
+# Boden-Variante deterministisch aus Feld und Kampf-Seed. Bit-Mischung wie
+# bei den Weltkarten-Kacheln: ohne sie koppelt die Paritaet an x und
+# waagerechte Nachbarn bekommen nie dieselbe Variante (It. 19).
+func _ground_variant(cx: int, cy: int) -> int:
+	var h: int = (cx * 73856093) ^ (cy * 19349663) ^ (_art_seed * 83492791)
+	h = (h ^ (h >> 13)) * 1274126177
+	h = h ^ (h >> 16)
+	return absi(h) % GROUND_VARIANTS
+
+
 func _ground_color() -> Color:
 	if _terrain_id >= 0 and _terrain_id < TERRAIN_GROUND.size():
 		return TERRAIN_GROUND[_terrain_id]
@@ -747,13 +792,33 @@ func _draw_grid() -> void:
 			Vector2(area.x, area.y / float(bands) + 1.0)),
 			ground.darkened(0.55).lerp(ground.darkened(0.25), t), true)
 
-	# Kampffeld-Boden: Schachbrett-Nuance, damit Felder zaehlbar bleiben.
+	# Kulisse OBERHALB und Bewuchs UNTERHALB des Gitters. Genau diese zwei
+	# Baender standen leer.
+	var art: String = _terrain_art_name()
+	var back_tex: Texture2D = _battle_texture("backdrop/%s.svg" % art)
+	if back_tex != null and o.y > 8.0:
+		var bh: float = min(o.y, area.x * 0.34)
+		_grid_area.draw_texture_rect(back_tex,
+			Rect2(Vector2(0.0, o.y - bh), Vector2(area.x, bh)), false)
+	var fore_tex: Texture2D = _battle_texture("fore/%s.svg" % art)
+	var below: float = area.y - (o.y + gh)
+	if fore_tex != null and below > 8.0:
+		var fh: float = min(below, area.x * 0.22)
+		_grid_area.draw_texture_rect(fore_tex,
+			Rect2(Vector2(0.0, o.y + gh), Vector2(area.x, fh)), false)
+
+	# Kampffeld-Boden: Kachel je Feld. Ohne Sprites bleibt die alte
+	# Schachbrett-Nuance, damit Felder zaehlbar sind.
 	for cx in range(GRID_COLS):
 		for cy in range(GRID_ROWS):
-			var shade: float = 0.04 if (cx + cy) % 2 == 0 else 0.0
-			_grid_area.draw_rect(Rect2(
-				o + Vector2(float(cx) * c, float(cy) * c), Vector2(c, c)),
-				ground.lightened(shade), true)
+			var crect := Rect2(o + Vector2(float(cx) * c, float(cy) * c), Vector2(c, c))
+			var gt: Texture2D = _battle_texture(
+				"ground/%s_%d.svg" % [art, _ground_variant(cx, cy)])
+			if gt != null:
+				_grid_area.draw_texture_rect(gt, crect, false)
+			else:
+				var shade: float = 0.04 if (cx + cy) % 2 == 0 else 0.0
+				_grid_area.draw_rect(crect, ground.lightened(shade), true)
 	# Rahmen um das Feld.
 	_grid_area.draw_rect(Rect2(o, Vector2(gw, gh)), ground.darkened(0.6), false, 4.0)
 
@@ -1016,6 +1081,19 @@ func _draw_obstacles(o: Vector2, c: float) -> void:
 		var pos: Vector2i = Vector2i(ob["pos"])
 		var kind: int = int(ob["kind"])
 		var ctr := o + Vector2((float(pos.x) + 0.5) * c, (float(pos.y) + 0.5) * c)
+		# Sprite zuerst (It. 21). Die Mauer wechselt bei hp <= 1 auf die
+		# gerissene Variante - der Spieler soll sehen, wo die naechste
+		# Katapultkugel die Bresche schlaegt.
+		var art_name: String = OBSTACLE_ART.get(kind, "")
+		if kind == 4 and int(ob.get("hp", Obstacles.WALL_SEGMENT_HP)) <= 1:
+			art_name = "wall_cracked"
+		if art_name != "":
+			var otex: Texture2D = _battle_texture("obstacles/%s.svg" % art_name)
+			if otex != null:
+				_grid_area.draw_texture_rect(otex,
+					Rect2(o + Vector2(float(pos.x) * c, float(pos.y) * c),
+						Vector2(c, c)), false)
+				continue
 		if kind == 0:
 			var pts := PackedVector2Array([
 				Vector2(ctr.x, ctr.y - c * 0.38),

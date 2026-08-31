@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Kampf-Kulisse sand (Ferne, ueber dem Gitter)
+     Erzeugt von tools/gen_battle_art.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 540 200" width="540" height="200">
+  <rect x="0" y="130" width="540" height="70" fill="#6b5f40" opacity="0.35"/>
+  <polygon points="0,200 0,140 60,140 120,110 180,100 240,137 300,131 360,87 420,112 480,128 540,94 540,200" fill="#38311f" opacity="0.80"/>
+  <polygon points="0,200 0,164 60,155 120,122 180,137 240,163 300,140 360,125 420,155 480,152 540,147 540,200" fill="#574d33" opacity="0.90"/>
+  <polygon points="315,176 324,126 335,136 344,176" fill="#38311f" opacity="0.90"/>
+  <polygon points="315,176 324,126 329,176" fill="#6b5f40" opacity="0.65"/>
+  <polygon points="68,176 80,121 95,132 108,176" fill="#38311f" opacity="0.90"/>
+  <polygon points="68,176 80,121 87,176" fill="#6b5f40" opacity="0.65"/>
+  <polygon points="88,176 101,131 117,140 132,176" fill="#38311f" opacity="0.90"/>
+  <polygon points="88,176 101,131 109,176" fill="#6b5f40" opacity="0.65"/>
+  <polygon points="162,176 174,132 189,141 202,176" fill="#38311f" opacity="0.90"/>
+  <polygon points="162,176 174,132 181,176" fill="#6b5f40" opacity="0.65"/>
+</svg>
