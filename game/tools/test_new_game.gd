@@ -55,6 +55,7 @@ func _init() -> void:
 	_check(str(pos_a) == str(pos_b), "Seed 2024: Stadt-Layout unabhaengig von Fraktionswahl")
 
 	_test_tileset(wm)
+	_test_city_margins(wm)
 
 	wm.queue_free()
 	await process_frame
@@ -165,3 +166,36 @@ func _test_tileset(wm) -> void:
 		"Nachbarn streuen wie erwartet (%.0f%% gleich, erwartet %.0f%%, erlaubt %.0f-%.0f%%)"
 		% [ratio * 100.0, expect * 100.0, expect * 50.0, expect * 200.0])
 	_done.append("_test_tileset")
+
+
+# Staedte muessen Abstand zum Kartenrand halten (It. 34). Eine der Staedte
+# ist der STARTPUNKT des Helden: lag sie in Reihe 0, begann das Spiel in der
+# Kartenecke, der erste Bildschirm war fast vollstaendig Nebel und die halbe
+# Sichtweite fiel aus der Karte. Der Fehler war im Kachel-Kontaktbogen nicht
+# zu sehen, sondern erst in der komponierten Ansicht
+# (tools/preview_world_full.gd).
+func _test_city_margins(wm) -> void:
+	print("")
+	print("== Staedte halten Abstand zum Kartenrand ==")
+	var margin: int = int(wm.get("CITY_BORDER_MARGIN"))
+	var w: int = int(wm.get("MAP_WIDTH"))
+	var h: int = int(wm.get("MAP_HEIGHT"))
+	_check(margin >= 1, "Rand-Abstand ist gesetzt (%d)" % margin)
+	var bad: Array = []
+	var starts_at_edge: Array = []
+	for seed_value in [1, 7, 42, 555, 4711, 90210]:
+		wm.call("_start", seed_value, -1)
+		for c in (wm.get("_cities") as Array):
+			var p: Vector2i = c["pos"]
+			if p.x < margin or p.y < margin \
+					or p.x > w - 1 - margin or p.y > h - 1 - margin:
+				bad.append("Seed %d: %s" % [seed_value, str(p)])
+		var hero = wm.get("_hero")
+		var hp: Vector2i = hero.position
+		if hp.x < margin or hp.y < margin \
+				or hp.x > w - 1 - margin or hp.y > h - 1 - margin:
+			starts_at_edge.append("Seed %d: %s" % [seed_value, str(hp)])
+	_check(bad.is_empty(), "keine Stadt am Rand ueber 6 Seeds (%s)" % str(bad))
+	_check(starts_at_edge.is_empty(),
+		"kein Start in der Kartenecke (%s)" % str(starts_at_edge))
+	_done.append("_test_city_margins")

@@ -72,23 +72,35 @@ def spot(rng, col, r0=6, r1=11, op=(0.35, 0.6)):
 
 
 def tuft(rng, col):
+    """Grasbueschel. It. 34: zwei statt drei Halme, duenner, blasser und
+    enger zusammen. Vorher lasen sich drei gespreizte 1.3-px-Striche bei
+    64 px auf dem Geraet als Schriftzeichen - die Wiese sah aus, als
+    stuende ueberall ein kleines "w".
+    """
     x = rng.uniform(INSET, T - INSET)
     y = rng.uniform(INSET + 4, T - INSET)
-    out = '  <g stroke="%s" stroke-width="1.3" stroke-linecap="round" opacity="0.75">\n' % col
-    for k in range(3):
+    out = ('  <g stroke="%s" stroke-width="1.0" stroke-linecap="round" '
+           'opacity="0.45">\n' % col)
+    for k in range(2):
         out += ('    <line x1="%.1f" y1="%.1f" x2="%.1f" y2="%.1f"/>\n'
-                % (x + k * 2.0, y, x + k * 2.0 + rng.uniform(-1.5, 2.0), y - rng.uniform(3.5, 5.5)))
+                % (x + k * 1.6, y, x + k * 1.6 + rng.uniform(-0.8, 1.2),
+                   y - rng.uniform(3.0, 4.2)))
     return out + '  </g>\n'
 
 
 def flower(rng, petal, heart):
+    """Blume. It. 34: gedeckte Farben und EIN Bluetenkopf statt vier reiner
+    Gelbpunkte. Auf dem Geraet lasen die alten Punkte als orange
+    UI-Funken, gleichmaessig ueber die ganze Wiese verstreut - der
+    auffaelligste Fehler in der komponierten Ansicht.
+    """
     x = rng.uniform(INSET + 3, T - INSET - 3)
     y = rng.uniform(INSET + 3, T - INSET - 3)
-    out = ""
-    for dx, dy in ((-2, 0), (2, 0), (0, -2), (0, 2)):
-        out += ('  <circle cx="%.1f" cy="%.1f" r="1.2" fill="%s"/>\n'
-                % (x + dx, y + dy, petal))
-    return out + '  <circle cx="%.1f" cy="%.1f" r="0.9" fill="%s"/>\n' % (x, y, heart)
+    out = ('  <ellipse cx="%.1f" cy="%.1f" rx="2.6" ry="2.0" fill="%s" '
+           'opacity="0.70"/>\n' % (x, y, petal))
+    out += ('  <circle cx="%.1f" cy="%.1f" r="1.0" fill="%s" opacity="0.75"/>\n'
+            % (x, y, heart))
+    return out
 
 
 def crown(rng, dark, mid, light, r0=7, r1=11):
@@ -148,13 +160,19 @@ def bubble(rng, col):
 TERRAIN = {
     "grass": dict(c0="#5a8c3a", c1="#3e6c20", seed=11, deco=[
         (spot, dict(col="#6e9a48"), 2),
-        (tuft, dict(col="#7eac56"), 3),
-        (flower, dict(petal="#f0d048", heart="#c93a2c"), 1),
+        (tuft, dict(col="#7eac56"), [3, 2, 3, 2, 3, 2]),
+        (flower, dict(petal="#c9c268", heart="#b08a3a"), [0, 2, 0, 0, 1, 0]),
     ]),
-    "forest": dict(c0="#3d6b2c", c1="#264a18", seed=22, deco=[
-        (spot, dict(col="#335c22"), 1),
-        (crown, dict(dark="#1b3117", mid="#2c5223", light="#487a33"), 3),
-        (tuft, dict(col="#4e7f3a"), 1),
+    # Wald deutlich DUNKLER als Wiese und mit dichterem Kronendach
+    # (It. 34): vorher lag der Wald-Grundton (#3d6b2c) fast genau auf dem
+    # dunklen Ende der Wiese (#3e6c20) - in der komponierten Karte las sich
+    # Wald als "Wiese mit Buesschen". Das ist nicht nur haesslich: Wald
+    # kostet doppelte Bewegung, der Spieler MUSS ihn auf einen Blick
+    # erkennen.
+    "forest": dict(c0="#2c5220", c1="#1b3a12", seed=22, deco=[
+        (spot, dict(col="#24461a"), 1),
+        (crown, dict(dark="#14260f", mid="#24471b", light="#3d6b2a",
+                     r0=9, r1=14), 4),
     ]),
     "water": dict(c0="#2f6f95", c1="#1d4d6e", seed=33, deco=[
         (spot, dict(col="#3f83aa", r0=9, r1=16, op=(0.25, 0.4)), 2),
@@ -183,7 +201,12 @@ def terrain_tile(name, variant):
     out = head("Gelaende %s, Variante %d von %d" % (name, variant, VARIANTS))
     out += base(cfg["c0"], cfg["c1"])
     for fn, kw, n in cfg["deco"]:
-        for _ in range(n):
+        # n darf eine LISTE sein: dann gilt der Wert fuer diese Variante.
+        # Damit stehen Blumen nur auf einigen Wiesen statt auf jeder -
+        # eine Deko, die auf jeder Kachel liegt, ergibt im Feld ein
+        # regelmaessiges Muster (dasselbe Problem wie It. 19 und It. 21).
+        count = n[variant % len(n)] if isinstance(n, (list, tuple)) else n
+        for _ in range(count):
             out += fn(rng, **kw)
     return out + "</svg>\n"
 

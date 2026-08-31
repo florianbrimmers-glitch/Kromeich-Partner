@@ -24,7 +24,7 @@ const SEED := 42
 # Muss zu WorldMapScreen passen.
 const TERRAIN_VARIANTS := 6
 const FOG_VARIANTS := 6
-const FRINGE_ALPHA := 0.40
+const FRINGE_ALPHA := 0.62
 const FRINGE_SIDES := ["top", "right", "bottom", "left"]
 const TERRAIN_NAMES := {
 	MapGen.TILE_GRASS: "grass", MapGen.TILE_FOREST: "forest",

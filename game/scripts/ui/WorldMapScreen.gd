@@ -35,6 +35,9 @@ const MAP_WIDTH := 18
 const MAP_HEIGHT := 26
 
 const CITY_COUNT := 8
+# Mindestabstand jeder Stadt zum Kartenrand in Feldern. Eine Stadt IST der
+# Startpunkt des Helden, deshalb ist das keine Kosmetik.
+const CITY_BORDER_MARGIN := 2
 const CITY_MIN_DIST := 7
 const CITY_INCOME := 500
 const OWNER_NEUTRAL := -1
@@ -589,8 +592,14 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 	var city_attempts := 0
 	while _cities.size() < CITY_COUNT and city_attempts < 400:
 		city_attempts += 1
-		var cx: int = rng.next_int(0, MAP_WIDTH - 1)
-		var cy: int = rng.next_int(0, MAP_HEIGHT - 1)
+		# Rand-Abstand (It. 34): vorher durfte eine Stadt in Reihe 0
+		# liegen. Da eine der Staedte der START des Helden ist, begann ein
+		# Spiel dann in der Kartenecke - der erste Bildschirm war zu rund
+		# 85 % Nebel, und die halbe Sichtweite lag ausserhalb der Karte.
+		var cx: int = rng.next_int(CITY_BORDER_MARGIN,
+			MAP_WIDTH - 1 - CITY_BORDER_MARGIN)
+		var cy: int = rng.next_int(CITY_BORDER_MARGIN,
+			MAP_HEIGHT - 1 - CITY_BORDER_MARGIN)
 		if int(tiles[cy * MAP_WIDTH + cx]) != 0:  # 0 = GRASS
 			continue
 		var candidate := Vector2i(cx, cy)
@@ -1579,7 +1588,10 @@ const FOG_VARIANTS := 6
 const FRINGE_SIDES := ["top", "right", "bottom", "left"]
 # Deckkraft der Uebergangs-Franse. Hoeher wirkt wie ein Farbrand, niedriger
 # ist auf dem Handy nicht mehr zu sehen.
-const FRINGE_ALPHA := 0.40
+# It. 34: von 0.40 auf 0.62. Die Franse selbst liegt bei 0.30/0.52
+# Deckkraft in der SVG; mit 0.40 kam effektiv 0.12/0.21 heraus und die
+# Gelaendegrenzen blieben in der komponierten Ansicht harte Treppen.
+const FRINGE_ALPHA := 0.62
 var _terrain_tex_cache: Dictionary = {}
 
 
