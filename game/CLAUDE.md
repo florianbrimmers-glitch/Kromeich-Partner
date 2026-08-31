@@ -24,6 +24,7 @@ wie HoMM3, 7 Einheiten-Tiers (units.json migrieren!), CC0-Sound.
 | Kampf-Effekte (It. 17) | FERTIG. Neu `core/BattleVfx.gd` (preload-Alias `Vfx`, weil `Fx` schon StatusFx ist): reine DATEN-Schicht, Effekte sind Dictionaries in einer Array-Queue, `advance()` laesst die Zeit laufen. Arten: Ausfallschritt, Projektil (Parabel), Einschlag (Ring + Splitter), Schadenszahl, Zerfall, Shake, Heilung, Wort-Einblendung, Mauerbruch, Gleiten. **Zwei Trichter statt zwanzig Aufrufstellen:** `_apply_dmg` erzeugt Treffer+Zahl+Zerfall (dort laufen Nahkampf, Konter, Schuss, Todeswolke und Pfeilturm ALLE durch), `_melee_exchange` den Ausfallschritt. Staffelung ueber `cfg["delay"]` (t startet negativ, `Vfx.pending()` = noch nicht zeichnen) - sonst blitzt der Treffer, waehrend der Pfeil fliegt; `Vfx.time_left_of(q, MOVE)` schiebt den Nahkampf hinter einen laufenden Anmarsch. Einschlag-Geometrie (`impact_radius`/`impact_spoke`) steht IM MODUL, weil `tools/preview_battle_fx.gd` dieselben Werte zeichnet. 10. Suite `tools/test_battle_vfx.gd`. |
 | Stadt komplett (It. 18) | FERTIG. Der Nutzer hat Screenshots vom Geraet geschickt: auf dem Kaserne-Platz stand ein violetter Iso-Quader. Ursache war `_draw_plot` -> `_draw_iso_block` als Fallback fuer ein GEBAUTES Gebaeude ohne Sprite; **28 von 36 Sprites fehlten** (Waldvolk/Totenreich/Orks komplett, Menschen die Zitadelle). Jetzt zwei Generatoren: `tools/gen_city_bg.py` (4 Hintergruende + 4 bg_walled-Varianten mit Mauerring; ersetzt das gemalte Canva-PNG der Menschen) und `tools/gen_city_buildings.py` (36 Gebaeude + 9 Baustellen aus einer Teile-Bibliothek: Iso-Koerper, 5 Dachformen, Zierteile, 9 Rezepte, 4 Paletten). **Bild-Grenzen-Pruefung** `check_bounds()` im Generator - die Zitadelle war zuerst oben abgeschnitten und im Sprite-Blatt fiel es kaum auf. Fallback-Quader bleibt als Notausgang, aber entsaettigt. |
 | Weltkarte lesbar (It. 19) | FERTIG. Drei Befunde aus den Geraete-Screenshots. (1) Je Gelaendeart lag EINE Kachel - `grass.svg` hatte seine Bluete auf Pixel (52,20), also stand auf jeder Wiese dieselbe Bluete an derselben Stelle: Tapetenmuster. Jetzt `tools/gen_world_tiles.py` mit SECHS Varianten je Gelaendeart, Auswahl deterministisch aus Feldkoordinate + Seed (`_tile_variant`). (2) Gelaendearten stiessen kerzengerade aneinander - jetzt weiche Uebergangs-Fransen (`fringe_<seite>.svg`, weiss, wird mit der Nachbarfarbe moduliert; vier Dateien decken alle Kombinationen). (3) Unerforscht war Volltonschwarz mit Gitterlinien - jetzt gewolkte Nebelkacheln. Dazu die HUD-Zeile aufgebrochen: statt "T4 W1 M1 J1 L2 0/10 G872 H15 E5 K3 1 Sk / 2 Zo ... XP140" in EINEM Label jetzt zwei gruppierte Zeilen mit `GameCalendar.calendar_long()`; die Armee ist raus (steht im Helden-Panel). **Falle:** der erste `_tile_variant`-Hash koppelte die Paritaet an x - waagerechte Nachbarn bekamen NIE dieselbe Variante (0 % statt 1/6), ein verstecktes Schachbrett. Zwei Shift-Multiply-Runden loesen das; der Test prueft jetzt BEIDE Schranken, eine Obergrenze allein haette den Fehler durchgelassen. |
+| 28 Kreaturen (It. 20) | FERTIG. Der Kontaktbogen in echter Kampfgroesse (86 px) zeigte: `gen_unit_sprites.py` baute alle 28 Token aus FUENF Rollen-Koerpern, also teilten sich sieben Stufen je Fraktion fuenf Formen - Skelett, Zombie, Wicht und Vampir waren derselbe Klumpen, Greif und Pegasus dieselbe Fluegelform. Generator komplett neu: **eine Rezeptzeile je Einheit** (Silhouette, Kopf, Waffe, optional Fluegel) aus einer Teile-Bibliothek, wie bei den Gebaeuden. 12 Silhouetten-Klassen (humanoid/squat/brute/robed/skeletal/spectre/quadruped/mounted/bird/dragon/tree), 20 Koepfe, 18 Waffen, 4 Fluegelarten. ViewBox 64 -> 128 (Godot rastert in ViewBox-Groesse, aus 64 auf 86 px wurde alles weich), KONTUR auf jeder Silhouette (ohne sie verschwamm die Figur mit der dunklen Token-Scheibe), Kopf heller als der Rumpf. **Zwei Selbstpruefungen brechen den Lauf ab:** Bildgrenzen und Rezept-Eindeutigkeit (kein Paar Silhouette/Kopf/Waffe zweimal). |
 | M5-M12 Parallel-Band (Objekte, Sound, Events) | offen |
 | M7/M8 Heldenstats/Skills, Zauber | offen (nach M4) |
 | M13 Mehrere Helden (vorher Struktur-Iteration!), M14 MP | zurueckgestellt |
@@ -55,10 +56,15 @@ fertig"). Entschieden:
   damit alle vier Staedte zusammenpassen.
 - Kampf: **gemalte Kreatur direkt im Gitter**, nicht Token + Detail-Panel.
   Bei ~86 px Zellgroesse heisst das: grobe, kontrastreiche Silhouetten.
-- Reihenfolge (nach den Geraete-Screenshots umsortiert - ein sichtbarer
-  Defekt geht vor einer schlichten Flaeche): 17 Effekte -> 18 Stadt
-  komplett -> 19 Weltkarte lesbar -> **20 Karten-Objekte + Kreaturen** ->
-  21 Schlachtfeld-Kulisse.
+- Reihenfolge: 17 Effekte -> 18 Stadt komplett -> 19 Weltkarte lesbar ->
+  20 Kreaturen -> **21 Schlachtfeld-Kulisse** (offen).
+- **Karten-Objekte brauchen nichts.** Truhe, Mine, Haufen, die vier
+  Stadt-Icons und Held/Feind wurden bei 64 px geprueft: klar lesbar,
+  konsistent, deutliche Silhouetten. Zwei vermeintliche Defekte dort waren
+  Fehler im Vorschau-Skript, nicht im Spiel - der Fraktionsname aus
+  units.json (`orkstaemme`) ist NICHT der Verzeichnisname (`orks`), und ein
+  Regex auf `width="..."` trifft das erste innere `<rect>`, weil die
+  `<svg>`-Tags dort keine Groesse tragen.
 
 ### Verbindliche Asset-Konventionen
 
@@ -81,6 +87,18 @@ fertig"). Entschieden:
   kacheln), Deko mit Abstand zum Rand (`INSET`), damit die Kacheln seitlich
   passen. Sechs Varianten je Art; vier waren bei ~30 Kacheln im Blick noch
   als Muster erkennbar.
+- **Einheiten-Token:** ViewBox 128x128, Standlinie y=114, Figur fuellt rund
+  85 % der Hoehe, jede Silhouette mit Kontur. Sie erscheinen an genau EINER
+  Stelle (`TacticalBattleScreen._unit_texture` -> `_draw_token`) in genau
+  EINER Groesse (`cell * 0.92`, rund 86 px) - alles ist darauf hin
+  entschieden.
+- **SVG-Fallen im Generator**, beide teuer bezahlt: (1) In eine
+  Formatzeichenkette KEIN festes Minuszeichen vor einen bereits
+  vorzeichenbehafteten Wert schreiben - aus `"-%.1f" % (s*25.3)` wurde bei
+  s=-1 ein `--25.3` und damit ungueltiges SVG. (2) Der Grenzen-Pruefer muss
+  bei Boegen (`A`) nur die letzten zwei der sieben Zahlen als Koordinaten
+  lesen UND bei Kleinbuchstaben den Cursor mitfuehren - sonst meldet er
+  ueberall Fehlalarm und ist damit wertlos.
 - Silhouette ist das Unterscheidungsmerkmal, nicht die Farbe: die Sprites
   sind auf dem Handy ~150 px breit. Reiterei/Kaserne/Mauer sahen im ersten
   Anlauf identisch aus (Kasten mit Dach) - die Mauer hat jetzt einen eigenen

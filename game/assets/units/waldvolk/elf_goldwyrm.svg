@@ -1,33 +1,29 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Kampf-Token Goldwyrm (elf_goldwyrm), Tier 7, Rolle Flieger.
+<!-- Kampf-Token Goldwyrm (elf_goldwyrm), Stufe 7.
      Generiert von tools/gen_unit_sprites.py - nicht per Hand editieren,
      sondern den Generator anpassen und neu laufen lassen. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <ellipse cx="32" cy="57" rx="21" ry="4" fill="#000" opacity="0.40"/>
-  <g transform="translate(32,56) scale(1.04) translate(-32,-56)">
-  <!-- Fluegel -->
-  <path d="M30,26 C16,12 8,20 10,32 C14,28 22,28 30,32 Z"
-        fill="#a4e6a4" stroke="#284c28" stroke-width="1.5" opacity="0.95"/>
-  <path d="M34,26 C48,12 56,20 54,32 C50,28 42,28 34,32 Z"
-        fill="#a4e6a4" stroke="#284c28" stroke-width="1.5" opacity="0.95"/>
-  <!-- Koerper -->
-  <ellipse cx="32" cy="36" rx="8" ry="14" fill="#62b862" stroke="#284c28" stroke-width="1.5"/>
-  <circle cx="32" cy="18" r="6.5" fill="#62b862" stroke="#284c28" stroke-width="1.5"/>
-  <!-- Klauen -->
-  <line x1="29" y1="49" x2="26" y2="55" stroke="#284c28" stroke-width="2.5"/>
-  <line x1="35" y1="49" x2="38" y2="55" stroke="#284c28" stroke-width="2.5"/>
-  <polygon points="52,34 56,40 52,46 48,40" fill="#a4e6a4" stroke="#284c28" stroke-width="1"/>
-  <polygon points="24,11 22,4 28,8" fill="#a4e6a4" stroke="#284c28" stroke-width="1"/>
-  <polygon points="40,11 42,4 36,8" fill="#a4e6a4" stroke="#284c28" stroke-width="1"/>
-  <polygon points="32,7 30,3 34,3" fill="#a4e6a4" stroke="#284c28" stroke-width="1"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <ellipse cx="64.0" cy="117.0" rx="38.8" ry="7" fill="#000" opacity="0.42"/>
+  <g transform="translate(64.0,114.0) scale(1.00) translate(-64.0,-114.0)">
+  <ellipse cx="39.8" cy="30.0" rx="18.5" ry="13.0" fill="#a2e6a2" stroke="#122312" stroke-width="2.2" opacity="0.75"/>
+  <ellipse cx="45.5" cy="48.0" rx="13.2" ry="9.0" fill="#a2e6a2" stroke="#122312" stroke-width="2.2" opacity="0.60"/>
+  <ellipse cx="88.2" cy="30.0" rx="18.5" ry="13.0" fill="#a2e6a2" stroke="#122312" stroke-width="2.2" opacity="0.75"/>
+  <ellipse cx="82.5" cy="48.0" rx="13.2" ry="9.0" fill="#a2e6a2" stroke="#122312" stroke-width="2.2" opacity="0.60"/>
+  <path d="M 58.0 92 q -34 6 -40 -10" fill="none" stroke="#356435" stroke-width="9.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <polygon points="52.0,92.0 44.0,92.0 47.0,114.0" fill="#356435" stroke="#122312" stroke-width="2.0" stroke-linejoin="round"/>
+  <polygon points="76.0,92.0 84.0,92.0 81.0,114.0" fill="#356435" stroke="#122312" stroke-width="2.0" stroke-linejoin="round"/>
+  <ellipse cx="66.0" cy="84.0" rx="25.0" ry="16.0" fill="#5eb25e" stroke="#122312" stroke-width="2.5"/>
+  <path d="M 78.0 76 Q 98.0 52 92.0 44" fill="none" stroke="#5eb25e" stroke-width="12.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 73.2 46.4 q 9.6 -20.8 40.0 -11.2 l 6.4 14.4 q -14.4 8.0 -46.4 3.2 Z" fill="#a2e6a2" stroke="#122312" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <ellipse cx="102.8" cy="34.4" rx="3.5" ry="3.8" fill="#122312"/>
+  <path d="M 86.0 32.0 l 8.0 -17.6" fill="none" stroke="#122312" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M 97.2 32.0 l 8.0 -17.6" fill="none" stroke="#122312" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>
   </g>
-  <g stroke="#284c28" stroke-width="0.6">
-    <circle cx="11.0" cy="60" r="2.2" fill="#f4f0e4"/>
-    <circle cx="18.0" cy="60" r="2.2" fill="#f4f0e4"/>
-    <circle cx="25.0" cy="60" r="2.2" fill="#f4f0e4"/>
-    <circle cx="32.0" cy="60" r="2.2" fill="#f4f0e4"/>
-    <circle cx="39.0" cy="60" r="2.2" fill="#f4f0e4"/>
-    <circle cx="46.0" cy="60" r="2.2" fill="#f4f0e4"/>
-    <circle cx="53.0" cy="60" r="2.2" fill="#f4f0e4"/>
-  </g>
+  <circle cx="25.0" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#122312" stroke-width="1.2"/>
+  <circle cx="38.0" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#122312" stroke-width="1.2"/>
+  <circle cx="51.0" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#122312" stroke-width="1.2"/>
+  <circle cx="64.0" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#122312" stroke-width="1.2"/>
+  <circle cx="77.0" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#122312" stroke-width="1.2"/>
+  <circle cx="90.0" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#122312" stroke-width="1.2"/>
+  <circle cx="103.0" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#122312" stroke-width="1.2"/>
 </svg>

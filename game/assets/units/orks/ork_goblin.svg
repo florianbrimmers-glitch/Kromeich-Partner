@@ -1,24 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Kampf-Token Goblin (ork_goblin), Tier 1, Rolle Nahkampf.
+<!-- Kampf-Token Goblin (ork_goblin), Stufe 1.
      Generiert von tools/gen_unit_sprites.py - nicht per Hand editieren,
      sondern den Generator anpassen und neu laufen lassen. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <ellipse cx="32" cy="57" rx="12" ry="4" fill="#000" opacity="0.40"/>
-  <g transform="translate(32,56) scale(0.74) translate(-32,-56)">
-  <!-- Koerper -->
-  <ellipse cx="30" cy="34" rx="9" ry="13" fill="#ce4c41" stroke="#551f1b" stroke-width="1.5"/>
-  <circle cx="30" cy="17" r="7" fill="#f7938b" stroke="#551f1b" stroke-width="1.5"/>
-  <!-- Schild -->
-  <path d="M18,26 L24,24 L24,40 Q21,44 18,40 Z"
-        fill="#f7938b" stroke="#551f1b" stroke-width="1.4"/>
-  <!-- Klinge -->
-  <line x1="38" y1="42" x2="48" y2="14" stroke="#f7938b" stroke-width="3"/>
-  <line x1="34" y1="40" x2="44" y2="44" stroke="#551f1b" stroke-width="2.5"/>
-  <!-- Beine -->
-  <line x1="27" y1="45" x2="24" y2="54" stroke="#551f1b" stroke-width="3"/>
-  <line x1="33" y1="45" x2="36" y2="54" stroke="#551f1b" stroke-width="3"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <ellipse cx="64.0" cy="117.0" rx="24.4" ry="7" fill="#000" opacity="0.42"/>
+  <g transform="translate(64.0,114.0) scale(0.88) translate(-64.0,-114.0)">
+  <polygon points="45.5,94.0 56.5,94.0 56.5,110.0 59.5,114.0 42.5,114.0" fill="#96372f" stroke="#270e0c" stroke-width="2.5" stroke-linejoin="round"/>
+  <polygon points="71.5,94.0 82.5,94.0 82.5,110.0 85.5,114.0 68.5,114.0" fill="#96372f" stroke="#270e0c" stroke-width="2.5" stroke-linejoin="round"/>
+  <polygon points="38.0,62.0 90.0,62.0 84.0,96.0 44.0,96.0" fill="#c7493f" stroke="#270e0c" stroke-width="2.5" stroke-linejoin="round"/>
+  <ellipse cx="64.0" cy="46.0" rx="17.1" ry="18.0" fill="#f79289" stroke="#270e0c" stroke-width="2.5"/>
+  <polygon points="51.4,40.6 29.8,26.2 48.7,54.1" fill="#f79289" stroke="#270e0c" stroke-width="2.0" stroke-linejoin="round"/>
+  <polygon points="76.6,40.6 98.2,26.2 79.3,54.1" fill="#f79289" stroke="#270e0c" stroke-width="2.0" stroke-linejoin="round"/>
+  <ellipse cx="57.7" cy="44.2" rx="2.7" ry="3.4" fill="#270e0c"/>
+  <ellipse cx="70.3" cy="44.2" rx="2.7" ry="3.4" fill="#270e0c"/>
+  <polygon points="88.0,66.0 94.0,64.0 97.0,42.0 90.0,44.0" fill="#c8d2dc" stroke="#270e0c" stroke-width="2.0" stroke-linejoin="round"/>
+  <polygon points="85.0,66.0 98.0,63.0 99.0,69.0 86.0,72.0" fill="#7a5a34" stroke="#270e0c" stroke-width="1.5" stroke-linejoin="round"/>
   </g>
-  <g stroke="#551f1b" stroke-width="0.6">
-    <circle cx="32.0" cy="60" r="2.2" fill="#f4f0e4"/>
-  </g>
+  <circle cx="64.0" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#270e0c" stroke-width="1.2"/>
 </svg>

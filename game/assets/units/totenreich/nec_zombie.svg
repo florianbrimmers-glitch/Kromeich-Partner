@@ -1,27 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Kampf-Token Zombie (nec_zombie), Tier 2, Rolle Nahkampf.
+<!-- Kampf-Token Zombie (nec_zombie), Stufe 2.
      Generiert von tools/gen_unit_sprites.py - nicht per Hand editieren,
      sondern den Generator anpassen und neu laufen lassen. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <ellipse cx="32" cy="57" rx="13" ry="4" fill="#000" opacity="0.40"/>
-  <ellipse cx="32" cy="34" rx="21" ry="24" fill="#a167cf" opacity="0.16"/>
-  <g transform="translate(32,56) scale(0.79) translate(-32,-56)">
-  <!-- Koerper -->
-  <ellipse cx="30" cy="34" rx="9" ry="13" fill="#bfbaa9" stroke="#4f4d46" stroke-width="1.5"/>
-  <circle cx="30" cy="17" r="7" fill="#ebe8db" stroke="#4f4d46" stroke-width="1.5"/>
-  <!-- Schild -->
-  <path d="M18,26 L24,24 L24,40 Q21,44 18,40 Z"
-        fill="#ebe8db" stroke="#4f4d46" stroke-width="1.4"/>
-  <!-- Klinge -->
-  <line x1="38" y1="42" x2="48" y2="14" stroke="#ebe8db" stroke-width="3"/>
-  <line x1="34" y1="40" x2="44" y2="44" stroke="#4f4d46" stroke-width="2.5"/>
-  <!-- Beine -->
-  <line x1="27" y1="45" x2="24" y2="54" stroke="#4f4d46" stroke-width="3"/>
-  <line x1="33" y1="45" x2="36" y2="54" stroke="#4f4d46" stroke-width="3"/>
-  <g stroke="#4f4d46" stroke-width="1" opacity="0.8"><line x1="25" y1="30" x2="37" y2="30"/><line x1="25" y1="35" x2="37" y2="35"/><line x1="26" y1="40" x2="36" y2="40"/></g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <ellipse cx="64.0" cy="117.0" rx="26.8" ry="7" fill="#000" opacity="0.42"/>
+  <ellipse cx="64.0" cy="66" rx="42" ry="48" fill="#a167cf" opacity="0.18"/>
+  <g transform="translate(64.0,114.0) scale(0.90) translate(-64.0,-114.0)">
+  <polygon points="45.5,80.0 54.5,80.0 54.5,110.0 57.5,114.0 42.5,114.0" fill="#8b887b" stroke="#242320" stroke-width="2.5" stroke-linejoin="round"/>
+  <polygon points="73.5,80.0 82.5,80.0 82.5,110.0 85.5,114.0 70.5,114.0" fill="#8b887b" stroke="#242320" stroke-width="2.5" stroke-linejoin="round"/>
+  <polygon points="43.0,58.0 85.0,58.0 80.0,82.0 48.0,82.0" fill="#b8b4a3" stroke="#242320" stroke-width="2.5" stroke-linejoin="round"/>
+  <polygon points="54.5,62.0 73.5,62.0 72.0,74.0 56.0,74.0" fill="#ebe7da" stroke="#242320" stroke-width="1.8" stroke-linejoin="round"/>
+  <path d="M 45.1 64.0 q -6.0 18 -2.0 30" fill="none" stroke="#b8b4a3" stroke-width="8.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 82.9 64.0 q 6.0 18 2.0 30" fill="none" stroke="#b8b4a3" stroke-width="8.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <ellipse cx="64.0" cy="40.0" rx="18.0" ry="18.4" fill="#ebe7da" stroke="#242320" stroke-width="2.5"/>
+  <ellipse cx="56.8" cy="38.2" rx="3.6" ry="4.3" fill="#242320"/>
+  <path d="M 67.2 34.6 l 9.0 6.3" fill="none" stroke="#242320" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 56.8 48.1 q 7.2 -5.4 14.4 0" fill="none" stroke="#242320" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
-  <g stroke="#4f4d46" stroke-width="0.6">
-    <circle cx="28.5" cy="60" r="2.2" fill="#f4f0e4"/>
-    <circle cx="35.5" cy="60" r="2.2" fill="#f4f0e4"/>
-  </g>
+  <circle cx="57.5" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#242320" stroke-width="1.2"/>
+  <circle cx="70.5" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#242320" stroke-width="1.2"/>
 </svg>

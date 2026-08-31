@@ -1,28 +1,23 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Kampf-Token Treant (elf_treant), Tier 4, Rolle Riese.
+<!-- Kampf-Token Treant (elf_treant), Stufe 4.
      Generiert von tools/gen_unit_sprites.py - nicht per Hand editieren,
      sondern den Generator anpassen und neu laufen lassen. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <ellipse cx="32" cy="57" rx="16" ry="4" fill="#000" opacity="0.40"/>
-  <g transform="translate(32,56) scale(0.89) translate(-32,-56)">
-  <!-- Breiter Koerper -->
-  <path d="M18,52 L20,26 Q32,18 44,26 L46,52 Z"
-        fill="#62b862" stroke="#284c28" stroke-width="1.8"/>
-  <!-- Schultern -->
-  <ellipse cx="18" cy="27" rx="7" ry="6" fill="#a4e6a4" stroke="#284c28" stroke-width="1.5"/>
-  <ellipse cx="46" cy="27" rx="7" ry="6" fill="#a4e6a4" stroke="#284c28" stroke-width="1.5"/>
-  <circle cx="32" cy="14" r="7.5" fill="#a4e6a4" stroke="#284c28" stroke-width="1.5"/>
-  <!-- Fauststreitkolben -->
-  <line x1="48" y1="30" x2="56" y2="46" stroke="#284c28" stroke-width="3"/>
-  <circle cx="57" cy="49" r="5" fill="#284c28"/>
-  <!-- Beine -->
-  <rect x="21" y="50" width="8" height="7" fill="#284c28"/>
-  <rect x="35" y="50" width="8" height="7" fill="#284c28"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <ellipse cx="64.0" cy="117.0" rx="31.6" ry="7" fill="#000" opacity="0.42"/>
+  <g transform="translate(64.0,114.0) scale(0.94) translate(-64.0,-114.0)">
+  <path d="M 36.0 114.0 q -4.0 -40 9.9 -60 q 27.0 20 28.0 60 Z" fill="#7a5a34" stroke="#122312" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M 56.8 108.0 q -10.0 10 -16.0 12" fill="none" stroke="#7a5a34" stroke-width="6.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 71.2 108.0 q 10.0 10 16.0 12" fill="none" stroke="#7a5a34" stroke-width="6.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <ellipse cx="64.0" cy="48.0" rx="15.0" ry="15.8" fill="#a2e6a2" stroke="#122312" stroke-width="2.5"/>
+  <ellipse cx="58.0" cy="45.8" rx="2.1" ry="2.7" fill="#122312"/>
+  <ellipse cx="70.0" cy="45.8" rx="2.1" ry="2.7" fill="#122312"/>
+  <path d="M 48.0 62 q -18.0 -14 -30.0 -30" fill="none" stroke="#7a5a34" stroke-width="6.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <ellipse cx="16.0" cy="30.0" rx="13.0" ry="10.0" fill="#a2e6a2" stroke="#122312" stroke-width="2.0"/>
+  <path d="M 80.0 62 q 18.0 -14 30.0 -30" fill="none" stroke="#7a5a34" stroke-width="6.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <ellipse cx="112.0" cy="30.0" rx="13.0" ry="10.0" fill="#a2e6a2" stroke="#122312" stroke-width="2.0"/>
   </g>
-  <g stroke="#284c28" stroke-width="0.6">
-    <circle cx="21.5" cy="60" r="2.2" fill="#f4f0e4"/>
-    <circle cx="28.5" cy="60" r="2.2" fill="#f4f0e4"/>
-    <circle cx="35.5" cy="60" r="2.2" fill="#f4f0e4"/>
-    <circle cx="42.5" cy="60" r="2.2" fill="#f4f0e4"/>
-  </g>
+  <circle cx="44.5" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#122312" stroke-width="1.2"/>
+  <circle cx="57.5" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#122312" stroke-width="1.2"/>
+  <circle cx="70.5" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#122312" stroke-width="1.2"/>
+  <circle cx="83.5" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#122312" stroke-width="1.2"/>
 </svg>

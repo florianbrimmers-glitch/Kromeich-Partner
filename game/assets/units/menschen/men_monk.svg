@@ -1,32 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Kampf-Token Moench (men_monk), Tier 5, Rolle Fernkampf.
+<!-- Kampf-Token Moench (men_monk), Stufe 5.
      Generiert von tools/gen_unit_sprites.py - nicht per Hand editieren,
      sondern den Generator anpassen und neu laufen lassen. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <ellipse cx="32" cy="57" rx="18" ry="4" fill="#000" opacity="0.40"/>
-  <g transform="translate(32,56) scale(0.94) translate(-32,-56)">
-  <!-- Bogen -->
-  <path d="M44,18 Q54,32 44,46" fill="none" stroke="#554c1f" stroke-width="2.5"/>
-  <line x1="44" y1="18" x2="44" y2="46" stroke="#f7e693" stroke-width="1"/>
-  <!-- Koerper -->
-  <ellipse cx="28" cy="34" rx="9" ry="13" fill="#ceb84c" stroke="#554c1f" stroke-width="1.5"/>
-  <circle cx="28" cy="17" r="7" fill="#f7e693" stroke="#554c1f" stroke-width="1.5"/>
-  <!-- Arm zum Bogen -->
-  <line x1="30" y1="28" x2="44" y2="30" stroke="#554c1f" stroke-width="3"/>
-  <!-- Pfeil -->
-  <line x1="30" y1="30" x2="50" y2="30" stroke="#f7e693" stroke-width="1.2"/>
-  <polygon points="50,30 46,27.5 46,32.5" fill="#f7e693"/>
-  <!-- Beine -->
-  <line x1="25" y1="45" x2="22" y2="54" stroke="#554c1f" stroke-width="3"/>
-  <line x1="31" y1="45" x2="34" y2="54" stroke="#554c1f" stroke-width="3"/>
-  <polygon points="25,11 23,5 29,9" fill="#f7e693" stroke="#554c1f" stroke-width="1"/>
-  <polygon points="39,11 41,5 35,9" fill="#f7e693" stroke="#554c1f" stroke-width="1"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <ellipse cx="64.0" cy="117.0" rx="34.0" ry="7" fill="#000" opacity="0.42"/>
+  <g transform="translate(64.0,114.0) scale(0.96) translate(-64.0,-114.0)">
+  <path d="M 32.0 114.0 q -6 -46 32.0 -50 q 32.0 4 32.0 50 Z" fill="#c7b249" stroke="#27230e" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M 64.0 56.0 L 64.0 110.0" fill="none" stroke="#6f6429" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 45.3 55.9 q 0 -40.8 18.7 -10.2 q 18.7 30.6 18.7 39.1 Z" fill="#f7e692" stroke="#27230e" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <ellipse cx="64.0" cy="46.5" rx="10.5" ry="8.5" fill="#27230e" stroke="#27230e" stroke-width="0.0"/>
+  <path d="M 92 32 L 88 108" fill="none" stroke="#7a5a34" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <ellipse cx="93.0" cy="24.0" rx="10.0" ry="10.0" fill="#dac350" stroke="#27230e" stroke-width="2.5"/>
   </g>
-  <g stroke="#554c1f" stroke-width="0.6">
-    <circle cx="18.0" cy="60" r="2.2" fill="#f4f0e4"/>
-    <circle cx="25.0" cy="60" r="2.2" fill="#f4f0e4"/>
-    <circle cx="32.0" cy="60" r="2.2" fill="#f4f0e4"/>
-    <circle cx="39.0" cy="60" r="2.2" fill="#f4f0e4"/>
-    <circle cx="46.0" cy="60" r="2.2" fill="#f4f0e4"/>
-  </g>
+  <circle cx="38.0" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#27230e" stroke-width="1.2"/>
+  <circle cx="51.0" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#27230e" stroke-width="1.2"/>
+  <circle cx="64.0" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#27230e" stroke-width="1.2"/>
+  <circle cx="77.0" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#27230e" stroke-width="1.2"/>
+  <circle cx="90.0" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#27230e" stroke-width="1.2"/>
 </svg>

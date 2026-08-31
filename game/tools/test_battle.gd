@@ -68,6 +68,32 @@ func _test_sprite_coverage() -> void:
 		if not ResourceLoader.exists(path):
 			missing.append(String(uid))
 	_check(missing.is_empty(), "alle 28 Token vorhanden (fehlen: %s)" % str(missing))
+
+	# It. 20: Existenz allein reichte NICHT. Der alte Generator baute alle
+	# 28 Token aus fuenf Rollen-Koerpern - Skelett, Zombie, Wicht und Vampir
+	# waren dieselbe Form, und dieser Test war trotzdem gruen. Jetzt muessen
+	# die Dateien paarweise verschieden sein.
+	var by_content: Dictionary = {}
+	var dupes: Array = []
+	var too_small: Array = []
+	for uid2 in UnitType.all_ids():
+		var fid2: int = UnitType.faction_of(String(uid2))
+		var pth: String = "res://assets/units/%s/%s.svg" % [dirs[fid2], String(uid2)]
+		if not ResourceLoader.exists(pth):
+			continue
+		var fh := FileAccess.open(pth, FileAccess.READ)
+		var txt: String = fh.get_as_text()
+		# Kopfkommentar traegt Name und ID - fuer den Vergleich raus, sonst
+		# waeren zwei identische Figuren allein durch den Namen "verschieden".
+		var body: String = txt.substr(txt.find("<svg"))
+		if body.length() < 400:
+			too_small.append(String(uid2))
+		var key: String = str(body.hash())
+		if by_content.has(key):
+			dupes.append("%s=%s" % [String(by_content[key]), String(uid2)])
+		by_content[key] = uid2
+	_check(too_small.is_empty(), "kein Token ist leer oder trivial (%s)" % str(too_small))
+	_check(dupes.is_empty(), "alle 28 Token sind verschieden (gleich: %s)" % str(dupes))
 	# Und der Screen findet sie auch ueber seinen Cache-Pfad.
 	var bs = TBS.new()
 	# Effekte aus (It. 17): mit fx_speed > 0 wartet die Zugkette auf

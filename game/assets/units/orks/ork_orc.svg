@@ -1,28 +1,24 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Kampf-Token Orkschuetze (ork_orc), Tier 3, Rolle Fernkampf.
+<!-- Kampf-Token Orkschuetze (ork_orc), Stufe 3.
      Generiert von tools/gen_unit_sprites.py - nicht per Hand editieren,
      sondern den Generator anpassen und neu laufen lassen. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <ellipse cx="32" cy="57" rx="15" ry="4" fill="#000" opacity="0.40"/>
-  <g transform="translate(32,56) scale(0.84) translate(-32,-56)">
-  <!-- Bogen -->
-  <path d="M44,18 Q54,32 44,46" fill="none" stroke="#551f1b" stroke-width="2.5"/>
-  <line x1="44" y1="18" x2="44" y2="46" stroke="#f7938b" stroke-width="1"/>
-  <!-- Koerper -->
-  <ellipse cx="28" cy="34" rx="9" ry="13" fill="#ce4c41" stroke="#551f1b" stroke-width="1.5"/>
-  <circle cx="28" cy="17" r="7" fill="#f7938b" stroke="#551f1b" stroke-width="1.5"/>
-  <!-- Arm zum Bogen -->
-  <line x1="30" y1="28" x2="44" y2="30" stroke="#551f1b" stroke-width="3"/>
-  <!-- Pfeil -->
-  <line x1="30" y1="30" x2="50" y2="30" stroke="#f7938b" stroke-width="1.2"/>
-  <polygon points="50,30 46,27.5 46,32.5" fill="#f7938b"/>
-  <!-- Beine -->
-  <line x1="25" y1="45" x2="22" y2="54" stroke="#551f1b" stroke-width="3"/>
-  <line x1="31" y1="45" x2="34" y2="54" stroke="#551f1b" stroke-width="3"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <ellipse cx="64.0" cy="117.0" rx="29.2" ry="7" fill="#000" opacity="0.42"/>
+  <g transform="translate(64.0,114.0) scale(0.92) translate(-64.0,-114.0)">
+  <polygon points="45.5,80.0 54.5,80.0 54.5,110.0 57.5,114.0 42.5,114.0" fill="#96372f" stroke="#270e0c" stroke-width="2.5" stroke-linejoin="round"/>
+  <polygon points="73.5,80.0 82.5,80.0 82.5,110.0 85.5,114.0 70.5,114.0" fill="#96372f" stroke="#270e0c" stroke-width="2.5" stroke-linejoin="round"/>
+  <polygon points="39.0,52.0 89.0,52.0 79.0,82.0 49.0,82.0" fill="#c7493f" stroke="#270e0c" stroke-width="2.5" stroke-linejoin="round"/>
+  <polygon points="52.8,56.0 75.2,56.0 71.5,74.0 56.5,74.0" fill="#f79289" stroke="#270e0c" stroke-width="1.8" stroke-linejoin="round"/>
+  <ellipse cx="64.0" cy="34.0" rx="18.9" ry="18.0" fill="#f79289" stroke="#270e0c" stroke-width="2.5"/>
+  <ellipse cx="56.4" cy="30.4" rx="2.9" ry="3.6" fill="#270e0c"/>
+  <path d="M 58.6 42.1 q -4.5 9.0 -9.9 -4.5" fill="#efe6cf" stroke="#270e0c" stroke-width="2.0" stroke-linejoin="round" stroke-linecap="round"/>
+  <ellipse cx="71.6" cy="30.4" rx="2.9" ry="3.6" fill="#270e0c"/>
+  <path d="M 69.4 42.1 q 4.5 9.0 9.9 -4.5" fill="#efe6cf" stroke="#270e0c" stroke-width="2.0" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M 74 62 L 104 56" fill="none" stroke="#7a5a34" stroke-width="6.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 98 40 q 14 16 0 32" fill="none" stroke="#270e0c" stroke-width="4.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M 98 40 L 98 72" fill="none" stroke="#f2e8c8" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
   </g>
-  <g stroke="#551f1b" stroke-width="0.6">
-    <circle cx="25.0" cy="60" r="2.2" fill="#f4f0e4"/>
-    <circle cx="32.0" cy="60" r="2.2" fill="#f4f0e4"/>
-    <circle cx="39.0" cy="60" r="2.2" fill="#f4f0e4"/>
-  </g>
+  <circle cx="51.0" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#270e0c" stroke-width="1.2"/>
+  <circle cx="64.0" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#270e0c" stroke-width="1.2"/>
+  <circle cx="77.0" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#270e0c" stroke-width="1.2"/>
 </svg>

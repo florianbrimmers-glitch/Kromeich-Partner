@@ -1,29 +1,35 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Kampf-Token Rok (ork_roc), Tier 5, Rolle Flieger.
+<!-- Kampf-Token Rok (ork_roc), Stufe 5.
      Generiert von tools/gen_unit_sprites.py - nicht per Hand editieren,
      sondern den Generator anpassen und neu laufen lassen. -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <ellipse cx="32" cy="57" rx="18" ry="4" fill="#000" opacity="0.40"/>
-  <g transform="translate(32,56) scale(0.94) translate(-32,-56)">
-  <!-- Fluegel -->
-  <path d="M30,26 C16,12 8,20 10,32 C14,28 22,28 30,32 Z"
-        fill="#f7938b" stroke="#551f1b" stroke-width="1.5" opacity="0.95"/>
-  <path d="M34,26 C48,12 56,20 54,32 C50,28 42,28 34,32 Z"
-        fill="#f7938b" stroke="#551f1b" stroke-width="1.5" opacity="0.95"/>
-  <!-- Koerper -->
-  <ellipse cx="32" cy="36" rx="8" ry="14" fill="#ce4c41" stroke="#551f1b" stroke-width="1.5"/>
-  <circle cx="32" cy="18" r="6.5" fill="#ce4c41" stroke="#551f1b" stroke-width="1.5"/>
-  <!-- Klauen -->
-  <line x1="29" y1="49" x2="26" y2="55" stroke="#551f1b" stroke-width="2.5"/>
-  <line x1="35" y1="49" x2="38" y2="55" stroke="#551f1b" stroke-width="2.5"/>
-  <polygon points="25,11 23,5 29,9" fill="#f7938b" stroke="#551f1b" stroke-width="1"/>
-  <polygon points="39,11 41,5 35,9" fill="#f7938b" stroke="#551f1b" stroke-width="1"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <ellipse cx="64.0" cy="117.0" rx="34.0" ry="7" fill="#000" opacity="0.42"/>
+  <g transform="translate(64.0,114.0) scale(0.96) translate(-64.0,-114.0)">
+  <path d="M 52.0 46.0 q -24.0 -26.0 -48.0 -12.0 q 4.8 30.0 26.4 18.0 Z" fill="#f79289" stroke="#270e0c" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M 46.0 42.0 L 34.0 56.0" fill="none" stroke="#270e0c" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 38.0 42.0 L 23.0 60.0" fill="none" stroke="#270e0c" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 30.0 42.0 L 12.0 64.0" fill="none" stroke="#270e0c" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 76.0 46.0 q 24.0 -26.0 48.0 -12.0 q -4.8 30.0 -26.4 18.0 Z" fill="#f79289" stroke="#270e0c" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M 82.0 42.0 L 94.0 56.0" fill="none" stroke="#270e0c" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 90.0 42.0 L 105.0 60.0" fill="none" stroke="#270e0c" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 98.0 42.0 L 116.0 64.0" fill="none" stroke="#270e0c" stroke-width="2.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 54.0 84 L 49.0 114.0" fill="none" stroke="#da5045" stroke-width="6.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 49.0 114.0 l -7.0 5" fill="none" stroke="#da5045" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 49.0 114.0 l 0.0 5" fill="none" stroke="#da5045" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 49.0 114.0 l 7.0 5" fill="none" stroke="#da5045" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 74.0 84 L 79.0 114.0" fill="none" stroke="#da5045" stroke-width="6.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 79.0 114.0 l -7.0 5" fill="none" stroke="#da5045" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 79.0 114.0 l 0.0 5" fill="none" stroke="#da5045" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 79.0 114.0 l 7.0 5" fill="none" stroke="#da5045" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <ellipse cx="64.0" cy="78.0" rx="21.0" ry="17.0" fill="#c7493f" stroke="#270e0c" stroke-width="2.5"/>
+  <path d="M 70.0 68 Q 80.0 52 76.0 48" fill="none" stroke="#c7493f" stroke-width="12.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <ellipse cx="78.0" cy="42.0" rx="14.0" ry="13.3" fill="#f79289" stroke="#270e0c" stroke-width="2.5"/>
+  <polygon points="85.0,38.5 102.5,44.8 85.0,49.0" fill="#da5045" stroke="#270e0c" stroke-width="2.0" stroke-linejoin="round"/>
+  <ellipse cx="80.1" cy="38.5" rx="2.8" ry="3.1" fill="#270e0c"/>
   </g>
-  <g stroke="#551f1b" stroke-width="0.6">
-    <circle cx="18.0" cy="60" r="2.2" fill="#f4f0e4"/>
-    <circle cx="25.0" cy="60" r="2.2" fill="#f4f0e4"/>
-    <circle cx="32.0" cy="60" r="2.2" fill="#f4f0e4"/>
-    <circle cx="39.0" cy="60" r="2.2" fill="#f4f0e4"/>
-    <circle cx="46.0" cy="60" r="2.2" fill="#f4f0e4"/>
-  </g>
+  <circle cx="38.0" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#270e0c" stroke-width="1.2"/>
+  <circle cx="51.0" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#270e0c" stroke-width="1.2"/>
+  <circle cx="64.0" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#270e0c" stroke-width="1.2"/>
+  <circle cx="77.0" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#270e0c" stroke-width="1.2"/>
+  <circle cx="90.0" cy="123.0" r="4.0" fill="#f4f0e4" stroke="#270e0c" stroke-width="1.2"/>
 </svg>
