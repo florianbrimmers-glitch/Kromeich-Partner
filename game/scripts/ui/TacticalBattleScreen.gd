@@ -1381,7 +1381,35 @@ func _draw_effects(o: Vector2, c: float) -> void:
 					var q: Vector2 = Vfx.arc_point(pa, pb, tt, lift)
 					_grid_area.draw_circle(q, c * (0.055 - 0.014 * float(k)),
 						Color(1.0, 0.92, 0.65, 0.45 - 0.12 * float(k)))
-				_grid_area.draw_circle(p, c * 0.075, Color(1.0, 0.97, 0.82))
+				# Der Pfeil selbst als AUSGERICHTETER Schaft mit Spitze
+				# (It. 36). Vorher war es ein Punkt: bei 104 px Zellgroesse
+				# flog eine Murmel durchs Bild, und die Flugrichtung war nur
+				# am Schweif zu erraten. Die Richtung kommt aus der Bahn
+				# selbst (zwei Punkte kurz hintereinander), damit sie zur
+				# Parabel passt und nicht zur Luftlinie.
+				var ahead: Vector2 = Vfx.arc_point(pa, pb, min(1.0, t + 0.06), lift)
+				var dir: Vector2 = (ahead - p)
+				if dir.length() < 0.001:
+					dir = (pb - pa)
+				dir = dir.normalized()
+				var side: Vector2 = Vector2(-dir.y, dir.x)
+				var shaft: float = c * 0.30
+				var tip: Vector2 = p + dir * shaft * 0.5
+				var tail: Vector2 = p - dir * shaft * 0.5
+				_grid_area.draw_line(tail, tip, Color(0.92, 0.86, 0.66),
+					max(2.0, c * 0.030))
+				_grid_area.draw_colored_polygon([
+					tip + dir * c * 0.075,
+					tip + side * c * 0.045,
+					tip - side * c * 0.045,
+				], Color(1.0, 0.97, 0.82))
+				# Federn am Ende, damit der Pfeil eine Leserichtung hat.
+				_grid_area.draw_line(tail + side * c * 0.03,
+					tail - dir * c * 0.045, Color(0.95, 0.90, 0.72, 0.9),
+					max(1.5, c * 0.018))
+				_grid_area.draw_line(tail - side * c * 0.03,
+					tail - dir * c * 0.045, Color(0.95, 0.90, 0.72, 0.9),
+					max(1.5, c * 0.018))
 			Vfx.IMPACT:
 				var ctr: Vector2 = _cell_center(Vector2i(e["at"]), o, c)
 				var col: Color = e.get("col", Color(1, 1, 1))

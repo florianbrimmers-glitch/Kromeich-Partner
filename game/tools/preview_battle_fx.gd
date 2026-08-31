@@ -19,13 +19,18 @@ extends SceneTree
 # Ergebnis: user://battle-fx-preview.png (drei Panels nebeneinander)
 
 const Vfx := preload("res://scripts/core/BattleVfx.gd")
+const UnitArt := preload("res://scripts/core/UnitArt.gd")
+const TBS := preload("res://scripts/ui/TacticalBattleScreen.gd")
 
 const OUT_PATH := "user://battle-fx-preview.png"
-const COLS := 10
-const ROWS := 8
-const CELL := 64
+# It. 36: Gitter aus dem Screen, Zelle in ECHTER Geraetegroesse. Mit
+# CELL = 64 zeigte diese Vorschau Effekte auf einer Zelle, die es auf dem
+# Handy nicht gibt - dort sind es 104 px (1040 px Flaeche / 10 Spalten),
+# und alle Effektradien sind relativ zur Zelle.
+const COLS := TBS.GRID_COLS
+const ROWS := TBS.GRID_ROWS
+const CELL := 104
 const GAP := 16
-const FACTION_DIRS := ["waldvolk", "menschen", "totenreich", "orks"]
 
 # Aufstellung fuer die Vorschau: Schuetze links, Ziel rechts.
 const SHOOTER := "men_archer"
@@ -127,8 +132,13 @@ func _center(cell: Vector2i) -> Vector2:
 func _token(canvas: Image, ox: int, uid: String, cell: Vector2i,
 		fill: Color, ring: Color) -> void:
 	var ctr: Vector2 = _center(cell)
-	_disc(canvas, ox, ctr, float(CELL) * 0.40, fill.darkened(0.72), ring)
-	_sprite(canvas, ox, uid, ctr, float(CELL) * 0.92, 1.0)
+	# Faktoren aus dem Screen (It. 36): dort sind sie Konstanten, damit
+	# Vorschau und Spiel dieselbe Tokengroesse zeigen.
+	_disc(canvas, ox, ctr, float(CELL) * TBS.TOKEN_DISC_FRAC,
+		fill.darkened(0.72), ring)
+	_sprite(canvas, ox, uid, ctr - Vector2(0.0,
+		float(CELL) * TBS.TOKEN_SPRITE_FRAC * TBS.TOKEN_SPRITE_LIFT),
+		float(CELL) * TBS.TOKEN_SPRITE_FRAC, 1.0)
 
 
 func _effects(canvas: Image, ox: int, q: Array) -> void:
@@ -148,8 +158,31 @@ func _effects(canvas: Image, ox: int, q: Array) -> void:
 					_dot(canvas, ox, Vfx.arc_point(pa, pb, tt, lift),
 						c * (0.055 - 0.014 * float(k)),
 						Color(1.0, 0.92, 0.65, 0.45 - 0.12 * float(k)))
-				_dot(canvas, ox, Vfx.arc_point(pa, pb, t, lift), c * 0.075,
+				# Pfeil als ausgerichteter Schaft mit Spitze - wie im
+				# Screen seit It. 36. Richtung aus der BAHN (zwei Punkte
+				# kurz hintereinander), nicht aus der Luftlinie.
+				var pp: Vector2 = Vfx.arc_point(pa, pb, t, lift)
+				var ahead: Vector2 = Vfx.arc_point(pa, pb, minf(1.0, t + 0.06), lift)
+				var dir: Vector2 = ahead - pp
+				if dir.length() < 0.001:
+					dir = pb - pa
+				dir = dir.normalized()
+				var side: Vector2 = Vector2(-dir.y, dir.x)
+				var shaft: float = c * 0.30
+				_line(canvas, ox, pp - dir * shaft * 0.5, pp + dir * shaft * 0.5,
+					maxf(2.0, c * 0.030), Color(0.92, 0.86, 0.66, 1.0))
+				# Spitze als DREIECK, nicht als Punkt: der Screen zeichnet
+				# draw_colored_polygon, und eine runde Kugel als Spitze
+				# waere schon wieder ein anderer Pfeil als im Spiel.
+				var tip: Vector2 = pp + dir * shaft * 0.5
+				_tri(canvas, ox, tip + dir * c * 0.075,
+					tip + side * c * 0.045, tip - side * c * 0.045,
 					Color(1.0, 0.97, 0.82, 1.0))
+				for sg in [-1.0, 1.0]:
+					_line(canvas, ox,
+						pp - dir * shaft * 0.5 + side * sg * c * 0.03,
+						pp - dir * shaft * 0.5 - dir * c * 0.045,
+						maxf(1.5, c * 0.018), Color(0.95, 0.90, 0.72, 0.9))
 			Vfx.IMPACT:
 				var ctr: Vector2 = _center(Vector2i(e["at"]))
 				var col: Color = e.get("col", Color(1, 1, 1))
@@ -161,17 +194,18 @@ func _effects(canvas: Image, ox: int, q: Array) -> void:
 					var ang: float = float(k) * TAU / float(Vfx.IMPACT_SPOKES) + 0.3
 					var dir := Vector2(cos(ang), sin(ang))
 					_line(canvas, ox, ctr + dir * c * float(sp[0]),
-						ctr + dir * c * float(sp[1]),
+						ctr + dir * c * float(sp[1]), maxf(2.0, c * 0.022),
 						Color(1, 1, 1, a * 0.8))
 			Vfx.DEATH:
 				var dc: Vector2 = _center(Vector2i(e["at"]))
 				var fade: float = 1.0 - t
 				var sink: float = c * 0.22 * Vfx.ease_out(t)
 				_disc(canvas, ox, dc + Vector2(0.0, sink),
-					c * 0.40 * (1.0 - 0.3 * t),
+					c * TBS.TOKEN_DISC_FRAC * (1.0 - 0.3 * t),
 					Color(0.05, 0.05, 0.06, fade * 0.7), Color(0, 0, 0, 0))
 				_sprite(canvas, ox, String(e.get("uid", "")),
-					dc + Vector2(0.0, sink), c * 0.92 * (1.0 - 0.28 * t), fade)
+					dc + Vector2(0.0, sink),
+					c * TBS.TOKEN_SPRITE_FRAC * (1.0 - 0.28 * t), fade)
 				for k2 in range(5):
 					var ang2: float = float(k2) * TAU / 5.0 + 0.9
 					var d2 := Vector2(cos(ang2), sin(ang2) * 0.45)
@@ -227,12 +261,40 @@ func _ring(canvas: Image, ox: int, ctr: Vector2, r: float, w: float,
 				_blend(canvas, ox + int(ctr.x) + dx, int(ctr.y) + dy, col)
 
 
-func _line(canvas: Image, ox: int, a: Vector2, b: Vector2, col: Color) -> void:
+func _line(canvas: Image, ox: int, a: Vector2, b: Vector2, w: float = 2.0,
+		col: Color = Color.WHITE) -> void:
 	var steps: int = int(maxf(2.0, a.distance_to(b)))
+	var n: Vector2 = (b - a).normalized()
+	var side := Vector2(-n.y, n.x)
+	var half: int = int(maxf(1.0, w * 0.5))
 	for i in range(steps + 1):
 		var p: Vector2 = a.lerp(b, float(i) / float(steps))
-		_blend(canvas, ox + int(p.x), int(p.y), col)
-		_blend(canvas, ox + int(p.x) + 1, int(p.y), col)
+		for k in range(-half, half + 1):
+			var q: Vector2 = p + side * float(k)
+			_blend(canvas, ox + int(q.x), int(q.y), col)
+
+
+# Gefuelltes Dreieck ueber baryzentrische Koordinaten. Image kennt kein
+# draw_colored_polygon, und der Pfeil braucht eine echte Spitze.
+func _tri(canvas: Image, ox: int, a: Vector2, b: Vector2, cc: Vector2,
+		col: Color) -> void:
+	var x0: int = int(floor(min(a.x, min(b.x, cc.x))))
+	var x1: int = int(ceil(max(a.x, max(b.x, cc.x))))
+	var y0: int = int(floor(min(a.y, min(b.y, cc.y))))
+	var y1: int = int(ceil(max(a.y, max(b.y, cc.y))))
+	var d: float = (b.y - cc.y) * (a.x - cc.x) + (cc.x - b.x) * (a.y - cc.y)
+	if absf(d) < 0.0001:
+		return
+	for y in range(y0, y1 + 1):
+		for x in range(x0, x1 + 1):
+			var px := Vector2(float(x), float(y))
+			var w0: float = ((b.y - cc.y) * (px.x - cc.x)
+				+ (cc.x - b.x) * (px.y - cc.y)) / d
+			var w1: float = ((cc.y - a.y) * (px.x - cc.x)
+				+ (a.x - cc.x) * (px.y - cc.y)) / d
+			var w2: float = 1.0 - w0 - w1
+			if w0 >= -0.02 and w1 >= -0.02 and w2 >= -0.02:
+				_blend(canvas, ox + x, y, col)
 
 
 func _bar(canvas: Image, ox: int, ctr: Vector2, w: float, h: float,
@@ -269,18 +331,16 @@ func _sprite(canvas: Image, ox: int, uid: String, ctr: Vector2, size: float,
 func _unit_image(uid: String) -> Image:
 	if _tex_cache.has(uid):
 		return _tex_cache[uid] as Image
-	var fid: int = UnitType.faction_of(uid)
+	# Sprite-Pfad ueber core/UnitArt.gd (It. 36) - die eigene
+	# FACTION_DIRS-Kopie hier war die dritte im Baum.
 	var img: Image = null
-	if fid >= 0 and fid < FACTION_DIRS.size():
-		var path: String = "res://assets/units/%s/%s.svg" % [FACTION_DIRS[fid], uid]
-		if ResourceLoader.exists(path):
-			var tex: Texture2D = load(path) as Texture2D
-			if tex != null:
-				img = tex.get_image()
-				if img.is_compressed():
-					img.decompress()
-				img.convert(Image.FORMAT_RGBA8)
-	if img == null:
+	var tex: Texture2D = UnitArt.texture_for(uid)
+	if tex != null:
+		img = tex.get_image()
+		if img.is_compressed():
+			img.decompress()
+		img.convert(Image.FORMAT_RGBA8)
+	else:
 		print("[FEHLT] Sprite fuer %s" % uid)
 	_tex_cache[uid] = img
 	return img
