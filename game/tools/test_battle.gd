@@ -655,7 +655,14 @@ func _test_ability_combat() -> void:
 	bs._build_reachable()
 	var vamp_hp_before: int = _stack_hp(vamp)
 	var spear_hp_before: int = _stack_hp(spears)
-	bs._try_attack_enemy(0)
+	# _melee_exchange statt _try_attack_enemy (It. 38): geprueft wird die
+	# MECHANIK (Lebensentzug, kein Konter), nicht die Zugkette.
+	# _try_attack_enemy beendet den Zug, und seit die Kette bei
+	# fx_speed = 0 wirklich synchron durchlaeuft - vorher hing sie an einem
+	# SceneTree-Timer, der headless nie feuerte - schlaegt danach sofort die
+	# Gegenseite zurueck. Der Test las dann die HP NACH dem Gegenangriff und
+	# sah einen Verlust statt der Heilung.
+	bs._melee_exchange(vamp, spears)
 	_check(_stack_hp(spears) < spear_hp_before, "Vampir trifft die Speertraeger")
 	_check(_stack_hp(vamp) > vamp_hp_before,
 		"Lebensentzug heilt den Vampir (%d -> %d), kein Konter" % [vamp_hp_before, _stack_hp(vamp)])

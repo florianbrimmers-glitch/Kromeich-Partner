@@ -31,6 +31,14 @@ const HEAL := "heal"             # Heilung/Regeneration
 const POPUP := "popup"           # Wort-Einblendung (Moral!, Glueck!)
 const WALL_BREAK := "wall_break" # Mauersegment zerbricht
 const MOVE := "move"             # Token gleitet zum Zielfeld
+# Unsichtbare Denkpause der KI (It. 38). WARUM als Effekt und nicht als
+# Timer: die Zugkette hing an get_tree().create_timer() - einer ZWEITEN
+# Uhr, die fx_speed ignoriert. Headless laeuft keine Echtzeit, der Timer
+# feuerte also nie und der Kampf stand still (der Durchspiel-Test hielt
+# das faelschlich fuer einen Patt). Als Effekt laeuft die Pause auf
+# derselben Uhr wie alles andere: sie skaliert mit fx_speed und
+# verschwindet bei fx_speed = 0 sofort.
+const PAUSE := "pause"
 
 # Dauer je Art in Sekunden. Alle an einer Stelle, damit sich das Tempo
 # des Kampfes zentral drehen laesst.
@@ -45,11 +53,12 @@ const DUR := {
 	POPUP: 0.80,
 	WALL_BREAK: 0.35,
 	MOVE: 0.22,
+	PAUSE: 0.30,
 }
 
 # Effekte, die die Zugkette AUFHALTEN. Schadenszahlen und Popups laufen
 # nebenher aus - sonst steht der Kampf 0.8 s pro Schlag still.
-const BLOCKING := [LUNGE, PROJECTILE, IMPACT, DEATH, WALL_BREAK, MOVE]
+const BLOCKING := [LUNGE, PROJECTILE, IMPACT, DEATH, WALL_BREAK, MOVE, PAUSE]
 
 # Ab diesem Schaden wackelt der Bildschirm. Ohne Schwelle zappelt er bei
 # jedem Goblin-Kratzer.
@@ -290,3 +299,9 @@ static func wall_break(queue: Array, at: Vector2i) -> void:
 
 static func moved(queue: Array, from: Vector2i, to: Vector2i, uid: String, side: int) -> void:
 	spawn(queue, MOVE, {"from": from, "to": to, "uid": uid, "side": side})
+
+
+# Unsichtbare Pause, die die Zugkette aufhaelt. Kein Zeichnen - der Screen
+# kennt "pause" in _draw_effects gar nicht.
+static func pause(queue: Array, seconds: float) -> Dictionary:
+	return spawn(queue, PAUSE, {"dur": maxf(0.0, seconds)})

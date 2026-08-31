@@ -723,30 +723,48 @@ const AI_TURN_PAUSE := 0.30
 # Mindestpause). Bei fx_speed <= 0 - also in den Tests - laeuft es
 # synchron durch, genau wie vor It. 17.
 func _wait_for_fx(fn: Callable, extra: float = 0.0) -> void:
-	# Nach Kampfende keine neuen Timer: das Overlay wird vom Aufrufer
-	# freigegeben, ein noch laufender Timer wuerde auf eine tote Instanz
+	# Nach Kampfende nichts mehr planen: das Overlay wird vom Aufrufer
+	# freigegeben, ein noch wartender Aufruf wuerde auf eine tote Instanz
 	# zeigen.
 	if _finished:
 		return
 	if fx_speed <= 0.0:
+		# Synchron durch - so verspricht es der Kommentar oben, und so war
+		# es fuer `extra` bis It. 38 NICHT: dort lag ein 0.3-s-Timer.
 		Vfx.advance(_fx, 1.0, 0.0)
-		if extra <= 0.0:
-			fn.call()
-			return
-		get_tree().create_timer(extra).timeout.connect(fn)
-		return
-	var wait: float = Vfx.busy_time_left(_fx) / fx_speed + extra
-	if wait <= 0.0:
 		fn.call()
 		return
-	get_tree().create_timer(wait).timeout.connect(fn)
+	# EINE Uhr fuer die ganze Kette (It. 38). Vorher haing die Wartezeit an
+	# get_tree().create_timer() - einer zweiten Uhr, die fx_speed ignoriert.
+	# Zwei Folgen: bei einem "schnellen Kampf" (fx_speed > 1) haette die
+	# KI-Pause nicht mitskaliert, und headless (wo keine Echtzeit laeuft)
+	# feuerte der Timer nie - der Kampf stand still, mit dem Gegner am Zug
+	# und ohne laufenden Effekt. Genau so sah der scheinbare Patt aus, den
+	# der Durchspiel-Test gemeldet hat.
+	if extra > 0.0:
+		Vfx.pause(_fx, extra)
+	if Vfx.busy_time_left(_fx) <= 0.0:
+		fn.call()
+		return
+	_pending_fn = fn
+
+
+# Naechster Schritt der Zugkette, sobald die Effekt-Queue frei ist.
+# Ersetzt den frueheren SceneTree-Timer (It. 38).
+var _pending_fn: Callable = Callable()
 
 
 func _process(delta: float) -> void:
-	if _fx.is_empty():
-		return
-	if Vfx.advance(_fx, delta, fx_speed) and _grid_area != null:
-		_grid_area.queue_redraw()
+	if not _fx.is_empty():
+		if Vfx.advance(_fx, delta, fx_speed) and _grid_area != null:
+			_grid_area.queue_redraw()
+	if _pending_fn.is_valid() and Vfx.busy_time_left(_fx) <= 0.0:
+		var fn: Callable = _pending_fn
+		# ZUERST leeren, DANN aufrufen: fn setzt gleich den naechsten
+		# Wartezustand, und der duerfte sonst wieder ueberschrieben werden.
+		_pending_fn = Callable()
+		if not _finished:
+			fn.call()
 
 
 func _build_reachable() -> void:

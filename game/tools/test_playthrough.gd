@@ -23,6 +23,9 @@ extends SceneTree
 
 const MAX_TURNS := 40
 const MAX_BATTLE_STEPS := 400
+# Zwei Seeds fuer die CI (rund 5 s). Breiter pruefen von Hand: SEEDS auf
+# [1, 42, 777, 4711, 90210, 123456] und MAX_TURNS auf 60 - so wurden die
+# Fehler aus It. 38 und 39 gefunden.
 const SEEDS := [4711, 90210]
 
 var _fails: int = 0
@@ -33,7 +36,11 @@ var _battles: int = 0
 var _battle_wins: int = 0
 var _outcomes: Array = []
 var _deadlocks: Array = []
-var _defense_battles: int = 0
+# Kaempfe, die die KI angefangen hat (Pflichtkampf gegen den Helden ODER
+# Verteidigung der eigenen Stadt). Hiess zuerst _defense_battles - das war
+# falsch beschriftet, und die Zahl hat mich in die Irre gefuehrt: ich hielt
+# einen Pflichtkampf gegen einen KI-Helden fuer einen Stadtangriff.
+var _ai_initiated: int = 0
 # Summen ueber ALLE Seeds. Einzelne Durchlaeufe duerfen unglueklich
 # laufen - ein dummer Test-Spieler darf verlieren. Was NICHT passieren
 # darf: dass ueberhaupt kein Kampf gewinnbar ist (genau das war der
@@ -41,7 +48,7 @@ var _defense_battles: int = 0
 var _tot_battles: int = 0
 var _tot_wins: int = 0
 var _tot_xp: int = 0
-var _tot_defense: int = 0
+var _tot_ai: int = 0
 
 
 func _init() -> void:
@@ -69,8 +76,8 @@ func _check(cond: bool, msg: String) -> void:
 func _test_totals() -> void:
 	print("")
 	print("== Summe ueber alle Seeds ==")
-	print("        %d Kaempfe, %d gewonnen, %d XP, %d Verteidigungskaempfe"
-		% [_tot_battles, _tot_wins, _tot_xp, _tot_defense])
+	print("        %d Kaempfe, %d gewonnen, %d XP, %d von der KI angefangen"
+		% [_tot_battles, _tot_wins, _tot_xp, _tot_ai])
 	_check(_tot_battles > 0, "es wurde ueberhaupt gekaempft (%d)" % _tot_battles)
 	# DAS ist der Kern: Kaempfe muessen gewinnbar sein. Vor der Korrektur
 	# der Prognose (Gold statt Stueckzahl) gewann der Test-Spieler NULL
@@ -117,7 +124,10 @@ func _play(seed_value: int) -> void:
 	_battles = 0
 	_battle_wins = 0
 	_outcomes.clear()
-	_defense_battles = 0
+	_ai_initiated = 0
+	# Pro Seed leeren: sonst schleppt der Bericht die Meldungen des
+	# vorherigen Seeds mit und man sucht den Fehler an der falschen Stelle.
+	_deadlocks.clear()
 
 	var turns_played: int = 0
 	for t in range(MAX_TURNS):
@@ -136,7 +146,7 @@ func _play(seed_value: int) -> void:
 		var before: int = _battles
 		await _resolve_overlay(wm, seed_value, t)
 		if _battles > before:
-			_defense_battles += 1
+			_ai_initiated += 1
 		turns_played += 1
 
 	var won: bool = bool(wm.get("_game_won"))
@@ -144,8 +154,8 @@ func _play(seed_value: int) -> void:
 	print("        %d Zuege, %d Kaempfe (%d gewonnen: %s), Ausgang: %s"
 		% [turns_played, _battles, _battle_wins, str(_outcomes),
 			"Sieg" if won else ("Niederlage" if lost else "laeuft")])
-	print("        davon %d Verteidigungskaempfe um die eigene Stadt"
-		% _defense_battles)
+	print("        davon %d von der KI angefangen (Pflichtkampf oder Stadtangriff)"
+		% _ai_initiated)
 
 	# 1. Die Kette darf nicht haengen: jeder Zug muss durchgelaufen sein.
 	_check(turns_played >= MAX_TURNS or won or lost,
@@ -166,11 +176,15 @@ func _play(seed_value: int) -> void:
 	# die Karte wird aufgedeckt. Beides haengt nicht am Kampfglueck.
 	_check(gold1 > gold0, "Gold ist gewachsen (%d -> %d)" % [gold0, gold1])
 	_check(fog1 > fog0, "Karte wurde erkundet (%d -> %d Felder)" % [fog0, fog1])
-	_check(_battles > 0, "es wurde gekaempft (%d Kaempfe)" % _battles)
+	# "es wurde gekaempft" steht in den Summen, NICHT hier: weicht der
+	# Test-Spieler ueberlegenen KI-Helden aus, kann ein einzelner Seed
+	# voellig friedlich verlaufen (im breiten Lauf war Seed 777 so). Eine
+	# Pruefung, die von der Kartenverteilung abhaengt, wird sonst irgendwann
+	# rot ohne dass etwas kaputt ist.
 	_tot_battles += _battles
 	_tot_wins += _battle_wins
 	_tot_xp += (xp1 - xp0)
-	_tot_defense += _defense_battles
+	_tot_ai += _ai_initiated
 
 	wm.queue_free()
 	await process_frame
@@ -231,6 +245,12 @@ func _move_and_fight(wm, seed_value: int, turn: int) -> void:
 			continue
 		var threat: int = _threat_at(wm, pp)
 		if threat > 0 and float(eff) < float(threat) * safe:
+			continue
+		# Und nicht in die Reichweite eines ueberlegenen KI-Helden laufen.
+		# Ohne diese Regel lief der Test-Spieler mit drei Einheiten in Zug
+		# 1 zur Gegnerstadt und wurde unterwegs gestellt - danach prueft
+		# der Test nur noch, dass ein aussichtsloser Kampf verloren geht.
+		if _ai_hero_danger(wm, pp, eff, safe):
 			continue
 		var cost: int = int(costs[pp])
 		if cost <= int(hero.mp) and cost < best:
@@ -352,6 +372,23 @@ func _player_acts(bs) -> bool:
 
 # Wie stark ist die Verteidigung dieses Feldes? Dieselben Zahlen, die die
 # Karte in ihre Prognose-Farbe umrechnet.
+# Steht ein ueberlegener KI-Held in Reichweite dieses Feldes?
+func _ai_hero_danger(wm, p: Vector2i, own_gold: int, safe: float) -> bool:
+	for e in (wm.get("_enemies") as Array):
+		var eh = e["hero"]
+		if eh == null:
+			continue
+		var d: int = abs(eh.position.x - p.x) + abs(eh.position.y - p.y)
+		var reach: int = int(eh.max_mp) / int(wm.get("MONSTER_GOLD_PER_STRENGTH")) * 0 \
+			+ 10   # rund 10 Felder pro Tag, siehe Movement.UNIT
+		if d > reach:
+			continue
+		var g: int = int(wm.call("_army_gold", eh.army))
+		if float(own_gold) < float(g) * safe:
+			return true
+	return false
+
+
 func _threat_at(wm, p: Vector2i) -> int:
 	for m in (wm.get("_monsters") as Array):
 		if Vector2i(m["pos"]) == p:
