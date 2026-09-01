@@ -34,6 +34,7 @@ var _done: Array = []
 func _init() -> void:
 	await _test_layout()
 	await _test_button_row()
+	await _test_reach_scaling()
 	_test_sprite_coverage()
 	_test_getters()
 	_test_melee_penalty_flags()
@@ -276,6 +277,118 @@ func _test_button_row() -> void:
 	bs.queue_free()
 	await process_frame
 	_done.append("_test_button_row")
+
+
+# Reichweite auf dem schmaleren Brett (It. 49).
+#
+# Das Gitter ist von 10 auf 8 Spalten geschrumpft, damit eine Zelle auf
+# dem Handy 130 statt 104 px breit ist. Ohne Gegenmassnahme waeren die
+# Nahkaempfer eine Runde frueher am Gegner: vier gemessene
+# Fernkampf-gegen-Nahkampf-Paarungen fielen von 0.25/0.94/0.19/0.75 auf
+# 0.00/0.56/0.06/0.38, im Mittel 0,28 weniger fuer den Fernkampf.
+#
+# Deshalb skaliert `_reach_of` die Reichweite mit dem Startabstand. Was
+# hier gehalten wird: die Skalierung GREIFT, sie faellt nie unter ein
+# Feld, und sie laesst die ZUGREIHENFOLGE in Ruhe - `speed` bleibt die
+# Kennzahl der Kreatur.
+func _test_reach_scaling() -> void:
+	print("== Reichweite und Zugreihenfolge ==")
+	var bs = TBS.new()
+	bs.fx_speed = 0.0
+	root.add_child(bs)
+	await process_frame
+
+	_check(bs.START_GAP == bs.GRID_COLS - 3,
+		"Startabstand folgt dem Gitter (%d)" % bs.START_GAP)
+	# KEINE Kopie der Formel. Hier stand erst eine - und sie ging beim
+	# Wechsel von round auf floor sofort auseinander, waehrend der Code
+	# richtig war. Genau die Falle aus It. 45. Geprueft werden nur
+	# EIGENSCHAFTEN, die gelten muessen, egal wie gerechnet wird.
+	var shrinks: bool = bs.START_GAP < bs.TUNED_GAP
+	var not_monotone: Array = []
+	for base in range(1, 12):
+		if int(bs.call("_reach_of", base)) < int(bs.call("_reach_of", base - 1)):
+			not_monotone.append(str(base))
+		if shrinks and base > 2 and int(bs.call("_reach_of", base)) > base:
+			not_monotone.append("%d groesser als Tempo" % base)
+	_check(not_monotone.is_empty(),
+		"schneller heisst nie weniger Reichweite, und auf dem kuerzeren Brett nie mehr als das Tempo (%s)"
+		% str(not_monotone))
+	_check(int(bs.call("_reach_of", 1)) >= 1, "nie unter einem Feld")
+	_check(int(bs.call("_reach_of", 0)) >= 1, "auch bei Tempo 0 nicht (Laehmung)")
+
+	# DIE EIGENSCHAFT, UM DIE ES GEHT: jede Einheit braucht bis zum Gegner
+	# genauso viele ZUEGE wie auf dem Brett, auf das die Tempo-Werte
+	# getunt sind. Nur das haelt das Verhaeltnis Fernkampf zu Nahkampf.
+	#
+	# Mein erster Anlauf pruefte etwas anderes und Falsches: "der
+	# schnellste Stack darf den Gegner nicht in Runde 1 erreichen". Er
+	# erreichte ihn auch auf dem ALTEN Brett in Runde 1 (Tempo 9 gegen 7
+	# Felder Abstand) - die Pruefung haette also einen Zustand verlangt,
+	# den das Spiel nie hatte.
+	# Gemessen wird der Weg bis auf EIN FELD an den Gegner, nicht ueber die
+	# ganze Luecke: geschlagen wird aus dem Nachbarfeld. Mein erster
+	# Anlauf nahm die volle Luecke und uebersah damit genau den Fall, den
+	# test_hero_skills gleich darauf rot gemeldet hat (Tempo 5 rueckte
+	# eine Runde zu frueh heran).
+	var turns := func(gap: int, reach: int) -> int:
+		return int(ceil(float(maxi(1, gap - 1)) / float(maxi(1, reach))))
+	# Geprueft wird ueber die Tempo-Werte, die es WIRKLICH gibt.
+	var lo: int = 99
+	var hi: int = 0
+	for uid3 in UnitType.all_ids():
+		var sv: int = UnitType.speed_of(String(uid3))
+		lo = mini(lo, sv)
+		hi = maxi(hi, sv)
+	var shifted: Array = []
+	for sp in range(lo, hi + 1):
+		var now: int = turns.call(bs.START_GAP, int(bs.call("_reach_of", sp)))
+		var tuned: int = turns.call(bs.TUNED_GAP, sp)
+		if now != tuned:
+			shifted.append("Tempo %d: %d statt %d Zuege" % [sp, now, tuned])
+	_check(shifted.is_empty(),
+		"jede Tempo-Stufe von %d bis %d braucht gleich viele Zuege (%s)"
+		% [lo, hi, str(shifted)])
+
+	# GEMESSENE KANTE, bewusst so gelassen: unter Tempo 3 stimmt die
+	# Rundenzahl nicht mehr genau. Solche Werte entstehen nur, wenn
+	# `Verlangsamen` (-3) eine ohnehin langsame Einheit trifft - Tempo 4
+	# wird zu 1 (5 statt 7 Zuege, also relativ besser) und Tempo 5 zu 2
+	# (5 statt 4 Zuege, also schlechter). Beides ist eine Runde
+	# Unterschied bei einer bereits schwer verzauberten Einheit; dafuer
+	# die Skalierung zu verbiegen waere schlechter als die Kante.
+	# Wichtig ist nur, dass nichts auf null faellt.
+	for sp2 in range(0, lo):
+		_check(int(bs.call("_reach_of", sp2)) >= 1,
+			"auch Tempo %d behaelt ein Feld Reichweite" % sp2)
+
+	# ZUGREIHENFOLGE unangetastet: zwei Einheiten mit verschiedenem Tempo
+	# muessen verschieden bleiben. Bei einer Skalierung von `speed` selbst
+	# waeren Tempo 5 und 6 beide auf 4 gefallen.
+	var speeds: Dictionary = {}
+	for uid2 in UnitType.all_ids():
+		speeds[UnitType.speed_of(String(uid2))] = true
+	_check(speeds.size() >= 6,
+		"%d verschiedene Tempo-Stufen im Spiel" % speeds.size())
+
+	# Aufstellungszone bleibt in der eigenen Haelfte.
+	bs.call("set_battle", {
+		"player_stacks": Garrison.to_stacks({"men_spearman": 3}),
+		"enemy_stacks": Garrison.to_stacks({"ork_goblin": 3}),
+		"player_tactics": 3, "seed": 7, "terrain_id": 0,
+	})
+	await process_frame
+	var enemy_col: int = bs.GRID_COLS - 2
+	var reaches: bool = false
+	for x in range(bs.GRID_COLS):
+		if bool(bs.call("_tactics_allows", Vector2i(x, 0))) and x >= enemy_col - 1:
+			reaches = true
+	_check(not reaches,
+		"Taktik-Zone kommt dem Gegner (Spalte %d) nicht auf ein Feld nahe" % enemy_col)
+
+	bs.queue_free()
+	await process_frame
+	_done.append("_test_reach_scaling")
 
 
 func _test_getters() -> void:

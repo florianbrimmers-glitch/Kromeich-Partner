@@ -26,8 +26,23 @@ const Sound := preload("res://scripts/core/SfxBus.gd")
 # Kreatur-Sprites (It. 29). Gleiche preload-Begruendung wie oben.
 const UnitArt := preload("res://scripts/core/UnitArt.gd")
 
-const GRID_COLS := 10
+# Gitter (It. 49: 10 -> 8 Spalten). Gemessen war eine Zelle auf dem
+# 1080er Geraet 104 px breit, also rund 6,6 mm - die uebliche Empfehlung
+# fuer Tippziele liegt bei etwa 9 mm. Mit 8 Spalten sind es 130 px
+# (8,3 mm). Die Zellgroesse rechnet `_geom()` aus der Flaeche, sie musste
+# nirgends nachgezogen werden; dasselbe gilt fuer die Token-Faktoren aus
+# It. 36, die alle relativ zur Zelle sind.
+const GRID_COLS := 8
 const GRID_ROWS := 8
+
+# Startreihen: Spieler auf Spalte 1, Gegner auf GRID_COLS - 2. Der Abstand
+# dazwischen ist das Mass, an dem die Tempo-Werte haengen.
+const START_GAP := GRID_COLS - 3
+# Auf DIESEN Abstand sind die `speed`-Werte in units.json getunt (das alte
+# Gitter mit 10 Spalten). Steht START_GAP gleich TUNED_GAP, ist die
+# Skalierung unten wirkungslos - die Zahl luegt also nicht, wenn jemand
+# das Gitter zurueckdreht.
+const TUNED_GAP := 7
 
 # --- Token-Groesse (It. 36) ------------------------------------------------
 # In der komponierten Ansicht bei echter Geraetegroesse (Zelle 104 px) waren
@@ -186,7 +201,11 @@ func set_battle(ctx: Dictionary) -> void:
 	_p_spells = (ctx.get("player_spells", []) as Array).duplicate()
 	_casts_left = Spl.CASTS_PER_ROUND
 	_pending_spell = ""
-	_tactics_cols = clampi(int(ctx.get("player_tactics", 0)), 0, GRID_COLS - 4)
+	# Die Aufstellungszone bleibt in der EIGENEN Haelfte. Die alte Schranke
+	# GRID_COLS - 4 war auf dem 10er-Brett gutmuetig (Zone bis Spalte 4,
+	# Gegner auf 8); auf dem 8er haette sie bis Spalte 5 gereicht, mit dem
+	# Gegner auf 6 - Taktik III haette den Kampf in Runde 1 erzwungen.
+	_tactics_cols = clampi(int(ctx.get("player_tactics", 0)), 0, GRID_COLS / 2 - 2)
 	_tactics_pick = -1
 	_allow_flee  = bool(ctx.get("allow_flee", true))
 	_allow_surrender = bool(ctx.get("allow_surrender", false))
@@ -801,7 +820,7 @@ func _build_reachable() -> void:
 		return
 	# M8: Beschleunigen/Verlangsamen aendern die Reichweite. Minimum 1,
 	# sonst kann ein Stack durch Verlangsamen komplett festkleben.
-	var spd: int = max(1, UnitType.speed_of(String(st["type"])) + Fx.spd_mod(st))
+	var spd: int = _reach_of(UnitType.speed_of(String(st["type"])) + Fx.spd_mod(st))
 	var blocked: Array = []
 	for s in _p_stacks:
 		if Vector2i(s["pos"]) != start and int(s["count"]) > 0:
@@ -814,6 +833,55 @@ func _build_reachable() -> void:
 	for k in dist.keys():
 		if int(dist[k]) <= spd:
 			_reachable[k] = int(dist[k])
+
+
+# Reichweite eines Stacks in FELDERN. `speed` aus units.json ist auf ein
+# Brett mit TUNED_GAP Spalten Abstand getunt; auf einem schmaleren muss
+# die Reichweite mitschrumpfen.
+#
+# WARUM NUR DIE REICHWEITE UND NICHT `speed` SELBST (It. 49): `speed`
+# steuert ZWEI Dinge - wie weit ein Stack zieht (hier) und wer zuerst am
+# Zug ist (`_rebuild_order`). Skaliert man den Wert selbst, faellt auch
+# die Zugreihenfolge groeber: mit Faktor 0,71 landen Tempo 5 und 6 beide
+# auf 4, ebenso 8 und 9 auf 6 - zehn Einheiten verlieren ihren Rang.
+# Gemessen ist beides gleich gut (vier Fernkampf-gegen-Nahkampf-Paarungen,
+# je 16 Kaempfe, beide Sichten: 0.25 / 0.94 / 0.19 / 0.81 gegen die
+# 10-Spalten-Basis 0.25 / 0.94 / 0.19 / 0.75). Bei gleichem Ergebnis
+# gewinnt der Eingriff, der weniger anfasst.
+#
+# OHNE diese Skalierung verliert der Fernkampf massiv: dieselben vier
+# Paarungen kamen auf 0.00 / 0.56 / 0.06 / 0.38 - im Mittel 0,28 weniger.
+# Auf dem kurzen Brett sind die Nahkaempfer eine Runde frueher da.
+func _reach_of(base: int) -> int:
+	if START_GAP >= TUNED_GAP:
+		return maxi(1, base)
+	# DIE REGEL: proportional skalieren - aber NIE frueher am Gegner sein
+	# als auf dem getunten Brett.
+	#
+	# Reines Runden und reines Abrunden treffen beide nur die Haelfte der
+	# Tempo-Stufen, weil ganze Felder auf einem kurzen Brett grob sind:
+	#   Tempo 4 (anteilig 2,86): abgerundet 2 ist 30 % zu langsam - der
+	#     Fernkampf gewann in der Messung 0,19 mehr als vorher.
+	#   Tempo 5 (anteilig 3,57): gerundet 4 schafft die vier Felder in
+	#     EINEM Zug statt in zwei - der Nahkampf ist eine Runde zu frueh
+	#     da. Genau das hat test_hero_skills gemeldet (6 Goblins gegen 20
+	#     Schuetzen, drei starben am Konter, bevor der Test zu zaehlen
+	#     anfing).
+	# Also runden UND die Rundenzahl als Schranke: was zaehlt, ist der Weg
+	# bis auf EIN Feld an den Gegner (Luecke - 1), denn geschlagen wird aus
+	# dem Nachbarfeld.
+	var reach: int = maxi(1, int(round(
+		float(base) * float(START_GAP) / float(TUNED_GAP))))
+	var tuned_turns: int = _turns_to_contact(TUNED_GAP, maxi(1, base))
+	while reach > 1 and _turns_to_contact(START_GAP, reach) < tuned_turns:
+		reach -= 1
+	return reach
+
+
+# Zuege, bis ein Stack mit dieser Reichweite aus einer Luecke von `gap`
+# Spalten heraus zuschlagen kann.
+func _turns_to_contact(gap: int, reach: int) -> int:
+	return int(ceil(float(maxi(1, gap - 1)) / float(maxi(1, reach))))
 
 
 func _adj(a: Vector2i, b: Vector2i) -> bool:
@@ -2024,7 +2092,7 @@ func _ai_turn() -> void:
 			return
 		# LOS blockiert (Stein) -> faellt durch auf Melee-Pathing unten.
 
-	var spd: int = max(1, UnitType.speed_of(uid) + Fx.spd_mod(estack))
+	var spd: int = _reach_of(UnitType.speed_of(uid) + Fx.spd_mod(estack))
 	# Verwurzelte KI-Stacks bleiben stehen und greifen nur Nachbarn an.
 	if Fx.blocks_move(estack):
 		spd = 0
