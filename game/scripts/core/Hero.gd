@@ -1,6 +1,10 @@
 class_name Hero
 extends RefCounted
 
+# Artefakt-Regeln per preload (Android-class_name-Falle wie ueberall
+# sonst). Artifacts.gd laedt selbst nichts nach - kein Preload-Kreis.
+const Art := preload("res://scripts/core/Artifacts.gd")
+
 # Minimaler Helden-Zustand fuer die Weltkarte.
 # Position in Kachel-Koordinaten, Bewegungspunkte pro Tag.
 #
@@ -37,10 +41,41 @@ var level: int = 1
 # derselbe Pauschalwert, ein Angriffsbonus hob also auch die Verteidigung).
 # spell_power/knowledge wachsen noch NICHT: sie wirken erst mit den Zaubern
 # (M8). Die Felder stehen trotzdem hier, damit der Save schon passt.
-var att: int = 0
-var def: int = 0
-var spell_power: int = 0
-var knowledge: int = 0
+# Rohwerte aus Stufenaufstiegen und Schreinen. Was der Rest des Spiels
+# liest, ist die Summe aus Rohwert UND getragenen Artefakten (It. 51) -
+# deshalb sind att/def/spell_power/knowledge Eigenschaften mit Getter.
+#
+# Dasselbe Muster wie `_hero` in M13a und aus demselben Grund: die Werte
+# werden an rund neunzig Stellen GELESEN und nur an zwei geschrieben
+# (add_primary und from_dict). Ein Getter laesst alle Lesestellen
+# unveraendert. Der Setter schreibt den Rohwert, damit `hero.knowledge =
+# 4` in den Tests weiter tut, was es soll.
+var att_base: int = 0
+var def_base: int = 0
+var spell_power_base: int = 0
+var knowledge_base: int = 0
+
+# Getragene Artefakte, hoechstens Artifacts.MAX_SLOTS Stueck.
+var artifacts: Array = []
+
+# NIE NEGATIV. Die Klinge des Zorns gibt +3 Angriff fuer -1 Verteidigung;
+# traegt ein Held sie ohne andere Verteidigungsquelle, kaeme -1 heraus und
+# ginge so in die Kampfformel. In HoMM3 fallen Primaerwerte nicht unter
+# null, und ein negativer Bonus, der den Gegner STAERKER macht als gar
+# keine Ruestung, waere schwer zu erklaeren. Der Rohwert bleibt unberuehrt
+# - legt der Held das Artefakt ab, ist der alte Wert wieder da.
+var att: int:
+	get: return maxi(0, att_base + Art.bonus(artifacts, "att"))
+	set(value): att_base = value
+var def: int:
+	get: return maxi(0, def_base + Art.bonus(artifacts, "def"))
+	set(value): def_base = value
+var spell_power: int:
+	get: return maxi(0, spell_power_base + Art.bonus(artifacts, "spell_power"))
+	set(value): spell_power_base = value
+var knowledge: int:
+	get: return maxi(0, knowledge_base + Art.bonus(artifacts, "knowledge"))
+	set(value): knowledge_base = value
 # {skill_id: stufe 1..3}
 var skills: Dictionary = {}
 # Mana (M8). Der Hoechstwert leitet sich aus `knowledge` ab und wird
@@ -60,10 +95,14 @@ func raise_skill(skill_id: String, max_tier: int = 3) -> int:
 
 func add_primary(stat_id: String, amount: int = 1) -> void:
 	match stat_id:
-		"attack": att += amount
-		"defense": def += amount
-		"spell_power": spell_power += amount
-		"knowledge": knowledge += amount
+		# Auf den ROHWERT, nicht auf die Summe: `att += amount` waere
+		# ueber den Getter gelaufen und haette den Artefakt-Bonus in den
+		# Rohwert einbetoniert - beim Ablegen des Artefakts waere er
+		# geblieben.
+		"attack": att_base += amount
+		"defense": def_base += amount
+		"spell_power": spell_power_base += amount
+		"knowledge": knowledge_base += amount
 
 # Standard-Bewegung in PUNKTEN, nicht in Feldern: seit M7 Teil 2 kostet
 # ein flaches Feld Movement.UNIT (4) Punkte. 48 sind also 12 Felder - der
@@ -169,10 +208,13 @@ func to_dict() -> Dictionary:
 		"army": army.duplicate(),
 		"xp": xp,
 		"level": level,
-		"att": att,
-		"def": def,
-		"spell_power": spell_power,
-		"knowledge": knowledge,
+		# ROHWERTE speichern. Wuerde hier die Summe stehen, waechse der
+		# Held bei jedem Speichern und Laden um seine Artefakte.
+		"att": att_base,
+		"def": def_base,
+		"spell_power": spell_power_base,
+		"knowledge": knowledge_base,
+		"artifacts": artifacts.duplicate(),
 		"skills": skills.duplicate(),
 		"mana": mana,
 	}
@@ -192,6 +234,17 @@ static func from_dict(d: Dictionary) -> Hero:
 	h.level = int(d.get("level", 1))
 	# M7: reine Feld-Ergaenzung, also KEIN SAVE_VERSION-Bump - alte Saves
 	# laden mit Nullwerten (siehe Kommentar oben bei to_dict).
+	# Artefakte VOR den Werten: die Setter schreiben zwar nur den Rohwert,
+	# aber die Reihenfolge macht die Absicht deutlich.
+	# Tolerantes Feld, also KEIN SAVE_VERSION-Bump - ein Spielstand ohne
+	# Artefakte laedt mit leerer Liste (dieselbe Begruendung wie bei den
+	# Primaerwerten in M7).
+	for a in (d.get("artifacts", []) as Array):
+		var aid: String = String(a)
+		# Unbekannte IDs (ausgemustertes Artefakt) fallen hier raus, statt
+		# spaeter beim Nachschlagen still null zu wirken.
+		if Art.exists(aid) and not h.artifacts.has(aid):
+			h.artifacts.append(aid)
 	h.att = int(d.get("att", 0))
 	h.def = int(d.get("def", 0))
 	h.spell_power = int(d.get("spell_power", 0))

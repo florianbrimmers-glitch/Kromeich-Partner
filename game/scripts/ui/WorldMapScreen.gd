@@ -28,6 +28,7 @@ const Move := preload("res://scripts/core/Movement.gd")
 const UnitArt := preload("res://scripts/core/UnitArt.gd")
 # Anleitung (It. 46). ManualPanel preloadet KEINEN Screen, sonst gaebe es
 # hier einen Preload-Kreis.
+const Artifacts := preload("res://scripts/core/Artifacts.gd")
 const Manual := preload("res://scripts/core/Manual.gd")
 const ManualPanel := preload("res://scripts/ui/ManualPanel.gd")
 # NUR fuer die Gitter-Zahlen der Anleitung.
@@ -2264,11 +2265,18 @@ func _handle_tap(pos: Vector2) -> void:
 		if okind2 == OBJECT_MINE and int(obj2.get("owner", OWNER_NEUTRAL)) != OWNER_HERO:
 			obj2["owner"] = OWNER_HERO
 		elif okind2 == OBJECT_TREASURE:
-			var reward: int = int(obj2["gold"])
-			_purse.add("gold", reward)
-			_objects.remove_at(obj_idx)
-			Sound.play("coin")
-			_set_combat("Schatz gefunden: %d Gold" % reward)
+			var art2: String = _chest_artifact(obj2)
+			if art2 != "":
+				var amsg: String = _take_artifact(_hero, art2)
+				_objects.remove_at(obj_idx)
+				Sound.play("recruit")
+				_set_combat(amsg)
+			else:
+				var reward: int = int(obj2["gold"])
+				_purse.add("gold", reward)
+				_objects.remove_at(obj_idx)
+				Sound.play("coin")
+				_set_combat("Schatz gefunden: %d Gold" % reward)
 		elif okind2 == OBJECT_PILE:
 			var pres: String = String(obj2.get("resource", "gold"))
 			var pamt: int = int(obj2["gold"])
@@ -2400,6 +2408,50 @@ func _switch_hero(idx: int) -> void:
 # deterministisch aus Position und Staerke abgeleitet, damit kein
 # SAVE_VERSION-Bump noetig ist und dasselbe Monster nach dem Laden dieselbe
 # Kreatur zeigt.
+# --- Artefakte (It. 51) ---------------------------------------------------
+#
+# Jede vierte Schatztruhe enthaelt ein Artefakt statt Gold. Was drin ist,
+# wird aus Position und Seed ABGELEITET und nicht gespeichert - genau wie
+# die Kreatur eines Monsters aus einem alten Spielstand (It. 35). Zwei
+# Vorteile: kein SAVE_VERSION-Bump, und eine Truhe wechselt ihren Inhalt
+# nicht, wenn man die Karte neu zeichnet.
+#
+# Eine von vier ist die Zahl, bei der ein Fund besonders bleibt. Bei acht
+# Artefakten und drei Plaetzen ist die Sammlung damit nicht nach dem
+# halben Spiel voll.
+const ARTIFACT_CHEST_EVERY := 4
+
+func _chest_artifact(obj: Dictionary) -> String:
+	if int(obj.get("kind", -1)) != OBJECT_TREASURE:
+		return ""
+	var p: Vector2i = obj.get("pos", Vector2i.ZERO)
+	var h: int = _mix_hash(p.x * 40503 + p.y * 65537 + _seed * 31)
+	if absi(h) % ARTIFACT_CHEST_EVERY != 0:
+		return ""
+	return Artifacts.pick(_mix_hash(h))
+
+
+# Artefakt aufnehmen. Rueckgabe ist die Meldung fuer den Spieler.
+#
+# Ist kein Platz frei, wird NICHT stillschweigend abgelehnt: der Spieler
+# bekommt die Wahl, welches Stueck er ablegt (siehe _show_artifact_swap).
+# Ein Fund, der wortlos verfaellt, waere das Aergerlichste an der ganzen
+# Mechanik.
+func _take_artifact(h: Hero, aid: String) -> String:
+	if h == null or aid == "" or not Artifacts.exists(aid):
+		return ""
+	if h.artifacts.has(aid):
+		# Doppelt tragen bringt nichts und waere nur Verwirrung.
+		return "%s - hast du schon" % Artifacts.name_of(aid)
+	if h.artifacts.size() < Artifacts.MAX_SLOTS:
+		h.artifacts.append(aid)
+		_update_labels()
+		return "Artefakt gefunden: %s (%s)" % [
+			Artifacts.name_of(aid), Artifacts.summary(aid)]
+	_show_artifact_swap(aid)
+	return "Artefakt gefunden: %s - Ausruestung ist voll" % Artifacts.name_of(aid)
+
+
 func _monster_unit(m: Dictionary) -> String:
 	var stored: String = String(m.get("unit", ""))
 	if stored != "" and UnitType.hp_of(stored) > 0:
@@ -3048,10 +3100,16 @@ func _on_object_result(result: Dictionary, obj_pos: Vector2i, target: Vector2i, 
 	if okind == OBJECT_MINE:
 		obj["owner"] = OWNER_HERO
 	elif okind == OBJECT_TREASURE:
+		# Inhalt ZUERST bestimmen, dann buchen: die Truhe gibt ein Artefakt
+		# ODER Gold, nicht beides.
+		var art3: String = _chest_artifact(obj)
 		var reward: int = int(obj["gold"])
-		_purse.add("gold", reward)
 		_objects.remove_at(obj_idx)
-		_set_combat("Schatz gefunden: %d Gold, %s" % [reward, _losses_text(cas)])
+		if art3 != "":
+			_set_combat("%s, %s" % [_take_artifact(_hero, art3), _losses_text(cas)])
+		else:
+			_purse.add("gold", reward)
+			_set_combat("Schatz gefunden: %d Gold, %s" % [reward, _losses_text(cas)])
 	elif okind == OBJECT_PILE:
 		var pres: String = String(obj.get("resource", "gold"))
 		var pamt: int = int(obj["gold"])
@@ -3226,6 +3284,7 @@ var _hero_panel_switch: HBoxContainer = null
 var _hero_panel_title: Label = null
 var _hero_panel_army: VBoxContainer = null
 var _hero_panel_spells: HBoxContainer = null
+var _hero_panel_arts: VBoxContainer = null
 
 
 func _open_hero_panel() -> void:
@@ -3289,6 +3348,12 @@ func _build_hero_panel() -> void:
 	_hero_panel_spells.add_theme_constant_override("separation", 12)
 	vb.add_child(_hero_panel_spells)
 
+	# Ausruestung (It. 51): ein Knopf je getragenes Artefakt, Antippen legt
+	# es ab. Dieselbe Bauart wie die Wechsel- und die Zauber-Zeile.
+	_hero_panel_arts = VBoxContainer.new()
+	_hero_panel_arts.add_theme_constant_override("separation", 8)
+	vb.add_child(_hero_panel_arts)
+
 	_hero_panel_stats = Label.new()
 	_hero_panel_stats.add_theme_font_size_override("font_size", 26)
 	_hero_panel_stats.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -3344,6 +3409,7 @@ func _fill_hero_panel() -> void:
 					_fill_hero_panel())
 				_hero_panel_switch.add_child(b)
 	_fill_adventure_spells()
+	_fill_artifacts()
 	if _hero_panel_title != null:
 		_hero_panel_title.text = "Heldenblatt" if _heroes.size() <= 1 \
 			else "Heldenblatt - Held %d von %d" % [_active_hero + 1, _heroes.size()]
@@ -3624,6 +3690,166 @@ func _do_exchange(from: Hero, to: Hero, uid: String, n: int) -> void:
 	_update_labels()
 	_request_redraw()
 	Sound.play("ui_tap")
+
+
+# Getragene Artefakte im Heldenblatt (It. 51).
+func _fill_artifacts() -> void:
+	if _hero_panel_arts == null:
+		return
+	for c in _hero_panel_arts.get_children():
+		c.queue_free()
+	if _hero == null:
+		return
+	var head := Label.new()
+	head.text = "Ausruestung (%d von %d)" % [
+		_hero.artifacts.size(), Artifacts.MAX_SLOTS]
+	head.add_theme_font_size_override("font_size", 26)
+	head.add_theme_color_override("font_color", Color(0.70, 0.85, 1.0))
+	_hero_panel_arts.add_child(head)
+	if _hero.artifacts.is_empty():
+		var empty := Label.new()
+		empty.text = "Nichts getragen - Artefakte liegen in Schatztruhen."
+		empty.add_theme_font_size_override("font_size", 22)
+		empty.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_hero_panel_arts.add_child(empty)
+		return
+	for aid in _hero.artifacts:
+		var id: String = String(aid)
+		var b := Button.new()
+		b.text = "%s  (%s)  -  ablegen" % [
+			Artifacts.name_of(id), Artifacts.summary(id)]
+		b.add_theme_font_size_override("font_size", 22)
+		b.custom_minimum_size = Vector2(0, 62)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.pressed.connect(func() -> void: _drop_artifact(id))
+		_hero_panel_arts.add_child(b)
+
+
+func _drop_artifact(aid: String) -> void:
+	if _hero == null:
+		return
+	_hero.artifacts.erase(aid)
+	# Mana kann durch den Wissens-Verlust ueber den neuen Deckel liegen.
+	_hero.mana = mini(int(_hero.mana), _hero_max_mana())
+	_set_combat("%s abgelegt" % Artifacts.name_of(aid))
+	_update_labels()
+	_fill_hero_panel()
+	Sound.play("ui_back")
+
+
+# --- Tausch bei voller Ausruestung (It. 51) -------------------------------
+#
+# Ein Fund, der wortlos verfaellt, waere das Aergerlichste an der ganzen
+# Mechanik. Also die Wahl: welches Stueck lege ich ab - oder lasse ich den
+# Fund liegen? Genau das macht drei Plaetze zu einer Entscheidung.
+var _art_panel: Panel = null
+var _art_rows: VBoxContainer = null
+var _art_found: String = ""
+
+
+func _show_artifact_swap(found: String) -> void:
+	if _hero == null or found == "":
+		return
+	_art_found = found
+	if _art_panel == null:
+		_build_artifact_panel()
+	_fill_artifact_panel()
+	_art_panel.visible = true
+	Sound.play("ui_tap")
+
+
+func _build_artifact_panel() -> void:
+	var panel := Panel.new()
+	panel.visible = false
+	panel.anchor_left = 0.5
+	panel.anchor_top = 0.5
+	panel.anchor_right = 0.5
+	panel.anchor_bottom = 0.5
+	panel.offset_left = -480
+	panel.offset_top = -380
+	panel.offset_right = 480
+	panel.offset_bottom = 380
+	add_child(panel)
+	_art_panel = panel
+
+	var bg := ColorRect.new()
+	bg.color = Color(0.07, 0.08, 0.11, 1.0)
+	bg.anchor_right = 1.0
+	bg.anchor_bottom = 1.0
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(bg)
+
+	var vb := VBoxContainer.new()
+	vb.anchor_right = 1.0
+	vb.anchor_bottom = 1.0
+	vb.offset_left = 26
+	vb.offset_top = 26
+	vb.offset_right = -26
+	vb.offset_bottom = -26
+	vb.add_theme_constant_override("separation", 12)
+	panel.add_child(vb)
+
+	_art_rows = VBoxContainer.new()
+	_art_rows.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	_art_rows.add_theme_constant_override("separation", 10)
+	vb.add_child(_art_rows)
+
+	var keep := Button.new()
+	keep.text = "Nichts tauschen"
+	keep.custom_minimum_size = Vector2(0, 88)
+	keep.add_theme_font_size_override("font_size", 28)
+	keep.pressed.connect(func() -> void:
+		_art_panel.visible = false
+		_art_found = ""
+		_set_combat("Fund liegen gelassen")
+		Sound.play("ui_back"))
+	vb.add_child(keep)
+
+
+func _fill_artifact_panel() -> void:
+	if _art_rows == null or _hero == null:
+		return
+	for c in _art_rows.get_children():
+		c.queue_free()
+	var title := Label.new()
+	title.text = "Gefunden: %s (%s)" % [
+		Artifacts.name_of(_art_found), Artifacts.summary(_art_found)]
+	title.add_theme_font_size_override("font_size", 32)
+	title.add_theme_color_override("font_color", Color(0.95, 0.85, 0.40))
+	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_art_rows.add_child(title)
+
+	var hint := Label.new()
+	hint.text = "Alle %d Plaetze sind belegt. Was soll dafuer weg?" % Artifacts.MAX_SLOTS
+	hint.add_theme_font_size_override("font_size", 24)
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_art_rows.add_child(hint)
+
+	for aid in _hero.artifacts:
+		var id: String = String(aid)
+		var b := Button.new()
+		b.text = "%s (%s) ablegen" % [Artifacts.name_of(id), Artifacts.summary(id)]
+		b.add_theme_font_size_override("font_size", 24)
+		b.custom_minimum_size = Vector2(0, 76)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.pressed.connect(func() -> void: _swap_artifact(id))
+		_art_rows.add_child(b)
+
+
+func _swap_artifact(drop_id: String) -> void:
+	if _hero == null or _art_found == "":
+		return
+	var gained: String = _art_found
+	_hero.artifacts.erase(drop_id)
+	_hero.artifacts.append(gained)
+	_hero.mana = mini(int(_hero.mana), _hero_max_mana())
+	_art_found = ""
+	if _art_panel != null:
+		_art_panel.visible = false
+	_set_combat("%s gegen %s getauscht" % [
+		Artifacts.name_of(drop_id), Artifacts.name_of(gained)])
+	_update_labels()
+	Sound.play("recruit")
 
 
 # EIN Ort fuer die Heldenwerte.# EIN Ort fuer die Heldenwerte. Der String stand vorher zweimal wortgleich
