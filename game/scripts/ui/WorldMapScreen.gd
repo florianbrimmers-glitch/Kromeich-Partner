@@ -477,6 +477,17 @@ var _turn_xp_gain: int = 0
 var _turn_owned: int = 0
 
 
+# Entwickler-Spur: geht NUR ins Protokoll (It. 50).
+#
+# Die 21 Schritte der Kartenerzeugung liefen bis hierher durch
+# `_set_status` und standen damit auf dem Spielerschirm - "STEP 3b.4.c:
+# loop start (5,18) tgt=8" ist das Erste, was ein neues Spiel anzeigte.
+# Sie bleiben erhalten, weil sie beim Aufspueren von Haengern im
+# Kartengenerator geholfen haben; sie gehoeren nur nicht vor den Spieler.
+func _trace(s: String) -> void:
+	print("[WorldMap] " + s)
+
+
 func _set_status(s: String) -> void:
 	var lbl := get_node_or_null(status_label_path) as Label
 	if lbl != null:
@@ -489,7 +500,7 @@ func _set_status(s: String) -> void:
 
 
 func _ready() -> void:
-	_set_status("STEP 1: _ready")
+	_trace("STEP 1: _ready")
 	_map_area = get_node(map_area_path) as Control
 	_map_area.gui_input.connect(_on_map_input)
 	_map_area.draw.connect(_draw_map)
@@ -524,7 +535,7 @@ func _ready() -> void:
 	if help_btn != null:
 		help_btn.pressed.connect(_on_help)
 	(get_node(back_button_path) as Button).pressed.connect(_on_back)
-	_set_status("STEP 2: Buttons verdrahtet")
+	_trace("STEP 2: Buttons verdrahtet")
 
 	# Vom Hauptmenue angefordertes Laden? Das Autoload-Singleton traegt
 	# den Save-Inhalt (get_node_or_null, damit headless Tools-Skripte ohne
@@ -547,7 +558,7 @@ func _ready() -> void:
 
 
 func _start(seed_value: int, requested_faction: int = -1) -> void:
-	_set_status("STEP 3: generiere seed=%d" % seed_value)
+	_trace("STEP 3: generiere seed=%d" % seed_value)
 	_seed = seed_value
 	_game_won = false
 	_game_lost = false
@@ -558,22 +569,22 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 		_victory_panel.visible = false
 	_rng = DeterministicRng.new(seed_value)
 	var rng := _rng
-	_set_status("STEP 3a1: Array init")
+	_trace("STEP 3a1: Array init")
 	var tiles: Array = []
-	_set_status("STEP 3a2: resize %d" % (MAP_WIDTH * MAP_HEIGHT))
+	_trace("STEP 3a2: resize %d" % (MAP_WIDTH * MAP_HEIGHT))
 	tiles.resize(MAP_WIDTH * MAP_HEIGHT)
-	_set_status("STEP 3a3: fill grass")
+	_trace("STEP 3a3: fill grass")
 	for i in range(tiles.size()):
 		tiles[i] = MapGen.TILE_GRASS
 	var water_clusters: int = max(2, int(float(MAP_WIDTH * MAP_HEIGHT) / 80.0))
-	_set_status("STEP 3b: place_water (%d Cluster)" % water_clusters)
+	_trace("STEP 3b: place_water (%d Cluster)" % water_clusters)
 	for ci in range(water_clusters):
-		_set_status("STEP 3b.%d.a: cx/cy" % (ci + 1))
+		_trace("STEP 3b.%d.a: cx/cy" % (ci + 1))
 		var cx := rng.next_int(0, MAP_WIDTH - 1)
 		var cy := rng.next_int(0, MAP_HEIGHT - 1)
-		_set_status("STEP 3b.%d.b: target_size" % (ci + 1))
+		_trace("STEP 3b.%d.b: target_size" % (ci + 1))
 		var target_size := rng.next_int(8, 18)
-		_set_status("STEP 3b.%d.c: loop start (%d,%d) tgt=%d" % [ci + 1, cx, cy, target_size])
+		_trace("STEP 3b.%d.c: loop start (%d,%d) tgt=%d" % [ci + 1, cx, cy, target_size])
 		var frontier: Array = [Vector2i(cx, cy)]
 		var placed := 0
 		var it := 0
@@ -593,9 +604,9 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 			frontier.append(Vector2i(cell.x - 1, cell.y))
 			frontier.append(Vector2i(cell.x, cell.y + 1))
 			frontier.append(Vector2i(cell.x, cell.y - 1))
-		_set_status("STEP 3b.%d.d: loop done it=%d placed=%d" % [ci + 1, it, placed])
+		_trace("STEP 3b.%d.d: loop done it=%d placed=%d" % [ci + 1, it, placed])
 	var mountain_clusters: int = max(3, int(float(MAP_WIDTH * MAP_HEIGHT) / 50.0))
-	_set_status("STEP 3c: place_mountains (%d Cluster)" % mountain_clusters)
+	_trace("STEP 3c: place_mountains (%d Cluster)" % mountain_clusters)
 	for ci in range(mountain_clusters):
 		var cx := rng.next_int(0, MAP_WIDTH - 1)
 		var cy := rng.next_int(0, MAP_HEIGHT - 1)
@@ -619,7 +630,7 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 			frontier.append(Vector2i(cell.x - 1, cell.y))
 			frontier.append(Vector2i(cell.x, cell.y + 1))
 			frontier.append(Vector2i(cell.x, cell.y - 1))
-	_set_status("STEP 3d: coat_with_sand")
+	_trace("STEP 3d: coat_with_sand")
 	var sand_changes: Array = []
 	for y in range(MAP_HEIGHT):
 		for x in range(MAP_WIDTH):
@@ -640,7 +651,7 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 	for ti in sand_changes:
 		tiles[ti] = MapGen.TILE_SAND
 
-	_set_status("STEP 3d2: place_swamps")
+	_trace("STEP 3d2: place_swamps")
 	# Sumpf: 2-3 Inland-Cluster plus zufaellige Umwandlung von Sandfeldern
 	# zu Kuesten-Sumpf. Cluster laufen wie Wasser/Gebirge (BFS-Wachstum).
 	var swamp_clusters: int = max(2, int(float(MAP_WIDTH * MAP_HEIGHT) / 120.0))
@@ -671,12 +682,12 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 		if int(tiles[ti]) == MapGen.TILE_SAND and rng.next_int(0, 99) < 22:
 			tiles[ti] = MapGen.TILE_SWAMP
 
-	_set_status("STEP 3e: place_forests")
+	_trace("STEP 3e: place_forests")
 	for i in range(tiles.size()):
 		if int(tiles[i]) == MapGen.TILE_GRASS and rng.next_int(0, 99) < 20:
 			tiles[i] = MapGen.TILE_FOREST
 
-	_set_status("STEP 3f: find_spawn")
+	_trace("STEP 3f: find_spawn")
 	var spawn := Vector2i(int(MAP_WIDTH / 2), int(MAP_HEIGHT / 2))
 	var found := false
 	var max_r: int = max(MAP_WIDTH, MAP_HEIGHT)
@@ -701,7 +712,7 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 		"tiles": tiles,
 		"hero_spawn": spawn,
 	}
-	_set_status("STEP 4: MapGen fertig, spawn %s" % str(spawn))
+	_trace("STEP 4: MapGen fertig, spawn %s" % str(spawn))
 	_heroes = [Hero.new(spawn, BASE_MAX_MP)]
 	_active_hero = 0
 	# Mana startet voll (M8). Der Deckel leitet sich aus dem Wissen ab,
@@ -713,12 +724,12 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 	_purse.add_all(STARTING_RESOURCES)
 	# Start-Einheiten haengen an der Fraktion - die ergibt sich erst,
 	# wenn die Start-Stadt gewaehlt ist. Siehe player_start_idx unten.
-	_set_status("STEP 5: Hero erstellt")
+	_trace("STEP 5: Hero erstellt")
 
 	# Staedte platzieren: deterministisch, nur Gras-Felder, Mindestabstand
 	# untereinander. Spawn-Abstand wird NICHT geprueft, weil eine der
 	# Staedte selbst zum Start-Ort des Helden wird.
-	_set_status("STEP 5a: Staedte platzieren")
+	_trace("STEP 5a: Staedte platzieren")
 	_cities.clear()
 	var city_attempts := 0
 	while _cities.size() < CITY_COUNT and city_attempts < 400:
@@ -844,7 +855,7 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 
 	# Monster platzieren: nur Gras/Wald, Mindestabstand zu Held, Staedten
 	# und anderen Monstern, Staerke 1-3.
-	_set_status("STEP 5b: Monster platzieren")
+	_trace("STEP 5b: Monster platzieren")
 	_monsters.clear()
 	var m_attempts := 0
 	while _monsters.size() < MONSTER_COUNT and m_attempts < 600:
@@ -882,7 +893,7 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 	# Karten-Objekte platzieren: erst Minen, dann Schatzkisten. Gras/Wald
 	# wie Monster, Mindestabstand zu Spawn/Staedten/Monstern/anderen
 	# Objekten. Jedes Objekt hat eine zufaellige Wache (OBJECT_GUARD_*).
-	_set_status("STEP 5c: Objekte platzieren")
+	_trace("STEP 5c: Objekte platzieren")
 	_objects.clear()
 	var o_attempts: int = 0
 	# Plan statt Index-Arithmetik: die alte Form ("if idx >= MINE_COUNT +
@@ -980,7 +991,11 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 	_center_view_on(_hero.position)
 	_update_labels()
 	_set_combat("Kampf: noch keiner")
-	_set_status("Seed %d  Reach %d  Tile %.1f" % [_seed, _costs.size(), _tile_size])
+	# Die Statuszeile ist auf dem Geraet 218 px breit - dort passen rund 25
+	# Zeichen. Entwicklerzahlen (Seed, Reichweite, Kachelgroesse) gehoeren
+	# ins Protokoll, nicht vor den Spieler (It. 50).
+	print("[WorldMap] Seed %d  Reach %d  Tile %.1f" % [_seed, _costs.size(), _tile_size])
+	_set_status("Tag %d" % _day_num())
 
 
 func _recompute_costs() -> void:
@@ -1313,7 +1328,7 @@ func _update_labels() -> void:
 		var amt: int = _purse.get_amount(rid)
 		if amt > 0:
 			line2.append("%d %s" % [amt, Wallet.short_name(rid)])
-	line2.append("%d XP" % int(_hero.xp))
+	line2.append("%d Erfahrung" % int(_hero.xp))
 	ml.text = "  ".join(line1) + "\n" + "  ".join(line2)
 
 
@@ -1414,9 +1429,15 @@ func _build_combat_label() -> void:
 	lbl.offset_left = 24
 	lbl.offset_top = 100
 	lbl.offset_right = -24
-	lbl.offset_bottom = 170
+	lbl.offset_bottom = 200
 	lbl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	# ZWEI Zeilen mit Umbruch (It. 50). Ausgeschriebene Meldungen sind
+	# laenger als die Kuerzel: "Gegner-Held besiegt! 88 Einheiten
+	# gefallen, 98765 Gold und 4321 Erfahrung - Stufe 12 erreicht!" misst
+	# 1538 px, die Zeile ist 1032 breit. Ohne Umbruch waere der Satz rechts
+	# abgeschnitten - schlechter als jedes Kuerzel. test_messages misst das.
+	lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	lbl.add_theme_font_size_override("font_size", 34)
 	lbl.add_theme_color_override("font_color", Color(1.0, 0.85, 0.35))
 	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -2247,7 +2268,7 @@ func _handle_tap(pos: Vector2) -> void:
 			_purse.add("gold", reward)
 			_objects.remove_at(obj_idx)
 			Sound.play("coin")
-			_set_combat("Schatz gefunden: +%d G" % reward)
+			_set_combat("Schatz gefunden: %d Gold" % reward)
 		elif okind2 == OBJECT_PILE:
 			var pres: String = String(obj2.get("resource", "gold"))
 			var pamt: int = int(obj2["gold"])
@@ -2510,6 +2531,33 @@ func _retreat_hero(h: Hero, keep_army: bool, survivors: Dictionary) -> bool:
 	_update_labels()
 	_request_redraw()
 	return true
+
+
+# --- Bausteine der Meldungen (It. 50) ------------------------------------
+#
+# Vorher stand "-%d A  +%d G  +%d XP" in sechs Meldungen, jedes Mal leicht
+# anders gesetzt (mal Komma, mal zwei Leerzeichen), und kein Spieler
+# konnte wissen, dass "A" die eigenen Verluste sind. Der Satzbau steht
+# jetzt an einer Stelle.
+#
+# Die Zeile, die das traegt, ist das CombatLabel: 1032 px breit bei
+# Schriftgroesse 34, also rund 60 Zeichen. Das ist die Schranke, an der
+# sich diese Texte messen lassen muessen - test_messages haelt sie fest.
+func _losses_text(n: int) -> String:
+	if n <= 0:
+		return "ohne Verluste"
+	if n == 1:
+		return "1 Einheit gefallen"
+	return "%d Einheiten gefallen" % n
+
+
+func _gain_text(gold: int, xp: int) -> String:
+	var parts: Array = []
+	if gold > 0:
+		parts.append("%d Gold" % gold)
+	if xp > 0:
+		parts.append("%d Erfahrung" % xp)
+	return " und ".join(parts) if not parts.is_empty() else ""
 
 
 func _army_gold(army: Dictionary) -> int:
@@ -2920,9 +2968,11 @@ func _on_monster_result(result: Dictionary, mon_pos: Vector2i, target: Vector2i,
 	_finish_move_to(target, cost)
 	var msg_win: String
 	if leveled:
-		msg_win = "SIEG! -%d A  +%d G  +%d XP  -->  LEVEL %d!" % [cas, MONSTER_VICTORY_GOLD, xp_gain, _hero.level]
+		msg_win = "Sieg! %s, %s - Stufe %d erreicht!" % [
+			_losses_text(cas), _gain_text(MONSTER_VICTORY_GOLD, xp_gain), _hero.level]
 	else:
-		msg_win = "SIEG! -%d A  +%d G  +%d XP" % [cas, MONSTER_VICTORY_GOLD, xp_gain]
+		msg_win = "Sieg! %s, %s" % [
+			_losses_text(cas), _gain_text(MONSTER_VICTORY_GOLD, xp_gain)]
 	_set_status(msg_win)
 	_set_combat(msg_win)
 
@@ -2954,9 +3004,11 @@ func _on_enemy_hero_result(result: Dictionary, target: Vector2i, cost: int, targ
 		claimed = true
 	var msg_h_win: String
 	if leveled:
-		msg_h_win = "Gegner besiegt: -%d A +%d G +%d XP -> LEVEL %d!" % [cas, ENEMY_DEFEAT_GOLD, ENEMY_DEFEAT_XP, _hero.level]
+		msg_h_win = "Gegner-Held besiegt! %s, %s - Stufe %d erreicht!" % [
+			_losses_text(cas), _gain_text(ENEMY_DEFEAT_GOLD, ENEMY_DEFEAT_XP), _hero.level]
 	else:
-		msg_h_win = "Gegner besiegt: -%d A +%d G +%d XP" % [cas, ENEMY_DEFEAT_GOLD, ENEMY_DEFEAT_XP]
+		msg_h_win = "Gegner-Held besiegt! %s, %s" % [
+			_losses_text(cas), _gain_text(ENEMY_DEFEAT_GOLD, ENEMY_DEFEAT_XP)]
 	_set_status(msg_h_win)
 	_set_combat(msg_h_win)
 	if claimed:
@@ -2988,9 +3040,10 @@ func _on_object_result(result: Dictionary, obj_pos: Vector2i, target: Vector2i, 
 	obj["guard"] = 0
 	var msg_og: String
 	if lvl_o:
-		msg_og = "Wache besiegt: -%d A +%d XP -> LEVEL %d!" % [cas, xp_o, _hero.level]
+		msg_og = "Wache besiegt! %s, %s - Stufe %d erreicht!" % [
+			_losses_text(cas), _gain_text(0, xp_o), _hero.level]
 	else:
-		msg_og = "Wache besiegt: -%d A +%d XP" % [cas, xp_o]
+		msg_og = "Wache besiegt! %s, %s" % [_losses_text(cas), _gain_text(0, xp_o)]
 	_set_combat(msg_og)
 	if okind == OBJECT_MINE:
 		obj["owner"] = OWNER_HERO
@@ -2998,13 +3051,14 @@ func _on_object_result(result: Dictionary, obj_pos: Vector2i, target: Vector2i, 
 		var reward: int = int(obj["gold"])
 		_purse.add("gold", reward)
 		_objects.remove_at(obj_idx)
-		_set_combat("Schatz gefunden: +%d G (Wache -%d A)" % [reward, cas])
+		_set_combat("Schatz gefunden: %d Gold, %s" % [reward, _losses_text(cas)])
 	elif okind == OBJECT_PILE:
 		var pres: String = String(obj.get("resource", "gold"))
 		var pamt: int = int(obj["gold"])
 		_purse.add(pres, pamt)
 		_objects.remove_at(obj_idx)
-		_set_combat("Gefunden: +%d %s (Wache -%d A)" % [pamt, Wallet.display_name(pres), cas])
+		_set_combat("Gefunden: %d %s, %s"
+			% [pamt, Wallet.display_name(pres), _losses_text(cas)])
 	_finish_move_to(target, cost)
 
 
@@ -3042,9 +3096,11 @@ func _on_city_result(result: Dictionary, city_idx: int, target: Vector2i, cost: 
 	var fid: int = int(tc["faction"])
 	var msg_c: String
 	if leveled_c:
-		msg_c = "Stadt %s: Wache besiegt (-%d A, +%d XP) -> LEVEL %d" % [FACTION_NAMES[fid], cas, xp_c, _hero.level]
+		msg_c = "Stadtwache besiegt (%s)! %s, %s - Stufe %d erreicht!" % [
+			FACTION_NAMES[fid], _losses_text(cas), _gain_text(0, xp_c), _hero.level]
 	else:
-		msg_c = "Stadt %s: Wache besiegt (-%d A, +%d XP)" % [FACTION_NAMES[fid], cas, xp_c]
+		msg_c = "Stadtwache besiegt (%s)! %s, %s" % [
+			FACTION_NAMES[fid], _losses_text(cas), _gain_text(0, xp_c)]
 	_set_status(msg_c)
 	_set_combat(msg_c)
 	_check_victory()
@@ -3580,7 +3636,7 @@ func _hero_stats_text() -> String:
 	if _hero == null:
 		return "Kein Held mehr.\n%d Gold" % _purse.get_amount("gold")
 	var lines: Array = [
-		"Stufe %d   %d XP" % [int(_hero.level), int(_hero.xp)],
+		"Stufe %d, %d Erfahrung" % [int(_hero.level), int(_hero.xp)],
 		"Angriff %d   Verteidigung %d" % [int(_hero.att), int(_hero.def)],
 		"Zauberkraft %d   Wissen %d   Mana %d/%d" % [
 			int(_hero.spell_power), int(_hero.knowledge),
@@ -3789,8 +3845,9 @@ func _visit_bonus_object(obj: Dictionary) -> String:
 		var leveled: bool = _check_level_up()
 		_update_labels()
 		if leveled:
-			return "Lehrmeister: +%d XP - Stufe %d!" % [LEARNING_XP, int(_hero.level)]
-		return "Lehrmeister: +%d XP" % LEARNING_XP
+			return "Lehrmeister: %d Erfahrung - Stufe %d erreicht!" % [
+				LEARNING_XP, int(_hero.level)]
+		return "Lehrmeister: %d Erfahrung" % LEARNING_XP
 
 	if kind == OBJECT_WINDMILL:
 		var week: int = GameCalendar.week_total(_turn_number)
@@ -4839,8 +4896,12 @@ func _finalize_turn() -> void:
 		_set_combat(String(ev.get("detail", "")))
 	else:
 		Sound.play("day_end")
-		_set_status("Tag %d beendet: +%d G, +%d XP (%d Staedte)"
-			% [_turn_number, _turn_income, _turn_xp_gain, _turn_owned])
+		# Kurz halten: die Statuszeile ist auf dem Geraet nur rund 220 px
+		# breit (die Info-Tafel daneben nimmt sich, was sie braucht). Tag
+		# und Staedtezahl stehen ohnehin schon in der Tafel bzw. auf der
+		# Karte - hier zaehlt die EINNAHME.
+		_set_status("Tageseinnahme: %s" % _gain_text(_turn_income, _turn_xp_gain)
+			if _turn_income > 0 or _turn_xp_gain > 0 else "Keine Tageseinnahme")
 	_check_defeat()
 	# Nach der kompletten KI-Phase pruefen, ob die KIs sich gegenseitig
 	# ausradiert haben und der Spieler dadurch schon gewonnen hat. Ohne

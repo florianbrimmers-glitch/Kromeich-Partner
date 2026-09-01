@@ -157,6 +157,11 @@ jobs:
           ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
             --headless --path game/ --script tools/test_menu.gd
 
+      - name: Meldungs-Tests (Wortlaut und Breite der Spielmeldungen)
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/test_messages.gd
+
       - name: Durchspiel-Test (Weltkarte -> Kampf -> Callback -> Weltkarte)
         run: |
           ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \

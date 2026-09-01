@@ -32,7 +32,10 @@ theme_override_constants/separation = 24
 [node name="StatusLabel" type="Label" parent="TopBar"]
 layout_mode = 2
 size_flags_horizontal = 3
+size_flags_vertical = 3
 text = "Seed 42"
+autowrap_mode = 3
+vertical_alignment = 1
 
 [node name="MinimapToggleBtn" type="Button" parent="TopBar"]
 layout_mode = 2

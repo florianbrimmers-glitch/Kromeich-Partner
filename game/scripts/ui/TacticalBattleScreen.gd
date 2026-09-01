@@ -347,7 +347,7 @@ func _apply_aoe(attacker_uid: String, target: Dictionary, dmg: int) -> String:
 			hit += 1
 	if hit == 0:
 		return ""
-	return "  Wolke: %d Nachbar(n) je %d Sch., -%d" % [hit, splash, killed]
+	return "  Todeswolke: %d Nachbarn je %d Schaden, %s" % [hit, splash, _fallen(killed)]
 
 
 # Ein Nahkampf-Angriff inkl. Konter und Lebensentzug. Rueckgabe: Text-
@@ -416,14 +416,14 @@ func _melee_exchange(attacker: Dictionary, target: Dictionary) -> String:
 			counter_kill += _apply_dmg(attacker, rdmg)
 			_fx_delay = back_delay
 	_fx_delay = 0.0
-	var msg: String = "%d Sch., -%d" % [dmg_sum, killed]
+	var msg: String = "%d Schaden, %s" % [dmg_sum, _fallen(killed)]
 	if struck > 1:
-		msg = "%dx (%s)" % [struck, msg]
+		msg = "%d Angriffe, %s" % [struck, msg]
 	msg += status_txt
 	if woke:
 		msg += "  (geweckt)"
 	if counter_dmg > 0:
-		msg += "  Konter: %d Sch., -%d" % [counter_dmg, counter_kill]
+		msg += " - Konter: %d Schaden, %s" % [counter_dmg, _fallen(counter_kill)]
 	return msg
 
 
@@ -513,7 +513,7 @@ func _tactics_tap(cell: Vector2i) -> void:
 		if Vector2i(s["pos"]) == cell:
 			_tactics_pick = i
 			_set_action("%s gewaehlt - Zielfeld antippen."
-				% UnitType.short_of(String(s["type"])))
+				% UnitType.name_of(String(s["type"])))
 			_refresh()
 			return
 	if _tactics_pick < 0:
@@ -595,8 +595,8 @@ func _step() -> void:
 		_skips_status += 1
 		Vfx.popup(_fx, Vector2i(st["pos"]), Fx.marker_name(st),
 			Color(0.75, 0.70, 1.0))
-		_set_action("%s %s ist %s - Zug verloren." % [
-			who, UnitType.short_of(String(st["type"])), Fx.marker_name(st)])
+		_set_action("%s %s ist %s und setzt aus." % [
+			who, UnitType.name_of(String(st["type"])), Fx.marker_name(st)])
 		_advance()
 		return
 	# Schlechte Moral kann den Zug kosten (M6). Untote sind immun.
@@ -606,8 +606,8 @@ func _step() -> void:
 			var who2: String = "Held" if int(slot["side"]) == 0 else "Feind"
 			_skips_moral += 1
 			Vfx.popup(_fx, Vector2i(st["pos"]), "Moral!", Color(1.0, 0.55, 0.45))
-			_set_action("%s %s: keine Moral - Zug verloren." % [
-				who2, UnitType.short_of(String(st["type"]))])
+			_set_action("%s %s hat schlechte Moral und setzt aus." % [
+				who2, UnitType.name_of(String(st["type"]))])
 			_advance()
 			return
 	if int(slot["side"]) == 0:
@@ -721,8 +721,8 @@ func _tower_shot() -> void:
 	_fx_delay = Vfx.shot(_fx, Vector2i(GRID_COLS, tpos.y), tpos)
 	var killed: int = _apply_dmg(target, _tower_dmg)
 	_fx_delay = 0.0
-	_set_action("Pfeilturm -> %s: %d Sch., -%d" % [
-		UnitType.short_of(String(target["type"])), _tower_dmg, killed])
+	_set_action("Pfeilturm trifft %s: %d Schaden, %s" % [
+		UnitType.name_of(String(target["type"])), _tower_dmg, _fallen(killed)])
 
 
 # Rundenstart-Regeneration (Baumvater heilt immer, Gespenst nur
@@ -884,6 +884,16 @@ func _turns_to_contact(gap: int, reach: int) -> int:
 	return int(ceil(float(maxi(1, gap - 1)) / float(maxi(1, reach))))
 
 
+# "keine Verluste" / "1 gefallen" / "3 gefallen". Der Satzbau steht an
+# EINER Stelle, sonst schreibt ihn jede der acht Meldungen anders (It. 50).
+func _fallen(n: int) -> String:
+	if n <= 0:
+		return "keine Verluste"
+	if n == 1:
+		return "1 gefallen"
+	return "%d gefallen" % n
+
+
 func _adj(a: Vector2i, b: Vector2i) -> bool:
 	return abs(a.x - b.x) + abs(a.y - b.y) == 1
 
@@ -933,6 +943,11 @@ func _build_ui() -> void:
 	_action_lbl.offset_right = -40.0
 	_action_lbl.offset_top = -300.0
 	_action_lbl.offset_bottom = -180.0
+	# Umbruch statt Abschneiden: mit vollen Kreaturennamen wird die
+	# laengste Meldung ("Schwarzritter rueckt vor und greift
+	# Schwarzritter an: ... - Konter: ...") 1158 px lang, die Zeile ist
+	# 1000 breit (It. 50).
+	_action_lbl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_action_lbl.add_theme_font_size_override("font_size", 22)
 	_action_lbl.add_theme_color_override("font_color", Color(0.80, 0.88, 1.0))
 	add_child(_action_lbl)
@@ -1397,8 +1412,8 @@ func _cast(spell_id: String, target: Dictionary) -> void:
 	if not st.is_empty():
 		Fx.add(target, String(st["status"]), int(st["rounds"]))
 		Vfx.popup(_fx, Vector2i(target["pos"]), name, Color(0.75, 0.70, 1.0))
-		msg = "%s -> %s (%s, %d Rd.)" % [name,
-			UnitType.short_of(String(target["type"])),
+		msg = "%s auf %s: %s fuer %d Runden" % [name,
+			UnitType.name_of(String(target["type"])),
 			String(st["status"]), int(st["rounds"])]
 	elif Spl.damage_of(spell_id, _p_power) > 0:
 		# Feuerschutz halbiert Feuer-Zauber (It. 43). Der Faktor kommt aus
@@ -1408,8 +1423,8 @@ func _cast(spell_id: String, target: Dictionary) -> void:
 			* Fx.spell_taken_factor(target, fire)))
 		var killed: int = _apply_dmg(target, dmg)
 		Sound.play("spell_hit")
-		msg = "%s -> %s: %d Sch., -%d" % [name,
-			UnitType.short_of(String(target["type"])), dmg, killed]
+		msg = "%s trifft %s: %d Schaden, %s" % [name,
+			UnitType.name_of(String(target["type"])), dmg, _fallen(killed)]
 		if fire and Fx.has(target, Fx.FIRE_WARD):
 			msg += "  (halb: Feuerschutz)"
 		if Spl.is_aoe(spell_id):
@@ -1439,8 +1454,8 @@ func _cast(spell_id: String, target: Dictionary) -> void:
 		var back: int = int(target["count"]) - c_before
 		Vfx.healed(_fx, Vector2i(target["pos"]), rev)
 		Sound.play("heal")
-		msg = "%s -> %s: %d zurueck" % [name,
-			UnitType.short_of(String(target["type"])), back]
+		msg = "%s auf %s: %d wiederbelebt" % [name,
+			UnitType.name_of(String(target["type"])), back]
 	else:
 		var heal: int = Spl.heal_of(spell_id, _p_power)
 		if heal > 0:
@@ -1449,8 +1464,8 @@ func _cast(spell_id: String, target: Dictionary) -> void:
 			var gained: int = int(target["top_hp"]) - before
 			Vfx.healed(_fx, Vector2i(target["pos"]), gained)
 			Sound.play("heal")
-			msg = "%s -> %s: +%d HP" % [name,
-				UnitType.short_of(String(target["type"])), gained]
+			msg = "%s auf %s: %d Trefferpunkte geheilt" % [name,
+				UnitType.name_of(String(target["type"])), gained]
 	_set_action("%s  [Mana %d]" % [msg, _p_mana])
 	_refresh_spell_button()
 	_refresh()
@@ -1877,7 +1892,7 @@ func _on_grid_input(event: InputEvent) -> void:
 		Vfx.moved(_fx, Vector2i(active["pos"]), cell,
 			String(active["type"]), 0)
 		active["pos"] = cell
-		_set_action("Held %s bewegt sich." % UnitType.short_of(String(active["type"])))
+		_set_action("%s zieht weiter." % UnitType.name_of(String(active["type"])))
 		_build_reachable()
 		_end_player_turn()
 
@@ -1891,7 +1906,7 @@ func _try_attack_wall(active: Dictionary, cell: Vector2i) -> bool:
 	if not UnitType.has_ability(uid, "attack_wall"):
 		return false
 	var res: String = _damage_wall(cell, 1)
-	_set_action("%s schlaegt gegen die Mauer: %s" % [UnitType.short_of(uid), res])
+	_set_action("%s schlaegt gegen die Mauer: %s" % [UnitType.name_of(uid), res])
 	_end_player_turn()
 	return true
 
@@ -1903,8 +1918,8 @@ func _try_attack_enemy(e_idx: int) -> void:
 	var apos: Vector2i = Vector2i(active["pos"])
 	var uid: String = String(active["type"])
 
-	var atk_s: String = UnitType.short_of(uid)
-	var def_s: String = UnitType.short_of(String(estack["type"]))
+	var atk_s: String = UnitType.name_of(uid)
+	var def_s: String = UnitType.name_of(String(estack["type"]))
 	# Schiessen nur mit Munition - leergeschossene Schuetzen fallen in
 	# die Nahkampf-Zweige unten (dort mit Fernkaempfer-Malus).
 	if _can_shoot(active):
@@ -1936,16 +1951,16 @@ func _try_attack_enemy(e_idx: int) -> void:
 			extra += _apply_aoe(uid, estack, d1)
 		_fx_delay = 0.0
 		var suffix: String = "  (halb: Baumstamm)" if bool(mod["halve"]) else ""
-		var shot_txt: String = "%d Sch., -%d" % [dmg, killed]
+		var shot_txt: String = "%d Schaden, %s" % [dmg, _fallen(killed)]
 		if fired > 1:
-			shot_txt = "%dx (%s)" % [fired, shot_txt]
-		_set_action("Held %s -> %s: %s%s%s  [%d Schuss]" % [
+			shot_txt = "%d Schuesse, %s" % [fired, shot_txt]
+		_set_action("%s beschiesst %s: %s%s%s  (noch %d Schuss)" % [
 			atk_s, def_s, shot_txt, suffix, extra, int(active["shots_left"])])
 		_end_player_turn()
 		return
 
 	if _adj(apos, epos):
-		_set_action("Held %s -> %s: %s" % [atk_s, def_s, _melee_exchange(active, estack)])
+		_set_action("%s greift %s an: %s" % [atk_s, def_s, _melee_exchange(active, estack)])
 		_end_player_turn()
 		return
 
@@ -1965,7 +1980,8 @@ func _try_attack_enemy(e_idx: int) -> void:
 	active["tiles_moved"] = best_d
 	Vfx.moved(_fx, Vector2i(active["pos"]), best, String(active["type"]), 0)
 	active["pos"] = best
-	_set_action("Held %s vor -> %s: %s" % [atk_s, def_s, _melee_exchange(active, estack)])
+	_set_action("%s rueckt vor und greift %s an: %s"
+		% [atk_s, def_s, _melee_exchange(active, estack)])
 	_end_player_turn()
 
 
@@ -2013,8 +2029,8 @@ func _claim_morale_extra(side: int, idx: int) -> bool:
 			s["morale_extra_used"] = true
 			_active_slot = i
 			Vfx.popup(_fx, Vector2i(s["pos"]), "Moral!", Color(0.55, 1.0, 0.65))
-			_set_action("Moral! %s %s zieht nochmal." % [
-				"Held" if side == 0 else "Feind", UnitType.short_of(String(s["type"]))])
+			_set_action("Gute Moral: %s %s zieht gleich nochmal." % [
+				"dein" if side == 0 else "gegnerischer", UnitType.name_of(String(s["type"]))])
 			return true
 	return false
 
@@ -2054,8 +2070,8 @@ func _ai_turn() -> void:
 	var tpos: Vector2i = Vector2i(best_target["pos"])
 	var uid: String = String(estack["type"])
 
-	var atk_s: String = UnitType.short_of(uid)
-	var def_s: String = UnitType.short_of(String(best_target["type"]))
+	var atk_s: String = UnitType.name_of(uid)
+	var def_s: String = UnitType.name_of(String(best_target["type"]))
 	if _can_shoot(estack):
 		var mod: Dictionary = Obstacles.line_modifier(_obstacles, epos, tpos)
 		if not bool(mod["blocked"]):
@@ -2082,10 +2098,11 @@ func _ai_turn() -> void:
 				extra += _roll_status(uid, best_target)
 				extra += _apply_aoe(uid, best_target, d1)
 			var suffix: String = "  (halb: Baumstamm)" if bool(mod["halve"]) else ""
-			var shot_txt: String = "%d Sch., -%d" % [dmg, killed]
+			var shot_txt: String = "%d Schaden, %s" % [dmg, _fallen(killed)]
 			if fired > 1:
-				shot_txt = "%dx (%s)" % [fired, shot_txt]
-			_set_action("Feind %s -> %s: %s%s%s" % [atk_s, def_s, shot_txt, suffix, extra])
+				shot_txt = "%d Schuesse, %s" % [fired, shot_txt]
+			_set_action("Gegnerischer %s beschiesst %s: %s%s%s"
+				% [atk_s, def_s, shot_txt, suffix, extra])
 			_rebuild_order()
 			if _check_end(): return
 			_advance()
@@ -2137,10 +2154,11 @@ func _ai_turn() -> void:
 			Vfx.moved(_fx, epos, atk_cell, String(estack["type"]), 1)
 			estack["pos"] = atk_cell
 			epos = atk_cell
-		var def_s2: String = UnitType.short_of(String(atk_target["type"]))
+		var def_s2: String = UnitType.name_of(String(atk_target["type"]))
 		# Fernkaempfer mit blockierter Schusslinie oder leerem Koecher
 		# gleiten hier hinein und kassieren den korrekten Nahkampfabzug.
-		_set_action("Feind %s -> %s: %s" % [atk_s, def_s2, _melee_exchange(estack, atk_target)])
+		_set_action("Gegnerischer %s greift %s an: %s"
+			% [atk_s, def_s2, _melee_exchange(estack, atk_target)])
 	else:
 		# Niemand diese Runde erreichbar -> marschiere Richtung Primaerziel.
 		var best_step: Vector2i = epos
@@ -2158,9 +2176,9 @@ func _ai_turn() -> void:
 			estack["tiles_moved"] = int(dist_map.get(best_step, 0))
 			Vfx.moved(_fx, epos, best_step, String(estack["type"]), 1)
 			estack["pos"] = best_step
-			_set_action("Feind %s bewegt sich." % atk_s)
+			_set_action("Gegnerischer %s zieht weiter." % atk_s)
 		else:
-			_set_action("Feind %s wartet." % atk_s)
+			_set_action("Gegnerischer %s wartet ab." % atk_s)
 
 	var acted_idx: int = _acting_idx()
 	_rebuild_order()
@@ -2371,12 +2389,13 @@ func _on_wait() -> void:
 	if bool(active.get("waited", false)):
 		# Doppelwarten nicht erlaubt (HoMM-Konvention): stattdessen Zug
 		# einfach aussetzen, damit der Spieler weiterkommt.
-		_set_action("Held %s pausiert." % UnitType.short_of(String(active["type"])))
+		_set_action("%s pausiert." % UnitType.name_of(String(active["type"])))
 		if _check_end(): return
 		_advance()
 		return
 	active["waited"] = true
-	_set_action("Held %s wartet -> zieht spaeter." % UnitType.short_of(String(active["type"])))
+	_set_action("%s wartet und zieht spaeter in der Runde."
+		% UnitType.name_of(String(active["type"])))
 	_rebuild_order()
 	if _check_end(): return
 	# Kein _advance: rebuild hat den Warter ans Ende geschoben, der neue
