@@ -21,13 +21,15 @@ const DATA_PATH := "res://data/artifacts.json"
 # Buchhaltung.
 const MAX_SLOTS := 3
 
-# Die Werte, auf die ein Artefakt wirken darf. Steht hier und nicht in der
-# JSON, damit ein Tippfehler dort auffaellt statt still zu wirken.
-const STAT_IDS := ["att", "def", "spell_power", "knowledge"]
-const STAT_NAMES := {
-	"att": "Angriff", "def": "Verteidigung",
-	"spell_power": "Zauberkraft", "knowledge": "Wissen",
-}
+# Die Werte, auf die ein Artefakt wirken darf, und ihre Namen: DIESELBEN wie
+# bei den Skills (HeroSkills.PRIMARY_IDS/PRIMARY_NAMES, aus skills.json).
+# Die Code-Review zu It. 51 fand hier ein zweites Vokabular ("att"/"def"
+# neben "attack"/"defense") - zwei Listen fuer dieselben vier Werte, und ein
+# Autor, der "attack" aus skills.json abschreibt, bekaeme einen still
+# ignorierten Bonus. HeroSkills laedt selbst nichts nach, kein Preload-Kreis.
+const Skills := preload("res://scripts/core/HeroSkills.gd")
+const STAT_IDS: Array = Skills.PRIMARY_IDS
+const STAT_NAMES: Dictionary = Skills.PRIMARY_NAMES
 
 static var _cache: Dictionary = {}
 
@@ -50,12 +52,6 @@ static func _data() -> Dictionary:
 static func all_defs() -> Array:
 	return _data().get("artifacts", []) as Array
 
-
-static func all_ids() -> Array:
-	var out: Array = []
-	for a in all_defs():
-		out.append(String((a as Dictionary).get("id", "")))
-	return out
 
 
 static func def_of(id: String) -> Dictionary:
@@ -106,12 +102,17 @@ static func pick(h: int) -> String:
 	var defs: Array = all_defs()
 	if defs.is_empty():
 		return ""
+	var weights: Array = []
 	var total: int = 0
 	for a in defs:
-		total += maxi(1, int((a as Dictionary).get("rarity", 1)))
-	var roll: int = absi(h) % maxi(1, total)
-	for a2 in defs:
-		roll -= maxi(1, int((a2 as Dictionary).get("rarity", 1)))
+		var w: int = maxi(1, int((a as Dictionary).get("rarity", 1)))
+		weights.append(w)
+		total += w
+	var roll: int = absi(h) % total
+	for i in range(defs.size()):
+		roll -= int(weights[i])
 		if roll < 0:
-			return String((a2 as Dictionary).get("id", ""))
-	return String((defs[defs.size() - 1] as Dictionary).get("id", ""))
+			return String((defs[i] as Dictionary).get("id", ""))
+	# roll liegt in [0, total-1] und total ist die Summe derselben Gewichte -
+	# die Schleife kehrt immer zurueck. Die Zeile ist fuer den Parser.
+	return String((defs[0] as Dictionary).get("id", ""))

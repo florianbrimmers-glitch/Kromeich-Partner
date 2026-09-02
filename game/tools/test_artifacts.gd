@@ -16,6 +16,7 @@ extends SceneTree
 
 const Art := preload("res://scripts/core/Artifacts.gd")
 const SaveLib := preload("res://scripts/core/SaveManager.gd")
+const Move := preload("res://scripts/core/Movement.gd")
 
 var _fails: int = 0
 var _done: Array = []
@@ -29,6 +30,7 @@ func _init() -> void:
 	await _test_chests()
 	await _test_take_and_swap()
 	await _test_pickup_by_tap()
+	await _test_review_findings()
 
 	var missing: Array = []
 	for m in get_method_list():
@@ -222,12 +224,15 @@ func _test_take_and_swap() -> void:
 		"dasselbe Artefakt zweimal wird abgewiesen ('%s')" % msg)
 
 	# Voll: das Tausch-Panel geht auf, statt den Fund wortlos zu schlucken.
-	var att_full: int = h.att
+	# Geprueft wird WISSEN - der Helm gibt nur Wissen. Die Review fand hier
+	# einen Vergleich auf att, den ein vorzeitiges Anhaengen nie geaendert
+	# haette.
+	var know_full: int = h.knowledge
 	wm.call("_take_artifact", h, "helm_der_klarheit")
 	var panel: Panel = wm.get("_art_panel")
 	_check(panel != null and panel.visible, "bei voller Ausruestung oeffnet der Tausch")
-	_check(h.artifacts.size() == Art.MAX_SLOTS and h.att == att_full,
-		"und bis zur Entscheidung aendert sich nichts")
+	_check(h.artifacts.size() == Art.MAX_SLOTS and h.knowledge == know_full,
+		"und bis zur Entscheidung aendert sich nichts (Wissen %d)" % h.knowledge)
 
 	wm.call("_swap_artifact", "panzer_des_riesen")
 	_check(not h.artifacts.has("panzer_des_riesen")
@@ -263,7 +268,7 @@ func _test_take_and_swap() -> void:
 	h.artifacts.clear()
 	for id2 in ["schwert_der_wacht", "panzer_des_riesen", "klinge_des_zorns"]:
 		wm.call("_take_artifact", h, id2)
-	wm.call("_show_artifact_swap", "krone_der_weisen")
+	wm.call("_show_artifact_swap", "krone_der_weisen", h, Vector2i(-1, -1))
 	await process_frame
 	var screen := Rect2(Vector2.ZERO, Vector2(1080, 1920))
 	var ap: Panel = wm.get("_art_panel")
@@ -337,7 +342,12 @@ func _test_pickup_by_tap() -> void:
 	chest["guard"] = 0
 	var h = wm.get("_hero")
 	h.artifacts.clear()
-	h.position = Vector2i(chest["pos"]) + Vector2i(-1, 0)
+	# Ein BEGEHBARES Nachbarfeld im Kartenbereich - nicht blind links
+	# daneben. Laege die Truhe auf Spalte 0, stuende der Held bei x = -1,
+	# _recompute_costs griffe ausserhalb des Feldes zu, und die Suite
+	# hinge bis zum CI-Timeout statt rot zu werden (Review-Befund).
+	h.position = _walkable_neighbour(wm, Vector2i(chest["pos"]))
+	_check(h.position.x >= 0, "begehbares Nachbarfeld gefunden %s" % str(h.position))
 	h.mp = h.max_mp
 	wm.call("_recompute_costs")
 	var gold_before: int = (wm.get("_purse") as Wallet).get_amount("gold")
@@ -363,3 +373,141 @@ func _test_pickup_by_tap() -> void:
 	wm.queue_free()
 	await process_frame
 	_done.append("_test_pickup_by_tap")
+
+
+# Die Befunde der Code-Review zu It. 51, jeder als Pruefung (It. 52).
+func _test_review_findings() -> void:
+	print("")
+	print("== Befunde der Code-Review ==")
+	var wm = (load("res://scenes/WorldMap.tscn") as PackedScene).instantiate()
+	root.add_child(wm)
+	await process_frame
+	wm.call("_start", 4711, 1)
+	await process_frame
+	var kind: int = int(wm.get("OBJECT_TREASURE"))
+	var h = wm.get("_hero")
+	var purse: Wallet = wm.get("_purse")
+
+	# 1) Truhe mit schon getragenem Artefakt gibt GOLD, nicht nichts.
+	var chest: Dictionary = {}
+	for o in (wm.get("_objects") as Array):
+		if int(o["kind"]) == kind and String(wm.call("_chest_artifact", o)) != "":
+			chest = o
+			break
+	_check(not chest.is_empty(), "Artefakt-Truhe gefunden")
+	var art: String = String(wm.call("_chest_artifact", chest))
+	h.artifacts.clear()
+	h.equip(art)
+	var gold0: int = purse.get_amount("gold")
+	var idx: int = (wm.get("_objects") as Array).find(chest)
+	var msg: String = String(wm.call("_open_chest", chest, idx, h))
+	_check(purse.get_amount("gold") == gold0 + int(chest["gold"]),
+		"schon getragen -> Gold statt nichts ('%s')" % msg)
+	_check((wm.get("_objects") as Array).find(chest) < 0, "und die Truhe ist weg")
+
+	# 2) Volle Ausruestung: die Truhe BLEIBT liegen, bis entschieden ist.
+	wm.call("_start", 4711, 1)
+	h = wm.get("_hero")
+	purse = wm.get("_purse")
+	chest = {}
+	for o2 in (wm.get("_objects") as Array):
+		if int(o2["kind"]) == kind and String(wm.call("_chest_artifact", o2)) != "":
+			chest = o2
+			break
+	art = String(wm.call("_chest_artifact", chest))
+	h.artifacts.clear()
+	for id in ["schwert_der_wacht", "panzer_des_riesen", "klinge_des_zorns"]:
+		if id != art:
+			h.equip(id)
+	while h.artifacts.size() < Art.MAX_SLOTS:
+		h.equip("krone_der_weisen" if art != "krone_der_weisen" else "stab_der_kraft")
+	idx = (wm.get("_objects") as Array).find(chest)
+	gold0 = purse.get_amount("gold")
+	wm.call("_open_chest", chest, idx, h)
+	var panel: Panel = wm.get("_art_panel")
+	_check(panel != null and panel.visible, "voll: Tausch-Panel offen")
+	_check((wm.get("_objects") as Array).find(chest) >= 0,
+		"voll: die Truhe liegt noch auf der Karte")
+	_check(purse.get_amount("gold") == gold0, "voll: kein Gold gebucht")
+	# Waehrend die Entscheidung offen ist, erreicht KEIN Tap die Karte.
+	var pos_before: Vector2i = h.position
+	var origin: Vector2 = wm.call("_map_origin")
+	var ts: float = float(wm.get("_tile_size"))
+	wm.call("_handle_tap", origin + Vector2(float(pos_before.x) + 1.5,
+		float(pos_before.y) + 0.5) * ts)
+	_check(h.position == pos_before, "offenes Panel sperrt die Karte")
+	_check(bool(wm.call("_modal_open")), "_modal_open sagt es auch")
+	# Ablehnen: Truhe bleibt, Fund bleibt.
+	wm.call("_decline_artifact")
+	_check(not panel.visible, "abgelehnt: Panel zu")
+	_check((wm.get("_objects") as Array).find(chest) >= 0,
+		"abgelehnt: die Truhe liegt weiter da")
+	_check(String(wm.get("_art_found")) == "", "abgelehnt: keine offene Entscheidung")
+
+	# 3) Tausch prueft neu: wechselt der Held zwischendurch, trifft es
+	#    trotzdem den GEBUNDENEN Helden - und nie ueber MAX_SLOTS.
+	idx = (wm.get("_objects") as Array).find(chest)
+	wm.call("_open_chest", chest, idx, h)
+	var other: Hero = Hero.new(h.position + Vector2i(1, 0), int(wm.get("BASE_MAX_MP")))
+	(wm.get("_heroes") as Array).append(other)
+	wm.set("_active_hero", 1)
+	var drop: String = String(h.artifacts[0])
+	wm.call("_swap_artifact", drop)
+	_check(h.artifacts.has(art) and not h.artifacts.has(drop),
+		"Tausch trifft den gebundenen Helden (%s)" % str(h.artifacts))
+	_check(other.artifacts.is_empty(), "und nicht den zwischendurch aktiven")
+	_check(h.artifacts.size() == Art.MAX_SLOTS, "nie mehr als %d" % Art.MAX_SLOTS)
+	_check((wm.get("_objects") as Array).find(chest) < 0,
+		"nach dem Tausch ist die Truhe weg")
+	wm.set("_active_hero", 0)
+
+	# 4) Ein kaputter Tausch (abzulegendes Stueck ist weg) faellt sauber.
+	h.artifacts.clear()
+	for id2 in ["schwert_der_wacht", "panzer_des_riesen", "klinge_des_zorns"]:
+		h.equip(id2)
+	wm.call("_take_artifact", h, "helm_der_klarheit")
+	h.unequip("schwert_der_wacht")   # jemand hat es zwischendurch abgelegt
+	wm.call("_swap_artifact", "schwert_der_wacht")
+	_check(not h.artifacts.has("helm_der_klarheit") and h.artifacts.size() == 2,
+		"abzulegendes Stueck fehlt -> kein Tausch, nichts angehaengt (%s)" % str(h.artifacts))
+
+	# 5) _start raeumt das Panel auf.
+	wm.call("_take_artifact", h, "helm_der_klarheit")
+	wm.call("_take_artifact", h, "krone_der_weisen")   # jetzt voll -> Panel
+	_check(bool(wm.get("_art_panel").visible), "Panel offen vor dem Neustart")
+	wm.call("_start", 90210, 1)
+	_check(not bool(wm.get("_art_panel").visible), "_start schliesst das Panel")
+	_check(String(wm.get("_art_found")) == "", "und vergisst den Fund")
+
+	# 6) from_dict kappt bei MAX_SLOTS.
+	var hd: Dictionary = Hero.new(Vector2i.ZERO, 40).to_dict()
+	hd["artifacts"] = ["schwert_der_wacht", "panzer_des_riesen", "klinge_des_zorns",
+		"helm_der_klarheit", "krone_der_weisen"]
+	var loaded := Hero.from_dict(hd)
+	_check(loaded.artifacts.size() == Art.MAX_SLOTS,
+		"uebervoller Stand laedt mit %d statt 5" % loaded.artifacts.size())
+
+	# 7) Rohwert nie negativ, auch nicht ueber den Setter.
+	var neg := Hero.new(Vector2i.ZERO, 40)
+	neg.att = -3
+	_check(neg.att_base == 0 and neg.att == 0, "negativer Rohwert wird geklemmt")
+	neg.equip("schwert_der_wacht")
+	_check(neg.att == 2, "und ein Artefakt wirkt darauf sichtbar (%d)" % neg.att)
+
+	wm.queue_free()
+	await process_frame
+	_done.append("_test_review_findings")
+
+
+# Ein begehbares Nachbarfeld innerhalb der Karte, oder (-1,-1).
+func _walkable_neighbour(wm, cell: Vector2i) -> Vector2i:
+	var w: int = int(wm.get("MAP_WIDTH"))
+	var hgt: int = int(wm.get("MAP_HEIGHT"))
+	var tiles: Array = (wm.get("_map") as Dictionary)["tiles"]
+	for d in [Vector2i(-1, 0), Vector2i(1, 0), Vector2i(0, -1), Vector2i(0, 1)]:
+		var c: Vector2i = cell + d
+		if c.x < 0 or c.y < 0 or c.x >= w or c.y >= hgt:
+			continue
+		if Move.is_passable(int(tiles[c.y * w + c.x])):
+			return c
+	return Vector2i(-1, -1)

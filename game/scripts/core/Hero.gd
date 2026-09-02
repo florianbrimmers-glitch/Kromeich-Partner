@@ -64,18 +64,57 @@ var artifacts: Array = []
 # null, und ein negativer Bonus, der den Gegner STAERKER macht als gar
 # keine Ruestung, waere schwer zu erklaeren. Der Rohwert bleibt unberuehrt
 # - legt der Held das Artefakt ab, ist der alte Wert wieder da.
+# Und der ROHWERT wird beim Schreiben geklemmt: ein negativer Rohwert
+# (kaputter Spielstand) wuerde durch die Summen-Klemme nur maskiert - ein
+# +2-Artefakt laese sich dann als 0, ohne sichtbaren Grund.
 var att: int:
-	get: return maxi(0, att_base + Art.bonus(artifacts, "att"))
-	set(value): att_base = value
+	get: return _eff(att_base, "attack")
+	set(value): att_base = maxi(0, value)
 var def: int:
-	get: return maxi(0, def_base + Art.bonus(artifacts, "def"))
-	set(value): def_base = value
+	get: return _eff(def_base, "defense")
+	set(value): def_base = maxi(0, value)
 var spell_power: int:
-	get: return maxi(0, spell_power_base + Art.bonus(artifacts, "spell_power"))
-	set(value): spell_power_base = value
+	get: return _eff(spell_power_base, "spell_power")
+	set(value): spell_power_base = maxi(0, value)
 var knowledge: int:
-	get: return maxi(0, knowledge_base + Art.bonus(artifacts, "knowledge"))
-	set(value): knowledge_base = value
+	get: return _eff(knowledge_base, "knowledge")
+	set(value): knowledge_base = maxi(0, value)
+
+
+# Wirksamer Wert: Rohwert plus Artefakte, nie unter null. EINE Stelle fuer
+# die Regel statt vier Kopien.
+#
+# Bekannte Kante, bewusst so gelassen: traegt ein Held die Klinge des Zorns
+# (-1 Verteidigung) bei Rohwert 0, zeigt Verteidigung 0 - und ein Schrein
+# (+1 Rohwert) hebt die Anzeige nicht, weil 1 - 1 wieder 0 ist. Der Punkt
+# ist da (legt er die Klinge ab, sind es 1), er ist nur solange nicht
+# sichtbar. Das ist die Arithmetik eines Artefakts mit Minus, kein Fehler.
+func _eff(base: int, stat: String) -> int:
+	return maxi(0, base + Art.bonus(artifacts, stat))
+
+
+# --- Artefakte anlegen und ablegen (It. 52) -------------------------------
+#
+# Die Regeln (bekannte ID, nicht doppelt, hoechstens MAX_SLOTS) stehen HIER
+# und nicht an jeder Stelle, die die Liste anfasst. Die Code-Review zu It. 51
+# fand sie in vier Kopien - und from_dict hatte die Obergrenze vergessen.
+func can_equip(aid: String) -> bool:
+	return Art.exists(aid) and not artifacts.has(aid) \
+		and artifacts.size() < Art.MAX_SLOTS
+
+
+func equip(aid: String) -> bool:
+	if not can_equip(aid):
+		return false
+	artifacts.append(aid)
+	return true
+
+
+func unequip(aid: String) -> bool:
+	if not artifacts.has(aid):
+		return false
+	artifacts.erase(aid)
+	return true
 # {skill_id: stufe 1..3}
 var skills: Dictionary = {}
 # Mana (M8). Der Hoechstwert leitet sich aus `knowledge` ab und wird
@@ -239,12 +278,12 @@ static func from_dict(d: Dictionary) -> Hero:
 	# Tolerantes Feld, also KEIN SAVE_VERSION-Bump - ein Spielstand ohne
 	# Artefakte laedt mit leerer Liste (dieselbe Begruendung wie bei den
 	# Primaerwerten in M7).
+	# Ueber equip(): unbekannte IDs (ausgemustertes Artefakt) und Doppelte
+	# fallen raus, und mehr als MAX_SLOTS nimmt der Held nicht - ein
+	# uebervoller Stand (von Hand oder aus einem alten Fehler) laedt sauber
+	# statt mit vier Boni.
 	for a in (d.get("artifacts", []) as Array):
-		var aid: String = String(a)
-		# Unbekannte IDs (ausgemustertes Artefakt) fallen hier raus, statt
-		# spaeter beim Nachschlagen still null zu wirken.
-		if Art.exists(aid) and not h.artifacts.has(aid):
-			h.artifacts.append(aid)
+		h.equip(String(a))
 	h.att = int(d.get("att", 0))
 	h.def = int(d.get("def", 0))
 	h.spell_power = int(d.get("spell_power", 0))

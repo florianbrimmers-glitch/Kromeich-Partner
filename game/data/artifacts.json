@@ -5,56 +5,75 @@
     {
       "id": "schwert_der_wacht",
       "name": "Schwert der Wacht",
-      "bonus": { "att": 2 },
+      "bonus": {
+        "attack": 2
+      },
       "rarity": 30,
       "balance_source": "HoMM3 Sword of Hellfire abgeschwaecht: +2 statt +6, weil unsere Primaerwerte kleiner sind (Stufe 12 = rund 11 Punkte)."
     },
     {
       "id": "schild_des_bergvolks",
       "name": "Schild des Bergvolks",
-      "bonus": { "def": 2 },
+      "bonus": {
+        "defense": 2
+      },
       "rarity": 30,
       "balance_source": "HoMM3 Shield of the Yawning Dead, gleiche Skalierung wie das Schwert."
     },
     {
       "id": "helm_der_klarheit",
       "name": "Helm der Klarheit",
-      "bonus": { "knowledge": 2 },
+      "bonus": {
+        "knowledge": 2
+      },
       "rarity": 25,
       "balance_source": "HoMM3 Helm of Chaos. Wissen x10 ist Mana, +2 sind also 20 Mana."
     },
     {
       "id": "stab_der_kraft",
       "name": "Stab der Kraft",
-      "bonus": { "spell_power": 2 },
+      "bonus": {
+        "spell_power": 2
+      },
       "rarity": 25,
       "balance_source": "HoMM3 Orb of Silt. Zauberkraft skaliert jeden Zauber - deshalb nicht hoeher."
     },
     {
       "id": "umhang_des_spaehers",
       "name": "Umhang des Spaehers",
-      "bonus": { "att": 1, "def": 1 },
+      "bonus": {
+        "attack": 1,
+        "defense": 1
+      },
       "rarity": 35,
       "balance_source": "Breit statt hoch: das haeufigste Artefakt, weil es in jede Sammlung passt."
     },
     {
       "id": "krone_der_weisen",
       "name": "Krone der Weisen",
-      "bonus": { "spell_power": 1, "knowledge": 2 },
+      "bonus": {
+        "spell_power": 1,
+        "knowledge": 2
+      },
       "rarity": 15,
       "balance_source": "Zauberer-Stueck. Selten, weil es zwei Werte gleichzeitig hebt."
     },
     {
       "id": "panzer_des_riesen",
       "name": "Panzer des Riesen",
-      "bonus": { "def": 3 },
+      "bonus": {
+        "defense": 3
+      },
       "rarity": 10,
       "balance_source": "Das staerkste Einzelstueck und entsprechend selten. +3 Verteidigung sind mehr, als drei Stufenaufstiege im Schnitt bringen."
     },
     {
       "id": "klinge_des_zorns",
       "name": "Klinge des Zorns",
-      "bonus": { "att": 3, "def": -1 },
+      "bonus": {
+        "attack": 3,
+        "defense": -1
+      },
       "rarity": 12,
       "balance_source": "HoMM3-Prinzip der Tradeoffs (Equilibris): viel Angriff gegen etwas Verteidigung. Das einzige Artefakt mit einem Minus - es soll eine Entscheidung sein, nicht ein Geschenk."
     }

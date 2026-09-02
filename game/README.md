@@ -65,7 +65,7 @@ zur Equilibris-Mod-Philosophie (HoMM4):
 2. Simulator als Gatekeeper — Zielkorridor 40-60 Prozent Winrate pro
    Matchup (`tools/balance_sim.gd`; aktuell bekannt ausserhalb, Tuning
    steht aus).
-3. Game-changer-Artefakte fuer distinkte Builds (geplant).
+3. Artefakte: acht Werte-Artefakte aus Schatztruhen, drei Plaetze (It. 51). Kein Relikt-System.
 4. RNG-lastige Auto-Win-Abilities gedeckelt (geplant).
 5. Keine Ubisoft-IP: alle Namen generisch, alle Assets eigen erstellt.
 

@@ -15,6 +15,7 @@ extends SceneTree
 # als ein Kuerzel. Gemessen wird in Geraetegroesse.
 
 const TBS := preload("res://scripts/ui/TacticalBattleScreen.gd")
+const Art := preload("res://scripts/core/Artifacts.gd")
 
 const DEVICE_W := 1080
 const DEVICE_H := 1920
@@ -126,6 +127,14 @@ func _test_widths() -> void:
 			wm.call("_losses_text", 88), wm.call("_gain_text", 0, 4321), 12],
 		"Schatz gefunden: 98765 Gold, %s" % wm.call("_losses_text", 88),
 		"KAPITULIERT: -98765 G, Armee gerettet, Rueckzug in die Stadt",
+		# Artefakte (It. 51/52): der laengste Name mit dem laengsten Bonus,
+		# nach einem Wachkampf. Die Review fand die Meldungen NICHT in
+		# dieser Liste - heute passen sie, aber nichts hielt das fest.
+		"%s, %s" % [_longest_artifact_message(), wm.call("_losses_text", 88)],
+		"Artefakt gefunden: %s - Ausruestung ist voll, %s" % [
+			_longest_artifact_name(), wm.call("_losses_text", 88)],
+		"Schatz gefunden: 98765 Gold (%s traegst du schon), %s" % [
+			_longest_artifact_name(), wm.call("_losses_text", 88)],
 	]
 	var lbl: Label = wm.get("_combat_label")
 	_check(lbl != null, "Kampfzeile gefunden")
@@ -233,3 +242,24 @@ func _test_widths() -> void:
 	bs.queue_free()
 	await process_frame
 	_done.append("_test_widths")
+
+
+# Laengster Artefakt-Name und laengste Fund-Meldung aus den DATEN - damit
+# ein neues, laengeres Artefakt hier automatisch mitgemessen wird.
+func _longest_artifact_name() -> String:
+	var best: String = ""
+	for a in Art.all_defs():
+		var nm: String = String((a as Dictionary).get("name", ""))
+		if nm.length() > best.length():
+			best = nm
+	return best
+
+
+func _longest_artifact_message() -> String:
+	var best: String = ""
+	for a in Art.all_defs():
+		var id: String = String((a as Dictionary).get("id", ""))
+		var m: String = "Artefakt gefunden: %s (%s)" % [Art.name_of(id), Art.summary(id)]
+		if m.length() > best.length():
+			best = m
+	return best

@@ -568,6 +568,15 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 	_ai_seen_by_player.clear()
 	if _victory_panel != null:
 		_victory_panel.visible = false
+	# ALLE Panels zu, nicht nur das Sieg-Panel (It. 52). Ein offenes
+	# Artefakt-Tausch-Panel ueberlebte sonst den Neustart, und ein Tipp auf
+	# eine Zeile haette den alten Fund dem neuen Helden angehaengt.
+	for pnl in [_hero_panel, _xchg_panel, _art_panel]:
+		if pnl != null:
+			(pnl as Control).visible = false
+	_art_found = ""
+	_art_hero = null
+	_art_chest_pos = Vector2i(-1, -1)
 	_rng = DeterministicRng.new(seed_value)
 	var rng := _rng
 	_trace("STEP 3a1: Array init")
@@ -2127,7 +2136,32 @@ func _end_pan(pos: Vector2) -> void:
 	_handle_tap(pos)
 
 
+# Liegt ein Panel ueber der Karte, das eine Entscheidung erwartet? Dann
+# erreicht KEIN Tap die Karte (It. 52).
+#
+# Vorher sperrte _handle_tap nur den Stadtschirm; Heldenblatt, Armee-Tausch
+# und das Artefakt-Tausch-Panel verliessen sich darauf, dass ihr eigenes
+# Rechteck die Taps frisst. Das kleinste davon (960x760) liess auf dem
+# 1080x1920-Geraet oben und unten rund 580 px Karte frei: ein Tap dort
+# bewegte den Helden, oeffnete einen Wachkampf ueber dem Panel oder
+# wechselte den aktiven Helden - und der Tausch traf danach den falschen.
+# Gefunden von der Code-Review zu It. 51, per Probe bestaetigt.
+func _modal_open() -> bool:
+	# NUR die Panels, die Karte freilassen. Stadtschirm und Skill-Wahl sind
+	# vollflaechig mit MOUSE_FILTER_STOP und damit physisch modal - sie
+	# gehoeren nicht hierher. Der erste Anlauf hatte den Stadtschirm mit
+	# drin, und der Durchspiel-Test stand sofort still: sein Test-Spieler
+	# zieht die Garnison ueber _move_garrison, das am Ende den Stadtschirm
+	# oeffnet, und schliesst ihn nie.
+	for pnl in [_hero_panel, _xchg_panel, _art_panel]:
+		if pnl != null and (pnl as Control).visible:
+			return true
+	return false
+
+
 func _handle_tap(pos: Vector2) -> void:
+	if _modal_open():
+		return
 	var origin := _map_origin()
 	var local := pos - origin
 	if _tile_size <= 0.0:
@@ -2237,8 +2271,11 @@ func _handle_tap(pos: Vector2) -> void:
 				var guard_ctx: Dictionary = {
 					"enemy_army": _object_guard_army(obj),
 				}
+				# Den kaempfenden Helden MERKEN: der Callback darf `_hero`
+				# nicht lesen (M13a-Regel).
+				var fighting: Hero = _hero
 				_open_battle("Wache", ogd, true, battle_terrain, func(r: Dictionary) -> void:
-					_on_object_result(r, opos, target, cost)
+					_on_object_result(r, opos, target, cost, fighting)
 				, guard_ctx)
 				return
 			# guard == 0: direktes Betreten / Einsammeln (siehe unten)
@@ -2265,18 +2302,7 @@ func _handle_tap(pos: Vector2) -> void:
 		if okind2 == OBJECT_MINE and int(obj2.get("owner", OWNER_NEUTRAL)) != OWNER_HERO:
 			obj2["owner"] = OWNER_HERO
 		elif okind2 == OBJECT_TREASURE:
-			var art2: String = _chest_artifact(obj2)
-			if art2 != "":
-				var amsg: String = _take_artifact(_hero, art2)
-				_objects.remove_at(obj_idx)
-				Sound.play("recruit")
-				_set_combat(amsg)
-			else:
-				var reward: int = int(obj2["gold"])
-				_purse.add("gold", reward)
-				_objects.remove_at(obj_idx)
-				Sound.play("coin")
-				_set_combat("Schatz gefunden: %d Gold" % reward)
+			_set_combat(_open_chest(obj2, obj_idx, _hero))
 		elif okind2 == OBJECT_PILE:
 			var pres: String = String(obj2.get("resource", "gold"))
 			var pamt: int = int(obj2["gold"])
@@ -2431,24 +2457,51 @@ func _chest_artifact(obj: Dictionary) -> String:
 	return Artifacts.pick(_mix_hash(h))
 
 
-# Artefakt aufnehmen. Rueckgabe ist die Meldung fuer den Spieler.
+# EINE Truhe oeffnen - der einzige Ort, an dem entschieden wird, was sie
+# gibt (It. 52). Vorher stand die Verzweigung Artefakt-oder-Gold zweimal
+# (Tap-Pfad und Wachkampf-Pfad), schon mit Abweichungen in Reihenfolge und
+# Ton. Rueckgabe ist die Meldung fuer den Spieler.
 #
-# Ist kein Platz frei, wird NICHT stillschweigend abgelehnt: der Spieler
-# bekommt die Wahl, welches Stueck er ablegt (siehe _show_artifact_swap).
-# Ein Fund, der wortlos verfaellt, waere das Aergerlichste an der ganzen
-# Mechanik.
+# Vier Faelle:
+#   kein Artefakt in der Truhe          -> Gold, Truhe weg
+#   Artefakt, aber schon getragen       -> Gold, Truhe weg (die Review fand
+#                                          hier "Truhe weg, nichts bekommen")
+#   Artefakt, Platz frei                -> anlegen, Truhe weg
+#   Artefakt, Ausruestung voll          -> Tausch-Panel; die Truhe BLEIBT
+#                                          LIEGEN, bis entschieden ist
+func _open_chest(obj: Dictionary, obj_idx: int, h: Hero) -> String:
+	var reward: int = int(obj.get("gold", 0))
+	var art: String = _chest_artifact(obj)
+	if art == "" or h == null or h.artifacts.has(art):
+		_purse.add("gold", reward)
+		_objects.remove_at(obj_idx)
+		Sound.play("coin")
+		if art != "":
+			return "Schatz gefunden: %d Gold (%s traegst du schon)" % [
+				reward, Artifacts.name_of(art)]
+		return "Schatz gefunden: %d Gold" % reward
+	if h.equip(art):
+		_objects.remove_at(obj_idx)
+		Sound.play("recruit")
+		return "Artefakt gefunden: %s (%s)" % [Artifacts.name_of(art), Artifacts.summary(art)]
+	# Voll: entscheiden lassen. Die Truhe bleibt auf der Karte (ihre Wache
+	# ist an dieser Stelle schon 0), damit "Nichts tauschen" wirklich heisst,
+	# dass der Fund liegen bleibt - und nicht, dass er verfaellt.
+	_show_artifact_swap(art, h, Vector2i(obj.get("pos", Vector2i(-1, -1))))
+	return "Artefakt gefunden: %s - Ausruestung ist voll" % Artifacts.name_of(art)
+
+
+# Artefakt direkt anlegen (ohne Truhe). Rueckgabe ist die Meldung. Bei
+# voller Ausruestung oeffnet der Tausch OHNE Truhe dahinter - dann verfaellt
+# ein abgelehnter Fund, und die Meldung sagt das auch.
 func _take_artifact(h: Hero, aid: String) -> String:
 	if h == null or aid == "" or not Artifacts.exists(aid):
 		return ""
 	if h.artifacts.has(aid):
-		# Doppelt tragen bringt nichts und waere nur Verwirrung.
 		return "%s - hast du schon" % Artifacts.name_of(aid)
-	if h.artifacts.size() < Artifacts.MAX_SLOTS:
-		h.artifacts.append(aid)
-		_update_labels()
-		return "Artefakt gefunden: %s (%s)" % [
-			Artifacts.name_of(aid), Artifacts.summary(aid)]
-	_show_artifact_swap(aid)
+	if h.equip(aid):
+		return "Artefakt gefunden: %s (%s)" % [Artifacts.name_of(aid), Artifacts.summary(aid)]
+	_show_artifact_swap(aid, h, Vector2i(-1, -1))
 	return "Artefakt gefunden: %s - Ausruestung ist voll" % Artifacts.name_of(aid)
 
 
@@ -3067,7 +3120,10 @@ func _on_enemy_hero_result(result: Dictionary, target: Vector2i, cost: int, targ
 		_check_victory()
 
 
-func _on_object_result(result: Dictionary, obj_pos: Vector2i, target: Vector2i, cost: int) -> void:
+func _on_object_result(result: Dictionary, obj_pos: Vector2i, target: Vector2i,
+		cost: int, fh: Hero = null) -> void:
+	if fh == null:
+		fh = _hero
 	var outcome: String = String(result.get("outcome", "flee"))
 	if outcome == "flee" or outcome == "surrender":
 		# Rueckzug im Trichter erledigt; die Wache bleibt stehen und das
@@ -3087,7 +3143,7 @@ func _on_object_result(result: Dictionary, obj_pos: Vector2i, target: Vector2i, 
 	var cas: int = _count_casualties(result)
 	_apply_casualties(result)
 	var xp_o: int = ogd * XP_PER_STRENGTH
-	_hero.xp += xp_o
+	fh.xp += xp_o
 	var lvl_o: bool = _check_level_up()
 	obj["guard"] = 0
 	var msg_og: String
@@ -3100,16 +3156,9 @@ func _on_object_result(result: Dictionary, obj_pos: Vector2i, target: Vector2i, 
 	if okind == OBJECT_MINE:
 		obj["owner"] = OWNER_HERO
 	elif okind == OBJECT_TREASURE:
-		# Inhalt ZUERST bestimmen, dann buchen: die Truhe gibt ein Artefakt
-		# ODER Gold, nicht beides.
-		var art3: String = _chest_artifact(obj)
-		var reward: int = int(obj["gold"])
-		_objects.remove_at(obj_idx)
-		if art3 != "":
-			_set_combat("%s, %s" % [_take_artifact(_hero, art3), _losses_text(cas)])
-		else:
-			_purse.add("gold", reward)
-			_set_combat("Schatz gefunden: %d Gold, %s" % [reward, _losses_text(cas)])
+		# Der Held, der GEKAEMPFT hat, bekommt die Truhe - nicht `_hero`
+		# (M13a-Regel fuer Kampf-Callbacks).
+		_set_combat("%s, %s" % [_open_chest(obj, obj_idx, fh), _losses_text(cas)])
 	elif okind == OBJECT_PILE:
 		var pres: String = String(obj.get("resource", "gold"))
 		var pamt: int = int(obj["gold"])
@@ -3296,35 +3345,10 @@ func _open_hero_panel() -> void:
 
 
 func _build_hero_panel() -> void:
-	var panel := Panel.new()
-	panel.visible = false
-	panel.anchor_left = 0.5
-	panel.anchor_top = 0.5
-	panel.anchor_right = 0.5
-	panel.anchor_bottom = 0.5
-	panel.offset_left = -470
-	panel.offset_top = -620
-	panel.offset_right = 470
-	panel.offset_bottom = 620
-	add_child(panel)
+	var made: Array = _make_centered_panel(Vector2(470, 620), 30, 16)
+	var panel: Panel = made[0]
+	var vb: VBoxContainer = made[1]
 	_hero_panel = panel
-
-	var bg := ColorRect.new()
-	bg.color = Color(0.07, 0.08, 0.11, 1.0)
-	bg.anchor_right = 1.0
-	bg.anchor_bottom = 1.0
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	panel.add_child(bg)
-
-	var vb := VBoxContainer.new()
-	vb.anchor_right = 1.0
-	vb.anchor_bottom = 1.0
-	vb.offset_left = 30
-	vb.offset_top = 30
-	vb.offset_right = -30
-	vb.offset_bottom = -30
-	vb.add_theme_constant_override("separation", 16)
-	panel.add_child(vb)
 
 	var title := Label.new()
 	title.text = "Heldenblatt"
@@ -3545,35 +3569,10 @@ func _open_army_exchange(other_idx: int) -> void:
 
 
 func _build_exchange_panel() -> void:
-	var panel := Panel.new()
-	panel.visible = false
-	panel.anchor_left = 0.5
-	panel.anchor_top = 0.5
-	panel.anchor_right = 0.5
-	panel.anchor_bottom = 0.5
-	panel.offset_left = -500
-	panel.offset_top = -600
-	panel.offset_right = 500
-	panel.offset_bottom = 600
-	add_child(panel)
+	var made: Array = _make_centered_panel(Vector2(500, 600), 26, 14)
+	var panel: Panel = made[0]
+	var vb: VBoxContainer = made[1]
 	_xchg_panel = panel
-
-	var bg := ColorRect.new()
-	bg.color = Color(0.07, 0.08, 0.11, 1.0)
-	bg.anchor_right = 1.0
-	bg.anchor_bottom = 1.0
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	panel.add_child(bg)
-
-	var vb := VBoxContainer.new()
-	vb.anchor_right = 1.0
-	vb.anchor_bottom = 1.0
-	vb.offset_left = 26
-	vb.offset_top = 26
-	vb.offset_right = -26
-	vb.offset_bottom = -26
-	vb.add_theme_constant_override("separation", 14)
-	panel.add_child(vb)
 
 	_xchg_title = Label.new()
 	_xchg_title.add_theme_font_size_override("font_size", 36)
@@ -3726,13 +3725,10 @@ func _fill_artifacts() -> void:
 
 
 func _drop_artifact(aid: String) -> void:
-	if _hero == null:
+	if _hero == null or not _hero.unequip(aid):
 		return
-	_hero.artifacts.erase(aid)
-	# Mana kann durch den Wissens-Verlust ueber den neuen Deckel liegen.
-	_hero.mana = mini(int(_hero.mana), _hero_max_mana())
 	_set_combat("%s abgelegt" % Artifacts.name_of(aid))
-	_update_labels()
+	_after_artifact_change(_hero)
 	_fill_hero_panel()
 	Sound.play("ui_back")
 
@@ -3745,49 +3741,41 @@ func _drop_artifact(aid: String) -> void:
 var _art_panel: Panel = null
 var _art_rows: VBoxContainer = null
 var _art_found: String = ""
+# An WEN und an WELCHE Truhe der Fund gebunden ist (It. 52). Vorher las der
+# Tausch `_hero` zur Klick-Zeit - wechselte der Spieler zwischendurch den
+# Helden, landete der Tausch beim falschen (Review, per Probe bestaetigt:
+# vier Artefakte an einem Helden, Wissen doppelt gezaehlt).
+var _art_hero: Hero = null
+var _art_chest_pos: Vector2i = Vector2i(-1, -1)
 
 
-func _show_artifact_swap(found: String) -> void:
-	if _hero == null or found == "":
+func _show_artifact_swap(found: String, h: Hero, chest_pos: Vector2i) -> void:
+	if h == null or found == "":
+		return
+	# Es kann nur EINE Entscheidung offen sein. Vorher ueberschrieb eine
+	# zweite Truhe den ersten Fund wortlos.
+	if _art_found != "" and _art_found != found:
+		_set_status("Erst den offenen Fund entscheiden")
 		return
 	_art_found = found
+	_art_hero = h
+	_art_chest_pos = chest_pos
 	if _art_panel == null:
 		_build_artifact_panel()
+	# Das Heldenblatt zu: dort liesse sich waehrend der Entscheidung ablegen
+	# oder der Held wechseln.
+	if _hero_panel != null:
+		_hero_panel.visible = false
 	_fill_artifact_panel()
 	_art_panel.visible = true
 	Sound.play("ui_tap")
 
 
 func _build_artifact_panel() -> void:
-	var panel := Panel.new()
-	panel.visible = false
-	panel.anchor_left = 0.5
-	panel.anchor_top = 0.5
-	panel.anchor_right = 0.5
-	panel.anchor_bottom = 0.5
-	panel.offset_left = -480
-	panel.offset_top = -380
-	panel.offset_right = 480
-	panel.offset_bottom = 380
-	add_child(panel)
+	var made: Array = _make_centered_panel(Vector2(480, 380), 26, 12)
+	var panel: Panel = made[0]
+	var vb: VBoxContainer = made[1]
 	_art_panel = panel
-
-	var bg := ColorRect.new()
-	bg.color = Color(0.07, 0.08, 0.11, 1.0)
-	bg.anchor_right = 1.0
-	bg.anchor_bottom = 1.0
-	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	panel.add_child(bg)
-
-	var vb := VBoxContainer.new()
-	vb.anchor_right = 1.0
-	vb.anchor_bottom = 1.0
-	vb.offset_left = 26
-	vb.offset_top = 26
-	vb.offset_right = -26
-	vb.offset_bottom = -26
-	vb.add_theme_constant_override("separation", 12)
-	panel.add_child(vb)
 
 	_art_rows = VBoxContainer.new()
 	_art_rows.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -3798,16 +3786,26 @@ func _build_artifact_panel() -> void:
 	keep.text = "Nichts tauschen"
 	keep.custom_minimum_size = Vector2(0, 88)
 	keep.add_theme_font_size_override("font_size", 28)
-	keep.pressed.connect(func() -> void:
-		_art_panel.visible = false
-		_art_found = ""
-		_set_combat("Fund liegen gelassen")
-		Sound.play("ui_back"))
+	keep.pressed.connect(_decline_artifact)
 	vb.add_child(keep)
 
 
+# Ablehnen. Steht eine Truhe dahinter, bleibt sie liegen - der Spieler kann
+# mit einem freien Platz zurueckkommen. Ohne Truhe (direktes Anlegen) ist
+# der Fund weg, und die Meldung sagt das ehrlich.
+func _decline_artifact() -> void:
+	var had_chest: bool = _art_chest_pos.x >= 0
+	_art_found = ""
+	_art_hero = null
+	_art_chest_pos = Vector2i(-1, -1)
+	if _art_panel != null:
+		_art_panel.visible = false
+	_set_combat("Fund bleibt in der Truhe" if had_chest else "Fund verfallen")
+	Sound.play("ui_back")
+
+
 func _fill_artifact_panel() -> void:
-	if _art_rows == null or _hero == null:
+	if _art_rows == null or _art_hero == null:
 		return
 	for c in _art_rows.get_children():
 		c.queue_free()
@@ -3825,7 +3823,7 @@ func _fill_artifact_panel() -> void:
 	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_art_rows.add_child(hint)
 
-	for aid in _hero.artifacts:
+	for aid in _art_hero.artifacts:
 		var id: String = String(aid)
 		var b := Button.new()
 		b.text = "%s (%s) ablegen" % [Artifacts.name_of(id), Artifacts.summary(id)]
@@ -3837,19 +3835,83 @@ func _fill_artifact_panel() -> void:
 
 
 func _swap_artifact(drop_id: String) -> void:
-	if _hero == null or _art_found == "":
-		return
+	var h: Hero = _art_hero
 	var gained: String = _art_found
-	_hero.artifacts.erase(drop_id)
-	_hero.artifacts.append(gained)
-	_hero.mana = mini(int(_hero.mana), _hero_max_mana())
+	if h == null or gained == "":
+		return
+	# NEU PRUEFEN, nicht glauben: zwischen Oeffnen und Klick kann sich die
+	# Liste geaendert haben. Ohne diese Zeilen konnte der Held ein viertes
+	# Artefakt oder eine zweite Kopie bekommen (Review, per Probe).
+	if not h.unequip(drop_id):
+		_set_status("%s traegt er nicht mehr" % Artifacts.name_of(drop_id))
+		_decline_artifact()
+		return
+	if not h.equip(gained):
+		# Zurueck auf Anfang - der Zustand bleibt, wie er war.
+		h.equip(drop_id)
+		_set_status("Tausch nicht moeglich")
+		_decline_artifact()
+		return
+	# Jetzt erst die Truhe von der Karte nehmen.
+	if _art_chest_pos.x >= 0:
+		var ci: int = _object_at(_art_chest_pos)
+		if ci >= 0 and int(_objects[ci]["kind"]) == OBJECT_TREASURE:
+			_objects.remove_at(ci)
 	_art_found = ""
+	_art_hero = null
+	_art_chest_pos = Vector2i(-1, -1)
 	if _art_panel != null:
 		_art_panel.visible = false
 	_set_combat("%s gegen %s getauscht" % [
 		Artifacts.name_of(drop_id), Artifacts.name_of(gained)])
-	_update_labels()
+	_after_artifact_change(h)
 	Sound.play("recruit")
+
+
+# Was nach JEDER Aenderung der Ausruestung zu tun ist - ein Ort statt zwei
+# (Ablegen und Tauschen hatten je ihre eigene Kopie).
+func _after_artifact_change(h: Hero) -> void:
+	if h != null:
+		# Weniger Wissen kann Mana ueber den neuen Deckel setzen.
+		var cap: int = Spells.max_mana(int(h.knowledge))
+		h.mana = mini(int(h.mana), cap)
+	_update_labels()
+	_request_redraw()
+
+
+# Das zentrierte Panel-Geruest fuer Heldenblatt, Armee-Tausch und
+# Artefakt-Tausch - EINMAL (It. 52). Vorher standen dieselben dreissig
+# Zeilen dreimal, nur mit anderen Halbgroessen. Rueckgabe: [Panel, VBox].
+func _make_centered_panel(half: Vector2, inset: float, separation: int) -> Array:
+	var panel := Panel.new()
+	panel.visible = false
+	panel.anchor_left = 0.5
+	panel.anchor_top = 0.5
+	panel.anchor_right = 0.5
+	panel.anchor_bottom = 0.5
+	panel.offset_left = -half.x
+	panel.offset_top = -half.y
+	panel.offset_right = half.x
+	panel.offset_bottom = half.y
+	add_child(panel)
+
+	var bg := ColorRect.new()
+	bg.color = Color(0.07, 0.08, 0.11, 1.0)
+	bg.anchor_right = 1.0
+	bg.anchor_bottom = 1.0
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(bg)
+
+	var vb := VBoxContainer.new()
+	vb.anchor_right = 1.0
+	vb.anchor_bottom = 1.0
+	vb.offset_left = inset
+	vb.offset_top = inset
+	vb.offset_right = -inset
+	vb.offset_bottom = -inset
+	vb.add_theme_constant_override("separation", separation)
+	panel.add_child(vb)
+	return [panel, vb]
 
 
 # EIN Ort fuer die Heldenwerte.# EIN Ort fuer die Heldenwerte. Der String stand vorher zweimal wortgleich
@@ -4940,7 +5002,17 @@ func _run_enemy_turn_for(idx: int) -> bool:
 					return true
 				eh.apply_proportional_losses(g2)
 			var tres: String = String(obj2.get("resource", "gold"))
-			if int(obj2["kind"]) == OBJECT_PILE and tres != "gold":
+			var ai_art: String = _chest_artifact(obj2)
+			if ai_art != "" and not eh.artifacts.has(ai_art):
+				# Dieselbe Truhe gibt der KI dasselbe wie dem Spieler (It.
+				# 52): das Artefakt, nicht dessen Gold. Vorher nahm die KI
+				# aus jeder Truhe Gold - ein Viertel der Truhen gab ihr
+				# damit mehr als dem Spieler. Die Werte eines KI-Helden
+				# fliessen heute NICHT in den Kampf ein; das Artefakt ist
+				# fuer sie also nur "die Truhe ist weg" - symmetrisch, aber
+				# ohne Wirkung. Wird das einmal anders, wirkt es von hier.
+				eh.equip(ai_art)
+			elif int(obj2["kind"]) == OBJECT_PILE and tres != "gold":
 				eh.wallet.add(tres, int(obj2["gold"]))
 			else:
 				eh.gold += int(obj2["gold"])

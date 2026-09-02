@@ -48,148 +48,29 @@ gegenueber der HoMM3/HotA-Baseline muss hier mit Quelle dokumentiert sein.
 | Armageddon Cost | 30 SP | 40 SP | Kombiniert mit `amulet_of_armageddon` immer noch viable |
 | Implosion Cost | 25 SP | 35 SP | Single-Target-Burst war billig |
 
-### Artefakte (neu / umgebaut)
+### Artefakte (It. 51, kleine Fassung)
 
-| Artefakt | Design-Intent |
-|---|---|
-| `crown_of_elements` | Neue Archmage-Builds mit 4. Magieschule |
-| `amulet_of_armageddon` | Dragon-Slave-Build als bewusst OP-aber-teurer Pfad |
-| `chalice_of_necromancy` | Necro-Buff mit Tradeoff (Penalty fuer Lebende) |
-| `ogre_totem` | Swarm-Build (viele billige Einheiten) als eigene Identitaet |
-| `horn_of_the_forest` | Summoner-Build taeglich freie Treants |
-| `gauntlets_of_the_conqueror` | Siege-Build als Alternative zu Open-Field |
-| `orb_of_silence` | Counter gegen Magie-Heavy-Gegner |
-| `spellbook_of_echo` | Burst-Mage-Build ermoeglichen |
-| `staff_of_the_equinox` | Meta-Mastery belohnen (Schulwechsel pro Runde) |
+Das hier frueher beschriebene Schema (slot/tier/effects/game_changer, IDs wie
+`crown_of_elements` oder `chalice_of_necromancy`) ist NICHT umgesetzt worden -
+der Nutzer hat sich fuer die kleine Fassung entschieden. `artifacts.json`
+kennt nur `bonus` (auf die vier Primaerwerte, benannt wie in skills.json) und
+`rarity`; `Artifacts.gd` liest nichts anderes. Ein Eintrag nach dem alten
+Schema haette leeren Bonus und Gewicht 1 - `test_artifacts` meldet ihn.
 
-Ziel: **mindestens 8 distinkte, spielbare Builds**, nicht eine "richtige"
-Strategie pro Fraktion.
-
-## Quellen
-
-- HotA Patchnotes 1.7.x: https://h3hota.com/en/changelog
-- VCMI Balance-Diskussionen: https://github.com/vcmi/vcmi/discussions
-- Equilibris (HoMM4) Changelog: https://equilibris.celestialheavens.com/eng/changes.html
-- HeroesCommunity.com Forum (Balance-Threads)
-
-## Simulator-Zielwerte
-
-`python game/tools/balance_sim.py --matchups=all --runs=10000` erwartet:
-
-- Jede Fraktion vs. jede: Winrate 45-55 Prozent
-- Jeder als `game_changer: true` markierte Artefakt: mindestens ein
-  dokumentierter Build, der mit Artefakt >= 60 Prozent Winrate gegen Vanilla
-  erreicht (sonst ist der Artefakt ueberfluessig)
-- Kein Build schlaegt die 65-Prozent-Marke gegen den Rest der Meta
-  (sonst dominiert er)
-
-Alle Zahlen in diesem Dokument sind **Ist-Werte**; wenn der Simulator
-Out-of-Range meldet, wird entweder die Zahl oder dieser Abschnitt
-angepasst.
-
-## Balance-Tuning-Passes (Woche 4, Seed 42, 500 Runs)
-
-Iteratives Tuning zeigte: T7-Einheiten sind die Haupt-Hebel, und bereits
-+/- 5 HP oder +/- 1 att/def verschiebt ganze Matchups um 30-50 Prozent
-Winrate. Bei MVP-Toleranz (35-65 Prozent) sind 6/6 Matchups im Rahmen,
-bei stricter Toleranz (45-55 Prozent) sind aktuell 2/6 im Rahmen.
-
-| Pass | Pivot | Ergebnis |
+| Artefakt | Bonus | rarity |
 |---|---|---|
-| Pass 1 | Erstballistik, viele Immunitaeten | Toten 98 Prozent vs Wald |
-| Pass 2 | Angel HP 200->215, Bonedragon HP gesenkt | Menschen 99-100 Prozent gegen alle |
-| Pass 3 | Angel stark genervt, Orks stark gebufft | Menschen 0 Prozent, Orks dominieren |
-| Pass 4 | Mittelweg zwischen 2 und 3 | Menschen 1-3 Prozent, Schwung zu stark |
-| Pass 5 | Feinjustierung, Wald Goldwyrm 215 HP | Goldwyrm dominiert 95-98 Prozent |
-| Pass 6 | Goldwyrm 215->205 HP | 2/6 im Rahmen, Toten noch schwach |
-| Pass 7 | Bonedragon 188->192, Blackknight 125->128 | 2/6 [OK], Rest 35-65 Prozent |
+| schwert_der_wacht | +2 Angriff | 30 |
+| schild_des_bergvolks | +2 Verteidigung | 30 |
+| helm_der_klarheit | +2 Wissen | 25 |
+| stab_der_kraft | +2 Zauberkraft | 25 |
+| umhang_des_spaehers | +1 Angriff, +1 Verteidigung | 35 |
+| krone_der_weisen | +1 Zauberkraft, +2 Wissen | 15 |
+| panzer_des_riesen | +3 Verteidigung | 10 |
+| klinge_des_zorns | +3 Angriff, -1 Verteidigung | 12 |
 
-**Final Pass 7** (akzeptiert fuer MVP):
-- Men vs Ork 43/57, Men vs Tot 61/39, Men vs Wald 45/55 [OK]
-- Ork vs Tot 67/33, Ork vs Wald 50/50 [OK], Tot vs Wald 60/40
-
-Post-MVP-Plan: Sim-Runs pro Matchup auf 2000 hochdrehen, mit
-mehreren Seeds testen, und dann T6/T7-Stats in 1er-Schritten
-feinjustieren. Auch Hero-Skill-Trees werden Balance beeinflussen.
-
-## Balance-Tuning Pass 8 (Robust-Metrik: 5 Seeds x 3 Wochen)
-
-In Pass 7 war der Sim Single-Seed/Single-Week; viele Tunings waren nicht
-reproduzierbar. Neue Robust-Metrik (`--robust`) aggregiert ueber Wochen
-2/4/6 und 5 Seeds.
-
-Pass-8-Befunde:
-- Week-Skalierung ist ein eigenes Problem: W2 und W6 zeigen oft
-  diametrale Matchups. Goldwyrm+Treefather (beide crystal-kostenpflichtig)
-  werden bei W6 zu stark.
-- T7-Parity (alle Drachen speed 9, HP 200, att 22-24, dmg 32-48) war
-  kritischer Sanierungsschritt.
-- Angel Speed 10 -> 9 (gleich mit anderen Drachen) bremst Men-Dominanz.
-
-**Final Pass 8** (Robust-Metrik, 500 Runs, 5 Seeds, Wochen 2/4/6):
-| Matchup | Mean | Status |
-|---|---|---|
-| Men vs Ork | 45.7 Prozent | [OK] |
-| Men vs Tot | 46.9 Prozent | [OK] |
-| Men vs Wald | 46.9 Prozent | [OK] |
-| Ork vs Tot | 46.9 Prozent | [OK] |
-| Ork vs Wald | 64.9 Prozent | [!!] |
-| Tot vs Wald | 66.5 Prozent | [!!] |
-
-4/6 im Zielband 45-55 Prozent. Wald-Matchups mit Orks/Tot bleiben
-systemisch zu hoch; Fix kommt mit HoMM3-Terrain-Modifiern und
-Hero-Skills (beide noch nicht in Sim).
-
-## Balance-Tuning Pass 9 (Helden-Skills im Combat)
-
-Pass 9 verkabelt `hero.skills` in `balance_sim.compute_damage`:
-offense/archery (Angreifer-Multiplikator), armorer (Verteidiger-Reduktion),
-leadership (Morale aus `make_faction_hero`). Jede Fraktion kann im MVP
-einen fraktions-typischen Skill-Build bekommen.
-
-Empirische Erkenntnis (siehe Sim-Runs in Session-Log):
-Asymmetrische Skill-Zuweisung ist ein **sehr** starker Hebel. Beispiele:
-- Men+Leadership+Armorer gegen Ork+Offense+Armorer: Men 100 Prozent
-- Nur Orks/Tot bekommen Armorer: Ork/Tot dominieren Wald mit 95 Prozent
-- Alle bekommen Leadership (Morale): Men dominiert Tot 99 Prozent
-  (weil Tot als Undead moralen-immun sind)
-
-Die kombinierten Effekte eines 15-Prozent-Armorer und eines 40-Prozent-
-Offense **compounden** ueber einen mehrrundigen Kampf zu 50+ Prozent
-Winrate-Verschiebungen. Das ist nicht handverles bar.
-
-**Entscheidung Pass 9** (Auto-Assign-Sim):
-| Matchup | Mean (Baseline) | Mean (Pass 9 Heroes) | Delta |
-|---|---|---|---|
-| Men vs Ork | 45.7 | 52.1 | +6 |
-| Men vs Tot | 46.9 | 50.3 | +3 |
-| Men vs Wald | 46.9 | 51.4 | +5 |
-| Ork vs Tot | 46.9 | 44.4 | -3 |
-| Ork vs Wald | 64.9 | 58.8 | -6 |
-| Tot vs Wald | 66.5 | 66.3 | -0 |
-
-5/6 Matchups im 40-60-Prozent-Band (vorher 4/6).
-Heroes bekommen bewusst einen **symmetrischen Default**-Build
-(+1 Attack pro Skill-Tier, keine Secondary-Skills), damit die Sim nicht
-durch Auto-Assign vergiftet wird. Strategische Skill-Wahl bleibt
-bewusst Spieler-Entscheidung; die Combat-Engine unterstuetzt beliebige
-`hero.skills`-Dicts.
-
-Offene Punkte (Post-MVP):
-- Leadership-Morale begrabt Undead-Matchups (HoMM3-korrekt, aber braucht
-  Sim-Logik die beide Haelften ausbalanciert)
-- Archery/Offense als strategische Spieler-Pick: werden in Sim-Runs fuer
-  gezielte Build-Tests genutzt (`test_artifact_builds.py`), nicht fuer
-  Auto-Assign
-- Tot vs Wald bleibt 66 Prozent; braucht entweder Terrain-Modifier
-  (Wald-Baeume hemmen Ranged) oder Tot-spezifische Anti-Ranged-Mechanik
-
-## Balance-Tuning Pass 10 (GDScript-Sim, 800 Runs, Seed 12345)
-
-Erster Pass mit der **vollstaendigen Kampf-Engine**: alle Abilities aus
-M6b (Flug, Mehrfachangriff, Konter-Regeln, Status-Effekte, Todeswolke)
-und Moral/Glueck aus M6 sind implementiert. Vorher galt die Balance nur
-auf dem Papier (Risiko 1 der Roadmap).
+Balance-Anker: auf Stufe 12 hat ein Held rund 11 Primaerpunkte aus
+Aufstiegen; drei Plaetze geben hoechstens +6 auf einen Wert. Kein Relikt,
+also keine Stufe-5-Zauber.
 
 ### Zwei Messinstrumente statt eines
 
