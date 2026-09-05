@@ -3914,7 +3914,90 @@ func _make_centered_panel(half: Vector2, inset: float, separation: int) -> Array
 	return [panel, vb]
 
 
-# EIN Ort fuer die Heldenwerte.# EIN Ort fuer die Heldenwerte. Der String stand vorher zweimal wortgleich
+# --- Kontext fuer die raeumliche Ansicht (It. 53) -------------------------
+#
+# Die 3D-Ansicht enthaelt KEINE Logik (gleiches Muster wie CityScreen): sie
+# bekommt hier alles fertig gereicht - Gelaende, Nebel, was wo steht und in
+# welcher Farbe. Damit bleibt sie eine zweite ANSICHT auf dasselbe Modell
+# und keine zweite Wahrheit darueber.
+const MAP3D_OBJECT_MODEL := {
+	OBJECT_MINE: "obj_mine",
+	OBJECT_TREASURE: "obj_treasure",
+	OBJECT_PILE: "obj_pile",
+	OBJECT_SHRINE_ATT: "obj_shrine_att",
+	OBJECT_SHRINE_DEF: "obj_shrine_def",
+	OBJECT_SHRINE_POWER: "obj_shrine_power",
+	OBJECT_SHRINE_KNOW: "obj_shrine_know",
+	OBJECT_WELL: "obj_well",
+	OBJECT_LEARNING: "obj_learning",
+	OBJECT_WINDMILL: "obj_windmill",
+}
+
+func _map3d_ctx() -> Dictionary:
+	var cities_out: Array = []
+	for c in _cities:
+		var cd: Dictionary = c as Dictionary
+		cities_out.append({
+			"pos": Vector2i(cd["pos"]),
+			"faction": int(cd.get("faction", 1)),
+			# Besitzerfarbe wie auf der 2D-Karte: eigene Stadt hell,
+			# fremde in der Farbe ihrer KI, neutrale grau.
+			"color": Color.WHITE if int(cd.get("owner", OWNER_NEUTRAL)) == OWNER_HERO
+				else (_ai_ring_color(int(cd["owner"])) if _is_ai_owner(int(cd["owner"]))
+					else Color(0.72, 0.72, 0.72)),
+		})
+	var objects_out: Array = []
+	for o in _objects:
+		var od: Dictionary = o as Dictionary
+		objects_out.append({"pos": Vector2i(od["pos"]), "kind": int(od["kind"])})
+	var monsters_out: Array = []
+	var eff_gold: int = _player_gold_power()
+	for m in _monsters:
+		var md: Dictionary = m as Dictionary
+		monsters_out.append({
+			"pos": Vector2i(md["pos"]),
+			# Dieselbe Prognosefarbe wie auf der 2D-Karte - ein Spieler
+			# soll nicht zwei Systeme lernen muessen.
+			"color": _threat_color(eff_gold, _threat_gold_of_monster(md)),
+		})
+	var heroes_out: Array = []
+	for i in range(_heroes.size()):
+		var hh: Hero = _heroes[i] as Hero
+		if hh == null:
+			continue
+		heroes_out.append({
+			"pos": hh.position,
+			"color": Color(1.0, 0.92, 0.45) if i == _active_hero
+				else Color(0.75, 0.70, 0.45),
+		})
+	var enemies_out: Array = []
+	for e in _enemies:
+		var eh: Hero = (e as Dictionary)["hero"] as Hero
+		if eh == null:
+			continue
+		var ep: Vector2i = eh.position
+		# Nur zeigen, was der Spieler auch sieht.
+		var fi: int = ep.y * MAP_WIDTH + ep.x
+		if fi >= 0 and fi < _fog_player.size() and int(_fog_player[fi]) == FOG_VISIBLE:
+			enemies_out.append({"pos": ep,
+				"color": _ai_ring_color(int((e as Dictionary)["owner_id"]))})
+	return {
+		"tiles": _map["tiles"],
+		"width": MAP_WIDTH,
+		"height": MAP_HEIGHT,
+		"fog": _fog_player,
+		"seed": _seed,
+		"cities": cities_out,
+		"objects": objects_out,
+		"monsters": monsters_out,
+		"heroes": heroes_out,
+		"enemies": enemies_out,
+		"faction_dirs": UnitArt.FACTION_DIRS,
+		"object_model": MAP3D_OBJECT_MODEL,
+	}
+
+
+# EIN Ort fuer die Heldenwerte. Der String stand vorher zweimal wortgleich
 # im Code; mit Primaerwerten und Skills waere er auseinandergelaufen.
 func _hero_stats_text() -> String:
 	# Nach dem Tod des LETZTEN Helden gibt es keinen mehr - und genau dann

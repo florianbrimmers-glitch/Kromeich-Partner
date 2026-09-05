@@ -167,6 +167,11 @@ jobs:
           ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
             --headless --path game/ --script tools/test_messages.gd
 
+      - name: Weltkarte-3D-Tests (Modelle, Oberkanten, Nebel, Tap)
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/test_world3d.gd
+
       - name: Durchspiel-Test (Weltkarte -> Kampf -> Callback -> Weltkarte)
         run: |
           ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
