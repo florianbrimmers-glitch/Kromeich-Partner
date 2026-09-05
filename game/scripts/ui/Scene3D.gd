@@ -92,28 +92,127 @@ func _enable_transparency(m: Mesh) -> void:
 
 
 func _build_lighting() -> void:
-	# Ein Hauptlicht fuer die Form, ein kaltes Gegenlicht, damit die
-	# Schattenseiten nicht absaufen. Keine Schattenkarten: auf dem Handy
-	# mit gl_compatibility kosten sie mehr, als sie hier zeigen.
-	var key := DirectionalLight3D.new()
-	key.rotation_degrees = Vector3(-48, -125, 0)
-	key.light_energy = 1.15
-	add_child(key)
+	# SONNE, HIMMEL, SCHATTEN (It. 62). Vorher: zwei Richtungslichter ohne
+	# Schatten und ein festes graues Umgebungslicht - das ergibt flache
+	# Farbflaechen ohne Volumen, egal wie gut die Modelle sind. Ein Koerper
+	# wird erst raeumlich, wenn er etwas verdeckt.
+	#
+	# Der Himmel ist hier KEINE Kulisse, sondern die zweite Lichtquelle:
+	# `AMBIENT_SOURCE_SKY` faerbt die Schattenseiten blaeulich, waehrend die
+	# Sonne warm ist. Dieser Gegensatz macht den groessten Teil des
+	# Eindrucks aus - mehr als jedes zusaetzliche Modelldetail.
+	# SONNENSTAND: von vorn-links oben, nicht von hinten.
+	#
+	# ZWEI FEHLVERSUCHE, UND WARUM DIE MITTE STIMMT:
+	#
+	# (a) Azimut -130, Hoehe 52: Licht von hinten. Die Oberseiten brannten
+	#     weiss aus, und genau die Flaechen, die die Kamera sieht, lagen im
+	#     Dunkeln.
+	# (b) Azimut -38, Hoehe 46: Licht von vorn. Die Flaechen stimmten - und
+	#     der Schatten fiel nach HINTEN, also aus Sicht der Kamera direkt
+	#     hinter die Figur, wo sie ihn selbst verdeckt. Auf dem Musterblatt
+	#     war kein einziger Schatten zu sehen, obwohl alle eingeschaltet
+	#     waren; ich habe erst an den Einstellungen gesucht und dann die
+	#     Werte zur Laufzeit ausgelesen - sie stimmten alle.
+	#
+	# Jetzt von hinten-links, aber STEIL (58 Grad): der Schatten faellt
+	# kurz nach vorn-rechts und bleibt sichtbar, und weil das Licht steil
+	# steht, bekommen die senkrechten Flaechen genug ab.
+	var sun := DirectionalLight3D.new()
+	sun.rotation_degrees = Vector3(-58, -118, 0)
+	sun.light_color = Color(1.0, 0.95, 0.86)
+	sun.light_energy = 0.95
+	sun.shadow_enabled = true
+	# SCHATTENMODUS AUF STANDARD LASSEN.
+	#
+	# Hier stand SHADOW_ORTHOGONAL (ein einzelner Ausschnitt) zusammen mit
+	# directional_shadow_max_distance = 45. Beides klang vernuenftig - die
+	# Ansichten sind flach und begrenzt. Das Ergebnis war, dass ueberhaupt
+	# kein Schatten mehr erschien, waehrend ein isolierter Testfall mit
+	# denselben Lichtwerten und den STANDARD-Einstellungen sofort welche
+	# zeigte. Mit einer orthogonalen Kamera passt Godot den Ausschnitt
+	# offenbar anders an, als ich angenommen habe. Der Standard
+	# (vier Teilausschnitte) tut hier das Richtige, also bleibt er.
+	# KEIN shadow_normal_bias, KEIN shadow_blur, KEIN
+	# light_angular_distance. Alle drei standen hier, um die Schattenkante
+	# weicher zu machen - und zusammen haben sie den Schatten unter einer
+	# 0.7 hohen Figur komplett wegg­eschoben. Ein isolierter Testfall mit
+	# denselben Lichtwerten, aber Standard-Einstellungen zeigte den
+	# Schatten sofort; das war der Unterschied. Weiche Kanten kann man
+	# nachtraeglich suchen, wenn ueberhaupt ein Schatten da ist.
+	add_child(sun)
+
+	# Schwaches Gegenlicht von vorn-rechts: es rettet die der Sonne
+	# abgewandten Silhouetten davor, im Schatten zu verschwinden. Ohne
+	# Schatten (bis It. 61) war es das Hauptmittel, jetzt nur noch Beiwerk.
 	var fill := DirectionalLight3D.new()
-	fill.rotation_degrees = Vector3(-25, 60, 0)
-	fill.light_energy = 0.35
-	fill.light_color = Color(0.75, 0.85, 1.0)
+	fill.rotation_degrees = Vector3(-18, 55, 0)
+	fill.light_energy = 0.22
+	fill.light_color = Color(0.72, 0.84, 1.0)
 	add_child(fill)
 
 	var we := WorldEnvironment.new()
+	we.environment = _make_environment()
+	add_child(we)
+
+
+# Eigene Funktion, damit die Vorschauwerkzeuge und spaetere Ansichten
+# dieselbe Stimmung bekommen und nicht jede ihre eigene baut.
+func _make_environment() -> Environment:
 	var env := Environment.new()
+
+	var sky_mat := ProceduralSkyMaterial.new()
+	sky_mat.sky_top_color = Color(0.32, 0.52, 0.80)
+	sky_mat.sky_horizon_color = Color(0.72, 0.80, 0.86)
+	sky_mat.ground_bottom_color = Color(0.26, 0.24, 0.20)
+	sky_mat.ground_horizon_color = Color(0.60, 0.58, 0.50)
+	sky_mat.sun_angle_max = 24.0
+	sky_mat.sun_curve = 0.12
+	var sky := Sky.new()
+	sky.sky_material = sky_mat
+	env.sky = sky
+	# DER HIMMEL IST LICHT, NICHT KULISSE. Als Hintergrund (BG_SKY) stand
+	# im ersten Anlauf ein blaues Rechteck ueber der Karte und ein braunes
+	# darunter, mit harter Kante dazwischen - die Karte schwamm in einer
+	# Landschaft, die es gar nicht gibt. Der Hintergrund bleibt dunkel und
+	# neutral wie bisher; die Sky-Ressource dient nur noch als Quelle fuer
+	# das Umgebungslicht.
 	env.background_mode = Environment.BG_COLOR
 	env.background_color = Color(0.07, 0.09, 0.12)
+	# UMGEBUNGSLICHT ALS FARBE, nicht aus dem Himmel.
+	#
+	# Mit AMBIENT_SOURCE_SKY war die Fuellhelligkeit so hoch, dass die
+	# Schattenseite fast so hell blieb wie die Sonnenseite - die Schatten
+	# waren gerechnet, gerendert und trotzdem unsichtbar. Ein Schatten
+	# entsteht nicht durch die Lichtquelle, sondern durch den UNTERSCHIED
+	# zu ihr. Ein kuehler, kontrollierter Farbwert macht denselben Dienst
+	# (blaeuliche Schattenseiten neben warmer Sonne) und laesst sich
+	# einstellen.
 	env.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	env.ambient_light_color = Color(0.55, 0.62, 0.75)
-	env.ambient_light_energy = 0.45
-	we.environment = env
-	add_child(we)
+	# Kuehl, aber nicht BLAU. Mit (0.52, 0.62, 0.80) faerbte das
+	# Umgebungslicht die nach oben schauenden Flaechen so stark ein, dass
+	# aus dem dunklen Nebelfeld ein Meer wurde.
+	env.ambient_light_color = Color(0.64, 0.68, 0.76)
+	env.ambient_light_energy = 0.34
+	env.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
+
+	# TONWERTKORREKTUR. Ohne sie brennen helle Flaechen (Sand, Knochen,
+	# Dachschnee) einfach auf Weiss aus und alles Dunkle saeuft ab -
+	# genau der Eindruck von "flach". Filmic haelt beide Enden.
+	# ACES statt Filmic, und Weisspunkt 1.6 statt 4.0. Mit 4.0 lag alles im
+	# unteren Drittel der Kurve: die Wiese wurde blass, das Wasser stumpf,
+	# und der Gewinn an Schatten ging als Verlust an Farbe wieder heraus.
+	env.tonemap_mode = Environment.TONE_MAPPER_ACES
+	# Weisspunkt 1.7: Sonne (0.95) und Umgebungslicht (0.34) ergeben auf
+	# einer nach oben schauenden Flaeche zusammen rund 1.3. Liegt der
+	# Weisspunkt darunter, clippt genau das - und der Hof, die Wiese und
+	# der Sand wurden pastellig. Das war der Grund, warum die ersten
+	# Versuche "blass" aussahen, nicht die Farben der Modelle.
+	env.tonemap_white = 1.7
+	env.adjustment_enabled = true
+	env.adjustment_saturation = 1.22
+	env.adjustment_contrast = 1.04
+	return env
 
 
 func _build_camera() -> void:

@@ -29,19 +29,31 @@ const FOG_DIM := Color(0.42, 0.45, 0.52)
 # schwarzes Alpha von 0.30 ueber die Kachel; hier ist es ein Faktor auf die
 # Instanzfarbe. Erreichbar bleibt VOLL hell - genau dieser Unterschied ist
 # die Reichweiten-Anzeige, nicht der Ring.
-const OUT_OF_REACH := Color(0.62, 0.64, 0.68)
-# Der duenne Ring auf erreichbaren Feldern, wie das weisse 0.25-Rechteck
-# der 2D-Karte. Er ist die ZWEITE Aussage; ohne ihn wuerde man die Grenze
-# der Reichweite auf gleichfarbigem Gelaende nicht genau sehen.
-# Alpha 0.15, nicht 0.30: bei 0.30 lagen bis zu dreissig helle Reifen auf
-# der erkundeten Flaeche und uebertoenten das Gelaende darunter - man sah
-# die Reichweite und sonst nichts mehr.
-const REACH_RING := Color(1.0, 1.0, 1.0, 0.15)
+const OUT_OF_REACH := Color(0.52, 0.55, 0.60)
+# KEIN RING MEHR AUF ERREICHBAREN FELDERN (It. 62).
+#
+# Bis It. 61 lag auf jedem erreichbaren Feld ein heller Reifen. Ohne Licht
+# war das noetig - da unterschieden sich hell und dunkel kaum. Mit Sonne,
+# Schatten und der staerkeren Abdunklung nicht erreichbarer Felder
+# (OUT_OF_REACH von 0.62 auf 0.52) sagt die HELLIGKEIT die Reichweite, und
+# dreissig Reifen darueber sahen aus wie Seifenblasen auf der Wiese. Die
+# Konstante bleibt als Beleg, was hier frueher stand.
+const REACH_RING := Color(1.0, 1.0, 1.0, 0.0)
 
 # Deko-Dichte je Gelaendeart: nicht jede Waldkachel bekommt einen Baum,
 # sonst wird die Flaeche zur Mauer und man sieht die Kachelgrenzen nicht
 # mehr. Zahl ist "von sechs".
 const DECO_CHANCE := {"forest": 5, "mountain": 4, "swamp": 3}
+
+# BODENBEWUCHS (It. 62). Zahl der Streuteile je Kachel und Gelaendeart.
+# Bis It. 61 war eine Wiese eine Flaeche in genau einem Gruen - das ist
+# der Hauptgrund, warum die Karte nach 2010 aussah. Wasser bleibt leer,
+# Gebirge hat schon seine Felsen.
+const SCATTER_COUNT := {"grass": 3, "sand": 1, "swamp": 2, "forest": 2}
+# Was gestreut wird, als Anteile von sechs. Gras ueberall, Blumen selten -
+# eine Wiese voller Blumen liest sich als Beet, nicht als Wiese.
+const SCATTER_MIX := ["deco_grass", "deco_grass", "deco_grass",
+	"deco_grass", "deco_flower", "deco_stone"]
 const DECO_MODEL := {"forest": "deco_tree", "mountain": "deco_rock",
 	"swamp": "deco_reed"}
 
@@ -99,6 +111,9 @@ func refresh(ctx: Dictionary) -> void:
 
 	var by_terrain: Dictionary = {}
 	var by_deco: Dictionary = {}
+	var by_scatter: Dictionary = {}
+	for name in SCATTER_MIX:
+		by_scatter[name] = []
 	var rings: Array = []
 	for name in TERRAIN_MODEL:
 		by_terrain[name] = []
@@ -115,9 +130,12 @@ func refresh(ctx: Dictionary) -> void:
 			# ist. Der erste Entwurf hat hier gar nichts gebaut - siehe
 			# make_fog() im Generator.
 			if f == 0:
+				# Leichte Streuung auch hier: als exakt gleiche Platten
+				# lasen sich die unerforschten Felder als Karopapier.
+				var fs: float = 0.86 + float(hash3(x, y, sd + 53) % 22) * 0.01
 				(by_terrain[FOG_MODEL] as Array).append({
 					"pos": Vector3(float(x) * TILE, 0.0, float(y) * TILE),
-					"color": Color.WHITE,
+					"color": Color(fs, fs, fs * 1.04),
 				})
 				continue
 			var t: int = int(tiles[i])
@@ -134,16 +152,18 @@ func refresh(ctx: Dictionary) -> void:
 			elif has_reach and not in_reach:
 				col = OUT_OF_REACH
 			var top: float = float(TERRAIN_TOP.get(t, 0.0))
-			if in_reach:
-				rings.append({
-					"pos": Vector3(float(x) * TILE, top, float(y) * TILE),
-					"color": REACH_RING,
-				})
+			# EINE WIESE IST NICHT EINE FARBE. Ein Hauch Streuung je
+			# Kachel (deterministisch, damit sie beim Neuzeichnen nicht
+			# flimmert) nimmt der Flaeche das Gleichmaessige, noch bevor
+			# irgendein Halm darauf steht.
+			var shade: float = 0.94 + float(hash3(x, y, sd + 31) % 13) * 0.01
+			col = Color(col.r * shade, col.g * shade, col.b * shade, col.a)
 			(by_terrain[TERRAIN_MODEL[t]] as Array).append({
 				"pos": Vector3(float(x) * TILE, 0.0, float(y) * TILE),
 				"color": col,
 			})
 			var key: String = TERRAIN_MODEL[t].substr(2)
+			_scatter(by_scatter, key, x, y, sd, top, col)
 			if DECO_CHANCE.has(key) and hash3(x, y, sd) % 6 < int(DECO_CHANCE[key]):
 				var hh: int = hash3(x, y, sd + 7)
 				(by_deco[DECO_MODEL[key]] as Array).append({
@@ -159,6 +179,8 @@ func refresh(ctx: Dictionary) -> void:
 		_fill(String(name), by_terrain[name])
 	for name in by_deco.keys():
 		_fill(String(name), by_deco[name])
+	for name in by_scatter.keys():
+		_fill(String(name), by_scatter[name])
 
 	# Die Reichweiten-Ringe gehen in DENSELBEN Topf wie die Besitzer-Ringe:
 	# ein Modell, ein MultiMesh. Zwei Toepfe waeren zwei Zeichenaufrufe fuer
@@ -239,6 +261,31 @@ func _place_things(ctx: Dictionary, tiles: Array, fog: Array, w: int,
 	# Reste der letzten Runde stehen (ein gefallener Held zum Beispiel).
 	# Gelaende und Deko sind oben schon vollstaendig gesetzt.
 	_clear_except(per_model, ["t_", "deco_"])
+
+
+# Bodenbewuchs auf EINER Kachel. Ort, Drehung, Groesse und Art kommen aus
+# demselben deterministischen Wuerfel wie die uebrige Deko - waechselte
+# der Bewuchs bei jedem Neuzeichnen den Platz, waere die Karte unruhig und
+# nicht wiedererkennbar (die Lehre aus _tile_variant in der 2D-Karte).
+func _scatter(into: Dictionary, key: String, x: int, y: int, sd: int,
+		top: float, col: Color) -> void:
+	var n: int = int(SCATTER_COUNT.get(key, 0))
+	for i in range(n):
+		var h: int = hash3(x, y, sd + 101 + i * 17)
+		var model: String = SCATTER_MIX[h % SCATTER_MIX.size()]
+		if not into.has(model):
+			into[model] = []
+		# Nicht bis an die Kachelkante: sonst waechst der Halm halb auf der
+		# Nachbarkachel und die Grenze franst aus.
+		var dx: float = (float((h / 7) % 100) / 100.0 - 0.5) * 0.66
+		var dz: float = (float((h / 700) % 100) / 100.0 - 0.5) * 0.66
+		var sc: float = 0.75 + float((h / 70000) % 60) * 0.01
+		(into[model] as Array).append({
+			"pos": Vector3(float(x) * TILE + dx, top, float(y) * TILE + dz),
+			"rot": float(h % 360) * PI / 180.0,
+			"scale": Vector3(sc, sc, sc),
+			"color": col,
+		})
 
 
 # Kamera auf denselben Ausschnitt wie die 2D-Karte: `center` ist die

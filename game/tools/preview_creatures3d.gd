@@ -47,6 +47,16 @@ func _init() -> void:
 	f.look_at_cells(Vector2(3.0, 3.6), 9.6)
 	for i in range(4):
 		await process_frame
+	for ch in f.get_children():
+		if ch is DirectionalLight3D:
+			print("  DBG Licht rot=", (ch as DirectionalLight3D).rotation_degrees,
+				" energie=", (ch as DirectionalLight3D).light_energy,
+				" schatten=", (ch as DirectionalLight3D).shadow_enabled)
+		if ch is WorldEnvironment:
+			var e := (ch as WorldEnvironment).environment
+			print("  DBG Umgebung quelle=", e.ambient_light_source,
+				" energie=", e.ambient_light_energy,
+				" tonemap=", e.tonemap_mode)
 	var path := "user://creatures3d-sheet.png"
 	var err: int = root.get_texture().get_image().save_png(path)
 	var missing: Array = []

@@ -38,6 +38,7 @@ import blender_kit as bk  # noqa: E402
 box = bk.box
 cone = bk.cone
 merge = bk.merge
+rad = bk.rad
 material = bk.material
 srgb = bk.srgb
 
@@ -99,8 +100,14 @@ def make_terrain():
         # Wiese, und die Felsen standen ohne Berg herum.
         top = extra
         h = BASE + max(extra, 0.0)
+        # FASE FAST WEG (It. 62). Bis It. 61 hatte jede Kachel 0.015
+        # Fase - ohne Licht war das noetig, damit man ueberhaupt eine
+        # Kante sah. Mit Sonne und Schatten kippt es ins Gegenteil: jede
+        # Fase faengt einen hellen Saum, und aus 468 Saeumen wird ein
+        # Gitternetz ueber der ganzen Landschaft. Olden Era hat kein
+        # sichtbares Raster; wir jetzt auch fast keins mehr.
         ob = box((TILE * 0.5, TILE * 0.5, h * 0.5),
-                 (0, 0, top - h * 0.5), col, bevel=0.015,
+                 (0, 0, top - h * 0.5), col, bevel=0.003,
                  name="t_" + name)
         ob.location = (0, 0, 0)
 
@@ -116,8 +123,29 @@ def make_fog():
     der Karte war nicht mehr abzulesen. Eine Leerstelle sagt nicht
     "unbekannt", sie sagt gar nichts.
     """
-    ob = box((TILE * 0.5, TILE * 0.5, BASE * 0.5),
-             (0, 0, -BASE * 0.5), "#262a33", bevel=0.015, name="t_fog")
+    # EINE FLAECHE, KEIN QUADER - und das ist kein Sparzwang.
+    #
+    # Bei voller Kachelbreite liegen die SEITENflaechen benachbarter
+    # Quader exakt aufeinander. Solange die Fase 0.015 betrug, hielt sie
+    # sie auseinander; mit 0.002 (It. 62, gegen das Gitternetz ueber der
+    # Landschaft) wurden sie deckungsgleich - und deckungsgleiche Flaechen
+    # streiten sich um die Tiefe. Das Ergebnis waren drei helle Querlinien
+    # quer durch das Nebelfeld, an festen Weltpositionen, unabhaengig von
+    # Aufloesung und Schatten. So sieht Z-Fighting aus: nicht ueberall,
+    # sondern in Baendern dort, wo die Tiefenwerte kollidieren.
+    # Eingekreist habe ich es, indem ich die Nebelplatten testweise gar
+    # nicht gebaut habe - dann waren die Linien weg.
+    #
+    # Der naechste Anlauf (Kachel auf 0.985 verkleinert) nahm die Baender
+    # weg und hinterliess ein feines dunkles Fugenraster. Eine Flaeche hat
+    # weder das eine noch das andere: keine Seitenflaechen, die kollidieren
+    # koennen, und trotzdem Kante an Kante. Von oben sieht man ohnehin nur
+    # die Oberseite.
+    # SEHR DUNKEL, und dunkler als vorher noetig: seit It. 62 steht eine
+    # Sonne am Himmel und ein kuehles Umgebungslicht daneben. Die Platte
+    # schaut nach oben, faengt also beides voll ab - mit #1b1f27 wurde
+    # aus dem Nebelfeld ein blaues Meer.
+    ob = bk.plane((TILE, TILE), (0, 0, 0.0), "#0b0d11", name="t_fog")
     ob.location = (0, 0, 0)
 
 
@@ -145,6 +173,41 @@ def make_deco():
         stalks.append(box((0.02, 0.02, hh * 0.5), (dx, dz, hh * 0.5),
                           "#6b7a45", 0.0))
     merge("deco_reed", stalks)
+
+
+def make_scatter():
+    """Bodenbewuchs: Grasbuschel, Blume, kleiner Stein.
+
+    WARUM DAS DER GROESSTE HEBEL IST: bis It. 61 war eine Wiese eine
+    Flaeche in genau einem Gruen. Kein Spiel dieses Jahrzehnts sieht so
+    aus - was den Eindruck macht, ist nicht die Aufloesung der Modelle,
+    sondern dass der Boden BEWACHSEN ist. Drei winzige Modelle, dicht
+    gestreut und in Groesse und Drehung variiert, tun dafuer mehr als
+    doppelt so viele Flaechen an den grossen Modellen.
+
+    Sie sind bewusst sehr klein (unter 0.12 hoch): bei 34 Grad Neigung
+    verschiebt jede Hoehe ihre Spitze um das 1.5-fache nach oben, und
+    Bewuchs, der die Kachel dahinter verdeckt, ist Unkraut.
+    """
+    merge("deco_grass", [
+        box((0.012, 0.010, 0.045), (-0.03, 0.01, 0.045), "#6f9b45", 0.0,
+            rot=(rad(9), 0, rad(-12))),
+        box((0.011, 0.010, 0.055), (0.00, -0.01, 0.055), "#7cab4c", 0.0,
+            rot=(rad(-6), 0, rad(5))),
+        box((0.010, 0.009, 0.040), (0.03, 0.02, 0.040), "#5f8a3c", 0.0,
+            rot=(0, 0, rad(16))),
+    ])
+    merge("deco_flower", [
+        box((0.008, 0.008, 0.040), (0, 0, 0.040), "#5f8a3c", 0.0),
+        box((0.022, 0.022, 0.010), (0, 0, 0.086), "#e8c85a", 0.004),
+        box((0.009, 0.009, 0.008), (0, 0, 0.098), "#f2e6a8", 0.003),
+    ])
+    merge("deco_stone", [
+        box((0.035, 0.030, 0.022), (0, 0, 0.022), "#8e8880", 0.010,
+            rot=(0, 0, rad(22))),
+        box((0.018, 0.016, 0.014), (0.04, -0.02, 0.014), "#9d968c", 0.006,
+            rot=(0, 0, rad(-14))),
+    ])
 
 
 def make_cities():
@@ -301,6 +364,7 @@ def main():
     make_terrain()
     make_fog()
     make_deco()
+    make_scatter()
     make_cities()
     make_hero()
     make_monster()

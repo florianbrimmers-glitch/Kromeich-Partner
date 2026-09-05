@@ -256,8 +256,11 @@ def make_ground():
     einmal als Zahl in diesem Generator; beim naechsten Umbau des Hofs
     laegen Boden und Bauplaetze auseinander.
     """
-    box((0.5, 0.5, 0.04), (0, 0, -0.04), "#5f5a4a", 0.0, name="city_ground")
-    box((0.5, 0.5, 0.006), (0, 0, 0.006), "#8a8168", 0.0, name="city_road")
+    # Dunkler als vorher: seit It. 62 scheint eine Sonne auf den Hof, und
+    # #5f5a4a wurde damit zu einem hellen Beige, auf dem die Gebaeude
+    # keinen Halt mehr hatten.
+    box((0.5, 0.5, 0.04), (0, 0, -0.04), "#46402f", 0.0, name="city_ground")
+    box((0.5, 0.5, 0.006), (0, 0, 0.006), "#6e6248", 0.0, name="city_road")
     ob = cone(0.62, 0.02, (0, 0, 0.012), "#948a70", verts=16,
               name="city_plaza")
     ob.scale = (1.0, 0.62, 1.0)

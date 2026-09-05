@@ -37,10 +37,18 @@ window/handheld/orientation=1
 
 [rendering]
 
-; gl_compatibility (GLES3) statt Vulkan-Mobile: robuster auf Android,
-; insbesondere auf Samsung-Geraeten mit One UI. Die 3D-Weltkarte (It. 53)
-; ist darauf ausgelegt - flaechige Modelle, zwei Richtungslichter, keine
-; Schattenkarten.
+; RENDERER: mobile (Vulkan) seit It. 62, vom Nutzer so entschieden.
+;
+; Bis dahin stand hier gl_compatibility (GLES3), weil es auf Android und
+; besonders auf Samsung-Geraeten mit One UI robuster ist. Das gilt
+; weiterhin - der Wechsel ist eine bewusste Wette: der Mobile-Renderer
+; bringt echte Schattenkarten, PBR-Beleuchtung, Himmel als Lichtquelle,
+; Nebel und Tonwertkorrektur, und ohne die sieht das Spiel aus wie 2010.
+;
+; DER RUECKWEG IST EINE ZEILE: beide Werte zurueck auf "gl_compatibility".
+; Wenn die APK auf dem Geraet zickt (schwarzes Bild, Absturz beim Start,
+; ruckelnde Karte), ist das der erste Griff - und die 3D-Ansichten laufen
+; dort weiter, nur ohne Schatten und mit flacherem Licht.
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
 textures/vram_compression/import_etc2_astc=true

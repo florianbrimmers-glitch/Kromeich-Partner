@@ -80,6 +80,12 @@ func _test_models_present() -> void:
 		want.append("city_" + String(f))
 	want.append_array(["hero", "monster", "marker_disc", "marker_ring"])
 	want.append(Map3D.FOG_MODEL)
+	# Der Bodenbewuchs (It. 62). Fehlt eines dieser Modelle, faellt es
+	# stumm aus - die Wiese waere wieder eine Farbflaeche, und niemand
+	# wuerde nach einem fehlenden Modell suchen.
+	for sc in Map3D.SCATTER_MIX:
+		if not want.has(String(sc)):
+			want.append(String(sc))
 	var missing: Array = []
 	for n in want:
 		if not _view._meshes.has(String(n)):

@@ -122,6 +122,26 @@ def ball(radius, loc, hexstr, subdiv=1, name=None):
     return ob
 
 
+def plane(size, loc, hexstr, name=None):
+    """Flache Flaeche OHNE Seitenflaechen.
+
+    WOFUER: Kacheln, die luecken- und nahtlos aneinanderstossen sollen.
+    Ein Quader hat Seitenflaechen, und die zweier benachbarter Kacheln
+    liegen bei voller Kachelbreite exakt aufeinander - sie streiten sich
+    dann um die Tiefe (Z-Fighting), was in Baendern aufblitzt. Der Ausweg
+    ueber eine Fase oder eine kleinere Kachel loest das, hinterlaesst aber
+    eine sichtbare Fuge. Eine Flaeche hat das Problem gar nicht: zwei
+    benachbarte liegen in derselben Ebene, ueberlappen sich aber nicht.
+    """
+    bpy.ops.mesh.primitive_plane_add(size=1.0, location=loc)
+    ob = bpy.context.active_object
+    ob.name = name or _uniq("plane")
+    ob.scale = (size[0], size[1], 1.0)
+    _bake(ob)
+    ob.data.materials.append(material(ob.name + "_m", hexstr))
+    return ob
+
+
 def merge(name, objs):
     """Teile zu EINEM Mesh verschmelzen. Godot instanziiert die Modelle
     ueber MultiMesh - dafuer muss je Modell genau ein Mesh herauskommen."""
