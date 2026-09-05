@@ -1,0 +1,153 @@
+"""Gemeinsame Bausteine fuer die Blender-Generatoren (It. 53).
+
+    import blender_kit as bk
+
+WARUM EINE EIGENE DATEI: `gen_models.py` (Weltkarte) und
+`gen_creatures.py` (Kreaturen) brauchen dieselben vier Handgriffe -
+Quader, Kegel, Material, Verschmelzen. Eine Kopie davon in beiden Dateien
+waere dieselbe Falle wie die nachgebaute Nachbarschaft im Durchspiel-Test
+(It. 42) und die eigenen Zahlen in den Vorschauwerkzeugen (It. 36/37):
+sie laufen beim naechsten Umbau auseinander, und zwar still.
+
+ALLE MASSE SIND HALBMASSE - Abstand von der Mitte zur Kante. Der erste
+Anlauf hat sie als volle Kantenlaenge gelesen; damit war jedes Teil halb
+so gross, und weil eine Kachel dann 0.5 breit ist, aber im Abstand 1.0
+steht, zerfiel die Karte in schwebende Plaettchen.
+"""
+
+import math
+
+import bpy
+
+
+def srgb(hexstr):
+    """Hex -> linearer RGBA. glTF-Materialien rechnen linear; gibt man den
+    sRGB-Wert direkt weiter, wirkt jede Farbe deutlich zu hell."""
+    h = hexstr.lstrip("#")
+    out = []
+    for i in (0, 2, 4):
+        c = int(h[i:i + 2], 16) / 255.0
+        out.append(c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4)
+    return (*out, 1.0)
+
+
+_mat_cache = {}
+
+
+def material(name, hexstr, rough=0.85):
+    """Materialien werden nach FARBE zwischengespeichert, nicht nach Name.
+
+    Ohne den Zwischenspeicher bekommt jeder Quader sein eigenes Material.
+    Beim Verschmelzen bleiben daraus eigene Flaechengruppen - eine Kreatur
+    aus fuenfzehn Teilen hatte fuenfzehn davon, obwohl sie nur fuenf Farben
+    traegt. Das kostet Dateigroesse und, schwerer wiegend, EINEN
+    ZEICHENAUFRUF PRO GRUPPE: der Sinn des MultiMesh war, dass ein Modell
+    einen Aufruf kostet.
+    """
+    key = (hexstr, round(rough, 3))
+    if key in _mat_cache:
+        return _mat_cache[key]
+    m = bpy.data.materials.new(name)
+    _mat_cache[key] = m
+    m.use_nodes = True
+    bsdf = m.node_tree.nodes["Principled BSDF"]
+    bsdf.inputs["Base Color"].default_value = srgb(hexstr)
+    bsdf.inputs["Roughness"].default_value = rough
+    bsdf.inputs["Metallic"].default_value = 0.0
+    m.diffuse_color = srgb(hexstr)
+    return m
+
+
+_n = [0]
+
+
+def _uniq(prefix):
+    _n[0] += 1
+    return "%s_%d" % (prefix, _n[0])
+
+
+def _bake(ob):
+    """Lage, Drehung und Groesse in die MESHDATEN schreiben.
+
+    WARUM DAS SEIN MUSS: `merge` verschmilzt in das ERSTE Teil, und das
+    Ergebnis behaelt dessen Objektursprung. Godot liest aus dem glb nur
+    das Mesh, nicht die Knotenlage - ein Ursprung ungleich null geht dabei
+    verloren. Kegel und Kugel hatten ihn zuerst nicht eingebacken: Moench
+    und Lich standen deshalb bis zur Huefte im Boden (ihr erstes Teil ist
+    der Kegel, Ursprung 0.34 ueber dem Fuss), und die Markierungsscheiben
+    lagen 0.01 zu tief. Gesehen hat man nur Letzteres nicht.
+    """
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+
+
+def box(size, loc, hexstr, bevel=0.02, rot=None, name=None):
+    """Quader mit angefaster Kante. Die Fase ist der ganze Trick am
+    Low-Poly-Look: ohne sie verschmelzen benachbarte Flaechen gleicher
+    Farbe zu einer Masse, mit ihr faengt jede Kante einen Lichtsaum."""
+    bpy.ops.mesh.primitive_cube_add(size=1.0, location=loc)
+    ob = bpy.context.active_object
+    ob.name = name or _uniq("box")
+    ob.scale = (size[0] * 2.0, size[1] * 2.0, size[2] * 2.0)
+    if rot:
+        ob.rotation_euler = rot
+    bpy.ops.object.transform_apply(scale=True, rotation=bool(rot))
+    if bevel > 0:
+        bpy.ops.object.modifier_add(type="BEVEL")
+        ob.modifiers["Bevel"].width = bevel
+        ob.modifiers["Bevel"].segments = 1
+        bpy.ops.object.modifier_apply(modifier="Bevel")
+    ob.data.materials.append(material(ob.name + "_m", hexstr))
+    return ob
+
+
+def cone(radius, depth, loc, hexstr, verts=6, rot=None, name=None):
+    bpy.ops.mesh.primitive_cone_add(vertices=verts, radius1=radius,
+                                    depth=depth, location=loc)
+    ob = bpy.context.active_object
+    ob.name = name or _uniq("cone")
+    if rot:
+        ob.rotation_euler = rot
+    _bake(ob)
+    ob.data.materials.append(material(ob.name + "_m", hexstr))
+    return ob
+
+
+def ball(radius, loc, hexstr, subdiv=1, name=None):
+    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=subdiv, radius=radius,
+                                          location=loc)
+    ob = bpy.context.active_object
+    ob.name = name or _uniq("ball")
+    _bake(ob)
+    ob.data.materials.append(material(ob.name + "_m", hexstr))
+    return ob
+
+
+def merge(name, objs):
+    """Teile zu EINEM Mesh verschmelzen. Godot instanziiert die Modelle
+    ueber MultiMesh - dafuer muss je Modell genau ein Mesh herauskommen."""
+    for o in bpy.context.selected_objects:
+        o.select_set(False)
+    for o in objs:
+        o.select_set(True)
+    bpy.context.view_layer.objects.active = objs[0]
+    if len(objs) > 1:
+        bpy.ops.object.join()
+    ob = bpy.context.active_object
+    ob.name = name
+    return ob
+
+
+def export(path):
+    # Y-up: Godot rechnet mit Y nach oben, Blender mit Z. Der Exporter
+    # dreht das, wenn man ihn laesst - sonst liegt die ganze Welt flach.
+    bpy.ops.export_scene.gltf(filepath=path, export_format="GLB",
+                              export_yup=True, export_apply=True)
+    names = sorted(o.name for o in bpy.data.objects)
+    tris = sum(len(o.data.polygons) for o in bpy.data.objects
+               if o.type == "MESH")
+    print("MODELLE %d: %s" % (len(names), ", ".join(names)))
+    print("FLAECHEN gesamt: %d" % tris)
+
+
+def rad(deg):
+    return math.radians(deg)

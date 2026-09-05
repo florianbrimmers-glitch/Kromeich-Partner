@@ -24,9 +24,23 @@ Texturen - nur Material-Grundfarben, damit die APK nicht waechst.
 """
 
 import math
+import os
 import sys
 
 import bpy
+
+# Die Helfer liegen in blender_kit.py - siehe dort, warum sie nicht
+# doppelt im Code stehen. Blender legt das Skriptverzeichnis NICHT von
+# selbst in den Suchpfad.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import blender_kit as bk  # noqa: E402
+
+box = bk.box
+cone = bk.cone
+merge = bk.merge
+material = bk.material
+srgb = bk.srgb
+
 
 # ---------------------------------------------------------------- Grundmasse
 
@@ -71,82 +85,6 @@ FACTIONS = [
 
 # ---------------------------------------------------------------- Helfer
 
-def srgb(hexstr):
-    """Hex -> linearer RGBA. glTF-Materialien rechnen linear; gibt man den
-    sRGB-Wert direkt weiter, wirkt jede Farbe deutlich zu hell."""
-    h = hexstr.lstrip("#")
-    out = []
-    for i in (0, 2, 4):
-        c = int(h[i:i + 2], 16) / 255.0
-        out.append(c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4)
-    return (*out, 1.0)
-
-
-def material(name, hexstr, rough=0.85):
-    m = bpy.data.materials.new(name)
-    m.use_nodes = True
-    bsdf = m.node_tree.nodes["Principled BSDF"]
-    bsdf.inputs["Base Color"].default_value = srgb(hexstr)
-    bsdf.inputs["Roughness"].default_value = rough
-    bsdf.inputs["Metallic"].default_value = 0.0
-    m.diffuse_color = srgb(hexstr)
-    return m
-
-
-def box(name, size, loc, hexstr, bevel=0.02, rot=None):
-    """Quader mit angefaster Kante. Die Fase ist der ganze Trick am
-    Low-Poly-Look: ohne sie verschmelzen benachbarte Flaechen gleicher
-    Farbe zu einer Masse, mit ihr faengt jede Kante einen Lichtsaum."""
-    bpy.ops.mesh.primitive_cube_add(size=1.0, location=loc)
-    ob = bpy.context.active_object
-    ob.name = name
-    # `size` sind HALBMASSE (Abstand von der Mitte zur Kante) - so sind
-    # alle Zahlen hier geschrieben. Der Grundkoerper misst 1.0, also
-    # verdoppeln.
-    #
-    # WARUM DAS HIER STEHT: im ersten Anlauf hat `box` die Werte als volle
-    # Kantenlaenge genommen. Damit war JEDES Teil halb so gross - und weil
-    # eine Kachel dann 0.5 breit ist, aber im Abstand 1.0 gesetzt wird,
-    # zerfiel die Karte in schwebende Plaettchen mit Luecken dazwischen.
-    # Genau so sah der allererste Prototyp aus; der Fehler ist beim
-    # Uebertragen ins Projekt zurueckgekommen.
-    ob.scale = (size[0] * 2.0, size[1] * 2.0, size[2] * 2.0)
-    if rot:
-        ob.rotation_euler = rot
-    bpy.ops.object.transform_apply(scale=True, rotation=bool(rot))
-    if bevel > 0:
-        bpy.ops.object.modifier_add(type="BEVEL")
-        ob.modifiers["Bevel"].width = bevel
-        ob.modifiers["Bevel"].segments = 1
-        bpy.ops.object.modifier_apply(modifier="Bevel")
-    ob.data.materials.append(material(name + "_m", hexstr))
-    return ob
-
-
-def cone(name, radius, depth, loc, hexstr, verts=6):
-    bpy.ops.mesh.primitive_cone_add(vertices=verts, radius1=radius,
-                                    depth=depth, location=loc)
-    ob = bpy.context.active_object
-    ob.name = name
-    ob.data.materials.append(material(name + "_m", hexstr))
-    return ob
-
-
-def merge(name, objs):
-    """Teile zu EINEM Mesh verschmelzen. Godot instanziiert die Modelle
-    ueber MultiMesh - dafuer muss je Modell genau ein Mesh herauskommen."""
-    for o in bpy.context.selected_objects:
-        o.select_set(False)
-    for o in objs:
-        o.select_set(True)
-    bpy.context.view_layer.objects.active = objs[0]
-    if len(objs) > 1:
-        bpy.ops.object.join()
-    ob = bpy.context.active_object
-    ob.name = name
-    return ob
-
-
 # ---------------------------------------------------------------- Bausteine
 
 def make_terrain():
@@ -161,8 +99,9 @@ def make_terrain():
         # Wiese, und die Felsen standen ohne Berg herum.
         top = extra
         h = BASE + max(extra, 0.0)
-        ob = box("t_" + name, (TILE * 0.5, TILE * 0.5, h * 0.5),
-                 (0, 0, top - h * 0.5), col, bevel=0.015)
+        ob = box((TILE * 0.5, TILE * 0.5, h * 0.5),
+                 (0, 0, top - h * 0.5), col, bevel=0.015,
+                 name="t_" + name)
         ob.location = (0, 0, 0)
 
 
@@ -177,8 +116,8 @@ def make_fog():
     der Karte war nicht mehr abzulesen. Eine Leerstelle sagt nicht
     "unbekannt", sie sagt gar nichts.
     """
-    ob = box("t_fog", (TILE * 0.5, TILE * 0.5, BASE * 0.5),
-             (0, 0, -BASE * 0.5), "#262a33", bevel=0.015)
+    ob = box((TILE * 0.5, TILE * 0.5, BASE * 0.5),
+             (0, 0, -BASE * 0.5), "#262a33", bevel=0.015, name="t_fog")
     ob.location = (0, 0, 0)
 
 
@@ -189,21 +128,21 @@ def make_deco():
     # war 1.01 hoch, also hoeher als eine Kachel breit ist. Bei 34 Grad
     # Neigung deckte er die Kachel dahinter fast ganz zu, und eine
     # Waldflaeche wurde zur Hecke, hinter der die Karte verschwand.
-    trunk = box("d1", (0.04, 0.04, 0.10), (0, 0, 0.10), "#4a3520", 0.01)
-    c1 = box("d2", (0.17, 0.17, 0.15), (0, 0, 0.35), "#2c5220", 0.07)
-    c2 = box("d3", (0.11, 0.11, 0.10), (0, 0, 0.58), "#3e6c20", 0.05)
+    trunk = box((0.04, 0.04, 0.10), (0, 0, 0.10), "#4a3520", 0.01)
+    c1 = box((0.17, 0.17, 0.15), (0, 0, 0.35), "#2c5220", 0.07)
+    c2 = box((0.11, 0.11, 0.10), (0, 0, 0.58), "#3e6c20", 0.05)
     merge("deco_tree", [trunk, c1, c2])
 
-    r1 = box("e1", (0.18, 0.17, 0.14), (0, 0, 0.14), "#6f6a63", 0.05,
+    r1 = box((0.18, 0.17, 0.14), (0, 0, 0.14), "#6f6a63", 0.05,
              rot=(0, 0, math.radians(18)))
-    r2 = box("e2", (0.11, 0.10, 0.20), (0.13, -0.08, 0.20), "#7d7870", 0.04,
+    r2 = box((0.11, 0.10, 0.20), (0.13, -0.08, 0.20), "#7d7870", 0.04,
              rot=(0, math.radians(7), math.radians(-25)))
     merge("deco_rock", [r1, r2])
 
     stalks = []
     for i, (dx, dz, hh) in enumerate([(-0.12, 0.08, 0.26), (0.10, -0.06, 0.32),
                                       (0.02, 0.16, 0.20)]):
-        stalks.append(box("s%d" % i, (0.02, 0.02, hh * 0.5), (dx, dz, hh * 0.5),
+        stalks.append(box((0.02, 0.02, hh * 0.5), (dx, dz, hh * 0.5),
                           "#6b7a45", 0.0))
     merge("deco_reed", stalks)
 
@@ -219,25 +158,25 @@ def make_cities():
     # verschiebt die Turmspitze um 2.4 Kachelreihen nach oben.
     for idx, (fac, light, dark) in enumerate(FACTIONS):
         parts = []
-        parts.append(box("k%d" % idx, (0.19, 0.19, 0.46), (-0.15, 0.12, 0.46),
+        parts.append(box((0.19, 0.19, 0.46), (-0.15, 0.12, 0.46),
                          light, 0.03))
         if fac == "waldvolk":
-            parts.append(cone("kd%d" % idx, 0.25, 0.34, (-0.15, 0.12, 1.09),
+            parts.append(cone(0.25, 0.34, (-0.15, 0.12, 1.09),
                               dark, verts=8))
         elif fac == "menschen":
-            parts.append(box("kd%d" % idx, (0.14, 0.14, 0.14), (-0.15, 0.12, 1.06),
+            parts.append(box((0.14, 0.14, 0.14), (-0.15, 0.12, 1.06),
                              dark, 0.05))
         elif fac == "totenreich":
-            parts.append(cone("kd%d" % idx, 0.20, 0.44, (-0.15, 0.12, 1.14),
+            parts.append(cone(0.20, 0.44, (-0.15, 0.12, 1.14),
                               dark, verts=4))
         else:
-            parts.append(box("kd%d" % idx, (0.21, 0.21, 0.08), (-0.15, 0.12, 1.00),
+            parts.append(box((0.21, 0.21, 0.08), (-0.15, 0.12, 1.00),
                              dark, 0.03, rot=(0, 0, math.radians(45))))
-        parts.append(box("kh%d" % idx, (0.24, 0.17, 0.22), (0.18, -0.16, 0.22),
+        parts.append(box((0.24, 0.17, 0.22), (0.18, -0.16, 0.22),
                          light, 0.03))
-        parts.append(box("kr%d" % idx, (0.27, 0.20, 0.07), (0.18, -0.16, 0.51),
+        parts.append(box((0.27, 0.20, 0.07), (0.18, -0.16, 0.51),
                          dark, 0.04))
-        parts.append(box("kw%d" % idx, (0.38, 0.06, 0.15), (0.0, 0.34, 0.15),
+        parts.append(box((0.38, 0.06, 0.15), (0.0, 0.34, 0.15),
                          dark, 0.02))
         merge("city_" + fac, parts)
 
@@ -246,11 +185,11 @@ def make_hero():
     """Held: Sockel, Koerper, Kopf, Banner. Der Sockel traegt spaeter den
     Besitzer-Ring, deshalb ist er breiter als die Figur."""
     parts = [
-        box("h1", (0.22, 0.22, 0.04), (0, 0, 0.04), "#d8c85a", 0.02),
-        box("h2", (0.15, 0.15, 0.27), (0, 0, 0.36), "#e8d878", 0.04),
-        box("h3", (0.12, 0.12, 0.12), (0, 0, 0.76), "#f2e8c8", 0.05),
-        box("h4", (0.02, 0.02, 0.30), (0.18, 0.0, 0.42), "#8a7a3a", 0.0),
-        box("h5", (0.01, 0.10, 0.12), (0.18, 0.10, 0.66), "#c8443a", 0.0),
+        box((0.22, 0.22, 0.04), (0, 0, 0.04), "#d8c85a", 0.02),
+        box((0.15, 0.15, 0.27), (0, 0, 0.36), "#e8d878", 0.04),
+        box((0.12, 0.12, 0.12), (0, 0, 0.76), "#f2e8c8", 0.05),
+        box((0.02, 0.02, 0.30), (0.18, 0.0, 0.42), "#8a7a3a", 0.0),
+        box((0.01, 0.10, 0.12), (0.18, 0.10, 0.66), "#c8443a", 0.0),
     ]
     merge("hero", parts)
 
@@ -262,14 +201,14 @@ def make_monster():
     die weisse Markierungsscheibe, und die sah nicht nach Gegner aus,
     sondern nach Fehler."""
     merge("monster", [
-        box("g1", (0.20, 0.16, 0.20), (0, 0, 0.22), "#4a3a4e", 0.05),
-        box("g2", (0.13, 0.12, 0.11), (0, -0.10, 0.53), "#5c4860", 0.04),
-        box("g3", (0.03, 0.03, 0.12), (-0.11, -0.08, 0.68), "#d8cfa8", 0.0,
+        box((0.20, 0.16, 0.20), (0, 0, 0.22), "#4a3a4e", 0.05),
+        box((0.13, 0.12, 0.11), (0, -0.10, 0.53), "#5c4860", 0.04),
+        box((0.03, 0.03, 0.12), (-0.11, -0.08, 0.68), "#d8cfa8", 0.0,
             rot=(0, math.radians(-22), 0)),
-        box("g4", (0.03, 0.03, 0.12), (0.11, -0.08, 0.68), "#d8cfa8", 0.0,
+        box((0.03, 0.03, 0.12), (0.11, -0.08, 0.68), "#d8cfa8", 0.0,
             rot=(0, math.radians(22), 0)),
-        box("g5", (0.07, 0.07, 0.14), (-0.22, 0.02, 0.16), "#3a2e3e", 0.03),
-        box("g6", (0.07, 0.07, 0.14), (0.22, 0.02, 0.16), "#3a2e3e", 0.03),
+        box((0.07, 0.07, 0.14), (-0.22, 0.02, 0.16), "#3a2e3e", 0.03),
+        box((0.07, 0.07, 0.14), (0.22, 0.02, 0.16), "#3a2e3e", 0.03),
     ])
 
 
@@ -284,51 +223,51 @@ def make_objects():
     # ohne erkennbare Form. Jetzt ist der Huegel hell genug, dass seine
     # Kanten Licht fangen, das Loch klein und von Balken gerahmt.
     merge("obj_mine", [
-        box("m1", (0.30, 0.24, 0.20), (0, 0.08, 0.20), "#7a6b5c", 0.05),
-        box("m2", (0.09, 0.05, 0.11), (0, -0.15, 0.11), "#1c1610", 0.0),
-        box("m3", (0.03, 0.03, 0.15), (-0.12, -0.16, 0.15), "#5a4025", 0.0),
-        box("m4", (0.03, 0.03, 0.15), (0.12, -0.16, 0.15), "#5a4025", 0.0),
-        box("m5", (0.15, 0.03, 0.03), (0, -0.16, 0.28), "#5a4025", 0.0),
+        box((0.30, 0.24, 0.20), (0, 0.08, 0.20), "#7a6b5c", 0.05),
+        box((0.09, 0.05, 0.11), (0, -0.15, 0.11), "#1c1610", 0.0),
+        box((0.03, 0.03, 0.15), (-0.12, -0.16, 0.15), "#5a4025", 0.0),
+        box((0.03, 0.03, 0.15), (0.12, -0.16, 0.15), "#5a4025", 0.0),
+        box((0.15, 0.03, 0.03), (0, -0.16, 0.28), "#5a4025", 0.0),
     ])
     # Truhe.
     merge("obj_treasure", [
-        box("c1", (0.20, 0.14, 0.11), (0, 0, 0.11), "#6b4a2a", 0.03),
-        box("c2", (0.21, 0.15, 0.05), (0, 0, 0.26), "#d8b45a", 0.04),
+        box((0.20, 0.14, 0.11), (0, 0, 0.11), "#6b4a2a", 0.03),
+        box((0.21, 0.15, 0.05), (0, 0, 0.26), "#d8b45a", 0.04),
     ])
     # Ressourcen-Haufen.
     merge("obj_pile", [
-        box("p1", (0.20, 0.20, 0.11), (0, 0, 0.11), "#9a7a4a", 0.05),
-        box("p2", (0.12, 0.12, 0.09), (0.06, 0.05, 0.30), "#b8944f", 0.04),
-        box("p3", (0.07, 0.07, 0.06), (-0.10, -0.07, 0.28), "#d8b45a", 0.03),
+        box((0.20, 0.20, 0.11), (0, 0, 0.11), "#9a7a4a", 0.05),
+        box((0.12, 0.12, 0.09), (0.06, 0.05, 0.30), "#b8944f", 0.04),
+        box((0.07, 0.07, 0.06), (-0.10, -0.07, 0.28), "#d8b45a", 0.03),
     ])
     # Vier Schreine: gleiche Grundform, andere Kroenung und Farbe.
     for name, col in [("shrine_att", "#c85a4a"), ("shrine_def", "#5a86c8"),
                       ("shrine_power", "#a06bd0"), ("shrine_know", "#5ab88a")]:
         merge("obj_" + name, [
-            box(name + "1", (0.17, 0.17, 0.07), (0, 0, 0.07), "#8a8378", 0.03),
-            box(name + "2", (0.09, 0.09, 0.28), (0, 0, 0.40), "#b5aea0", 0.02),
-            box(name + "3", (0.13, 0.13, 0.09), (0, 0, 0.76), col, 0.04),
+            box((0.17, 0.17, 0.07), (0, 0, 0.07), "#8a8378", 0.03),
+            box((0.09, 0.09, 0.28), (0, 0, 0.40), "#b5aea0", 0.02),
+            box((0.13, 0.13, 0.09), (0, 0, 0.76), col, 0.04),
         ])
     # Brunnen.
     merge("obj_well", [
-        box("w1", (0.19, 0.19, 0.10), (0, 0, 0.10), "#8a8378", 0.04),
-        box("w2", (0.14, 0.14, 0.04), (0, 0, 0.22), "#2f6f95", 0.02),
-        box("w3", (0.02, 0.02, 0.24), (-0.15, 0, 0.34), "#4a3520", 0.0),
-        box("w4", (0.02, 0.02, 0.24), (0.15, 0, 0.34), "#4a3520", 0.0),
-        box("w5", (0.20, 0.14, 0.03), (0, 0, 0.60), "#6b4a2a", 0.02),
+        box((0.19, 0.19, 0.10), (0, 0, 0.10), "#8a8378", 0.04),
+        box((0.14, 0.14, 0.04), (0, 0, 0.22), "#2f6f95", 0.02),
+        box((0.02, 0.02, 0.24), (-0.15, 0, 0.34), "#4a3520", 0.0),
+        box((0.02, 0.02, 0.24), (0.15, 0, 0.34), "#4a3520", 0.0),
+        box((0.20, 0.14, 0.03), (0, 0, 0.60), "#6b4a2a", 0.02),
     ])
     # Lehrmeister: Turm mit Buch.
     merge("obj_learning", [
-        box("l1", (0.16, 0.16, 0.42), (0, 0, 0.42), "#b5aea0", 0.03),
-        box("l2", (0.19, 0.19, 0.06), (0, 0, 0.90), "#5a86c8", 0.03),
+        box((0.16, 0.16, 0.42), (0, 0, 0.42), "#b5aea0", 0.03),
+        box((0.19, 0.19, 0.06), (0, 0, 0.90), "#5a86c8", 0.03),
     ])
     # Windmuehle: Turm mit Fluegelkreuz.
     merge("obj_windmill", [
-        box("n1", (0.15, 0.15, 0.40), (0, 0, 0.40), "#d8cfa8", 0.03),
-        box("n2", (0.18, 0.18, 0.08), (0, 0, 0.88), "#9d3b32", 0.03),
-        box("n3", (0.03, 0.32, 0.03), (-0.16, 0, 0.72), "#6b4a2a", 0.0,
+        box((0.15, 0.15, 0.40), (0, 0, 0.40), "#d8cfa8", 0.03),
+        box((0.18, 0.18, 0.08), (0, 0, 0.88), "#9d3b32", 0.03),
+        box((0.03, 0.32, 0.03), (-0.16, 0, 0.72), "#6b4a2a", 0.0,
             rot=(math.radians(30), 0, 0)),
-        box("n4", (0.03, 0.03, 0.32), (-0.16, 0, 0.72), "#6b4a2a", 0.0,
+        box((0.03, 0.03, 0.32), (-0.16, 0, 0.72), "#6b4a2a", 0.0,
             rot=(math.radians(30), 0, 0)),
     ])
 
@@ -373,16 +312,7 @@ def main():
     except (ValueError, IndexError):
         out = "world.glb"
 
-    # Y-up: Godot rechnet mit Y nach oben, Blender mit Z. Der Exporter
-    # dreht das, wenn man ihn laesst - sonst liegt die ganze Welt flach.
-    bpy.ops.export_scene.gltf(filepath=out, export_format="GLB",
-                              export_yup=True, export_apply=True)
-
-    names = sorted(o.name for o in bpy.data.objects)
-    tris = sum(len(o.data.polygons) for o in bpy.data.objects
-               if o.type == "MESH")
-    print("MODELLE %d: %s" % (len(names), ", ".join(names)))
-    print("FLAECHEN gesamt: %d" % tris)
+    bk.export(out)
 
 
 if __name__ == "__main__":

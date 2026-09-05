@@ -172,6 +172,11 @@ jobs:
           ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
             --headless --path game/ --script tools/test_world3d.gd
 
+      - name: Kreaturen-3D-Tests (Modelle, Groesse je Stufe, Kampffeld)
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/test_creatures3d.gd
+
       - name: Durchspiel-Test (Weltkarte -> Kampf -> Callback -> Weltkarte)
         run: |
           ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
