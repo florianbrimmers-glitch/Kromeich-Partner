@@ -316,16 +316,24 @@ def sil_dragon(p, H):
     # LAENGE IST HIER BEGRENZT: der erste Drache mass 1.16 in der Tiefe bei
     # 1.0 Zelle - Hals und Schwanz ragten in die Nachbarfelder, und auf dem
     # Brett war nicht mehr zu sehen, wo er steht.
-    parts.append(box((0.085, 0.07, 0.09), (0, -0.16, leg + 0.23),
-                     p["main"], 0.03, rot=(rad(34), 0, 0)))
-    parts.append(box((0.065, 0.06, 0.075), (0, -0.22, leg + 0.35),
-                     p["main"], 0.03, rot=(rad(60), 0, 0)))
+    # HALS STEIL NACH OBEN, Kopf UEBER dem Rumpf statt davor.
+    #
+    # Der erste Anlauf hat den Hals verlaengert und nach vorn gelegt. Das
+    # war der falsche Hebel gleich zweimal: der Drache las sich weiter als
+    # Vierbeiner, UND er wurde kleiner - `fit_to_tier` normiert auf die
+    # Raumdiagonale, also bezahlt jede Verlaengerung mit Koerpergroesse.
+    # Hoehe kostet dasselbe, bringt aber eine Silhouette, die kein
+    # Vierbeiner hat: aufgerichteter Hals, Kopf oben.
+    parts.append(box((0.075, 0.075, 0.11), (0, -0.11, leg + 0.28),
+                     p["main"], 0.03, rot=(rad(16), 0, 0)))
+    parts.append(box((0.060, 0.060, 0.10), (0, -0.15, leg + 0.47),
+                     p["main"], 0.03, rot=(rad(22), 0, 0)))
     parts.append(box((0.065, 0.11, 0.05), (0, 0.28, leg + 0.13),
                      p["mid"], 0.02, rot=(rad(-12), 0, 0)))
     parts.append(box((0.04, 0.09, 0.035), (0, 0.42, leg + 0.19),
                      p["mid"], 0.02, rot=(rad(-26), 0, 0)))
-    return parts, (0, -0.25, leg + 0.43, 0.10 * H), \
-        (0, -0.22, leg + 0.12), (0, 0.03, leg + 0.22)
+    return parts, (0, -0.20, leg + 0.62, 0.105 * H), \
+        (0, -0.22, leg + 0.12), (0, 0.02, leg + 0.24)
 
 
 def sil_mounted(p, H, mount):
@@ -519,11 +527,23 @@ def weapon(kind, p, at):
             out.append(ball(0.035, (x, y - 0.02, z + 0.35), p["glow"]))
         return out
     if kind in ("bow", "longbow"):
-        ln = 0.30 if kind == "longbow" else 0.24
-        return [box((0.010, 0.012, ln * 0.5), (x, y - 0.05, z + 0.06),
-                    p["wood"], 0.0, rot=(0, rad(10), 0)),
-                box((0.004, 0.004, ln * 0.5), (x + 0.03, y - 0.05, z + 0.06),
-                    p["light"], 0.0)]
+        # QUER VOR DEM KOERPER, nicht senkrecht daneben. Senkrecht war der
+        # Bogen bei Zellgroesse ein Strich, und Speertraeger und
+        # Armbruster unterschieden sich nur noch am Helm. Quer gehalten
+        # gibt er der Figur eine eigene Breite - genau das, was man aus
+        # der Entfernung sieht.
+        ln = 0.34 if kind == "longbow" else 0.28
+        out = [box((0.012, 0.012, ln * 0.5), (x - 0.02, y - 0.09, z + 0.10),
+                   p["wood"], 0.0, rot=(rad(90), 0, rad(18))),
+               box((0.005, 0.005, ln * 0.46), (x - 0.02, y - 0.12, z + 0.10),
+                   p["light"], 0.0, rot=(rad(90), 0, rad(18)))]
+        # Zwei geknickte Enden machen aus dem Stab einen Bogen.
+        for sz in (-1, 1):
+            out.append(box((0.011, 0.011, 0.05),
+                           (x - 0.02 + sz * 0.02, y - 0.09 + sz * ln * 0.46,
+                            z + 0.10 + sz * 0.012),
+                           p["wood"], 0.0, rot=(rad(58 * sz), 0, 0)))
+        return out
     if kind == "crossbow":
         return [box((0.012, 0.09, 0.012), (x, y - 0.06, z + 0.04),
                     p["wood"], 0.0),
@@ -566,14 +586,20 @@ def wings(kind, p, at, span):
                                p["light"] if i else p["mid"], 0.008,
                                rot=(0, rad(sx * -8), rad(sx * -12))))
         elif kind in ("bat", "dragon_membrane"):
+            # ZWEI SEGMENTE STATT EINER PLATTE, nach hinten gefaechert:
+            # eine einzelne Platte las sich als Brett, und der Knochen
+            # davor war bei Zellgroesse ein schwarzer Balken quer durchs
+            # Bild. Der Knochen ist jetzt duenn und liegt AUF der Haut.
             col = p["dark"] if kind == "bat" else p["mid"]
-            out.append(box((0.44 * s, 0.30 * s, 0.010),
-                           (x + sx * 0.46 * s, y + 0.10 * s, z + 0.05),
-                           col, 0.0, rot=(0, rad(sx * -10), rad(sx * -16))))
-            # Der vordere Knochen macht aus der Platte einen Fluegel.
-            out.append(box((0.46 * s, 0.018, 0.018),
-                           (x + sx * 0.46 * s, y - 0.16 * s, z + 0.06),
-                           p["line"], 0.0, rot=(0, rad(sx * -10), 0)))
+            for i, (dx, dy, w, d, tilt) in enumerate(
+                    [(0.34, -0.02, 0.34, 0.30, 12), (0.72, 0.14, 0.30, 0.24, 22)]):
+                out.append(box((w * s * 0.5, d * s * 0.5, 0.009),
+                               (x + sx * dx * s, y + dy * s, z + 0.05 + 0.012 * i),
+                               col, 0.0,
+                               rot=(0, rad(sx * -8), rad(sx * -tilt))))
+            out.append(box((0.52 * s, 0.010, 0.010),
+                           (x + sx * 0.50 * s, y - 0.15 * s, z + 0.07),
+                           p["line"], 0.0, rot=(0, rad(sx * -12), 0)))
         elif kind == "dragon_bone":
             # Nur Streben, keine Haut - daran erkennt man den Knochendrachen.
             for i in range(3):
@@ -616,9 +642,15 @@ def build(unit):
         out += head(r["head"], p, head_at)
     out += weapon(r["wpn"], p, hand)
     if r.get("shield"):
+        # BREIT UND VORN, nicht schmal an der Seite. Als 0.024 dicke Platte
+        # neben dem Arm war es aus der Entfernung eine Kante; jetzt deckt
+        # es den halben Oberkoerper und gibt dem Speertraeger seine eigene
+        # Silhouette gegenueber dem Armbruster.
         hx, hy, hz = hand
-        out.append(box((0.012, 0.055, 0.075), (-hx, hy - 0.02, hz + 0.03),
-                       p["accent"], 0.02))
+        out.append(box((0.075, 0.014, 0.095), (-hx * 0.85, hy - 0.06, hz + 0.02),
+                       p["accent"], 0.03, rot=(0, 0, rad(6))))
+        out.append(box((0.030, 0.010, 0.036), (-hx * 0.85, hy - 0.08, hz + 0.02),
+                       p["metal"], 0.02))
     ob = merge(unit["id"], out)
     fit_to_tier(ob, int(unit["tier"]))
     if kind == "spectre":
