@@ -41,6 +41,7 @@ func _init() -> void:
 	await _test_instance_colors_enabled()
 	await _test_fog_hides_tiles()
 	await _test_tile_at_roundtrip()
+	await _test_screen_integration()
 
 	var missing: Array = []
 	for m in get_method_list():
@@ -77,6 +78,7 @@ func _test_models_present() -> void:
 	for f in UnitArt.FACTION_DIRS:
 		want.append("city_" + String(f))
 	want.append_array(["hero", "monster", "marker_disc", "marker_ring"])
+	want.append(Map3D.FOG_MODEL)
 	var missing: Array = []
 	for n in want:
 		if not _view._meshes.has(String(n)):
@@ -151,14 +153,20 @@ func _test_fog_hides_tiles() -> void:
 				seen += 1
 	_view.refresh(_ctx(tiles, w, h, fog))
 	_check(_terrain_instances() == seen,
-		"%d von %d Kacheln gebaut" % [_terrain_instances(), w * h])
+		"%d von %d Kacheln zeigen ihr Gelaende" % [_terrain_instances(), w * h])
+	# Der Rest bekommt die neutrale Nebelplatte. Kein Feld faellt weg: die
+	# Ausdehnung der Karte muss ablesbar bleiben (siehe make_fog).
+	_check(_fog_instances() == w * h - seen,
+		"%d unerforschte Felder als Nebelplatte" % _fog_instances())
 
-	# Alles sichtbar: dann sind es alle.
+	# Alles sichtbar: dann zeigen alle ihr Gelaende und keine Platte bleibt.
 	for i in range(fog.size()):
 		fog[i] = 2
 	_view.refresh(_ctx(tiles, w, h, fog))
 	_check(_terrain_instances() == w * h,
 		"ohne Nebel alle %d Kacheln gebaut (%d)" % [w * h, _terrain_instances()])
+	_check(_fog_instances() == 0,
+		"ohne Nebel keine Nebelplatte uebrig (%d)" % _fog_instances())
 	_done.append("_test_fog_hides_tiles")
 
 
@@ -182,12 +190,86 @@ func _test_tile_at_roundtrip() -> void:
 	_done.append("_test_tile_at_roundtrip")
 
 
+# Der Umschalter, die Kamera und der Tap AM ECHTEN SCHIRM. Ohne diesen
+# Test wuerde die Suite nur die Ansicht fuer sich pruefen - genau der
+# Fehler, den die Vorschau-Werkzeuge in It. 36/37 gemacht haben.
+func _test_screen_integration() -> void:
+	print("== Einbettung in den Weltkarten-Schirm ==")
+	var scene := load("res://scenes/WorldMap.tscn") as PackedScene
+	var wm = scene.instantiate()
+	root.add_child(wm)
+	await process_frame
+	wm.call("_start", 4711, 1)
+	await process_frame
+
+	_check(not bool(wm.get("_map3d_on")), "startet in der 2D-Ansicht")
+	_check(wm.get("_map3d") == null, "die 3D-Ansicht wird erst beim Einschalten gebaut")
+
+	wm.call("_toggle_view3d")
+	await process_frame
+	await process_frame
+	_check(bool(wm.get("_map3d_on")), "Umschalter aktiviert die 3D-Ansicht")
+	_check(wm.get("_map3d") != null, "die 3D-Ansicht existiert nach dem Einschalten")
+	var btn := wm.get_node_or_null(wm.get("view3d_toggle_path")) as Button
+	_check(btn != null and btn.text == "2D",
+		"der Knopf bietet jetzt den Rueckweg an (%s)"
+			% ("fehlt" if btn == null else btn.text))
+
+	# DER AUSSCHNITT MUSS DERSELBE SEIN. Springt das Bild beim Umschalten,
+	# ist die Umrechnung aus _view_offset/_tile_size falsch - und weil
+	# beide Ansichten dieselbe Karte zeigen, faellt genau das im Bild am
+	# schwersten auf.
+	var area: Control = wm.get("_map_area")
+	var view = wm.get("_map3d")
+	var ts: float = float(wm.get("_tile_size"))
+	var off: Vector2 = wm.get("_view_offset")
+	var mid: Vector2 = area.size * 0.5
+	var mid2d := Vector2i(int(floor((mid.x - off.x) / ts)),
+		int(floor((mid.y - off.y) / ts)))
+	var mid3d: Vector2i = view.tile_at(mid, area.size)
+	_check(mid2d == mid3d,
+		"Bildmitte zeigt in beiden Ansichten dasselbe Feld (2D %s, 3D %s)"
+			% [str(mid2d), str(mid3d)])
+
+	# Der Tap laeuft ueber _tile_at_pixel und muss in 3D denselben Weg
+	# nehmen wie die Kamera - hin und zurueck ueber die echte Funktion.
+	var bad: Array = []
+	for d in [Vector2(0, 0), Vector2(120, 90), Vector2(-140, 60),
+			Vector2(200, -110), Vector2(-90, -140)]:
+		var p: Vector2 = mid + d
+		var cell: Vector2i = view.tile_at(p, area.size)
+		if cell.x < 0 or cell.x >= 18 or cell.y < 0 or cell.y >= 26:
+			continue
+		var got: Vector2i = wm.call("_tile_at_pixel", p)
+		if got != cell:
+			bad.append("%s: Kamera %s, Tap %s" % [str(p), str(cell), str(got)])
+	_check(bad.is_empty(), "_tile_at_pixel folgt in 3D der Kamera (%s)" % str(bad))
+
+	# Und zurueck: die 2D-Karte muss wieder zeichnen.
+	wm.call("_toggle_view3d")
+	await process_frame
+	_check(not bool(wm.get("_map3d_on")), "Umschalter fuehrt zurueck nach 2D")
+	var back: Vector2i = wm.call("_tile_at_pixel", mid)
+	_check(back == mid2d, "nach dem Zurueckschalten wieder die Pixel-Rechnung (%s)"
+		% str(back))
+
+	wm.queue_free()
+	await process_frame
+	_done.append("_test_screen_integration")
+
+
 func _terrain_instances() -> int:
 	var n := 0
 	for name in _view._multi.keys():
-		if String(name).begins_with("t_"):
+		# t_fog ist KEIN Gelaende - es ist das Gegenteil davon.
+		if String(name).begins_with("t_") and String(name) != Map3D.FOG_MODEL:
 			n += (_view._multi[name] as MultiMeshInstance3D).multimesh.instance_count
 	return n
+
+
+func _fog_instances() -> int:
+	var mmi = _view._multi.get(Map3D.FOG_MODEL)
+	return 0 if mmi == null else (mmi as MultiMeshInstance3D).multimesh.instance_count
 
 
 func _ctx(tiles: Array, w: int, h: int, fog: Array) -> Dictionary:

@@ -363,6 +363,12 @@ const MARKET_SELL := {"wood": 50, "ore": 50, "mercury": 150, "sulfur": 150, "cry
 @export var minimap_toggle_path: NodePath  = ^"TopBar/MinimapToggleBtn"
 @export var sound_toggle_path: NodePath    = ^"TopBar/SoundToggleBtn"
 @export var hero_button_path: NodePath     = ^"TopBar/HeroBtn"
+# UNTEN, nicht in der Kopfzeile. Dort stand er zuerst - und die Suite
+# test_messages hat sofort gemeldet, dass die Statuszeile damit von 192 auf
+# 104 px schrumpft und jede zweite Rueckmeldung dreizeilig wird. Die
+# Kopfzeile hat keinen Platz mehr; unten ist er ausserdem mit dem Daumen
+# besser zu erreichen.
+@export var view3d_toggle_path: NodePath   = ^"BottomBar/View3DToggleBtn"
 
 var _map: Dictionary
 
@@ -400,6 +406,18 @@ var _seed: int = 42
 var _costs: Dictionary = {}
 var _tile_size: float = 64.0
 var _map_area: Control
+
+# Raeumliche Ansicht (It. 53). ZWEITE ANSICHT, KEIN ERSATZ: sie sitzt als
+# SubViewport IN der Kartenflaeche, teilt sich Pan, Zoom und Tap mit der
+# 2D-Karte und liest dasselbe Modell ueber _map3d_ctx(). Ist sie aus,
+# kostet sie nichts - der Aufbau passiert erst beim ersten Einschalten.
+var _map3d = null
+var _map3d_vp: SubViewport = null
+var _map3d_on: bool = false
+# Der Aufbau wird nicht sofort erledigt, sondern EINMAL pro Bild. Beim
+# Ziehen der Karte feuert _request_redraw je Mausbewegung; ohne diesen
+# Riegel wuerden 468 Kacheln mehrfach im selben Bild neu aufgestellt.
+var _map3d_dirty: bool = false
 # Minimap: vollstaendig sichtbare Uebersichtskarte oben rechts. Zeichnet
 # pro Kachel ein Farb-Pixel, das aktuelle Viewport-Rechteck und
 # Helden-Positionen. Tap springt zum entsprechenden Feld.
@@ -522,6 +540,11 @@ func _ready() -> void:
 			snd_toggle.pressed.connect(_toggle_sound)
 		else:
 			snd_toggle.visible = false
+	# Umschalter 2D/3D (It. 53). Wie beim Ton-Knopf: fehlt er in der Szene,
+	# bleibt alles beim Alten, statt beim Laden zu scheitern.
+	var v3d_btn := get_node_or_null(view3d_toggle_path) as Button
+	if v3d_btn != null:
+		v3d_btn.pressed.connect(_toggle_view3d)
 	# Heldenblatt (It. 29). get_node_or_null, damit eine aeltere Szene ohne
 	# den Knopf weiter laedt - dasselbe Muster wie beim Ton-Knopf.
 	var hero_btn := get_node_or_null(hero_button_path) as Button
@@ -1462,6 +1485,11 @@ func _set_combat(msg: String) -> void:
 
 
 func _draw_map() -> void:
+	# Bei aktiver 3D-Ansicht wird die 2D-Karte NICHT gezeichnet. Sie laege
+	# sonst deckend darueber, und weil beide dasselbe Modell zeigen, waere
+	# nicht einmal zu sehen, dass zwei Ansichten uebereinanderliegen.
+	if _map3d_on:
+		return
 	var tiles: Array = _map["tiles"]
 	var origin := _map_origin()
 	# Kampf-Prognose-Werte einmal vor den Schleifen, damit Staedte UND
@@ -1966,6 +1994,9 @@ func _request_redraw() -> void:
 		_map_area.queue_redraw()
 	if _minimap != null:
 		_minimap.queue_redraw()
+	# Ein Trichter fuer beide Ansichten: was die 2D-Karte neu zeichnen
+	# laesst, aendert auch die raeumliche.
+	_map3d_dirty = true
 
 
 func _toggle_sound() -> void:
@@ -1974,6 +2005,71 @@ func _toggle_sound() -> void:
 	if btn != null:
 		btn.text = "Ton" if on else "Stumm"
 	_set_status("Geraeusche %s" % ("an" if on else "aus"))
+
+
+# --- Raeumliche Ansicht (It. 53) ------------------------------------------
+
+func _toggle_view3d() -> void:
+	_map3d_on = not _map3d_on
+	if _map3d_on and _map3d == null:
+		_build_map3d()
+	if _map3d_vp != null:
+		(_map3d_vp.get_parent() as Control).visible = _map3d_on
+	var btn := get_node_or_null(view3d_toggle_path) as Button
+	if btn != null:
+		btn.text = "2D" if _map3d_on else "3D"
+	_map3d_dirty = true
+	_request_redraw()
+
+
+# Erst beim ersten Einschalten. Wer bei der 2D-Karte bleibt, zahlt weder
+# das glb noch einen zweiten Viewport.
+func _build_map3d() -> void:
+	if _map_area == null:
+		return
+	var cont := SubViewportContainer.new()
+	cont.stretch = true
+	cont.set_anchors_preset(Control.PRESET_FULL_RECT)
+	# DER TAP GEHOERT WEITER DER KARTENFLAECHE. Faengt der Container die
+	# Eingabe ab, laufen Ziehen und Antippen ins Leere - und zwar still,
+	# weil beides gueltige Nichtstuer sind.
+	cont.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_map_area.add_child(cont)
+	_map3d_vp = SubViewport.new()
+	_map3d_vp.transparent_bg = false
+	_map3d_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	cont.add_child(_map3d_vp)
+	_map3d = preload("res://scripts/ui/WorldMap3D.gd").new()
+	_map3d_vp.add_child(_map3d)
+
+
+func _process(_delta: float) -> void:
+	if _map3d_dirty:
+		_map3d_dirty = false
+		_map3d_apply()
+
+
+func _map3d_apply() -> void:
+	if not _map3d_on or _map3d == null or _map.is_empty():
+		return
+	_map3d.refresh(_map3d_ctx())
+	_map3d_camera()
+
+
+# Derselbe Ausschnitt wie in 2D, aus DENSELBEN Zahlen gerechnet. Eine
+# eigene Kameraposition waere eine zweite Wahrheit ueber den Bildausschnitt
+# - die Minikarte, der Pan-Riegel und die Zentrierung auf einen Helden
+# beziehen sich alle auf _view_offset.
+func _map3d_camera() -> void:
+	if _map3d == null or _map_area == null or _tile_size <= 0.0:
+		return
+	var area: Vector2 = _map_area.size
+	# Kachel im Bildmittelpunkt. In 2D belegt Feld (x,y) die Pixel
+	# [x*ts, (x+1)*ts), seine Mitte liegt also bei (x+0.5)*ts; in 3D sitzt
+	# dieselbe Kachel bei (x, y). Daher die halbe Kachel Versatz.
+	var center: Vector2 = (area * 0.5 - _view_offset) / _tile_size \
+		- Vector2(0.5, 0.5)
+	_map3d.look_at_map(center, area.x / _tile_size)
 
 
 func _toggle_minimap() -> void:
@@ -2159,20 +2255,34 @@ func _modal_open() -> bool:
 	return false
 
 
+# EIN Ort fuer "welches Feld liegt unter diesem Bildpunkt". In 3D kann das
+# keine Division sein: die Kamera steht schraeg, also wird ihr Strahl mit
+# der Ebene y = 0 geschnitten (WorldMap3D.tile_at). Stuende die Umrechnung
+# zweimal im Code, liefe sie beim naechsten Umbau auseinander - dieselbe
+# Falle wie die nachgebaute Nachbarschaft im Durchspiel-Test (It. 42).
+func _tile_at_pixel(pos: Vector2) -> Vector2i:
+	var t: Vector2i
+	if _map3d_on and _map3d != null:
+		t = _map3d.tile_at(pos, _map_area.size)
+	else:
+		var local: Vector2 = pos - _map_origin()
+		t = Vector2i(int(floor(local.x / _tile_size)),
+			int(floor(local.y / _tile_size)))
+	if t.x < 0 or t.x >= MAP_WIDTH or t.y < 0 or t.y >= MAP_HEIGHT:
+		_set_status("Tap ausserhalb (%d,%d)" % [t.x, t.y])
+		return Vector2i(-1, -1)
+	return t
+
+
 func _handle_tap(pos: Vector2) -> void:
 	if _modal_open():
 		return
-	var origin := _map_origin()
-	var local := pos - origin
 	if _tile_size <= 0.0:
 		_set_status("Tap ignoriert: tile_size=0")
 		return
-	var tx := int(local.x / _tile_size)
-	var ty := int(local.y / _tile_size)
-	if tx < 0 or tx >= MAP_WIDTH or ty < 0 or ty >= MAP_HEIGHT:
-		_set_status("Tap ausserhalb (%d,%d)" % [tx, ty])
+	var target := _tile_at_pixel(pos)
+	if target.x < 0:
 		return
-	var target := Vector2i(tx, ty)
 
 	# Tap auf einen ANDEREN eigenen Helden: umschalten statt hinlaufen
 	# (M13a). Steht dort der aktive Held selbst, faellt der Tap durch - er
@@ -2209,16 +2319,16 @@ func _handle_tap(pos: Vector2) -> void:
 			return
 		# Reachable: Laufen lassen, nicht aufschnappen.
 	if target == _hero.position:
-		_set_status("Tap auf Held (%d,%d)" % [tx, ty])
+		_set_status("Tap auf Held (%d,%d)" % [target.x, target.y])
 		return
 	if not _costs.has(target):
 		if target_city_idx >= 0:
 			var fid0: int = int(_cities[target_city_idx]["faction"])
-			_set_status("Stadt %s (%d,%d)" % [FACTION_NAMES[fid0], tx, ty])
+			_set_status("Stadt %s (%d,%d)" % [FACTION_NAMES[fid0], target.x, target.y])
 		else:
 			var tiles: Array = _map["tiles"]
-			var tt: int = int(tiles[ty * MAP_WIDTH + tx])
-			_set_status("Tap %s (%d,%d)" % [_terrain_name(tt), tx, ty])
+			var tt: int = int(tiles[target.y * MAP_WIDTH + target.x])
+			_set_status("Tap %s (%d,%d)" % [_terrain_name(tt), target.x, target.y])
 		return
 	var cost: int = int(_costs[target])
 	if cost > _hero.mp:
@@ -2335,7 +2445,7 @@ func _handle_tap(pos: Vector2) -> void:
 		var fid2: int = int(_cities[target_city_idx]["faction"])
 		_set_status("Stadt %s (%d Punkte)" % [FACTION_NAMES[fid2], cost])
 	else:
-		_set_status("Zug -> (%d,%d) fuer %d Punkte" % [tx, ty, cost])
+		_set_status("Zug -> (%d,%d) fuer %d Punkte" % [target.x, target.y, cost])
 
 
 func _city_at(p: Vector2i) -> int:
@@ -3981,6 +4091,18 @@ func _map3d_ctx() -> Dictionary:
 		if fi >= 0 and fi < _fog_player.size() and int(_fog_player[fi]) == FOG_VISIBLE:
 			enemies_out.append({"pos": ep,
 				"color": _ai_ring_color(int((e as Dictionary)["owner_id"]))})
+	# Reichweite: dieselbe Bedingung, nach der die 2D-Karte eine Kachel
+	# hell laesst (_costs <= mp und sichtbar).
+	var reach_out: Array = []
+	if _hero != null:
+		for k in _costs.keys():
+			var kk: Vector2i = k as Vector2i
+			# > 0 laesst das Feld des Helden aus - er steht darauf, ein Ring
+			# darunter waere nur ein zweiter Ring um dieselbe Figur. Die
+			# 2D-Karte macht es ueber `key != _hero.position` genauso.
+			if int(_costs[kk]) > 0 and int(_costs[kk]) <= _hero.mp \
+					and _fog_get(_fog_player, kk) == FOG_VISIBLE:
+				reach_out.append(kk)
 	return {
 		"tiles": _map["tiles"],
 		"width": MAP_WIDTH,
@@ -3994,6 +4116,7 @@ func _map3d_ctx() -> Dictionary:
 		"enemies": enemies_out,
 		"faction_dirs": UnitArt.FACTION_DIRS,
 		"object_model": MAP3D_OBJECT_MODEL,
+		"reach": reach_out,
 	}
 
 

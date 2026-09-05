@@ -37,6 +37,18 @@ const CAM_UP := 11.0
 # Nebel: unerforscht wird gar nicht gezeichnet, erkundet abgedunkelt.
 # Dieselben Stufen wie in der 2D-Karte (FOG_HIDDEN/EXPLORED/VISIBLE).
 const FOG_DIM := Color(0.42, 0.45, 0.52)
+# Sichtbar, aber diesen Zug nicht erreichbar. Die 2D-Karte legt dafuer ein
+# schwarzes Alpha von 0.30 ueber die Kachel; hier ist es ein Faktor auf die
+# Instanzfarbe. Erreichbar bleibt VOLL hell - genau dieser Unterschied ist
+# die Reichweiten-Anzeige, nicht der Ring.
+const OUT_OF_REACH := Color(0.62, 0.64, 0.68)
+# Der duenne Ring auf erreichbaren Feldern, wie das weisse 0.25-Rechteck
+# der 2D-Karte. Er ist die ZWEITE Aussage; ohne ihn wuerde man die Grenze
+# der Reichweite auf gleichfarbigem Gelaende nicht genau sehen.
+# Alpha 0.15, nicht 0.30: bei 0.30 lagen bis zu dreissig helle Reifen auf
+# der erkundeten Flaeche und uebertoenten das Gelaende darunter - man sah
+# die Reichweite und sonst nichts mehr.
+const REACH_RING := Color(1.0, 1.0, 1.0, 0.15)
 
 # Deko-Dichte je Gelaendeart: nicht jede Waldkachel bekommt einen Baum,
 # sonst wird die Flaeche zur Mauer und man sieht die Kachelgrenzen nicht
@@ -48,6 +60,10 @@ const DECO_MODEL := {"forest": "deco_tree", "mountain": "deco_rock",
 # Gelaendeart -> Modellname. Reihenfolge ist MapGen.TILE_*.
 const TERRAIN_MODEL := ["t_grass", "t_forest", "t_water", "t_mountain",
 	"t_sand", "t_swamp"]
+# Unerforscht. Siehe make_fog() im Generator: eine Leerstelle sagt nicht
+# "unbekannt", sie sagt gar nichts - und die Ausdehnung der Karte war ohne
+# diese Platte nicht mehr abzulesen.
+const FOG_MODEL := "t_fog"
 # Oberkante je Gelaendeart, damit Deko und Figuren nicht in der Platte
 # stecken. Muss zu TERRAIN in tools/gen_models.py passen.
 const TERRAIN_TOP := {0: 0.0, 1: 0.10, 2: -0.22, 3: 0.40, 4: -0.02, 5: -0.08}
@@ -74,6 +90,12 @@ func _load_models() -> void:
 		if ch is MeshInstance3D:
 			var m: Mesh = (ch as MeshInstance3D).mesh
 			_enable_instance_color(m)
+			# Die Markierungen brauchen zusaetzlich Durchsichtigkeit: der
+			# Reichweiten-Ring liegt bei Alpha 0.30 auf JEDEM erreichbaren
+			# Feld, und bei voller Deckung waeren das bis zu dreissig
+			# leuchtende Reifen - lauter als die Karte darunter.
+			if String(ch.name).begins_with("marker_"):
+				_enable_transparency(m)
 			_meshes[String(ch.name)] = m
 	src.queue_free()
 
@@ -98,6 +120,13 @@ func _enable_instance_color(m: Mesh) -> void:
 		var mat := m.surface_get_material(i) as StandardMaterial3D
 		if mat != null:
 			mat.vertex_color_use_as_albedo = true
+
+
+func _enable_transparency(m: Mesh) -> void:
+	for i in range(m.get_surface_count()):
+		var mat := m.surface_get_material(i) as StandardMaterial3D
+		if mat != null:
+			mat.transparency = BaseMaterial3D.TRANSPARENCY_ALPHA
 
 
 func _build_lighting() -> void:
@@ -189,6 +218,9 @@ func _hash(x: int, y: int, salt: int) -> int:
 #   heroes      Array[{pos, active}]
 #   enemies     Array[{pos}]
 #   object_model Dictionary       kind -> Modellname
+#   reach       Array[Vector2i]   Felder in Zugreichweite; LEER heisst
+#                                 "keine Angabe" und dunkelt nichts ab -
+#                                 die Vorschauwerkzeuge liefern sie nicht
 func refresh(ctx: Dictionary) -> void:
 	if _meshes.is_empty():
 		return
@@ -200,10 +232,17 @@ func refresh(ctx: Dictionary) -> void:
 	if w <= 0 or h <= 0 or tiles.size() < w * h:
 		return
 
+	var reach: Dictionary = {}
+	for r in (ctx.get("reach", []) as Array):
+		reach[r] = true
+	var has_reach: bool = not reach.is_empty()
+
 	var by_terrain: Dictionary = {}
 	var by_deco: Dictionary = {}
+	var rings: Array = []
 	for name in TERRAIN_MODEL:
 		by_terrain[name] = []
+	by_terrain[FOG_MODEL] = []
 	for name in DECO_MODEL.values():
 		by_deco[name] = []
 
@@ -211,16 +250,35 @@ func refresh(ctx: Dictionary) -> void:
 		for x in range(w):
 			var i: int = y * w + x
 			var f: int = int(fog[i]) if i < fog.size() else 2
-			# Unerforscht wird GAR NICHT gebaut. Das spart nicht nur
-			# Zeichenaufrufe, es ist auch die ehrlichere Darstellung: eine
-			# abgedunkelte Kachel verraet noch ihre Gelaendeart.
+			# Unerforscht bekommt eine neutrale Platte: sie verraet die
+			# Gelaendeart nicht, zeigt aber, dass dort ueberhaupt Karte
+			# ist. Der erste Entwurf hat hier gar nichts gebaut - siehe
+			# make_fog() im Generator.
 			if f == 0:
+				(by_terrain[FOG_MODEL] as Array).append({
+					"pos": Vector3(float(x) * TILE, 0.0, float(y) * TILE),
+					"color": Color.WHITE,
+				})
 				continue
 			var t: int = int(tiles[i])
 			if t < 0 or t >= TERRAIN_MODEL.size():
 				continue
-			var col: Color = Color.WHITE if f == 2 else FOG_DIM
+			var cell := Vector2i(x, y)
+			var in_reach: bool = has_reach and reach.has(cell)
+			# Drei Helligkeiten, dieselbe Aussage wie in 2D: erkundet aber
+			# nicht einsehbar (FOG_DIM), einsehbar aber diesen Zug nicht
+			# erreichbar (OUT_OF_REACH), erreichbar (voll).
+			var col: Color = Color.WHITE
+			if f != 2:
+				col = FOG_DIM
+			elif has_reach and not in_reach:
+				col = OUT_OF_REACH
 			var top: float = float(TERRAIN_TOP.get(t, 0.0))
+			if in_reach:
+				rings.append({
+					"pos": Vector3(float(x) * TILE, top, float(y) * TILE),
+					"color": REACH_RING,
+				})
 			(by_terrain[TERRAIN_MODEL[t]] as Array).append({
 				"pos": Vector3(float(x) * TILE, 0.0, float(y) * TILE),
 				"color": col,
@@ -242,7 +300,11 @@ func refresh(ctx: Dictionary) -> void:
 	for name in by_deco.keys():
 		_fill(String(name), by_deco[name])
 
-	_place_things(ctx, tiles, fog, w)
+	# Die Reichweiten-Ringe gehen in DENSELBEN Topf wie die Besitzer-Ringe:
+	# ein Modell, ein MultiMesh. Zwei Toepfe waeren zwei Zeichenaufrufe fuer
+	# dieselbe Scheibe, und der zweite wuerde beim naechsten Durchlauf
+	# vergessen zu leeren.
+	_place_things(ctx, tiles, fog, w, rings)
 	_built = true
 
 
@@ -258,8 +320,11 @@ func refresh(ctx: Dictionary) -> void:
 # liegt als flache Scheibe (Monster: Bedrohung) oder als Ring (Stadt,
 # Held) darunter. Das ist dieselbe Sprache wie auf der 2D-Karte, wo der
 # Ring um das Feld die Farbe traegt und nicht das Sinnbild.
-func _place_things(ctx: Dictionary, tiles: Array, fog: Array, w: int) -> void:
+func _place_things(ctx: Dictionary, tiles: Array, fog: Array, w: int,
+		rings: Array) -> void:
 	var per_model: Dictionary = {}
+	if not rings.is_empty():
+		per_model["marker_ring"] = rings
 	# `col` faerbt das Modell (weiss = wie gebaut, FOG_DIM im Nebel),
 	# `mark` ist die Farbe der Scheibe/des Rings darunter - oder leer.
 	var add := func(model: String, cell: Vector2i, mark: String,

@@ -166,6 +166,22 @@ def make_terrain():
         ob.location = (0, 0, 0)
 
 
+def make_fog():
+    """Platte fuer UNERFORSCHTES Gelaende.
+
+    WARUM ES SIE GIBT: der erste Entwurf hat unerforschte Kacheln gar nicht
+    gebaut - "die ehrlichere Darstellung". Der Vergleich mit der 2D-Karte
+    zeigte das Gegenteil. Dort liegt ueber dem ganzen Kartenrechteck ein
+    Wolkenfeld, der Spieler sieht also, WIE GROSS die Welt ist und wo sie
+    aufhoert. In 3D stand die erkundete Insel im Nichts, und die Ausdehnung
+    der Karte war nicht mehr abzulesen. Eine Leerstelle sagt nicht
+    "unbekannt", sie sagt gar nichts.
+    """
+    ob = box("t_fog", (TILE * 0.5, TILE * 0.5, BASE * 0.5),
+             (0, 0, -BASE * 0.5), "#262a33", bevel=0.015)
+    ob.location = (0, 0, 0)
+
+
 def make_deco():
     """Deko, die auf einer Kachel steht: Baum fuer Wald, Fels fuer Gebirge,
     Schilf fuer Sumpf. Godot streut sie deterministisch."""
@@ -344,6 +360,7 @@ def make_markers():
 def main():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     make_terrain()
+    make_fog()
     make_deco()
     make_cities()
     make_hero()

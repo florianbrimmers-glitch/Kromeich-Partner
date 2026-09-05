@@ -110,6 +110,12 @@ layout_mode = 2
 custom_minimum_size = Vector2(240, 96)
 text = "Anleitung"
 
+[node name="View3DToggleBtn" type="Button" parent="BottomBar"]
+layout_mode = 2
+custom_minimum_size = Vector2(160, 96)
+text = "3D"
+tooltip_text = "Raeumliche Ansicht ein/aus"
+
 [node name="BackBtn" type="Button" parent="BottomBar"]
 layout_mode = 2
 custom_minimum_size = Vector2(240, 96)
