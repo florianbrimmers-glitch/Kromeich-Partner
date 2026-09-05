@@ -42,6 +42,7 @@ func _init() -> void:
 	await _test_fog_hides_tiles()
 	await _test_tile_at_roundtrip()
 	await _test_screen_integration()
+	await _test_guard_labels()
 
 	var missing: Array = []
 	for m in get_method_list():
@@ -256,6 +257,73 @@ func _test_screen_integration() -> void:
 	wm.queue_free()
 	await process_frame
 	_done.append("_test_screen_integration")
+
+
+# Die Wachzahlen an Staedten, Monstern und Objekten standen bis It. 56
+# DREIMAL fast gleich im Zeichencode, und die raeumliche Ansicht haette
+# eine vierte Kopie gebraucht. Jetzt liefert `_guard_labels()` sie einmal;
+# dieser Test haelt die REGELN fest, nach denen sie entstehen - sonst
+# faellt beim naechsten Umbau nur auf, dass irgendwo eine Zahl fehlt.
+func _test_guard_labels() -> void:
+	print("== Wachzahlen: eine Quelle, klare Regeln ==")
+	var scene := load("res://scenes/WorldMap.tscn") as PackedScene
+	var wm = scene.instantiate()
+	root.add_child(wm)
+	await process_frame
+	wm.call("_start", 4711, 1)
+	await process_frame
+
+	var labels: Dictionary = wm.call("_guard_labels")
+	var fog: Array = wm.get("_fog_player")
+	var w: int = int(wm.get("MAP_WIDTH"))
+	# NACHFRAGEN, OB DIE BREITE ANKAM: `get()` auf eine Konstante liefert
+	# in manchen Godot-Fassungen null, und daraus wuerde still 0 - dann
+	# zeigte `fog[y * 0 + x]` auf lauter gueltige, aber falsche Felder, und
+	# die drei Pruefungen darunter waeren gruen, ohne etwas zu pruefen.
+	_check(w == 18, "MAP_WIDTH ist lesbar und plausibel (%d)" % w)
+
+	# Ein Monster auf einer nicht mehr verborgenen Kachel MUSS eine Zahl
+	# haben - im Nebel steht sie als "?" da, aber sie fehlt nie.
+	var missing: Array = []
+	for m in (wm.get("_monsters") as Array):
+		var mp: Vector2i = (m as Dictionary)["pos"]
+		var f: int = int(fog[mp.y * w + mp.x])
+		if f != 0 and not labels.has(mp):
+			missing.append(str(mp))
+	_check(missing.is_empty(), "jedes sichtbare Monster traegt eine Zahl (%s)"
+		% str(missing))
+
+	# Die eigene Stadt zeigt keine Wachzahl - sie ist keine Bedrohung.
+	var own: Array = []
+	for c in (wm.get("_cities") as Array):
+		var cd: Dictionary = c as Dictionary
+		if int(cd.get("owner", -1)) == int(wm.get("OWNER_HERO")) \
+				and labels.has(Vector2i(cd["pos"])):
+			own.append(str(cd["pos"]))
+	_check(own.is_empty(), "eigene Staedte tragen keine Wachzahl (%s)" % str(own))
+
+	# Nichts auf einer VERBORGENEN Kachel.
+	var leaked: Array = []
+	for cell in labels.keys():
+		var cv: Vector2i = cell
+		if int(fog[cv.y * w + cv.x]) == 0:
+			leaked.append(str(cv))
+	_check(leaked.is_empty(), "keine Zahl auf unerforschtem Feld (%s)" % str(leaked))
+
+	# Jede Zahl ist entweder eine Ziffernfolge oder das Fragezeichen -
+	# nichts dazwischen, und nie leer.
+	var bad: Array = []
+	for cell in labels.keys():
+		var t: String = String((labels[cell] as Dictionary)["text"])
+		if t != "?" and not t.is_valid_int():
+			bad.append(t)
+	_check(bad.is_empty(), "jede Zahl ist Ziffer oder \"?\" (%s)" % str(bad))
+	_check(not labels.is_empty(),
+		"Seed 4711 zeigt in Zug 1 ueberhaupt Wachzahlen (%d)" % labels.size())
+
+	wm.queue_free()
+	await process_frame
+	_done.append("_test_guard_labels")
 
 
 func _terrain_instances() -> int:

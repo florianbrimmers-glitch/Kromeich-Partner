@@ -414,10 +414,9 @@ var _map_area: Control
 var _map3d = null
 var _map3d_vp: SubViewport = null
 var _map3d_on: bool = false
-# Der Aufbau wird nicht sofort erledigt, sondern EINMAL pro Bild. Beim
-# Ziehen der Karte feuert _request_redraw je Mausbewegung; ohne diesen
-# Riegel wuerden 468 Kacheln mehrfach im selben Bild neu aufgestellt.
-var _map3d_dirty: bool = false
+# Der Abgleich haengt am Zeichnen der Kartenflaeche (siehe _draw_map).
+# Godot fasst mehrere queue_redraw eines Bildes zusammen, also wird auch
+# beim Ziehen nur einmal je Bild neu aufgestellt.
 # Minimap: vollstaendig sichtbare Uebersichtskarte oben rechts. Zeichnet
 # pro Kachel ein Farb-Pixel, das aktuelle Viewport-Rechteck und
 # Helden-Positionen. Tap springt zum entsprechenden Feld.
@@ -1488,7 +1487,20 @@ func _draw_map() -> void:
 	# Bei aktiver 3D-Ansicht wird die 2D-Karte NICHT gezeichnet. Sie laege
 	# sonst deckend darueber, und weil beide dasselbe Modell zeigen, waere
 	# nicht einmal zu sehen, dass zwei Ansichten uebereinanderliegen.
+	# EIN TRICHTER FUER BEIDE ANSICHTEN - dasselbe Muster wie
+	# `_field3d_apply` im Kampfschirm. Jeder Weg, der die Karte aendert,
+	# ruft schon `queue_redraw`; den Abgleich hier anzuhaengen heisst, dass
+	# es keine Stelle gibt, an der man ihn vergessen kann.
+	#
+	# VORHER LIEF ER IM _process MIT EINEM SCHMUTZIG-BIT, und das war
+	# falsch herum: die Zahlen ueber der 3D-Karte brauchen die KAMERA, um
+	# ihre Bildpunkte zu rechnen, und die stand beim Zeichnen noch auf
+	# ihrem Anfangswert. Ergebnis waren Zahlen in Schriftgroesse 567
+	# irgendwo ausserhalb - und danach nie wieder ein Neuzeichnen, das sie
+	# korrigiert haette. Auf dem Bild sah es aus, als gaebe es sie nicht.
+	_map3d_apply()
 	if _map3d_on:
+		_draw_map3d_labels()
 		return
 	var tiles: Array = _map["tiles"]
 	var origin := _map_origin()
@@ -1503,6 +1515,7 @@ func _draw_map() -> void:
 	# einer vergleichbaren Einheit. Der Spieler verlor seine Armee an
 	# einen Kampf, den die Karte gelb (= Sieg mit Verlusten) anzeigte.
 	var eff_gold: int = _player_gold_power()
+	var labels: Dictionary = _guard_labels()
 	var mfont: Font = ThemeDB.fallback_font
 	for y in range(MAP_HEIGHT):
 		for x in range(MAP_WIDTH):
@@ -1582,19 +1595,13 @@ func _draw_map() -> void:
 			_map_area.draw_rect(crect, _ai_ring_color(owner), false, 4.0)
 		else:
 			_map_area.draw_rect(crect, Color(0.1, 0.1, 0.12), false, 2.0)
-		var garrison: int = Garrison.total(city.get("garrison_army", {}))
-		if owner != OWNER_HERO and garrison > 0 and cfog == FOG_VISIBLE:
-			var cdist: int = abs(cp.x - _hero.position.x) + abs(cp.y - _hero.position.y)
-			var gtxt: String
-			var gcol: Color
-			if cdist <= MONSTER_VIEW_RANGE:
-				gtxt = str(garrison)
-				gcol = _threat_color(eff_gold,
-					_threat_gold(city.get("garrison_army", {}) as Dictionary))
-			else:
-				gtxt = "?"
-				gcol = Color(0.75, 0.75, 0.75)
-			var gsize: int = int(_tile_size * 0.45)
+		# Text und Farbe kommen aus _guard_labels() - die Regel, WANN eine
+		# Zahl steht und ob sie "?" ist, gibt es nur dort.
+		if labels.has(cp):
+			var gl: Dictionary = labels[cp]
+			var gtxt: String = String(gl["text"])
+			var gcol: Color = gl["color"] as Color
+			var gsize: int = int(_tile_size * float(gl["frac"]))
 			var gs := mfont.get_string_size(gtxt, HORIZONTAL_ALIGNMENT_CENTER, -1, gsize)
 			var gcenter := cpos + Vector2(_tile_size * 0.5, _tile_size * 0.5)
 			var gp := gcenter + Vector2(-gs.x * 0.5, gs.y * 0.3)
@@ -1614,22 +1621,14 @@ func _draw_map() -> void:
 		var mfog: int = _fog_get(_fog_player, mp)
 		if mfog == FOG_HIDDEN:
 			continue
-		var mstr: int = int(m["strength"])
 		var mpx := origin + Vector2(mp.x * _tile_size + _tile_size * 0.5, mp.y * _tile_size + _tile_size * 0.5)
 		var mrad := _tile_size * 0.36
-		var dist: int = abs(mp.x - _hero.position.x) + abs(mp.y - _hero.position.y)
-		var txt: String
-		var tcol: Color
-		# Staerke steht erst unter halber Held-Sichtweite fest (Nahaufklae-
-		# rung). Darueber hinaus bleibt das Monster sichtbar, aber mit "?".
-		if mfog == FOG_VISIBLE and dist <= (HERO_SIGHT / 2):
-			# Angezeigt wird die ANZAHL der Kreaturen (das sieht man auf
-			# dem Feld), die FARBE kommt aus dem Gold-Vergleich.
-			txt = str(_monster_count(m))
-			tcol = _threat_color(eff_gold, _threat_gold_of_monster(m))
-		else:
-			txt = "?"
-			tcol = Color(0.75, 0.75, 0.75)
+		# Zahl und Farbe aus _guard_labels(): die Staerke steht erst unter
+		# halber Held-Sichtweite fest, darueber bleibt das Monster sichtbar,
+		# zeigt aber "?". Die Regel steht dort, nicht hier.
+		var ml: Dictionary = labels.get(mp, {})
+		var txt: String = String(ml.get("text", "?"))
+		var tcol: Color = ml.get("color", Color(0.75, 0.75, 0.75)) as Color
 		# Kreatur-Sprite statt abstrakter Scheibe (It. 35). Die Scheibe
 		# bleibt als Untergrund - sie traegt den Prognose-Ring und hebt die
 		# Figur vom Gelaende ab. Fehlt ein Sprite, bleibt es beim alten Bild.
@@ -1717,23 +1716,11 @@ func _draw_map() -> void:
 			_map_area.draw_rect(orect, _ai_ring_color(oowner), false, 4.0)
 		else:
 			_map_area.draw_rect(orect, Color(0.1, 0.1, 0.12), false, 2.0)
-		var ogd: int = int(obj.get("guard", 0))
-		if ogd > 0 and ofog == FOG_VISIBLE:
-			var odist: int = abs(op.x - _hero.position.x) + abs(op.y - _hero.position.y)
-			var otxt: String
-			var ocol: Color
-			if odist <= MONSTER_VIEW_RANGE:
-				# Zahl = Kreaturen der Wache, Farbe = Gold-Vergleich.
-				var g_army: Dictionary = _object_guard_army(obj)
-				var g_cnt: int = 0
-				for gk in g_army.keys():
-					g_cnt += int(g_army[gk])
-				otxt = str(maxi(1, g_cnt))
-				ocol = _threat_color(eff_gold, _threat_gold(g_army))
-			else:
-				otxt = "?"
-				ocol = Color(0.75, 0.75, 0.75)
-			var osize: int = int(_tile_size * 0.4)
+		if labels.has(op):
+			var ol: Dictionary = labels[op]
+			var otxt: String = String(ol["text"])
+			var ocol: Color = ol["color"] as Color
+			var osize: int = int(_tile_size * float(ol["frac"]))
 			var oss := mfont.get_string_size(otxt, HORIZONTAL_ALIGNMENT_CENTER, -1, osize)
 			var ocenter := opos + Vector2(_tile_size * 0.5, _tile_size * 0.5)
 			var op2 := ocenter + Vector2(-oss.x * 0.5, oss.y * 0.3)
@@ -1994,9 +1981,7 @@ func _request_redraw() -> void:
 		_map_area.queue_redraw()
 	if _minimap != null:
 		_minimap.queue_redraw()
-	# Ein Trichter fuer beide Ansichten: was die 2D-Karte neu zeichnen
-	# laesst, aendert auch die raeumliche.
-	_map3d_dirty = true
+
 
 
 func _toggle_sound() -> void:
@@ -2018,7 +2003,6 @@ func _toggle_view3d() -> void:
 	var btn := get_node_or_null(view3d_toggle_path) as Button
 	if btn != null:
 		btn.text = "2D" if _map3d_on else "3D"
-	_map3d_dirty = true
 	_request_redraw()
 
 
@@ -2046,12 +2030,6 @@ func _build_map3d() -> void:
 	cont.add_child(_map3d_vp)
 	_map3d = preload("res://scripts/ui/WorldMap3D.gd").new()
 	_map3d_vp.add_child(_map3d)
-
-
-func _process(_delta: float) -> void:
-	if _map3d_dirty:
-		_map3d_dirty = false
-		_map3d_apply()
 
 
 func _map3d_apply() -> void:
@@ -4047,6 +4025,109 @@ const MAP3D_OBJECT_MODEL := {
 	OBJECT_LEARNING: "obj_learning",
 	OBJECT_WINDMILL: "obj_windmill",
 }
+
+# DIE WACHZAHLEN AN EINER STELLE.
+#
+# Sie standen dreimal fast gleich im Zeichencode - einmal fuer Staedte,
+# einmal fuer Monster, einmal fuer Objekte -, und die raeumliche Ansicht
+# haette eine vierte Kopie gebraucht. Drei Kopien laufen auseinander; vier
+# ganz sicher. Jetzt entsteht die Liste einmal, die 2D-Karte liest sie beim
+# Zeichnen und die 3D-Ansicht legt sie als flache Schrift ueber das Bild.
+#
+# Die REGELN bleiben, wie sie waren: eine Stadt zeigt ihre Garnison nur,
+# wenn sie fremd und sichtbar ist; ein Monster bleibt im erkundeten Nebel
+# sichtbar, seine Staerke aber erst unter halber Sichtweite; alles
+# Weiterentfernte steht als "?" da. Die Zahl ist die Stueckzahl, die Farbe
+# kommt aus dem Gold-Vergleich (It. 38).
+func _guard_labels() -> Dictionary:
+	var out: Dictionary = {}
+	if _hero == null:
+		return out
+	var eff_gold: int = _player_gold_power()
+	var hp: Vector2i = _hero.position
+	for city in _cities:
+		var cd: Dictionary = city as Dictionary
+		var cp: Vector2i = cd["pos"]
+		var garrison: int = Garrison.total(cd.get("garrison_army", {}))
+		if int(cd.get("owner", OWNER_NEUTRAL)) == OWNER_HERO or garrison <= 0:
+			continue
+		if _fog_get(_fog_player, cp) != FOG_VISIBLE:
+			continue
+		var near: bool = absi(cp.x - hp.x) + absi(cp.y - hp.y) <= MONSTER_VIEW_RANGE
+		out[cp] = {
+			"text": str(garrison) if near else "?",
+			"color": _threat_color(eff_gold,
+				_threat_gold(cd.get("garrison_army", {}) as Dictionary))
+				if near else Color(0.75, 0.75, 0.75),
+			"frac": 0.45,
+		}
+	for m in _monsters:
+		var md: Dictionary = m as Dictionary
+		var mp: Vector2i = md["pos"]
+		var mfog: int = _fog_get(_fog_player, mp)
+		if mfog == FOG_HIDDEN:
+			continue
+		var mnear: bool = mfog == FOG_VISIBLE \
+			and absi(mp.x - hp.x) + absi(mp.y - hp.y) <= (HERO_SIGHT / 2)
+		out[mp] = {
+			"text": str(_monster_count(md)) if mnear else "?",
+			"color": _threat_color(eff_gold, _threat_gold_of_monster(md))
+				if mnear else Color(0.75, 0.75, 0.75),
+			"frac": 0.55,
+		}
+	for obj in _objects:
+		var od: Dictionary = obj as Dictionary
+		var op: Vector2i = od["pos"]
+		if int(od.get("guard", 0)) <= 0:
+			continue
+		if _fog_get(_fog_player, op) != FOG_VISIBLE:
+			continue
+		var onear: bool = absi(op.x - hp.x) + absi(op.y - hp.y) <= MONSTER_VIEW_RANGE
+		var g_army: Dictionary = _object_guard_army(od)
+		var g_cnt: int = 0
+		for gk in g_army.keys():
+			g_cnt += int(g_army[gk])
+		out[op] = {
+			"text": str(maxi(1, g_cnt)) if onear else "?",
+			"color": _threat_color(eff_gold, _threat_gold(g_army))
+				if onear else Color(0.75, 0.75, 0.75),
+			"frac": 0.40,
+		}
+	return out
+
+
+# Die Wachzahlen ueber der raeumlichen Karte. Sie bleiben FLACH: Schrift im
+# Raum waere entweder schraeg gestellt oder ein Schild, das seine Kachel
+# verlaesst - dieselbe Entscheidung wie beim Kampfbrett (It. 55).
+func _draw_map3d_labels() -> void:
+	if _map3d == null:
+		return
+	var font: Font = ThemeDB.fallback_font
+	if font == null:
+		return
+	var px: float = _map3d.cell_pixels()
+	if px <= 1.0:
+		return
+	var labels: Dictionary = _guard_labels()
+	for cell in labels.keys():
+		var e: Dictionary = labels[cell]
+		var size: int = int(maxf(14.0, px * float(e["frac"])))
+		var txt: String = String(e["text"])
+		var sz: Vector2 = font.get_string_size(txt, HORIZONTAL_ALIGNMENT_CENTER,
+			-1, size)
+		var ctr: Vector2 = _map3d.project_cell(cell as Vector2i, 0.0)
+		# DUNKLER TRAEGER HINTER DER ZAHL. In 2D sitzt sie auf einer grauen
+		# Scheibe mit farbigem Ring aussenherum; in 3D IST die Scheibe die
+		# Bedrohungsfarbe, und eine gelbe Zahl auf gelber Scheibe war
+		# schlicht nicht da. Der Traeger loest das unabhaengig davon, was
+		# unter der Zahl steht - Gelaende, Figur oder Markierung.
+		var pad := Vector2(6.0, 2.0)
+		_map_area.draw_rect(Rect2(ctr - sz * 0.5 - pad, sz + pad * 2.0),
+			Color(0.06, 0.07, 0.09, 0.72), true)
+		var at: Vector2 = ctr + Vector2(-sz.x * 0.5, sz.y * 0.32)
+		_map_area.draw_string(font, at, txt, HORIZONTAL_ALIGNMENT_CENTER, -1,
+			size, e["color"] as Color)
+
 
 func _map3d_ctx() -> Dictionary:
 	var cities_out: Array = []
