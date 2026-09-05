@@ -2257,6 +2257,23 @@ func _tile_at_pixel(pos: Vector2) -> Vector2i:
 	return t
 
 
+# Die Gegenrichtung zu `_tile_at_pixel`: wo liegt dieses Feld auf dem
+# Schirm? Sie wird gebraucht, wo etwas einen Tap AUSLOEST statt ihn zu
+# empfangen - der Durchspiel-Test tut genau das.
+#
+# WARUM SIE HIER STEHT UND NICHT DORT: der Test hat sich den Bildpunkt
+# bisher selbst gerechnet (`origin + (feld + 0.5) * tile_size`), also eine
+# Kopie der 2D-Formel gefuehrt. In der raeumlichen Ansicht haette diese
+# Kopie auf das falsche Feld gezeigt, und der Test waere mit sinnlosen
+# Zuegen gruen geblieben. Dieselbe Falle wie die nachgebaute Nachbarschaft
+# in It. 42.
+func _pixel_of_tile(cell: Vector2i) -> Vector2:
+	if _map3d_on and _map3d != null:
+		return _map3d.project_cell(cell, 0.0)
+	return _map_origin() + Vector2(float(cell.x) + 0.5, float(cell.y) + 0.5) \
+		* _tile_size
+
+
 func _handle_tap(pos: Vector2) -> void:
 	if _modal_open():
 		return

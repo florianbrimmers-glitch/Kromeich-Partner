@@ -29,6 +29,13 @@ const MAX_BATTLE_STEPS := 400
 # Fehler aus It. 38 und 39 gefunden.
 const SEEDS := [4711, 90210]
 
+# Ein DRITTER Durchgang mit eingeschalteter raeumlicher Ansicht (It. 60).
+# Er beweist, was kein Standbild beweisen kann: dass sich das Spiel in 3D
+# auch spielen laesst - Tipp auf ein Feld, Kampf, Rueckkehr zur Karte.
+# Derselbe Seed wie der erste Durchgang, damit ein Unterschied im Ergebnis
+# nur an der Ansicht liegen kann.
+const SEED_3D := 4711
+
 var _fails: int = 0
 var _done: Array = []
 # Ergebnisse aus dem Kampf-Signal. Feld, nicht lokal: GDScript-Lambdas
@@ -56,10 +63,30 @@ var _tot_ai: int = 0
 # Seeds, die wirklich GEWONNEN wurden (It. 45).
 var _tot_games_won: int = 0
 
+# Ergebnis des ZULETZT gespielten Durchgangs - fuer den Vergleich zwischen
+# flacher und raeumlicher Ansicht (It. 60).
+var _turns_last: int = 0
+var _turns_by_seed: Dictionary = {}
+var _xp_last: int = 0
+
 
 func _init() -> void:
 	for sd in SEEDS:
 		await _play(sd)
+	# Der Vergleichswert ist der Durchgang MIT DEMSELBEN SEED, nicht der
+	# zuletzt gespielte. Der erste Anlauf verglich 4711 in 3D gegen 90210
+	# flach und war zurecht rot - der Test hat sich selbst widerlegt.
+	var flat_turns: int = int(_turns_by_seed.get(SEED_3D, -1))
+	await _play(SEED_3D, true)
+	_check(_battles > 0,
+		"in der raeumlichen Ansicht wurde gekaempft (%d Kaempfe)" % _battles)
+	# Der Durchgang muss nicht Zug fuer Zug gleich verlaufen - die Ansicht
+	# aendert nichts an der Logik, aber der Tipp landet ueber den Strahl auf
+	# demselben Feld, also SOLLTE er es. Weicht er ab, ist das ein Befund
+	# und kein Rauschen.
+	_check(_turns_last == flat_turns,
+		"gleich viele Zuege wie im flachen Durchgang (%d vs %d)"
+			% [_turns_last, flat_turns])
 	_test_totals()
 	_test_marks()
 
@@ -124,7 +151,7 @@ func _test_marks() -> void:
 
 # --- ein Durchlauf ---------------------------------------------------------
 
-func _play(seed_value: int) -> void:
+func _play(seed_value: int, in_3d: bool = false) -> void:
 	print("")
 	print("== Durchspielen, Seed %d ==" % seed_value)
 	var scene := load("res://scenes/WorldMap.tscn") as PackedScene
@@ -133,6 +160,13 @@ func _play(seed_value: int) -> void:
 	await process_frame
 	wm.call("_start", seed_value, 1)
 	await process_frame
+	if in_3d:
+		wm.call("_toggle_view3d")
+		# Zwei Bilder, damit Kamera und Aufbau stehen: der Tipp wird
+		# danach ueber den Strahl der Kamera zurueckgerechnet.
+		await process_frame
+		await process_frame
+		print("        (raeumliche Ansicht aktiv)")
 
 	# Gold liegt seit M13a im Spieler-Beutel, nicht im Helden.
 	var purse: Wallet = wm.get("_purse")
@@ -186,6 +220,9 @@ func _play(seed_value: int) -> void:
 		if _battles > before:
 			_ai_initiated += 1
 		turns_played += 1
+		_turns_last = turns_played
+		if not in_3d:
+			_turns_by_seed[seed_value] = turns_played
 
 	var won: bool = bool(wm.get("_game_won"))
 	var lost: bool = bool(wm.get("_game_lost"))
@@ -440,10 +477,12 @@ func _move_and_fight(wm, seed_value: int, turn: int) -> void:
 		if target.x < 0:
 			return
 
-	var origin: Vector2 = wm.call("_map_origin")
-	var ts: float = float(wm.get("_tile_size"))
-	var pos: Vector2 = origin + Vector2(float(target.x) + 0.5,
-		float(target.y) + 0.5) * ts
+	# DEN BILDPUNKT FRAGT DER TEST BEIM SCHIRM AN, er rechnet ihn nicht
+	# selbst. Vorher stand hier `origin + (feld + 0.5) * tile_size` - eine
+	# Kopie der 2D-Formel, die in der raeumlichen Ansicht auf das falsche
+	# Feld gezeigt haette. Dieselbe Falle wie die nachgebaute Nachbarschaft
+	# in It. 42; so laeuft derselbe Test in beiden Ansichten.
+	var pos: Vector2 = wm.call("_pixel_of_tile", target)
 	wm.call("_handle_tap", pos)
 	await process_frame
 	await _resolve_overlay(wm, seed_value, turn)
