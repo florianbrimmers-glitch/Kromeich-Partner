@@ -109,6 +109,17 @@ var _spell_panel: Panel = null
 # negativ; die Reihe liegt damit in dem Band, das _grid_area unten frei
 # laesst (offset_bottom -310).
 const BTN_SLOTS := 4
+
+# Raeumliche Ansicht (It. 55). ZWEITE ANSICHT, KEIN ERSATZ - wie bei der
+# Weltkarte in It. 53b. Sie sitzt als SubViewport IN der Gitterflaeche und
+# liest dasselbe Modell ueber _field3d_ctx(); Kampfmathematik,
+# Zugreihenfolge und Balance sind davon nicht beruehrt.
+const Field3D := preload("res://scripts/ui/BattleField3D.gd")
+
+var _view3d_btn: Button
+var _field3d = null
+var _field3d_vp: SubViewport = null
+var _field3d_on: bool = false
 const BTN_PAD := 14.0
 const BTN_TOP := -170.0
 const BTN_BOTTOM := -50.0
@@ -952,6 +963,22 @@ func _build_ui() -> void:
 	_action_lbl.add_theme_color_override("font_color", Color(0.80, 0.88, 1.0))
 	add_child(_action_lbl)
 
+	# Umschalter 2D/3D (It. 55). OBEN RECHTS, nicht in der Knopfreihe:
+	# die hat vier Plaetze, und ein fuenfter haette jeden Knopf auf 188 px
+	# gebracht - "Kapitulieren" passt da bei Schriftgroesse 28 nicht mehr
+	# hinein. Dieselbe Lehre wie It. 53b, wo derselbe Knopf der Statuszeile
+	# der Weltkarte die halbe Breite genommen hat.
+	_view3d_btn = Button.new()
+	_view3d_btn.text = "3D"
+	_view3d_btn.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	_view3d_btn.offset_left = -120.0
+	_view3d_btn.offset_right = -20.0
+	_view3d_btn.offset_top = 16.0
+	_view3d_btn.offset_bottom = 74.0
+	_view3d_btn.add_theme_font_size_override("font_size", 24)
+	_view3d_btn.pressed.connect(_toggle_view3d)
+	add_child(_view3d_btn)
+
 	_grid_area = Control.new()
 	_grid_area.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_grid_area.offset_left = 20.0
@@ -1030,6 +1057,112 @@ func _place_btn(btn: Button, slot: int) -> void:
 	btn.offset_bottom = BTN_BOTTOM
 
 
+# --- Raeumliche Ansicht (It. 55) ------------------------------------------
+
+func _toggle_view3d() -> void:
+	_field3d_on = not _field3d_on
+	if _field3d_on and _field3d == null:
+		_build_field3d()
+	if _field3d_vp != null:
+		(_field3d_vp.get_parent() as Control).visible = _field3d_on
+	if _view3d_btn != null:
+		_view3d_btn.text = "2D" if _field3d_on else "3D"
+	_field3d_apply()
+	_grid_area.queue_redraw()
+
+
+# Erst beim ersten Einschalten. Wer bei 2D bleibt, zahlt weder das glb noch
+# einen zweiten Viewport.
+func _build_field3d() -> void:
+	if _grid_area == null:
+		return
+	var cont := SubViewportContainer.new()
+	cont.stretch = true
+	cont.set_anchors_preset(Control.PRESET_FULL_RECT)
+	# DER TAP GEHOERT WEITER DER GITTERFLAECHE. Faengt der Container die
+	# Eingabe ab, laeuft jeder Zug ins Leere - und zwar still.
+	cont.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# HINTER die eigene Zeichnung der Gitterflaeche. Ein Control zeichnet
+	# erst sich selbst, dann seine Kinder - ohne das lagen die
+	# Stapelgroessen UNTER dem 3D-Bild und waren einfach weg. Sichtbar war
+	# davon nichts: das Brett sah vollstaendig aus, nur ohne Zahlen.
+	cont.show_behind_parent = true
+	_grid_area.add_child(cont)
+	_field3d_vp = SubViewport.new()
+	_field3d_vp.transparent_bg = false
+	_field3d_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	cont.add_child(_field3d_vp)
+	_field3d = Field3D.new()
+	_field3d_vp.add_child(_field3d)
+
+
+func _field3d_apply() -> void:
+	if not _field3d_on or _field3d == null:
+		return
+	_field3d.refresh(_field3d_ctx())
+	_field3d.frame_board(GRID_COLS, GRID_ROWS)
+
+
+# Derselbe Zustand, den _draw_grid zeichnet - aus DENSELBEN Feldern. Eine
+# eigene Ableitung waere eine zweite Wahrheit ueber dieselbe Runde.
+func _field3d_ctx() -> Dictionary:
+	var stacks: Array = []
+	var active: Dictionary = _active_stack()
+	var active_pos := Vector2i(-1, -1)
+	if not active.is_empty():
+		active_pos = Vector2i(active["pos"])
+	for arr in [_p_stacks, _e_stacks]:
+		for st in arr:
+			var sd: Dictionary = st as Dictionary
+			if int(sd["count"]) <= 0:
+				continue
+			var pos: Vector2i = Vector2i(sd["pos"])
+			stacks.append({
+				"pos": pos, "type": String(sd["type"]),
+				"side": int(sd["side"]), "active": pos == active_pos,
+			})
+	var obst: Array = []
+	for ob in _obstacles:
+		var od: Dictionary = ob as Dictionary
+		obst.append({
+			"pos": Vector2i(od["pos"]), "kind": int(od["kind"]),
+			"cracked": int(od.get("hp", 99)) <= 1,
+		})
+	# Laufziele und Angriffsziele wie in _draw_grid: das eigene Feld ist
+	# kein Laufziel, und angreifbar ist ein Gegner, neben dem der aktive
+	# Stapel steht oder stehen kann.
+	var move: Array = []
+	var own_turn: bool = not active.is_empty() \
+		and int(_turn_order[_active_slot]["side"]) == 0
+	if own_turn:
+		for cell in _reachable.keys():
+			if Vector2i(cell) != active_pos:
+				move.append(Vector2i(cell))
+	var targets: Array = []
+	if own_turn:
+		for s in _e_stacks:
+			var es: Dictionary = s as Dictionary
+			if int(es["count"]) <= 0:
+				continue
+			var ep: Vector2i = Vector2i(es["pos"])
+			for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1),
+					Vector2i(0, -1)]:
+				if (ep + d) == active_pos or _reachable.has(ep + d):
+					targets.append(ep)
+					break
+	return {
+		"cols": GRID_COLS, "rows": GRID_ROWS, "terrain": _terrain_id,
+		"seed": _seed3d(), "stacks": stacks, "obstacles": obst,
+		"move": move, "targets": targets,
+	}
+
+
+# Die Streuung der Hindernisse haengt am Gelaende, nicht an der Runde -
+# sonst drehten sich die Steine bei jedem Zug.
+func _seed3d() -> int:
+	return _terrain_id * 977 + GRID_COLS * 31 + GRID_ROWS
+
+
 func _geom() -> Array:
 	var sz: Vector2 = _grid_area.size
 	var cell: float = min(sz.x / float(GRID_COLS), sz.y / float(GRID_ROWS))
@@ -1038,15 +1171,23 @@ func _geom() -> Array:
 	return [Vector2(ox, oy), cell]
 
 
+# EIN Ort fuer "welche Zelle liegt unter diesem Bildpunkt". In 3D kann das
+# keine Division sein: die Kamera steht schraeg, also wird ihr Strahl mit
+# der Ebene y = 0 geschnitten (Scene3D.cell_at). Stuende die Umrechnung
+# zweimal im Code, liefe sie beim naechsten Umbau auseinander - dieselbe
+# Falle wie die nachgebaute Nachbarschaft im Durchspiel-Test (It. 42).
 func _cell_at(p: Vector2) -> Vector2i:
-	var g: Array = _geom()
-	var o: Vector2 = g[0]; var c: float = g[1]
-	if c <= 0.0: return Vector2i(-1, -1)
-	var cx: int = int((p.x - o.x) / c)
-	var cy: int = int((p.y - o.y) / c)
-	if cx < 0 or cx >= GRID_COLS or cy < 0 or cy >= GRID_ROWS:
+	var cell: Vector2i
+	if _field3d_on and _field3d != null:
+		cell = _field3d.cell_at(p)
+	else:
+		var g: Array = _geom()
+		var o: Vector2 = g[0]; var c: float = g[1]
+		if c <= 0.0: return Vector2i(-1, -1)
+		cell = Vector2i(int(floor((p.x - o.x) / c)), int(floor((p.y - o.y) / c)))
+	if cell.x < 0 or cell.x >= GRID_COLS or cell.y < 0 or cell.y >= GRID_ROWS:
 		return Vector2i(-1, -1)
-	return Vector2i(cx, cy)
+	return cell
 
 
 # Grundfarben je Terrain der Weltkarte (MapGen.TILE_*: 0=Gras, 1=Wald,
@@ -1115,6 +1256,18 @@ func _ground_color() -> Color:
 
 
 func _draw_grid() -> void:
+	# EIN TRICHTER FUER BEIDE ANSICHTEN. Jeder Weg, der das Brett aendert,
+	# ruft schon `_grid_area.queue_redraw()` - sonst waere auch die
+	# 2D-Ansicht veraltet. Den Abgleich der raeumlichen hier anzuhaengen
+	# heisst: es gibt keine Stelle, an der man ihn vergessen kann.
+	_field3d_apply()
+	if _field3d_on:
+		# In 3D zeichnet die Ansicht das Brett. Was bleibt, sind die
+		# ZAHLEN: eine Stapelgroesse ist Schrift, und Schrift im Raum waere
+		# entweder schraeg gestellt oder ein Schild, das seine Zelle
+		# verlaesst. Sie liegt deshalb flach darueber.
+		_draw_counts_3d()
+		return
 	var g: Array = _geom()
 	var o: Vector2 = g[0]; var c: float = g[1]
 	if c <= 0.0: return
@@ -1154,6 +1307,7 @@ func _draw_grid() -> void:
 
 	# Kampffeld-Boden: Kachel je Feld. Ohne Sprites bleibt die alte
 	# Schachbrett-Nuance, damit Felder zaehlbar sind.
+	# (Bei aktiver 3D-Ansicht ist hier schon zurueckgekehrt worden.)
 	for cx in range(GRID_COLS):
 		for cy in range(GRID_ROWS):
 			var crect := Rect2(o + Vector2(float(cx) * c, float(cy) * c), Vector2(c, c))
@@ -1803,6 +1957,25 @@ func _draw_hp_bar(ctr: Vector2, cell: float, top_hp: int, max_hp: int) -> void:
 		fill_col = Color(0.95, 0.80, 0.25)
 	_grid_area.draw_rect(Rect2(top_left, Vector2(w * frac, h)), fill_col, true)
 	_grid_area.draw_rect(Rect2(top_left, Vector2(w, h)), Color(0.05, 0.05, 0.05), false, 1.0)
+
+
+# Stapelgroessen ueber der raeumlichen Ansicht. Sie stehen an derselben
+# Stelle wie in 2D (knapp unter der Figur) und tragen denselben Text -
+# `_draw_lbl` ist fuer beide Ansichten dieselbe Funktion.
+func _draw_counts_3d() -> void:
+	if _field3d == null:
+		return
+	var c: float = _field3d.cell_pixels()
+	if c <= 1.0:
+		return
+	for arr in [_p_stacks, _e_stacks]:
+		for st in arr:
+			var sd: Dictionary = st as Dictionary
+			if int(sd["count"]) <= 0:
+				continue
+			var ctr: Vector2 = _field3d.project_cell(Vector2i(sd["pos"]), 0.0)
+			_draw_lbl(ctr, UnitType.short_of(String(sd["type"]))
+				+ str(int(sd["count"])), c)
 
 
 func _draw_lbl(ctr: Vector2, txt: String, cell: float) -> void:

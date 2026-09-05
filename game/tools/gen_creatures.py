@@ -631,6 +631,62 @@ def build(unit):
     return ob
 
 
+# ---------------------------------------------------------------- Hindernisse
+#
+# Die Kampf-Hindernisse (Obstacles.KIND: 0 Stein, 1 Baumstamm, 2 Busch,
+# 3 Sumpfloch, 4 Mauer) stehen hier und nicht bei den Weltkarten-Modellen:
+# sie gehoeren zum Schlachtfeld, und die Weltkarten-Deko hat andere
+# Groessen. Die Namen folgen OBSTACLE_ART im TacticalBattleScreen.
+
+OBSTACLES = {
+    0: ("ob_stone", "#8e8880"),
+    1: ("ob_log", "#7a5a34"),
+    2: ("ob_bush", "#3e6c20"),
+    3: ("ob_swamp", "#4a5b34"),
+    4: ("ob_wall", "#9a9086"),
+}
+
+
+def make_obstacles():
+    stone = "#8e8880"
+    merge("ob_stone", [
+        box((0.22, 0.20, 0.15), (0, 0, 0.15), stone, 0.06,
+            rot=(0, 0, rad(14))),
+        box((0.13, 0.12, 0.20), (0.16, -0.09, 0.20), "#9d968c", 0.05,
+            rot=(0, rad(8), rad(-24))),
+    ])
+    merge("ob_log", [
+        box((0.34, 0.11, 0.11), (0, 0, 0.11), "#7a5a34", 0.09,
+            rot=(0, 0, rad(-9))),
+        box((0.05, 0.05, 0.09), (-0.30, 0.06, 0.20), "#5a4025", 0.02,
+            rot=(0, rad(38), 0)),
+    ])
+    merge("ob_bush", [
+        box((0.20, 0.18, 0.13), (0, 0, 0.13), "#2c5220", 0.08),
+        box((0.13, 0.12, 0.10), (0.09, -0.07, 0.30), "#3e6c20", 0.06),
+        box((0.09, 0.09, 0.08), (-0.11, 0.06, 0.26), "#4a7a26", 0.05),
+    ])
+    # Sumpfloch: eine EINGESENKTE Flaeche. Als Huegel waere es das
+    # Gegenteil von dem, was es im Kampf bedeutet.
+    merge("ob_swamp", [
+        box((0.40, 0.36, 0.035), (0, 0, -0.02), "#3a4a28", 0.03),
+        box((0.24, 0.20, 0.02), (0.03, -0.04, 0.005), "#55663a", 0.02),
+    ])
+    merge("ob_wall", [
+        box((0.44, 0.13, 0.30), (0, 0, 0.30), "#9a9086", 0.03),
+        box((0.46, 0.15, 0.05), (0, 0, 0.63), "#7f766d", 0.02),
+    ])
+    # Gerissene Mauer: dieselbe Silhouette mit einer Luecke oben - der
+    # Spieler soll sehen, wo die naechste Katapultkugel die Bresche
+    # schlaegt.
+    merge("ob_wall_cracked", [
+        box((0.44, 0.13, 0.20), (0, 0, 0.20), "#9a9086", 0.03),
+        box((0.15, 0.13, 0.14), (-0.28, 0, 0.47), "#8b8279", 0.03),
+        box((0.11, 0.13, 0.09), (0.30, 0, 0.44), "#8b8279", 0.03,
+            rot=(0, rad(-12), 0)),
+    ])
+
+
 def main():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     units = json.load(open(UNITS, encoding="utf-8"))["units"]
@@ -639,6 +695,7 @@ def main():
         raise SystemExit("Ohne Rezept: %s" % missing)
     for u in units:
         build(u)
+    make_obstacles()
 
     try:
         out = sys.argv[sys.argv.index("--") + 1]

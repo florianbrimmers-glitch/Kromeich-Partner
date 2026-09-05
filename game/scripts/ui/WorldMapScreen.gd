@@ -2034,6 +2034,11 @@ func _build_map3d() -> void:
 	# Eingabe ab, laufen Ziehen und Antippen ins Leere - und zwar still,
 	# weil beides gueltige Nichtstuer sind.
 	cont.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# HINTER die eigene Zeichnung der Kartenflaeche - dieselbe Reihenfolge
+	# wie im Kampfschirm. Heute zeichnet die 2D-Karte in dieser Betriebsart
+	# nichts mehr, aber sobald eine Ueberlagerung dazukommt (Zahlen an
+	# Staedten zum Beispiel), laege sie sonst unter dem Bild.
+	cont.show_behind_parent = true
 	_map_area.add_child(cont)
 	_map3d_vp = SubViewport.new()
 	_map3d_vp.transparent_bg = false

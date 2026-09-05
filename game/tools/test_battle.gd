@@ -234,19 +234,32 @@ func _test_button_row() -> void:
 	bs._refresh_surrender_button()
 	await process_frame
 
+	# ZWEI GRUPPEN, ZWEI FRAGEN. Die Aktionsreihe unten hat genau
+	# BTN_SLOTS Plaetze und teilt sich die Breite; Knoepfe ausserhalb
+	# (seit It. 55 der 2D/3D-Umschalter oben rechts) gehoeren nicht dazu.
+	# Erkannt werden sie am unteren Anker: die Reihe haengt am Bildrand
+	# unten, alles andere nicht. Die Pruefungen DANACH gelten fuer beide -
+	# ein Knopf ueber dem Gitter frisst den Tap, egal wo er herkommt.
 	var row: Array = []
+	var all_btns: Array = []
 	for ch in bs.get_children():
 		if ch is Button and (ch as Button).visible:
-			row.append({"text": String((ch as Button).text).split("\n")[0],
-				"rect": (ch as Control).get_rect(), "btn": ch})
+			var e := {"text": String((ch as Button).text).split("\n")[0],
+				"rect": (ch as Control).get_rect(), "btn": ch}
+			all_btns.append(e)
+			if is_equal_approx((ch as Control).anchor_top, 1.0):
+				row.append(e)
 	_check(row.size() == bs.BTN_SLOTS,
-		"%d Knoepfe sichtbar (sind %d)" % [bs.BTN_SLOTS, row.size()])
+		"%d Knoepfe in der Aktionsreihe (sind %d)" % [bs.BTN_SLOTS, row.size()])
+	_check(all_btns.size() == bs.BTN_SLOTS + 1,
+		"dazu genau ein Knopf ausserhalb der Reihe (sind %d)"
+			% (all_btns.size() - row.size()))
 
 	var clashes: Array = []
-	for i in range(row.size()):
-		for j in range(i + 1, row.size()):
-			if (row[i]["rect"] as Rect2).intersects(row[j]["rect"] as Rect2):
-				clashes.append("%s/%s" % [row[i]["text"], row[j]["text"]])
+	for i in range(all_btns.size()):
+		for j in range(i + 1, all_btns.size()):
+			if (all_btns[i]["rect"] as Rect2).intersects(all_btns[j]["rect"] as Rect2):
+				clashes.append("%s/%s" % [all_btns[i]["text"], all_btns[j]["text"]])
 	_check(clashes.is_empty(), "keine zwei Knoepfe ueberdecken sich (%s)" % str(clashes))
 
 	# Ganz auf dem Schirm, und NICHT auf dem Gitter: ein Knopf ueber dem
@@ -254,16 +267,16 @@ func _test_button_row() -> void:
 	var screen := Rect2(Vector2.ZERO, Vector2(DEVICE_W, DEVICE_H))
 	var grid := Rect2(bs._grid_area.position, bs._grid_area.size)
 	var bad: Array = []
-	for b in row:
+	for b in all_btns:
 		var r: Rect2 = b["rect"] as Rect2
 		if not screen.encloses(r) or r.intersects(grid):
 			bad.append("%s %s" % [b["text"], str(r)])
-	_check(bad.is_empty(), "jeder Knopf liegt auf dem Schirm und unter dem Gitter (%s)" % str(bad))
+	_check(bad.is_empty(), "jeder Knopf liegt auf dem Schirm und neben dem Gitter (%s)" % str(bad))
 
 	# Und die Beschriftung muss hineinpassen - ein abgeschnittenes
 	# "Kapituliere..." waere schlimmer als kein Knopf.
 	var tight: Array = []
-	for b in row:
+	for b in all_btns:
 		var btn: Button = b["btn"] as Button
 		var fs: int = btn.get_theme_font_size("font_size")
 		var fnt: Font = btn.get_theme_font("font")

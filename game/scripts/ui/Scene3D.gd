@@ -214,6 +214,28 @@ func cell_at(screen_pos: Vector2) -> Vector2i:
 	return Vector2i(int(round(hit.x / CELL)), int(round(hit.z / CELL)))
 
 
+# Zelle -> Bildpunkt. Die Gegenrichtung zu cell_at, fuer alles, was als
+# FLACHE SCHRIFT ueber der raeumlichen Ansicht liegen muss: Stapelgroessen
+# zum Beispiel. Text im Raum waere entweder schraeg gestellt (schlecht
+# lesbar) oder ein Billboard, das seine Zelle verlaesst.
+func project_cell(cell: Vector2i, y: float = 0.0) -> Vector2:
+	if _cam == null:
+		return Vector2.ZERO
+	return _cam.unproject_position(
+		Vector3(float(cell.x) * CELL, y, float(cell.y) * CELL))
+
+
+# Wie viele Bildpunkte eine Zelle breit ist - das Mass, an dem sich
+# Schriftgroessen und Abstaende der Ueberlagerung ausrichten.
+func cell_pixels() -> float:
+	if _cam == null or _cam.size <= 0.0:
+		return 1.0
+	var vp := _cam.get_viewport()
+	if vp == null:
+		return 1.0
+	return float(vp.get_visible_rect().size.x) / _cam.size
+
+
 # Deterministische Streuung - dieselbe Begruendung wie bei _tile_variant in
 # der 2D-Karte: waechselte die Deko bei jedem Neuzeichnen ihren Platz,
 # waere das Bild unruhig und nicht wiedererkennbar.

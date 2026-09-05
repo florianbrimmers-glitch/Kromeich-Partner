@@ -39,6 +39,7 @@ func _init() -> void:
 	await _test_size_tells_the_tier()
 	await _test_instance_colors_enabled()
 	await _test_field_places_everything()
+	await _test_screen_integration()
 
 	var missing: Array = []
 	for m in get_method_list():
@@ -90,6 +91,15 @@ func _test_every_unit_has_a_model() -> void:
 				and not ids.has(n):
 			orphan.append(n)
 	_check(orphan.is_empty(), "kein Modell ohne Einheit (%s)" % str(orphan))
+	# Und die Hindernisse: jede Art, die BattleField3D nennen kann, muss
+	# es geben. Ein fehlendes Modell faellt sonst stumm aus.
+	var no_ob: Array = []
+	for k in Field.OBSTACLE_MODEL.keys():
+		if not _f._meshes.has(String(Field.OBSTACLE_MODEL[k])):
+			no_ob.append(String(Field.OBSTACLE_MODEL[k]))
+	if not _f._meshes.has("ob_wall_cracked"):
+		no_ob.append("ob_wall_cracked")
+	_check(no_ob.is_empty(), "jede Hindernisart hat ein Modell (%s)" % str(no_ob))
 	_done.append("_test_every_unit_has_a_model")
 
 
@@ -188,13 +198,16 @@ func _test_field_places_everything() -> void:
 		{"pos": Vector2i(6, 2), "type": "ork_goblin", "side": 1},
 	]
 	_f.refresh({"cols": 8, "rows": 8, "terrain": 0, "seed": 3,
-		"stacks": stacks, "obstacles": [{"pos": Vector2i(4, 4), "kind": "rock"}],
+		# kind 0 ist der Stein (Obstacles.KIND), als Literal wie im
+		# Kampfschirm - cross-class class_name-Referenzen sind im
+		# Android-Export unzuverlaessig.
+		"stacks": stacks, "obstacles": [{"pos": Vector2i(4, 4), "kind": 0}],
 		"move": [Vector2i(2, 2), Vector2i(3, 2)], "targets": [Vector2i(6, 2)]})
 	_check(_count("t_grass") == 64, "64 Bodenzellen (%d)" % _count("t_grass"))
 	for s in stacks:
 		var t: String = String((s as Dictionary)["type"])
 		_check(_count(t) == 1, "%s steht einmal (%d)" % [t, _count(t)])
-	_check(_count("deco_rock") == 1, "ein Hindernis (%d)" % _count("deco_rock"))
+	_check(_count("ob_stone") == 1, "ein Hindernis (%d)" % _count("ob_stone"))
 	# Ringe: drei Seiten-/Aktivringe plus zwei Laufziele plus ein Angriffsziel.
 	_check(_count("marker_ring") == 6, "sechs Ringe (%d)" % _count("marker_ring"))
 
@@ -210,6 +223,74 @@ func _test_field_places_everything() -> void:
 	_check(_count("marker_ring") == 0, "und ihre Ringe mit ihnen (%d)"
 		% _count("marker_ring"))
 	_done.append("_test_field_places_everything")
+
+
+# Der Umschalter, der Kontext und der Tipp AM ECHTEN KAMPFSCHIRM. Ohne
+# diesen Test wuerde die Suite nur die Ansicht fuer sich pruefen - genau
+# der Fehler, den die Vorschau-Werkzeuge in It. 36/37 gemacht haben.
+func _test_screen_integration() -> void:
+	print("== Einbettung in den Kampfschirm ==")
+	var TBS := load("res://scripts/ui/TacticalBattleScreen.gd")
+	var bs = TBS.new()
+	bs.fx_speed = 0.0
+	root.add_child(bs)
+	await process_frame
+	bs.set_battle({
+		"player_stacks": [{"type": "men_spearman", "count": 20},
+			{"type": "men_archer", "count": 8}],
+		"enemy_stacks": [{"type": "ork_goblin", "count": 25}],
+		"seed": 31337, "terrain_id": 0, "allow_flee": true,
+	})
+	await process_frame
+
+	_check(not bool(bs.get("_field3d_on")), "startet in der 2D-Ansicht")
+	_check(bs.get("_field3d") == null,
+		"die 3D-Ansicht wird erst beim Einschalten gebaut")
+
+	bs.call("_toggle_view3d")
+	await process_frame
+	await process_frame
+	_check(bool(bs.get("_field3d_on")), "Umschalter aktiviert die 3D-Ansicht")
+	var f = bs.get("_field3d")
+	_check(f != null and f.is_built(), "das Brett ist aufgebaut")
+
+	# Der Kontext muss dieselbe Runde beschreiben, die der Schirm fuehrt:
+	# jeder lebende Stapel genau einmal, an seinem Platz.
+	var ctx: Dictionary = bs.call("_field3d_ctx")
+	var seen: Dictionary = {}
+	for st in (ctx["stacks"] as Array):
+		seen[String((st as Dictionary)["type"])] = Vector2i((st as Dictionary)["pos"])
+	var wrong: Array = []
+	for arr in [bs.get("_p_stacks"), bs.get("_e_stacks")]:
+		for st in (arr as Array):
+			var sd: Dictionary = st as Dictionary
+			if int(sd["count"]) <= 0:
+				continue
+			var t: String = String(sd["type"])
+			if not seen.has(t) or seen[t] != Vector2i(sd["pos"]):
+				wrong.append(t)
+	_check(wrong.is_empty() and seen.size() == 3,
+		"alle drei Stapel stehen im Kontext an ihrem Platz (%s, %d)"
+			% [str(wrong), seen.size()])
+
+	# Der Tipp muss dieselbe Zelle treffen, auf der die Ansicht zeichnet.
+	var bad: Array = []
+	for cy in range(0, 8, 2):
+		for cx in range(0, 8, 2):
+			var cell := Vector2i(cx, cy)
+			var screen: Vector2 = f.project_cell(cell, 0.0)
+			var back: Vector2i = bs.call("_cell_at", screen)
+			if back != cell:
+				bad.append("%s -> %s" % [str(cell), str(back)])
+	_check(bad.is_empty(), "16 Zellmitten treffen sich selbst (daneben: %s)"
+		% str(bad))
+
+	bs.call("_toggle_view3d")
+	await process_frame
+	_check(not bool(bs.get("_field3d_on")), "Umschalter fuehrt zurueck nach 2D")
+	bs.queue_free()
+	await process_frame
+	_done.append("_test_screen_integration")
 
 
 func _count(model: String) -> int:

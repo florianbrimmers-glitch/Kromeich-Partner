@@ -31,19 +31,31 @@ const SIDE_COLOR := [Color(1.0, 0.90, 0.45), Color(0.90, 0.30, 0.28)]
 # ist dran" ist eine andere als "wem gehoert das", und zwei Rottoene
 # nebeneinander waeren nicht zu unterscheiden.
 const ACTIVE_RING := Color(1.0, 1.0, 1.0, 0.95)
-# Erreichbare Felder und beschiessbare Ziele.
-const MOVE_RING := Color(1.0, 1.0, 1.0, 0.18)
+# Erreichbare Felder und beschiessbare Ziele. GRUEN wie in 2D, wo die
+# Reichweite als gruene Flaeche liegt - ein weisser Ring hiess auf dem
+# Brett dasselbe wie der weisse Ring um den ziehenden Stapel.
+const MOVE_RING := Color(0.45, 0.95, 0.52, 0.30)
 const TARGET_RING := Color(1.0, 0.35, 0.30, 0.55)
+
+# Hindernisart -> Modell. Die Zahlen sind Obstacles.KIND (0 Stein,
+# 1 Baumstamm, 2 Busch, 3 Sumpfloch, 4 Mauer) und stehen wie im
+# TacticalBattleScreen als Literale da: cross-class class_name-Referenzen
+# sind im Android-Export unzuverlaessig.
+const OBSTACLE_MODEL := {0: "ob_stone", 1: "ob_log", 2: "ob_bush",
+	3: "ob_swamp", 4: "ob_wall"}
 
 # Blickrichtung: die Modelle schauen im glb nach +Z (zur Kamera). Eine
 # Drehung um Y bildet +Z auf (sin a, 0, cos a) ab - fuer +X also +90 Grad.
 # Spieler steht links und schaut nach rechts, der Gegner umgekehrt.
 const FACING := [PI * 0.5, -PI * 0.5]
 
-# Steiler als die Weltkarte: das Brett ist nur 8x8, es muss nicht in die
-# Tiefe gehen, und steiler heisst weniger Verdeckung durch grosse
-# Kreaturen.
-const PITCH := -40.0
+# Steiler als die Weltkarte (-34): das Brett ist nur 8x8 und wird nie
+# gescrollt. Steiler heisst dreierlei - weniger Verdeckung durch grosse
+# Kreaturen, groessere Trefferflaeche je Zelle, und das Brett nutzt die
+# Hoehe des Schirms besser: seine Bildhoehe waechst mit sin(Neigung), bei
+# -46 Grad also um ein Achtel gegenueber -40. Noch steiler saehe wieder
+# aus wie die 2D-Ansicht.
+const PITCH := -46.0
 
 var _built: bool = false
 
@@ -102,10 +114,16 @@ func refresh(ctx: Dictionary) -> void:
 	for o in (ctx.get("obstacles", []) as Array):
 		var od: Dictionary = o as Dictionary
 		var cell: Vector2i = od["pos"]
-		var model: String = "deco_rock" if String(od.get("kind", "rock")) == "rock" \
-			else "deco_tree"
-		add.call(model, cell, 0.0,
-			float(hash3(cell.x, cell.y, sd) % 360) * PI / 180.0, Color.WHITE)
+		var kind: int = int(od.get("kind", 0))
+		var model: String = String(OBSTACLE_MODEL.get(kind, "ob_stone"))
+		if kind == 4 and bool(od.get("cracked", false)):
+			model = "ob_wall_cracked"
+		# Mauern stehen in Reih und Glied - eine gedrehte Mauer waere ein
+		# Loch in der Belagerung. Alles andere wird gestreut, damit die
+		# Hindernisse nicht wie ein Muster aussehen.
+		var rot: float = 0.0 if kind == 4 \
+			else float(hash3(cell.x, cell.y, sd) % 360) * PI / 180.0
+		add.call(model, cell, 0.0, rot, Color.WHITE)
 
 	for s in (ctx.get("stacks", []) as Array):
 		var sd2: Dictionary = s as Dictionary
