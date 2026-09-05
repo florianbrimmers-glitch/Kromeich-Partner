@@ -140,8 +140,17 @@ func refresh(ctx: Dictionary) -> void:
 		var sd2: Dictionary = s as Dictionary
 		var cell2: Vector2i = sd2["pos"]
 		var side: int = clampi(int(sd2.get("side", 0)), 0, 1)
-		add.call(String(sd2.get("type", "")), cell2, 0.0, FACING[side],
-			Color.WHITE)
+		# Ausfallschritt und Gleiten: der Stapel steht datenseitig schon auf
+		# seinem Zielfeld, der Effekt zieht ihn optisch zurueck. Der Ring
+		# darunter bleibt auf dem FELD - er sagt, wo der Stapel steht, nicht
+		# wo seine Figur gerade ist.
+		var off: Vector2 = sd2.get("offset", Vector2.ZERO)
+		if not per_model.has(String(sd2.get("type", ""))):
+			per_model[String(sd2.get("type", ""))] = []
+		(per_model[String(sd2.get("type", ""))] as Array).append({
+			"pos": _cell_pos(cell2) + Vector3(off.x * CELL, 0.0, off.y * CELL),
+			"rot": FACING[side], "color": Color.WHITE,
+		})
 		var rc: Color = SIDE_COLOR[side]
 		if bool(sd2.get("active", false)):
 			rc = ACTIVE_RING

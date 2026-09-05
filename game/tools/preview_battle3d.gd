@@ -74,4 +74,43 @@ func _init() -> void:
 				ProjectSettings.globalize_path(path), err, e2])
 		bs.queue_free()
 		await process_frame
+	await _effects_shot()
 	quit(0)
+
+
+# EIN BILD MIT LAUFENDEN EFFEKTEN. Der Effekt-Layer (Pfeil, Einschlag,
+# Schadenszahl) zeichnet ueber der raeumlichen Ansicht - das muss man
+# sehen, nicht annehmen. Die Effekte werden ueber DIESELBE Schnittstelle
+# ausgeloest, die der Kampfschirm benutzt (Vfx.shot/popup), damit hier
+# keine zweite Vorstellung davon entsteht, wo etwas hingehoert.
+func _effects_shot() -> void:
+	var Vfx := load("res://scripts/core/BattleVfx.gd")
+	var bs = TBS.new()
+	bs.fx_speed = 1.0
+	root.add_child(bs)
+	await process_frame
+	bs.set_battle({
+		"player_stacks": [{"type": "men_archer", "count": 12},
+			{"type": "men_crusader", "count": 6}],
+		"enemy_stacks": [{"type": "ork_ogre", "count": 5},
+			{"type": "ork_orc", "count": 14}],
+		"seed": 31337, "terrain_id": 0, "allow_flee": true,
+	})
+	await process_frame
+	bs.call("_toggle_view3d")
+	for i in range(3):
+		await process_frame
+	var from: Vector2i = Vector2i((bs.get("_p_stacks") as Array)[0]["pos"])
+	var to: Vector2i = Vector2i((bs.get("_e_stacks") as Array)[0]["pos"])
+	Vfx.shot(bs.get("_fx"), from, to, true)
+	Vfx.popup(bs.get("_fx"), to, "-14", Color(1.0, 0.6, 0.5))
+	# Bis kurz vor dem Einschlag laufen lassen.
+	for i in range(5):
+		await process_frame
+	var path := "user://battle3d-effekte.png"
+	var err: int = root.get_texture().get_image().save_png(path)
+	print("effekte: %d laufende Effekte -> %s (err=%d)"
+		% [(bs.get("_fx") as Array).size(),
+			ProjectSettings.globalize_path(path), err])
+	bs.queue_free()
+	await process_frame

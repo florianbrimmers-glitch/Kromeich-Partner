@@ -1101,6 +1101,12 @@ func _field3d_apply() -> void:
 		return
 	_field3d.refresh(_field3d_ctx())
 	_field3d.frame_board(GRID_COLS, GRID_ROWS)
+	# Ruetteln bei schweren Treffern: in 2D wandert der Zeichen-Ursprung,
+	# in 3D der ganze Viewport. Nur die Effekte zu ruetteln und das Brett
+	# stehen zu lassen saehe nach Fehler aus.
+	var cont := _field3d_vp.get_parent() as Control
+	if cont != null:
+		cont.position = _shake_offset()
 
 
 # Derselbe Zustand, den _draw_grid zeichnet - aus DENSELBEN Feldern. Eine
@@ -1120,6 +1126,10 @@ func _field3d_ctx() -> Dictionary:
 			stacks.append({
 				"pos": pos, "type": String(sd["type"]),
 				"side": int(sd["side"]), "active": pos == active_pos,
+				# Ausfallschritt und Gleiten in ZELLEN statt Pixeln: die
+				# raeumliche Ansicht rechnet in Zellen, und dieselbe
+				# Funktion liefert in 2D die Pixel dafuer.
+				"offset": _stack_offset(pos, 1.0),
 			})
 	var obst: Array = []
 	for ob in _obstacles:
@@ -1278,6 +1288,10 @@ func _draw_grid() -> void:
 		# entweder schraeg gestellt oder ein Schild, das seine Zelle
 		# verlaesst. Sie liegt deshalb flach darueber.
 		_draw_counts_3d()
+		# Der Effekt-Layer laeuft unveraendert darueber: er kennt nur
+		# Zellmitten und die Zellgroesse, und beides liefert die
+		# raeumliche Ansicht.
+		_draw_effects(Vector2.ZERO, _field3d.cell_pixels())
 		return
 	var g: Array = _geom()
 	var o: Vector2 = g[0]; var c: float = g[1]
@@ -1804,7 +1818,16 @@ func _draw_death(e: Dictionary, o: Vector2, c: float, t: float) -> void:
 			c * 0.09 * (1.0 - t * 0.4), Color(0.55, 0.50, 0.44, fade * 0.5))
 
 
+# ZELLE -> BILDPUNKT, fuer beide Ansichten. Der ganze Effekt-Layer (Pfeile,
+# Einschlaege, Heilung, Truemmer, Zahlen) rechnet nur ueber diese Funktion
+# und ueber die Zellgroesse - beides gibt es in 3D genauso. Damit laeuft er
+# unveraendert ueber der raeumlichen Ansicht, statt dort zu fehlen.
+#
+# `o` bleibt im Aufruf: in 2D ist es der Zeichen-Ursprung, in 3D das
+# Ruetteln (SHAKE), das dort auf den Viewport selbst geht.
 func _cell_center(cell: Vector2i, o: Vector2, c: float) -> Vector2:
+	if _field3d_on and _field3d != null:
+		return _field3d.project_cell(cell, 0.0)
 	return o + Vector2((float(cell.x) + 0.5) * c, (float(cell.y) + 0.5) * c)
 
 

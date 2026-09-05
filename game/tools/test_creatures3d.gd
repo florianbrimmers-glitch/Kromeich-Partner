@@ -306,9 +306,27 @@ func _test_screen_integration() -> void:
 	_check(bad.is_empty(), "16 Zellmitten treffen sich selbst (daneben: %s)"
 		% str(bad))
 
+	# DER EFFEKT-LAYER rechnet ausschliesslich ueber _cell_center und die
+	# Zellgroesse. Folgt _cell_center der aktiven Ansicht, laufen Pfeile,
+	# Einschlaege und Schadenszahlen ohne eigene Rechnung ueber dem
+	# raeumlichen Brett - genau das ist hier zu pruefen.
+	var off3: Array = []
+	for c3 in [Vector2i(0, 0), Vector2i(3, 4), Vector2i(7, 7)]:
+		var via_center: Vector2 = bs.call("_cell_center", c3, Vector2.ZERO, 100.0)
+		var via_cam: Vector2 = f.project_cell(c3, 0.0)
+		if via_center.distance_to(via_cam) > 0.5:
+			off3.append("%s: %s vs %s" % [str(c3), str(via_center), str(via_cam)])
+	_check(off3.is_empty(),
+		"_cell_center folgt in 3D der Kamera (%s)" % str(off3))
+
 	bs.call("_toggle_view3d")
 	await process_frame
 	_check(not bool(bs.get("_field3d_on")), "Umschalter fuehrt zurueck nach 2D")
+	# Und in 2D wieder die Pixelrechnung: Ursprung plus halbe Zelle.
+	var c2: Vector2 = bs.call("_cell_center", Vector2i(3, 4), Vector2(10.0, 20.0),
+		100.0)
+	_check(c2.is_equal_approx(Vector2(10.0 + 3.5 * 100.0, 20.0 + 4.5 * 100.0)),
+		"_cell_center rechnet in 2D wieder in Pixeln (%s)" % str(c2))
 	bs.queue_free()
 	await process_frame
 
