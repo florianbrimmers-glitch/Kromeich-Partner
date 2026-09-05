@@ -157,6 +157,18 @@ func _build_hud() -> void:
 	_cal.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_cal)
 
+	# Umschalter 2D/3D (It. 56). LINKS unter dem Goldstand, im HUD-Streifen
+	# oben (der reicht bis HUD_TOP = 250) - nicht auf der Buehne: ein Knopf
+	# ueber dem Hof frisst den Tipp auf einen Bauplatz.
+	_view3d_btn = Button.new()
+	_view3d_btn.text = "3D"
+	_view3d_btn.add_theme_font_size_override("font_size", 26)
+	_view3d_btn.position = Vector2(40, 146)
+	_view3d_btn.custom_minimum_size = Vector2(130, 80)
+	_view3d_btn.size = Vector2(130, 80)
+	_view3d_btn.pressed.connect(_toggle_view3d)
+	add_child(_view3d_btn)
+
 	# Garnison-Button neben "Schliessen": Einheiten der Stadt ansehen und
 	# mit dem Helden tauschen (M9b).
 	var gar_btn := Button.new()
@@ -276,15 +288,111 @@ func _update_hud() -> void:
 
 # --- Rendering ---
 
+# --- Raeumliche Ansicht (It. 56) ------------------------------------------
+#
+# ZWEITE ANSICHT, KEIN ERSATZ - wie Weltkarte (It. 53b) und Kampffeld
+# (It. 55). Sie sitzt als SubViewport auf der Buehnenflaeche und liest
+# dasselbe Modell ueber _city3d_ctx(); Bauregeln, Kosten und Anwerben sind
+# nicht beruehrt.
+
+const City3D := preload("res://scripts/ui/CityView3D.gd")
+
+var _view3d_btn: Button
+var _city3d = null
+var _city3d_vp: SubViewport = null
+var _city3d_on: bool = false
+
+
+func _toggle_view3d() -> void:
+	_city3d_on = not _city3d_on
+	if _city3d_on and _city3d == null:
+		_build_city3d()
+	if _city3d_vp != null:
+		(_city3d_vp.get_parent() as Control).visible = _city3d_on
+	if _view3d_btn != null:
+		_view3d_btn.text = "2D" if _city3d_on else "3D"
+	queue_redraw()
+
+
+func _build_city3d() -> void:
+	var cont := SubViewportContainer.new()
+	cont.stretch = true
+	# NUR die Buehne, nicht der ganze Schirm: oben und unten liegen die
+	# HUD-Streifen, und ein Viewport darueber wuerde sie verdecken.
+	var st: Rect2 = _stage_rect()
+	cont.position = st.position
+	cont.size = st.size
+	cont.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# HINTER die eigene Zeichnung: ein Control zeichnet erst sich selbst,
+	# dann seine Kinder - ohne das laegen die Beschriftungen unter dem Bild
+	# (der Befund aus It. 55).
+	cont.show_behind_parent = true
+	add_child(cont)
+	_city3d_vp = SubViewport.new()
+	_city3d_vp.transparent_bg = false
+	_city3d_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	cont.add_child(_city3d_vp)
+	_city3d = City3D.new()
+	_city3d_vp.add_child(_city3d)
+
+
+func _city3d_apply() -> void:
+	if not _city3d_on or _city3d == null:
+		return
+	var st: Rect2 = _stage_rect()
+	var cont := _city3d_vp.get_parent() as Control
+	# Die Buehne folgt der Bildschirmgroesse - der Viewport muss mit.
+	cont.position = st.position
+	cont.size = st.size
+	_city3d.refresh(_city3d_ctx())
+	_city3d.frame_yard()
+
+
+# Derselbe Zustand, den _compute_plots zeichnet, aus DENSELBEN Feldern.
+func _city3d_ctx() -> Dictionary:
+	var layout: Dictionary = _active_layout()
+	var city: Dictionary = _ctx.get("city", {})
+	var built: Array = city.get("buildings", [])
+	var out: Array = []
+	for def in (_ctx.get("buildings", []) as Array):
+		var bid: String = String((def as Dictionary)["id"])
+		if not layout.has(bid):
+			continue
+		var lp: Dictionary = layout[bid]
+		out.append({"id": bid, "x": float(lp.get("x", 0.5)),
+			"y": float(lp.get("y", 0.5)), "built": built.has(bid)})
+	return {"faction": _faction_dir(), "buildings": out,
+		"plaza": _plaza_def()}
+
+
 func _draw() -> void:
 	# Vollflaechiger Backdrop (frueher ein Kind-ColorRect - das hat die
 	# Iso-Stage verdeckt, weil Children ueber dem Parent-_draw rendern).
-	draw_rect(Rect2(Vector2.ZERO, size), Color(0.07, 0.08, 0.11), true)
+	#
+	# IN 3D BLEIBT DIE BUEHNE FREI. Der SubViewport liegt HINTER dieser
+	# Zeichnung (sonst laegen die Beschriftungen unter dem Bild, It. 55) -
+	# also deckt ein vollflaechiger Backdrop ihn zu. Beim ersten Versuch
+	# war die Stadt deshalb einfach schwarz, mit sauber gesetzten
+	# Beschriftungen darauf: alles gerechnet, nichts zu sehen.
+	if not _city3d_on:
+		draw_rect(Rect2(Vector2.ZERO, size), Color(0.07, 0.08, 0.11), true)
 	# HUD-Streifen oben/unten, damit Labels lesbar bleiben.
 	draw_rect(Rect2(Vector2.ZERO, Vector2(size.x, HUD_TOP)), Color(0.05, 0.06, 0.08), true)
 	draw_rect(Rect2(Vector2(0.0, size.y - HUD_BOTTOM), Vector2(size.x, HUD_BOTTOM)), Color(0.05, 0.06, 0.08), true)
 
 	var stage := _stage_rect()
+	if _city3d_on:
+		# In 3D zeichnet die Ansicht die Stadt. Was bleibt, sind die
+		# BESCHRIFTUNGEN (Name und Zustand je Bauplatz): Schrift im Raum
+		# waere entweder schraeg gestellt oder ein Schild, das seinen
+		# Platz verlaesst.
+		_city3d_apply()
+		_plots = _compute_plots(stage)
+		for p in _plots:
+			var w3: Vector3 = _city3d.plot_pos(float(p["lx"]), float(p["ly"]))
+			var sp: Vector2 = stage.position + _city3d.project_point(w3)
+			_plot_label(p, sp + Vector2(0.0, 22.0))
+		return
 	# Stadt-Hintergrund in drei Stufen:
 	#   1. Mauer gebaut + bg_walled vorhanden -> gemaltes Mauer-Bild
 	#   2. sonst bg (+ ggf. wall_overlay wenn Mauer gebaut, Fallback fuer
@@ -552,6 +660,11 @@ func _compute_plots(stage: Rect2) -> Array:
 			"id": bid,
 			"name": String(def.get("name", bid)),
 			"center": center,
+			# Der Platz als ANTEIL, wie er in city_layout.json steht - die
+			# raeumliche Ansicht rechnet daraus ihren eigenen Ort, statt
+			# aus einem Bildschirmpunkt zurueckzurechnen.
+			"lx": float(lp.get("x", 0.5)),
+			"ly": float(lp.get("y", 0.5)),
 			"hw": hw,
 			"hh": hh,
 			"built": is_built,
@@ -636,6 +749,26 @@ func _handle_tap(pos: Vector2) -> void:
 	# zeile zeigen, ohne dass danach noch ein Gebaeude-Hit ausgewertet wird.
 	if _hit_plaza(pos):
 		_show_plaza_stats()
+		return
+	# In 3D gibt es keine Rauten: der Strahl der Kamera trifft den Hofboden,
+	# und getroffen ist der Bauplatz, der diesem Punkt am naechsten liegt.
+	# Ein Bauplatz ist rund zwei Einheiten breit, DIST_MAX also grosszuegig
+	# genug, dass man nicht genau treffen muss, und eng genug, dass ein
+	# Tipp auf leeren Hof nichts ausloest.
+	if _city3d_on and _city3d != null:
+		const DIST_MAX := 1.3
+		var local: Vector2 = pos - _stage_rect().position
+		var hit: Vector3 = _city3d.ground_at(local)
+		var best: Dictionary = {}
+		var best_d: float = DIST_MAX
+		for p in _plots:
+			var w3: Vector3 = _city3d.plot_pos(float(p["lx"]), float(p["ly"]))
+			var d: float = Vector2(hit.x - w3.x, hit.z - w3.z).length()
+			if d < best_d:
+				best_d = d
+				best = p
+		if not best.is_empty():
+			_act_on_plot(best)
 		return
 	# Vorne (groesseres y) hat Vorrang -> rueckwaerts durch die Zeichenliste.
 	for i in range(_plots.size() - 1, -1, -1):

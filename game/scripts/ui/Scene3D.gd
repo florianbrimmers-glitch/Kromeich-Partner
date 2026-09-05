@@ -151,8 +151,14 @@ func _fill(model: String, items: Array) -> void:
 	mm.instance_count = items.size()
 	for i in range(items.size()):
 		var it: Dictionary = items[i]
-		var t := Transform3D(Basis(Vector3.UP, float(it.get("rot", 0.0))),
-			it["pos"] as Vector3)
+		var b := Basis(Vector3.UP, float(it.get("rot", 0.0)))
+		# Massstab je Aufstellung: so kann ein Modell von 1x1 auf die
+		# tatsaechliche Groesse gezogen werden, statt seine Masse ein
+		# zweites Mal im Generator zu hinterlegen (der Hofboden ist genau
+		# dieser Fall).
+		if it.has("scale"):
+			b = b.scaled(it["scale"] as Vector3)
+		var t := Transform3D(b, it["pos"] as Vector3)
 		mm.set_instance_transform(i, t)
 		mm.set_instance_color(i, it.get("color", Color.WHITE))
 
@@ -219,10 +225,26 @@ func cell_at(screen_pos: Vector2) -> Vector2i:
 # zum Beispiel. Text im Raum waere entweder schraeg gestellt (schlecht
 # lesbar) oder ein Billboard, das seine Zelle verlaesst.
 func project_cell(cell: Vector2i, y: float = 0.0) -> Vector2:
+	return project_point(Vector3(float(cell.x) * CELL, y, float(cell.y) * CELL))
+
+
+func project_point(world: Vector3) -> Vector2:
 	if _cam == null:
 		return Vector2.ZERO
-	return _cam.unproject_position(
-		Vector3(float(cell.x) * CELL, y, float(cell.y) * CELL))
+	return _cam.unproject_position(world)
+
+
+# Bildpunkt -> Punkt auf der Ebene y = 0, ungerundet. cell_at rundet das
+# auf eine Zelle; wo es kein Zellgitter gibt (die Stadt hat Bauplaetze,
+# kein Raster), braucht man den Punkt selbst.
+func ground_at(screen_pos: Vector2) -> Vector3:
+	if _cam == null:
+		return Vector3.ZERO
+	var from: Vector3 = _cam.project_ray_origin(screen_pos)
+	var dir: Vector3 = _cam.project_ray_normal(screen_pos)
+	if absf(dir.y) < 0.0001:
+		return Vector3.ZERO
+	return from + dir * (-from.y / dir.y)
 
 
 # Wie viele Bildpunkte eine Zelle breit ist - das Mass, an dem sich

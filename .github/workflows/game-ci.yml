@@ -177,6 +177,11 @@ jobs:
           ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
             --headless --path game/ --script tools/test_creatures3d.gd
 
+      - name: Stadt-3D-Tests (Bauplaetze, Geruest, Tipp)
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/test_city3d.gd
+
       - name: Durchspiel-Test (Weltkarte -> Kampf -> Callback -> Weltkarte)
         run: |
           ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
