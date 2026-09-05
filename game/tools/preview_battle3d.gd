@@ -25,6 +25,12 @@ const CASES := [
 		"enemy": [{"type": "ork_goblin", "count": 30},
 			{"type": "ork_ogre", "count": 4},
 			{"type": "ork_behemoth", "count": 1}]},
+	# Aufstellungsphase: die erlaubte Flaeche muss zu sehen sein, sonst ist
+	# sie in 3D nicht bedienbar.
+	{"terrain": 0, "name": "taktik", "tactics": 2,
+		"player": [{"type": "elf_dwarf", "count": 20},
+			{"type": "elf_archer", "count": 10}],
+		"enemy": [{"type": "nec_skeleton", "count": 30}]},
 	{"terrain": 5, "name": "sumpf",
 		"player": [{"type": "elf_dwarf", "count": 18},
 			{"type": "elf_archer", "count": 9},
@@ -46,6 +52,7 @@ func _init() -> void:
 			"enemy_stacks": case["enemy"],
 			"seed": 31337, "terrain_id": int(case["terrain"]),
 			"allow_flee": true, "player_att": 3, "player_def": 2,
+			"player_tactics": int(case.get("tactics", 0)),
 		})
 		for i in range(3):
 			await process_frame

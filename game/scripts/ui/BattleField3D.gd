@@ -35,6 +35,12 @@ const ACTIVE_RING := Color(1.0, 1.0, 1.0, 0.95)
 # Reichweite als gruene Flaeche liegt - ein weisser Ring hiess auf dem
 # Brett dasselbe wie der weisse Ring um den ziehenden Stapel.
 const MOVE_RING := Color(0.45, 0.95, 0.52, 0.30)
+# Aufstellungsphase: die erlaubte Flaeche, in derselben Farbe wie das
+# blaue Feld der 2D-Ansicht. Ohne sie ist die Taktikphase in 3D nicht
+# bedienbar - man saehe nicht, wohin man einen Stapel setzen darf.
+const ZONE_RING := Color(0.40, 0.62, 0.95, 0.32)
+# Der Stapel, den man gerade umstellt.
+const PICKED_RING := Color(0.55, 0.85, 1.0, 0.95)
 const TARGET_RING := Color(1.0, 0.35, 0.30, 0.55)
 
 # Hindernisart -> Modell. Die Zahlen sind Obstacles.KIND (0 Stein,
@@ -74,6 +80,8 @@ func _init() -> void:
 #   obstacles   Array[{pos, kind}]  kind: "rock" | "tree"
 #   move        Array[Vector2i]   Felder, die der aktive Stack erreicht
 #   targets     Array[Vector2i]   Felder, die er angreifen kann
+#   zone        Array[Vector2i]   erlaubte Flaeche der Aufstellungsphase
+#   picked      Vector2i          Stapel, der gerade umgestellt wird (oder -1)
 func refresh(ctx: Dictionary) -> void:
 	if _meshes.is_empty():
 		return
@@ -105,11 +113,14 @@ func refresh(ctx: Dictionary) -> void:
 			add.call(ground, Vector2i(x, y), 0.0, 0.0,
 				Color(shade, shade, shade))
 
+	var picked: Vector2i = ctx.get("picked", Vector2i(-1, -1))
 	var ring: Array = []
 	for m in (ctx.get("move", []) as Array):
 		ring.append({"pos": _cell_pos(m as Vector2i), "color": MOVE_RING})
 	for t in (ctx.get("targets", []) as Array):
 		ring.append({"pos": _cell_pos(t as Vector2i), "color": TARGET_RING})
+	for z in (ctx.get("zone", []) as Array):
+		ring.append({"pos": _cell_pos(z as Vector2i), "color": ZONE_RING})
 
 	for o in (ctx.get("obstacles", []) as Array):
 		var od: Dictionary = o as Dictionary
@@ -131,11 +142,12 @@ func refresh(ctx: Dictionary) -> void:
 		var side: int = clampi(int(sd2.get("side", 0)), 0, 1)
 		add.call(String(sd2.get("type", "")), cell2, 0.0, FACING[side],
 			Color.WHITE)
-		ring.append({
-			"pos": _cell_pos(cell2),
-			"color": ACTIVE_RING if bool(sd2.get("active", false))
-				else SIDE_COLOR[side],
-		})
+		var rc: Color = SIDE_COLOR[side]
+		if bool(sd2.get("active", false)):
+			rc = ACTIVE_RING
+		if cell2 == picked:
+			rc = PICKED_RING
+		ring.append({"pos": _cell_pos(cell2), "color": rc})
 	if not ring.is_empty():
 		per_model["marker_ring"] = ring
 

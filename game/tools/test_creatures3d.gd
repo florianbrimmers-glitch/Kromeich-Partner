@@ -211,6 +211,27 @@ func _test_field_places_everything() -> void:
 	# Ringe: drei Seiten-/Aktivringe plus zwei Laufziele plus ein Angriffsziel.
 	_check(_count("marker_ring") == 6, "sechs Ringe (%d)" % _count("marker_ring"))
 
+	# Aufstellungsphase: die erlaubte Flaeche bekommt Ringe, und der
+	# Stapel, den man gerade umstellt, einen eigenen. Ohne das waere die
+	# Taktikphase in 3D nicht bedienbar - man saehe nicht, wohin man setzen
+	# darf und welchen Stapel man in der Hand hat.
+	var zone: Array = []
+	for zy in range(8):
+		zone.append(Vector2i(1, zy))
+		zone.append(Vector2i(2, zy))
+	_f.refresh({"cols": 8, "rows": 8, "terrain": 0, "seed": 3,
+		"stacks": stacks, "obstacles": [], "move": [], "targets": [],
+		"zone": zone, "picked": Vector2i(1, 5)})
+	# 16 Zonenfelder plus drei Stapelringe.
+	_check(_count("marker_ring") == 19,
+		"Zonenflaeche und Stapel zusammen 19 Ringe (%d)" % _count("marker_ring"))
+	# DIE FARBE DES RINGS WIRD HIER NICHT GEPRUEFT. `get_instance_color`
+	# liest headless nur Schwarz zurueck (der Dummy-Renderer haelt die
+	# Instanzdaten nicht vor) - ein Vergleich waere immer rot, und zwar
+	# ohne Aussage. Geprueft wird stattdessen die REGEL an ihrem Ursprung:
+	# `_field3d_ctx` muss in der Aufstellungsphase die erlaubte Flaeche und
+	# den umgestellten Stapel melden (siehe _test_screen_integration).
+
 	# Zweiter Durchlauf ohne Einheiten: nichts darf stehenbleiben.
 	_f.refresh({"cols": 8, "rows": 8, "terrain": 0, "seed": 3,
 		"stacks": [], "obstacles": [], "move": [], "targets": []})
@@ -289,6 +310,39 @@ func _test_screen_integration() -> void:
 	await process_frame
 	_check(not bool(bs.get("_field3d_on")), "Umschalter fuehrt zurueck nach 2D")
 	bs.queue_free()
+	await process_frame
+
+	# Aufstellungsphase: die erlaubte Flaeche und der umgestellte Stapel
+	# muessen im Kontext stehen, sonst ist die Taktikphase in 3D nicht
+	# bedienbar.
+	var bt = TBS.new()
+	bt.fx_speed = 0.0
+	root.add_child(bt)
+	await process_frame
+	bt.set_battle({
+		"player_stacks": [{"type": "elf_dwarf", "count": 20},
+			{"type": "elf_archer", "count": 10}],
+		"enemy_stacks": [{"type": "nec_skeleton", "count": 30}],
+		"seed": 31337, "terrain_id": 0, "player_tactics": 2,
+	})
+	await process_frame
+	_check(bool(bt.get("_tactics_phase")), "die Aufstellungsphase laeuft")
+	var tctx: Dictionary = bt.call("_field3d_ctx")
+	var cols: Dictionary = {}
+	for z in (tctx["zone"] as Array):
+		cols[(z as Vector2i).x] = true
+	var want_cols: int = int(bt.get("_tactics_cols")) + 1
+	_check(cols.size() == want_cols and (tctx["zone"] as Array).size()
+			== want_cols * int(bt.GRID_ROWS),
+		"die erlaubte Flaeche umfasst %d Spalten mal %d Reihen (%d Felder in %d Spalten)"
+			% [want_cols, bt.GRID_ROWS, (tctx["zone"] as Array).size(), cols.size()])
+	# Einen Stapel "in die Hand nehmen" - im Spiel macht das ein Tipp auf
+	# ihn; hier reicht der Zustand, den der Tipp setzt.
+	bt.set("_tactics_pick", 0)
+	var tctx2: Dictionary = bt.call("_field3d_ctx")
+	_check(Vector2i(tctx2["picked"]) == Vector2i((bt.get("_p_stacks") as Array)[0]["pos"]),
+		"der umgestellte Stapel steht im Kontext (%s)" % str(tctx2["picked"]))
+	bt.queue_free()
 	await process_frame
 	_done.append("_test_screen_integration")
 

@@ -1150,10 +1150,21 @@ func _field3d_ctx() -> Dictionary:
 				if (ep + d) == active_pos or _reachable.has(ep + d):
 					targets.append(ep)
 					break
+	# Aufstellungsphase: erlaubte Flaeche und der Stapel, den man gerade
+	# umstellt. Dieselbe Bedingung wie das blaue Feld in _draw_grid - ohne
+	# sie waere die Taktikphase in 3D nicht bedienbar.
+	var zone: Array = []
+	var picked := Vector2i(-1, -1)
+	if _tactics_phase:
+		for tx in range(TACTICS_FIRST_COL, TACTICS_FIRST_COL + _tactics_cols + 1):
+			for ty in range(GRID_ROWS):
+				zone.append(Vector2i(tx, ty))
+		if _tactics_pick >= 0 and _tactics_pick < _p_stacks.size():
+			picked = Vector2i(_p_stacks[_tactics_pick]["pos"])
 	return {
 		"cols": GRID_COLS, "rows": GRID_ROWS, "terrain": _terrain_id,
 		"seed": _seed3d(), "stacks": stacks, "obstacles": obst,
-		"move": move, "targets": targets,
+		"move": move, "targets": targets, "zone": zone, "picked": picked,
 	}
 
 
