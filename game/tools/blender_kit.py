@@ -80,21 +80,52 @@ def _bake(ob):
     bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
 
 
-def box(size, loc, hexstr, bevel=0.02, rot=None, name=None):
-    """Quader mit angefaster Kante. Die Fase ist der ganze Trick am
-    Low-Poly-Look: ohne sie verschmelzen benachbarte Flaechen gleicher
-    Farbe zu einer Masse, mit ihr faengt jede Kante einen Lichtsaum."""
+def box(size, loc, hexstr, bevel=0.02, rot=None, name=None, taper=1.0,
+        segments=0):
+    """Quader mit angefaster Kante, wahlweise nach oben verjuengt.
+
+    Die Fase ist der ganze Trick am Low-Poly-Look: ohne sie verschmelzen
+    benachbarte Flaechen gleicher Farbe zu einer Masse, mit ihr faengt
+    jede Kante einen Lichtsaum. Zwei Segmente statt einem runden die
+    Kante spuerbar ab, ohne dass daraus ein rundes Modell wird.
+
+    `taper` skaliert die OBERE Flaeche: 0.7 macht aus dem Quader einen
+    Stumpf, 1.3 einen umgekehrten. Damit bekommen Rumpf, Hals und Beine
+    eine Form statt einer Kastenkontur - das ist der Unterschied zwischen
+    "Figur" und "Klotz", und er kostet keine einzige zusaetzliche Flaeche.
+
+    REIHENFOLGE IST WICHTIG: die Verjuengung passiert, solange das Mesh
+    noch um seinen eigenen Nullpunkt liegt. Nach transform_apply steckt
+    die Position in den Punkten, und ein Skalieren der oberen Flaeche
+    wuerde das Teil verschieben statt es zu formen.
+    """
     bpy.ops.mesh.primitive_cube_add(size=1.0, location=loc)
     ob = bpy.context.active_object
     ob.name = name or _uniq("box")
     ob.scale = (size[0] * 2.0, size[1] * 2.0, size[2] * 2.0)
     if rot:
         ob.rotation_euler = rot
+    if taper != 1.0:
+        me = ob.data
+        zmax = max(v.co.z for v in me.vertices)
+        for v in me.vertices:
+            if abs(v.co.z - zmax) < 1e-6:
+                v.co.x *= taper
+                v.co.y *= taper
     bpy.ops.object.transform_apply(scale=True, rotation=bool(rot))
     if bevel > 0:
+        # ZWEI FASENSTUFEN NUR AN GROSSEN TEILEN (segments=0 heisst
+        # "entscheide selbst"). Die zweite Stufe rundet sichtbar ab, aber
+        # sie verdoppelt die Flaechen - und an einem 3 cm langen Horn
+        # sieht das niemand. Ohne diese Unterscheidung wuchs der
+        # Kreaturensatz von 1,0 auf 3,1 MB, und rund zwei Drittel davon
+        # steckten in Teilen, die auf dem Schirm wenige Pixel gross sind.
+        seg = segments
+        if seg <= 0:
+            seg = 2 if min(size) > 0.06 else 1
         bpy.ops.object.modifier_add(type="BEVEL")
         ob.modifiers["Bevel"].width = bevel
-        ob.modifiers["Bevel"].segments = 1
+        ob.modifiers["Bevel"].segments = seg
         bpy.ops.object.modifier_apply(modifier="Bevel")
     ob.data.materials.append(material(ob.name + "_m", hexstr))
     return ob

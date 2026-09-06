@@ -114,6 +114,47 @@ def fit_to_tier(ob, tier):
 #   hand    (x, y, z)    - wo die Waffe sitzt
 #   fluegel (x, y, z)    - wo Fluegel ansetzen
 
+# --- Gliedmassen aus zwei Stuecken ----------------------------------------
+#
+# EIN GERADER QUADER IST KEIN ARM. Bis It. 63 bestand jedes Bein und jeder
+# Arm aus genau einem achsenparallelen Kasten - das ist der Hauptgrund,
+# warum die Figuren als Klotz gelesen wurden und nicht als Wesen. Zwei
+# Stuecke mit einem Knick dazwischen kosten eine Handvoll Flaechen und
+# geben der Silhouette einen Gelenkpunkt, den das Auge sofort findet.
+
+def limb(p, x, y, z_top, length, w, col, out_deg=0.0, bend_deg=0.0,
+         foot=None, foot_fwd=0.0):
+    """Zwei Glieder von z_top nach unten, mit Knick.
+
+    `out_deg` neigt das obere Stueck seitwaerts (Drehung um Y),
+    `bend_deg` knickt das untere nach vorn oder hinten (Drehung um X).
+
+    DIE ACHSEN AUSEINANDERZUHALTEN IST DER GANZE PUNKT. Im ersten Anlauf
+    hiess der zweite Wert `fore_deg`, drehte aber ebenfalls um Y - der
+    Knick ging also zur Seite statt nach hinten, und die Vierbeiner
+    spreizten die Beine wie Kaefer. `foot_fwd` schiebt den Fuss nach vorn:
+    beim Zweibeiner richtig, beim Tier nicht, wo die Pfote unter dem Bein
+    steht.
+    """
+    half = length * 0.5
+    upper_z = z_top - half * 0.5
+    parts = [
+        box((w, w * 1.05, half * 0.5), (x, y, upper_z), col, w * 0.55,
+            rot=(0, rad(out_deg), 0), taper=0.86),
+    ]
+    dx = half * math.sin(math.radians(out_deg))
+    dy = half * math.sin(math.radians(bend_deg))
+    lower_z = z_top - half - half * 0.5
+    parts.append(box((w * 0.86, w * 0.92, half * 0.5),
+                     (x + dx, y, lower_z), col, w * 0.5,
+                     rot=(rad(bend_deg), 0, 0), taper=0.88))
+    if foot is not None:
+        parts.append(box((w * 1.15, w * (1.15 + foot_fwd), w * 0.5),
+                         (x + dx, y + dy - w * foot_fwd * 0.6, w * 0.5),
+                         foot, w * 0.45))
+    return parts
+
+
 def sil_humanoid(p, build, H):
     lean = 0.0
     sw, hw = 0.20, 0.16
@@ -123,52 +164,69 @@ def sil_humanoid(p, build, H):
         sw, hw, lean = 0.21, 0.17, 0.07
     leg = 0.36 * H
     tor = 0.38 * H
-    parts = [
-        box((0.065, 0.07, leg * 0.5), (-0.085, 0.0, leg * 0.5), p["dark"], 0.02),
-        box((0.065, 0.07, leg * 0.5), (0.085, 0.0, leg * 0.5), p["dark"], 0.02),
-        box((hw, 0.11, tor * 0.5), (0, -lean * 0.5, leg + tor * 0.5),
-            p["main"], 0.04),
-        box((sw, 0.105, 0.055), (0, -lean, leg + tor - 0.035), p["mid"], 0.03),
-        box((0.05, 0.05, tor * 0.44),
-            (-(sw + 0.04), -lean, leg + tor * 0.60), p["main"], 0.02),
-        box((0.05, 0.05, tor * 0.44),
-            (sw + 0.04, -lean, leg + tor * 0.60), p["main"], 0.02),
-    ]
-    top = leg + tor
-    return parts, (0, -lean, top + 0.10 * H, 0.125 * H), \
-        (sw + 0.04, -0.07, leg + tor * 0.42), (0, 0.08, leg + tor * 0.8)
+    parts = []
+    for sx in (-1, 1):
+        parts += limb(p, sx * 0.085, 0.0, leg, leg, 0.062, p["dark"],
+                      out_deg=sx * 3.0, bend_deg=-7.0, foot=p["dark"],
+                      foot_fwd=0.9)
+    # RUMPF MIT BRUST UND TAILLE: unten schmal, oben breit. Ein Kasten von
+    # gleichbleibender Breite ist genau das, was eine Figur zum Klotz
+    # macht.
+    parts.append(box((hw * 0.88, 0.10, tor * 0.5), (0, -lean * 0.5,
+                     leg + tor * 0.5), p["main"], 0.035,
+                     taper=(sw / (hw * 0.88))))
+    parts.append(box((sw, 0.105, 0.05), (0, -lean, leg + tor - 0.03),
+                     p["mid"], 0.028))
+    # HALS. Vorher sass der Kopf unmittelbar auf den Schultern - das liest
+    # sich als Kiste mit Deckel.
+    parts.append(box((sw * 0.30, sw * 0.30, 0.045 * H),
+                     (0, -lean, leg + tor + 0.035 * H), p["light"], 0.012,
+                     taper=0.85))
+    for sx in (-1, 1):
+        parts += limb(p, sx * (sw + 0.035), -lean, leg + tor - 0.03,
+                      tor * 0.86, 0.048, p["main"],
+                      out_deg=sx * 7.0, bend_deg=-14.0)
+    top = leg + tor + 0.07 * H
+    return parts, (0, -lean, top + 0.075 * H, 0.125 * H), \
+        (sw + 0.05, -0.07, leg + tor * 0.34), (0, 0.08, leg + tor * 0.8)
 
 
 def sil_squat(p, H):
     leg = 0.20 * H
     tor = 0.44 * H
-    parts = [
-        box((0.075, 0.075, leg * 0.5), (-0.095, 0, leg * 0.5), p["dark"], 0.02),
-        box((0.075, 0.075, leg * 0.5), (0.095, 0, leg * 0.5), p["dark"], 0.02),
-        box((0.21, 0.13, tor * 0.5), (0, 0, leg + tor * 0.5), p["main"], 0.05),
-        box((0.055, 0.055, tor * 0.5), (-0.25, 0, leg + tor * 0.5),
-            p["main"], 0.02),
-        box((0.055, 0.055, tor * 0.5), (0.25, 0, leg + tor * 0.5),
-            p["main"], 0.02),
-    ]
-    top = leg + tor
-    return parts, (0, 0, top + 0.11 * H, 0.145 * H), \
+    parts = []
+    for sx in (-1, 1):
+        parts += limb(p, sx * 0.095, 0, leg, leg, 0.072, p["dark"],
+                      out_deg=sx * 4.0, bend_deg=-6.0, foot=p["dark"],
+                      foot_fwd=0.9)
+    parts.append(box((0.19, 0.125, tor * 0.5), (0, 0, leg + tor * 0.5),
+                     p["main"], 0.045, taper=1.14))
+    parts.append(box((0.10, 0.09, 0.035), (0, 0, leg + tor + 0.02),
+                     p["light"], 0.012, taper=0.85))
+    for sx in (-1, 1):
+        parts += limb(p, sx * 0.25, 0, leg + tor * 0.94, tor * 0.80, 0.052,
+                      p["main"], out_deg=sx * 5.0, bend_deg=-12.0)
+    top = leg + tor + 0.05
+    return parts, (0, 0, top + 0.085 * H, 0.145 * H), \
         (0.25, -0.07, leg + tor * 0.32), (0, 0.09, top - 0.05)
 
 
 def sil_brute(p, H):
     leg = 0.28 * H
     tor = 0.44 * H
-    parts = [
-        box((0.095, 0.095, leg * 0.5), (-0.13, 0, leg * 0.5), p["dark"], 0.03),
-        box((0.095, 0.095, leg * 0.5), (0.13, 0, leg * 0.5), p["dark"], 0.03),
-        box((0.28, 0.16, tor * 0.5), (0, -0.02, leg + tor * 0.5), p["main"], 0.06),
-        # Arme bis zum Knie - das ist die Silhouette des Schlaegers.
-        box((0.075, 0.075, tor * 0.60), (-0.33, -0.03, leg + tor * 0.35),
-            p["main"], 0.03),
-        box((0.075, 0.075, tor * 0.60), (0.33, -0.03, leg + tor * 0.35),
-            p["main"], 0.03),
-    ]
+    parts = []
+    for sx in (-1, 1):
+        parts += limb(p, sx * 0.13, 0, leg, leg, 0.092, p["dark"],
+                      out_deg=sx * 5.0, bend_deg=-8.0, foot=p["dark"],
+                      foot_fwd=0.8)
+    # Breite Schultern, schmale Huefte - beim Schlaeger noch staerker als
+    # beim Menschen.
+    parts.append(box((0.22, 0.155, tor * 0.5), (0, -0.02, leg + tor * 0.5),
+                     p["main"], 0.055, taper=1.30))
+    # Arme bis zum Knie - das ist die Silhouette des Schlaegers.
+    for sx in (-1, 1):
+        parts += limb(p, sx * 0.33, -0.03, leg + tor * 0.92, tor * 1.05,
+                      0.072, p["main"], out_deg=sx * 4.0, bend_deg=-10.0)
     top = leg + tor
     # Der Kopf sitzt TIEF und vorn: kein Hals, Schultern hoeher als der Kopf.
     return parts, (0, -0.06, top - 0.01, 0.115 * H), \
@@ -281,21 +339,30 @@ def sil_quadruped(p, H, kind):
     body_h = {"horse": 0.105, "lion": 0.105, "heavy": 0.135}[kind]
     lw = 0.05 if kind != "heavy" else 0.075
     parts = []
+    # GELENKBEINE statt vier Stiften. Bei einem Vierbeiner faellt das noch
+    # staerker auf als beim Humanoiden: ein Tier auf geraden Stangen ist
+    # ein Tisch, und genau so las sich der erste Entwurf.
     for sx in (-1, 1):
         for sy in (-1, 1):
-            parts.append(box((lw, lw, leg * 0.5),
-                             (sx * (body_w - lw), sy * (body_l - 0.07),
-                              leg * 0.5), p["dark"], 0.02))
+            parts += limb(p, sx * (body_w - lw), sy * (body_l - 0.07),
+                          leg, leg, lw, p["dark"],
+                          out_deg=sx * 1.5, bend_deg=sy * -10.0,
+                          foot=p["dark"], foot_fwd=0.25)
     body_z = leg + body_h
+    # Rumpf zur Kruppe hin schmaler - ein gleichmaessiger Kasten ist der
+    # Unterschied zwischen Tier und Kiste.
     parts.append(box((body_w, body_l, body_h), (0, 0.03, body_z),
-                     p["main"], 0.05))
+                     p["main"], body_w * 0.30, taper=0.86))
+    parts.append(box((body_w * 0.94, body_l * 0.55, body_h * 0.82),
+                     (0, -body_l * 0.34, body_z + body_h * 0.28),
+                     p["main"], body_w * 0.28, taper=0.90))
     # Hals als kurzer, schraeger Klotz VOM Rumpf aus - Fuss am Widerrist,
     # Ende dort, wo der Kopf sitzt.
     neck_len = 0.20 * H
     nx, nz = -body_l * 0.80, body_z + body_h * 0.6
-    parts.append(box((body_w * 0.50, 0.055, neck_len * 0.5),
-                     (0, nx + 0.03, nz + neck_len * 0.42), p["main"], 0.03,
-                     rot=(rad(28), 0, 0)))
+    parts.append(box((body_w * 0.46, 0.055, neck_len * 0.5),
+                     (0, nx + 0.03, nz + neck_len * 0.42), p["main"], 0.028,
+                     rot=(rad(28), 0, 0), taper=0.80))
     if kind == "heavy":
         parts.append(box((body_w * 0.85, 0.07, 0.05),
                          (0, 0.03, body_z + body_h + 0.03), p["mid"], 0.03))
@@ -390,11 +457,26 @@ HEAD_BASE = {
 }
 
 
+# Koepfe, die einem WESEN gehoeren, nicht einem Helm: als Ikosaeder statt
+# als Wuerfel. Ein Helm darf eckig sein, ein Schaedel nicht - und bis
+# It. 63 war beides derselbe Quader mit einer Fase.
+ROUND_HEADS = {"beak", "mane", "horn_single", "draconic", "rotten",
+               "tusked", "eared", "one_eye", "horned", "small", "bare",
+               "fanged"}
+
+
 def head(kind, p, at):
     x, y, z, r = at
     fx, fy, fz, col, bev, dy = HEAD_BASE.get(kind, (1.0, 0.85, 1.0, "light",
                                                     0.35, 0.0))
-    out = [box((r * fx, r * fy, r * fz), (x, y + r * dy, z), p[col], r * bev)]
+    if kind in ROUND_HEADS:
+        hb = ball(r * 1.02, (x, y + r * dy, z), p[col], subdiv=1)
+        hb.scale = (fx, fy * 1.05, fz)
+        bpy.ops.object.transform_apply(scale=True)
+        out = [hb]
+    else:
+        out = [box((r * fx, r * fy, r * fz), (x, y + r * dy, z), p[col],
+                   r * bev)]
     if kind == "helm_conical":
         out.append(cone(r * 1.05, r * 1.5, (x, y, z + r * 1.4), p["metal"],
                         verts=8))
