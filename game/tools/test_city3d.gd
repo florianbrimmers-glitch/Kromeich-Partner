@@ -80,8 +80,19 @@ func _test_every_plot_has_a_model() -> void:
 				missing.append(n)
 	_check(missing.is_empty(), "%d Modelle (%d Plaetze x %d Fraktionen), keines fehlt (%s)"
 		% [ids.size() * FAC_DIRS.size(), ids.size(), FAC_DIRS.size(), str(missing)])
-	for n in ["city_ground", "city_road", "city_plaza", City3D.SCAFFOLD]:
+	for n in ["city_ground", "city_road", "city_plaza", "city_cobble",
+			City3D.SCAFFOLD]:
 		_check(_v._meshes.has(n), "Hofteil %s vorhanden" % n)
+	# Das Gerumpel im Hof (It. 63). Fehlt eines dieser Modelle, faellt es
+	# stumm aus, und der Hof waere wieder die leere Flaeche, die er bis
+	# dahin war.
+	var no_prop: Array = []
+	for entry in City3D.PROPS:
+		var m: String = String((entry as Dictionary)["model"])
+		if not _v._meshes.has(m):
+			no_prop.append(m)
+	_check(no_prop.is_empty(), "jedes Hof-Requisit hat ein Modell (%s)"
+		% str(no_prop))
 	_done.append("_test_every_plot_has_a_model")
 
 

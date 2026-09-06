@@ -260,11 +260,80 @@ def make_ground():
     # #5f5a4a wurde damit zu einem hellen Beige, auf dem die Gebaeude
     # keinen Halt mehr hatten.
     box((0.5, 0.5, 0.04), (0, 0, -0.04), "#46402f", 0.0, name="city_ground")
-    box((0.5, 0.5, 0.006), (0, 0, 0.006), "#6e6248", 0.0, name="city_road")
+    box((0.5, 0.5, 0.006), (0, 0, 0.006), "#63583f", 0.0, name="city_road")
+    # Pflastersteine fuer den Weg: ohne sie ist er ein leerer Streifen,
+    # und genau das war nach dem Bewuchs ringsum das Auffaelligste.
+    merge("city_cobble", [
+        box((0.055, 0.045, 0.008), (0, 0, 0.008), "#7a6e52", 0.006),
+        box((0.040, 0.038, 0.008), (0.075, 0.03, 0.008), "#6b6049", 0.006,
+            rot=(0, 0, rad(20))),
+        box((0.036, 0.034, 0.008), (-0.06, -0.05, 0.008), "#847858", 0.006,
+            rot=(0, 0, rad(-14))),
+    ])
     ob = cone(0.62, 0.02, (0, 0, 0.012), "#948a70", verts=16,
               name="city_plaza")
     ob.scale = (1.0, 0.62, 1.0)
     bpy.ops.object.transform_apply(scale=True)
+
+
+def make_props():
+    """Was im Hof herumsteht: Fass, Kiste, Karren, Laterne, Baum.
+
+    WARUM DAS NOETIG IST: der Hof war eine leere Flaeche mit neun
+    Gebaeuden darauf. Auf der Weltkarte hat genau dieselbe Behandlung -
+    dicht gestreuter Bewuchs - den groessten Unterschied gemacht; die
+    Stadt hat sie nie bekommen. Eine Stadt ohne Gerumpel zwischen den
+    Haeusern liest sich als Architekturmodell, nicht als Ort, an dem
+    jemand wohnt.
+    """
+    merge("city_barrel", [
+        box((0.075, 0.075, 0.10), (0, 0, 0.10), "#6b4a2a", 0.035),
+        box((0.082, 0.082, 0.012), (0, 0, 0.055), "#4a3520", 0.004),
+        box((0.082, 0.082, 0.012), (0, 0, 0.150), "#4a3520", 0.004),
+    ])
+    merge("city_crate", [
+        box((0.085, 0.075, 0.075), (0, 0, 0.075), "#8a6a3a", 0.012),
+        box((0.088, 0.012, 0.012), (0, 0, 0.075), "#5f4726", 0.0),
+    ])
+    merge("city_cart", [
+        box((0.20, 0.10, 0.05), (0, 0, 0.16), "#7a5a34", 0.015),
+        box((0.035, 0.035, 0.09), (-0.13, 0.11, 0.09), "#4a3520", 0.03,
+            rot=(rad(90), 0, 0)),
+        box((0.035, 0.035, 0.09), (-0.13, -0.11, 0.09), "#4a3520", 0.03,
+            rot=(rad(90), 0, 0)),
+        box((0.022, 0.022, 0.16), (0.19, 0, 0.20), "#6b4a2a", 0.0,
+            rot=(0, rad(66), 0)),
+    ])
+    merge("city_lamp", [
+        box((0.028, 0.028, 0.030), (0, 0, 0.030), "#4a4640", 0.010),
+        box((0.016, 0.016, 0.20), (0, 0, 0.23), "#3a3730", 0.006),
+        box((0.045, 0.045, 0.050), (0, 0, 0.48), "#ffd98a", 0.018),
+        box((0.052, 0.052, 0.014), (0, 0, 0.53), "#3a3730", 0.006),
+    ])
+    merge("city_tree", [
+        box((0.05, 0.05, 0.16), (0, 0, 0.16), "#4a3520", 0.015),
+        box((0.20, 0.19, 0.15), (0, 0, 0.46), "#2f5a24", 0.075),
+        box((0.13, 0.12, 0.10), (0.03, -0.02, 0.68), "#3e7a2c", 0.05),
+    ])
+    # Bodenflicken: flache, leicht andersfarbige Flaechen. Sie kosten fast
+    # nichts und nehmen dem Hof das Gleichmaessige - dieselbe Idee wie die
+    # Farbstreuung je Kachel auf der Weltkarte, nur ohne Kacheln.
+    # Der Flicken ist NUR eine Nuance heller als der Hof (#46402f). Beim
+    # ersten Anlauf war er mit #5a5240 deutlich heller und wurde bis 3.2
+    # Einheiten gross skaliert - auf einem 6 Einheiten breiten Hof lagen
+    # damit graue Platten herum, die ueber den Rand hinausragten. Ein
+    # Flicken soll die Flaeche BRECHEN, nicht sie ersetzen.
+    # SIEBENECK, kein Quadrat. Als gedrehtes Quadrat las sich der Flicken
+    # als Blatt Papier auf dem Boden - eine gerade Kante mit vier Ecken
+    # sieht immer nach Absicht aus. Ein Vieleck mit ungerader Eckenzahl
+    # liest sich als Flaeche.
+    import bpy as _b
+    _b.ops.mesh.primitive_cylinder_add(vertices=7, radius=0.5, depth=0.008,
+                                       location=(0, 0, 0.004))
+    ob = _b.context.active_object
+    ob.name = "city_patch"
+    bk._bake(ob)
+    ob.data.materials.append(bk.material("city_patch_m", "#4d472f"))
 
 
 def make_scaffold():
@@ -292,6 +361,7 @@ def main():
         for bid in ids:
             build_one(bid, fac)
     make_ground()
+    make_props()
     make_scaffold()
 
     try:
