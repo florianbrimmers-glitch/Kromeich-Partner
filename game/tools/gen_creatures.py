@@ -303,28 +303,68 @@ def sil_bird(p, H):
 
 
 def sil_tree(p, H, big):
-    trunk_r = 0.19 if big else 0.15
-    trunk_h = (0.50 if big else 0.54) * H
-    parts = [
-        box((trunk_r * 1.5, trunk_r * 1.5, 0.035), (0, 0, 0.035),
-            p["wood"], 0.03),
-        box((trunk_r, trunk_r * 0.9, trunk_h * 0.5), (0, 0, trunk_h * 0.5),
-            p["wood"], 0.04),
-        # Aeste als Arme - daran erkennt man den Treant und nicht den Baum.
-        box((0.05, 0.05, 0.17 * H), (-(trunk_r + 0.08), -0.02,
-            trunk_h * 0.78), p["wood"], 0.02, rot=(0, rad(22), 0)),
-        box((0.05, 0.05, 0.17 * H), (trunk_r + 0.08, -0.02,
-            trunk_h * 0.78), p["wood"], 0.02, rot=(0, rad(-22), 0)),
-    ]
-    crown = trunk_h + 0.10 * H
-    parts.append(box((trunk_r * 1.9, trunk_r * 1.7, 0.09 * H),
-                     (0, 0, crown), p["main"], 0.06))
+    """Baumwesen: Treant und Baumvater.
+
+    EIN BAUMWESEN IST KEIN BAUM. Bis It. 64 war es genau das - ein
+    gerader Stamm mit einem gruenen Kasten obendrauf und zwei Stoecken als
+    Armen. Auf dem Musterblatt stand es zwischen lauter Figuren mit
+    Gelenken und war das einzige, was noch wie Moebel aussah.
+
+    Was es zur Figur macht, in der Reihenfolge ihrer Wirkung:
+      * ZWEI WURZELBEINE mit Knick. Ein Wesen, das geht, hat Beine - das
+        sagt mehr als jedes Detail an der Krone.
+      * Ein Stamm, der nach oben schmaler wird, statt einer Saeule.
+      * Astarme in zwei Stuecken, weit ausgestellt.
+      * Eine Krone aus mehreren versetzten Blattballen statt EINEM Kasten.
+        Ein Kasten liest sich als Dach, drei ueberlappende Ballen als Laub.
+    """
+    trunk_r = 0.185 if big else 0.15
+    trunk_h = (0.42 if big else 0.46) * H
+    leg_h = 0.17 * H
+    parts = []
+    for sx in (-1, 1):
+        parts += limb(p, sx * trunk_r * 0.60, 0.0, leg_h, leg_h,
+                      trunk_r * 0.46, p["wood"], out_deg=sx * 9.0,
+                      bend_deg=-7.0, foot=p["wood"], foot_fwd=0.6)
+    # Wurzelanlauf: der Uebergang von den Beinen in den Stamm. Ohne ihn
+    # stehen zwei Stoecke unter einer Saeule.
+    parts.append(box((trunk_r * 1.30, trunk_r * 1.20, 0.045 * H),
+                     (0, 0, leg_h + 0.03 * H), p["wood"], trunk_r * 0.30,
+                     taper=0.84))
+    parts.append(box((trunk_r, trunk_r * 0.92, trunk_h * 0.5),
+                     (0, 0, leg_h + trunk_h * 0.5), p["wood"], trunk_r * 0.26,
+                     taper=0.76))
+    # ARME TIEFER UND FLACHER. Im ersten Anlauf sassen sie bei 0.88 der
+    # Stammhoehe und fielen steil nach unten - damit steckten sie im Laub
+    # und waren auf dem Musterblatt gar nicht zu sehen. Ein Baumwesen
+    # erkennt man aber genau daran, dass es ARME hat und nicht nur Krone.
+    for sx in (-1, 1):
+        parts += limb(p, sx * (trunk_r + 0.05), -0.02,
+                      leg_h + trunk_h * 0.62, 0.34 * H, trunk_r * 0.34,
+                      p["wood"], out_deg=sx * 52.0, bend_deg=-22.0)
+    # Krone: drei bis fuenf Ballen, versetzt und unterschiedlich gross.
+    top = leg_h + trunk_h
+    balls = [(0.00, 0.00, 0.05, 1.00),
+             (-0.62, 0.14, -0.03, 0.74),
+             (0.56, -0.16, 0.00, 0.68)]
     if big:
-        parts.append(box((trunk_r * 1.4, trunk_r * 1.3, 0.07 * H),
-                         (0, 0, crown + 0.15 * H), p["mid"], 0.05))
-        crown += 0.15 * H
-    return parts, (0, -trunk_r * 0.6, crown + 0.02, 0.11 * H), \
-        (trunk_r + 0.13, -0.05, trunk_h * 0.86), (0, 0.06, trunk_h)
+        balls += [(0.10, 0.06, 0.40, 0.80), (-0.34, -0.20, 0.34, 0.62)]
+    crown_top = top
+    for i, (bx, by, bz, bs) in enumerate(balls):
+        r = trunk_r * 1.55 * bs
+        z = top + 0.085 * H + bz * H
+        ob = ball(r, (bx * trunk_r * 1.9, by * trunk_r * 1.9, z),
+                  p["main"] if i % 2 == 0 else p["mid"], subdiv=1)
+        ob.scale = (1.0, 0.94, 0.78)
+        bpy.ops.object.transform_apply(scale=True)
+        parts.append(ob)
+        crown_top = max(crown_top, z + r * 0.78)
+    # Der Kopf ist ein Knoten im STAMM, nicht ein Ball in der Krone: so
+    # schaut das Wesen nach vorn, statt eine Kugel im Laub zu haben.
+    head_z = top - 0.02 * H
+    return parts, (0, -trunk_r * 0.72, head_z, 0.105 * H), \
+        (trunk_r + 0.16, -0.06, leg_h + trunk_h * 0.72), \
+        (0, 0.06, leg_h + trunk_h * 0.9)
 
 
 def sil_quadruped(p, H, kind):
