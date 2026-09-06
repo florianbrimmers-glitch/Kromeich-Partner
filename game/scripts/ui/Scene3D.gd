@@ -53,6 +53,7 @@ func load_models() -> void:
 			if ch is MeshInstance3D:
 				var m: Mesh = (ch as MeshInstance3D).mesh
 				_enable_instance_color(m)
+				_apply_surface(String(ch.name), m)
 				if transparent_prefix != "" \
 						and String(ch.name).begins_with(transparent_prefix):
 					_enable_transparency(m)
@@ -80,6 +81,107 @@ func _enable_instance_color(m: Mesh) -> void:
 		var mat := m.surface_get_material(i) as StandardMaterial3D
 		if mat != null:
 			mat.vertex_color_use_as_albedo = true
+
+
+# --- Prozedurale Oberflaechenstruktur (It. 66) ----------------------------
+#
+# WARUM UEBERHAUPT: bis It. 65 hatte jede Flaeche im Spiel genau EINE
+# Farbe. Egal wie gut Form und Licht sind - eine Wand ohne jede Struktur
+# liest sich als Kunststoff. Das ist der letzte grosse Unterschied zu
+# einem heutigen Aussehen, und er kostet weder Texturdateien noch
+# UV-Arbeit an 92 Modellen:
+#
+#   * Das Rauschen entsteht IM SPIEL (FastNoiseLite), also waechst die
+#     APK nicht.
+#   * TRIPLANAR bildet es aus der Weltlage ab statt aus UV-Koordinaten -
+#     die Modelle haben keine brauchbaren UVs und brauchen auch keine.
+#   * Als DETAIL-Ebene multipliziert es auf die Grundfarbe, statt sie zu
+#     ersetzen. Die Instanzfarbe (Nebel, Besitzer, Bedrohung) bleibt
+#     dadurch unberuehrt - geprueft, bevor eine Zeile davon gebaut wurde.
+#
+# KOSTEN, DIE MAN KENNEN MUSS: Triplanar liest die Textur dreimal statt
+# einmal. Deshalb bekommen die BODENKACHELN keine Struktur - sie fuellen
+# den ganzen Schirm, und dort waere es am teuersten und am wenigsten zu
+# sehen. Markierungen bleiben ebenfalls glatt: sie sind Anzeige, kein
+# Material.
+const SURFACE_SKIP_PREFIX := ["marker_", "t_", "city_ground", "city_road"]
+# Wie fein die Struktur auf dem Modell liegt (Wiederholungen je Einheit).
+# 9.0, nicht 3.2. Der erste Wert war so grob, dass ein Koerperteil von
+# 0.2 Einheiten nur einen Bruchteil einer Rauschwelle abdeckte - jedes
+# Teil bekam damit einen nahezu KONSTANTEN Wert, und ein gleichmaessig
+# etwas dunkleres Teil sieht aus wie gar keine Struktur. Gemessen habe ich
+# das nicht am Bild, sondern am Wertebereich der Textur (0.74 bis 0.99,
+# also reichlich) - der Fehler lag nicht im Kontrast, sondern im Massstab.
+const SURFACE_SCALE := 1.5
+# Wie stark sie abdunkelt: 0.48 bis 1.0.
+#
+# WAS DIE EINSTELLUNG GEKOSTET HAT, und was dabei herauskam: bei 0.74
+# (ein Viertel Schwankung) war NICHTS zu sehen, obwohl alles korrekt
+# ankam - geprueft ueber die Materialwerte zur Laufzeit und den
+# Wertebereich der Textur. Bei 0.25 war es sichtbar, sah aber aus wie
+# Filmkorn ueber dem ganzen Bild. Erst grobe Flecken (Frequenz 0.22 statt
+# 0.9) bei mittlerem Kontrast lesen sich als Verwitterung.
+#
+# EHRLICHE GRENZE: das wirkt auf GROSSEN Flaechen - Daecher, Mauern,
+# Hofboden. Auf einer Kreatur von neunzig Bildpunkten ist der Gewinn
+# nahe null. Rauschen ist keine Textur: was ein gemaltes Material
+# ausmacht, sind Bretterfugen, Steinlagen, Stofffalten - also STRUKTUR
+# MIT BEDEUTUNG, und die kann kein Zufallsfeld liefern.
+const SURFACE_LO := 0.48
+
+static var _surface_tex: Texture2D = null
+
+
+# Einmal fuer das ganze Spiel. Synchron erzeugt, nicht ueber
+# NoiseTexture2D: die rechnet im Hintergrund, und ein Bild, das im ersten
+# Frame noch leer ist, macht genau die Sorte Fehler, die man nicht sieht.
+static func surface_texture() -> Texture2D:
+	if _surface_tex != null:
+		return _surface_tex
+	# GROBE FLECKEN, NICHT KORN. Der erste Anlauf hatte Frequenz 0.9 auf
+	# 128 px - bei extremem Kontrast war die Struktur zwar da, sah aber aus
+	# wie Filmkorn ueber dem ganzen Bild. Was ein Material ausmacht, sind
+	# grosse, weiche Flecken mit einer Spur Feinheit darin, nicht
+	# gleichmaessiges Rauschen. Deshalb tiefe Grundfrequenz und ein groesse-
+	# res Bild.
+	var n := FastNoiseLite.new()
+	n.noise_type = FastNoiseLite.TYPE_SIMPLEX_SMOOTH
+	n.frequency = 0.22
+	n.fractal_octaves = 3
+	n.fractal_gain = 0.48
+	var img: Image = n.get_seamless_image(256, 256)
+	img.convert(Image.FORMAT_RGB8)
+	# Den Wertebereich stauchen. Rohes Rauschen liegt um 0.5, und
+	# multipliziert man das auf die Grundfarbe, ist die Wand halb so hell -
+	# im ersten Machbarkeitstest war genau das der sichtbare Fehler.
+	for y in range(img.get_height()):
+		for x in range(img.get_width()):
+			var v: float = img.get_pixel(x, y).r
+			var k: float = SURFACE_LO + v * (1.0 - SURFACE_LO)
+			img.set_pixel(x, y, Color(k, k, k))
+	# MIPMAPS. Ohne sie flimmert eine feine Struktur, sobald das Modell
+	# klein auf dem Schirm steht - auf einer Weltkarte mit vierzig Pixeln
+	# je Kachel waere das der halbe Bildschirm.
+	img.generate_mipmaps()
+	_surface_tex = ImageTexture.create_from_image(img)
+	return _surface_tex
+
+
+func _apply_surface(name: String, m: Mesh) -> void:
+	for pre in SURFACE_SKIP_PREFIX:
+		if name.begins_with(String(pre)):
+			return
+	var tex: Texture2D = surface_texture()
+	for i in range(m.get_surface_count()):
+		var mat := m.surface_get_material(i) as StandardMaterial3D
+		if mat == null:
+			continue
+		mat.detail_enabled = true
+		mat.detail_albedo = tex
+		mat.detail_blend_mode = BaseMaterial3D.BLEND_MODE_MUL
+		mat.detail_uv_layer = BaseMaterial3D.DETAIL_UV_1
+		mat.uv1_triplanar = true
+		mat.uv1_scale = Vector3(SURFACE_SCALE, SURFACE_SCALE, SURFACE_SCALE)
 
 
 func _enable_transparency(m: Mesh) -> void:
