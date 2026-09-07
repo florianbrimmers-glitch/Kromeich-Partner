@@ -22,9 +22,23 @@ Aufruf:
 """
 import os, pathlib, sys
 
-STANDARD = pathlib.Path(
-    os.environ.get("SKILL_DIR")
-    or (pathlib.Path.home() / ".claude/skills/synced/propstack-expose-workflow"))
+def _finden():
+    """Skill-Verzeichnis suchen statt fest verdrahten.
+
+    Die Skill-Kopien liegen unter synced/<uuid>_<uuid>/propstack-expose-workflow;
+    der Ordnername wechselt bei jedem Reset. Der fest verdrahtete Pfad hat
+    deshalb am 07.09.2026 nicht mehr existiert - der Hook meldete Erfolg und
+    trug nichts ein.
+    """
+    if os.environ.get("SKILL_DIR"):
+        return pathlib.Path(os.environ["SKILL_DIR"])
+    heim = pathlib.Path.home() / ".claude/skills"
+    treffer = sorted(heim.glob("**/propstack-expose-workflow"),
+                     key=lambda p: p.stat().st_mtime, reverse=True)
+    return treffer[0] if treffer else heim / "synced/propstack-expose-workflow"
+
+
+STANDARD = _finden()
 
 def ziel_verzeichnis(argv):
     if "--ziel" in argv:
@@ -163,6 +177,24 @@ Wer neu anlegt, ohne über PLZ **und** Straße geprüft zu haben, erzeugt Dublet
   "Mezzaninfläche gehört in `mezzanineflache_gesamt` / `_verfugbar`, die Miete in "
   "`intern_mietpreis_mezzanine`.",
   "api-fields: Mezzanin-Warnung korrigiert"),
+ ("SKILL.md",
+  '**Bei Multi-Unit-Standorten alle Einheiten anlegen, auch die vermieteten.** Vermietete: `rented: true`, `free_from: "vermietet"`, `status_logistik: "Inaktiv"`, `lagerflache_verfugbar: "0 m² (vermietet)"`.',
+  '**Bei Multi-Unit-Standorten alle Einheiten anlegen, auch die vermieteten.** Vermietete: `rented: true`, `free_from: "vermietet"`, `status_logistik: "Inaktiv"`, Status **Abgeschlossen**. **In die Flächenfelder gehört die reale Größe der Einheit — eine 0 ist dort NIE richtig** (Vorgabe Florian Brimmers, 07.09.2026). Hier stand früher `lagerflache_verfugbar: "0 m² (vermietet)"`; das hat die Quadratmeter der Einheit vernichtet und ist am 07.09.2026 bestandsweit korrigiert worden (116 Einheiten mit Textnull, 159 mit Zahlnull). Dass eine Einheit vermietet ist, steht in `rented` und im Status — nicht in der Fläche.',
+  "Nullflaeche bei vermieteten Einheiten verboten"),
+
+ ("SKILL.md",
+  "**Bei Multi-Unit-Standorten alle Einheiten anlegen",
+  "- **`*_gesamt`-Fl\u00e4chen des alten Import-Blocks sind um Faktor 1.000 verf\u00e4lscht.** "
+  "In den Datens\u00e4tzen mit IDs 2777xxx/2778xxx ist beim Import der Tausenderpunkt als "
+  "Dezimalpunkt gelesen worden: Einheit 2777954 tr\u00e4gt `lagerflache` 4626 und "
+  "`lagerflache_gesamt` 4.626 \u2014 dieselbe Zahl, tausendfach zu klein. Betroffen sind am "
+  "07.09.2026 82 Felder auf rund 60 Einheiten. **Ein einzelnes `*_gesamt`-Feld beweist eine "
+  "Fl\u00e4che deshalb nicht mehr**; es braucht ein zweites Feld, das den Wert deckt. Nicht "
+  "entscheidbar und nicht zu raten sind Werte mit Bruchteil sowie ganze Zahlen unter 100 "
+  "(\u201e15.0\u201c kann 15 m\u00b2 oder 15.000 m\u00b2 hei\u00dfen). Ganze Zahlen ab 100 sind "
+  "unverd\u00e4chtig, weil ein verschluckter Tausenderpunkt sie nicht erzeugen kann.\n"
+  "**Bei Multi-Unit-Standorten alle Einheiten anlegen",
+  "Tausenderfehler in den *_gesamt-Feldern"),
 ]
 
 def main():
