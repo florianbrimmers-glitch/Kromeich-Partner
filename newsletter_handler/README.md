@@ -13,7 +13,7 @@ Eigenständiges Paket – **kein Code-Sharing** mit `src/` oder `objekte_handler
    - **Kein Match** (Fremd-Deal, nicht im eigenen Bestand) → nur Log, keine Aktion.
    - **Stufe A** (Vermietung eindeutig einem eigenen Objekt zugeordnet, `DRY_RUN=false`): `rented=true` setzen, Doku-Notiz, offene Deals per Absage-Aktivität (Grund 256998) schließen.
    - **Stufe B** (mehrdeutig / geringe Confidence / `DRY_RUN=true`): Review-Aufgabe an den Objekt-Verantwortlichen (Fallback Oguzhan, 254958), fällig +2 Werktage.
-5. Nach Verarbeitung **aller** Deals einer Nachricht: eine Sammel-Antwort als Thread-Reply + ✅-Reaction. Jeder Deal landet als JSONL-Zeile im Entscheidungslog (Actions-Artefakt).
+5. Nach Verarbeitung **aller** Deals einer Nachricht: eine Sammel-Antwort als Thread-Reply + ✅-Reaction. Jeder Deal landet als JSONL-Zeile im Entscheidungslog (nur lokal, siehe unten).
 
 ## Betriebsmodi
 
@@ -61,6 +61,10 @@ pytest tests/newsletter_handler/ -v
 ```
 
 ## Auswertung des Entscheidungslogs
+
+Das Entscheidungslog entsteht nur beim lokalen Lauf (`DECISION_LOG_PATH`); Cron-Läufe
+laden es nicht hoch. Zum Auswerten den Handler lokal gegen das gewünschte Zeitfenster
+laufen lassen (Beispiel oben, `SCAN_HOURS` passend gesetzt), dann z.B.:
 
 ```bash
 # Verteilung der Deal-Typen

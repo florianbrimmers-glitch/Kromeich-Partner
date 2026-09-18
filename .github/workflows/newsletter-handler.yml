@@ -64,14 +64,7 @@ jobs:
           NO_WRITE: ${{ github.event.inputs.no_write || 'false' }}
           SCAN_HOURS: ${{ github.event.inputs.scan_from_hours || '27' }}
           SCAN_LATEST_HOURS: ${{ github.event.inputs.scan_to_hours || '0' }}
+          # Entscheidungslog bleibt lokal auf dem Runner: bewusst kein Artefakt,
+          # das füllte nur die Quota und meldete grüne Läufe rot.
           DECISION_LOG_PATH: newsletter_decisions.jsonl
         run: python -m newsletter_handler.main
-
-      - name: Upload decision log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: newsletter-decisions-${{ github.run_id }}
-          path: newsletter_decisions.jsonl
-          if-no-files-found: ignore
-          retention-days: 30
