@@ -23,7 +23,20 @@ Eigenständiges Paket – **kein Code-Sharing** mit `src/` oder `objekte_handler
 | `DRY_RUN=true` (**Default**) | nur Review-Tasks (Stufe B) | ja | ja | Testbetrieb – Vermietungen nur als Review-Aufgabe |
 | `DRY_RUN=false` | Stufe A + B | ja | ja | Normalbetrieb (auto set_rented) |
 
-**Start im Dry-Run:** Der Cron läuft zunächst mit `DRY_RUN=true`. Scharfschalten (Cron-Env auf `false`) erst nach Auswertung der ersten Läufe – analog zum objekte-Handler.
+**`DRY_RUN=true` ist der gewählte Dauerbetrieb – kein offener Testlauf.** Der Cron
+läuft dauerhaft so: Vermietungen gehen immer als Review-Aufgabe an einen Menschen,
+der Handler setzt nie selbst `rented`. Das ist bewusst anders als beim objekte- und
+events-Handler, die scharf laufen.
+
+Grundlage ist die Auswertung der Läufe 68–74: von **13 Vermietungen** waren nur **2
+eindeutig** gematcht (6× mehrdeutig mit KI-Konfidenz 0,55–0,70, 5× gar nicht im
+Bestand). Scharfbetrieb spart also rund zwei Handgriffe je zwei Wochen – zu wenig
+gegen das Risiko, bei einem falschen Treffer eigenständig eine Fläche auf vermietet
+zu setzen und offene Deals abzusagen. Die mehrdeutigen Fälle landen ohnehin bei
+einem Menschen, daran ändert der Schalter nichts.
+
+Auf `DRY_RUN=false` umstellen also nur nach bewusster Entscheidung – es ist kein
+überfälliger nächster Schritt.
 
 ## Umgebungsvariablen
 
