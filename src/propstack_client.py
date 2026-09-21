@@ -224,6 +224,10 @@ def create_contact(
 
     if contact.phone:
         client_data["office_phone"] = contact.phone
+    # Mobilnummern gehören in office_cell – ein Feld "mobile" kennt die
+    # Propstack-API nicht, sie verwirft es ohne Fehlermeldung (HTTP 200).
+    if contact.mobile:
+        client_data["office_cell"] = contact.mobile
     if contact.company:
         client_data["company"] = contact.company
     if contact.position:

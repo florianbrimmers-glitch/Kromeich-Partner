@@ -17,6 +17,7 @@ Analysiere die folgende Email und extrahiere Kontaktdaten aus der Email-Signatur
 Regeln:
 - Extrahiere NUR Daten aus der Signatur (am Ende der Email), NICHT aus dem Email-Text selbst.
 - Trenne Straße und Hausnummer immer in zwei separate Felder.
+- Trenne Festnetz und Mobilnummer immer in zwei separate Felder (siehe unten).
 - Wenn ein Feld nicht in der Signatur vorhanden ist, setze es auf null.
 - Die Email-Adresse ist ein PFLICHTFELD – wenn keine Email erkennbar ist, verwende die Absender-Email.
 
@@ -25,7 +26,8 @@ Antworte ausschließlich mit einem JSON-Objekt in diesem Format:
   "first_name": "string oder null",
   "last_name": "string oder null",
   "email": "string (Pflichtfeld)",
-  "phone": "string oder null",
+  "phone": "string oder null (NUR Festnetz: Tel/Telefon/Fon/T/Phone/Office/Durchwahl)",
+  "mobile": "string oder null (NUR Mobil: Mobil/Handy/Mob/M/Cell/Mobile oder deutsche Vorwahl 015x/016x/017x)",
   "company": "string oder null",
   "position": "string oder null",
   "street": "string oder null (NUR Straßenname, OHNE Hausnummer)",
@@ -128,6 +130,7 @@ def extract_contact(email_data: EmailData) -> ContactData | None:
             last_name=data.get("last_name") or None,
             email=contact_email.lower().strip(),
             phone=data.get("phone") or None,
+            mobile=data.get("mobile") or None,
             company=data.get("company") or None,
             position=data.get("position") or None,
             street=data.get("street") or None,
@@ -225,6 +228,7 @@ Analysiere das Foto dieser Visitenkarte und extrahiere alle Kontaktdaten.
 
 Regeln:
 - Trenne Straße und Hausnummer immer in zwei separate Felder.
+- Trenne Festnetz und Mobilnummer immer in zwei separate Felder (siehe unten).
 - Wenn ein Feld nicht auf der Visitenkarte vorhanden ist, setze es auf null.
 - Bei mehreren Personen auf einer Karte: extrahiere nur die Hauptperson.
 
@@ -233,7 +237,8 @@ Antworte ausschließlich mit einem JSON-Objekt in diesem Format:
   "first_name": "string oder null",
   "last_name": "string oder null",
   "email": "string oder null",
-  "phone": "string oder null",
+  "phone": "string oder null (NUR Festnetz: Tel/Telefon/Fon/T/Phone/Office/Durchwahl)",
+  "mobile": "string oder null (NUR Mobil: Mobil/Handy/Mob/M/Cell/Mobile oder deutsche Vorwahl 015x/016x/017x)",
   "company": "string oder null",
   "position": "string oder null",
   "street": "string oder null (NUR Straßenname, OHNE Hausnummer)",
@@ -250,6 +255,7 @@ Der Text kann eine formlose Notiz sein, eine kopierte Visitenkarte, oder eine Ko
 
 Regeln:
 - Trenne Straße und Hausnummer immer in zwei separate Felder.
+- Trenne Festnetz und Mobilnummer immer in zwei separate Felder (siehe unten).
 - Wenn ein Feld nicht vorhanden ist, setze es auf null.
 
 Antworte ausschließlich mit einem JSON-Objekt in diesem Format:
@@ -257,7 +263,8 @@ Antworte ausschließlich mit einem JSON-Objekt in diesem Format:
   "first_name": "string oder null",
   "last_name": "string oder null",
   "email": "string oder null",
-  "phone": "string oder null",
+  "phone": "string oder null (NUR Festnetz: Tel/Telefon/Fon/T/Phone/Office/Durchwahl)",
+  "mobile": "string oder null (NUR Mobil: Mobil/Handy/Mob/M/Cell/Mobile oder deutsche Vorwahl 015x/016x/017x)",
   "company": "string oder null",
   "position": "string oder null",
   "street": "string oder null (NUR Straßenname, OHNE Hausnummer)",
@@ -297,6 +304,7 @@ def _parse_contact_json(text: str, source: str) -> ContactData | None:
         last_name=last_name,
         email=contact_email.lower().strip() if contact_email else "",
         phone=data.get("phone") or None,
+        mobile=data.get("mobile") or None,
         company=data.get("company") or None,
         position=data.get("position") or None,
         street=data.get("street") or None,
