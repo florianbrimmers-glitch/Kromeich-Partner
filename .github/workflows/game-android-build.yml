@@ -90,10 +90,23 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
 
+      # packages: '' ist KEIN Schoenheitsfehler, sondern die Reparatur.
+      #
+      # Die Action installiert ohne diese Angabe standardmaessig
+      # "tools platform-tools". Das Paket `tools` hat Google inzwischen aus
+      # dem SDK-Repository genommen; sdkmanager meldet dann
+      # "Failed to find package 'tools'" und bricht mit Code 1 ab - der
+      # Build war rot, bevor eine einzige Zeile Spielcode angefasst wurde.
+      # Am 6.9. lief derselbe Workflow noch gruen, am 24.9. nicht mehr:
+      # eine Aenderung an Googles Seite, nicht an unserer.
+      #
+      # Was wir wirklich brauchen, steht ohnehin eine Stufe weiter unten
+      # und wird dort ausdruecklich installiert.
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
         with:
           cmdline-tools-version: 11076708
+          packages: ''
 
       - name: Install Android build tools
         run: |
