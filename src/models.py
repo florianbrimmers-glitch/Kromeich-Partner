@@ -19,6 +19,7 @@ class ContactData(BaseModel):
     last_name: str | None = None
     email: str
     phone: str | None = None
+    mobile: str | None = None
     company: str | None = None
     position: str | None = None
     street: str | None = None
@@ -37,6 +38,7 @@ class ContactData(BaseModel):
 
 class EnrichmentResult(BaseModel):
     phone: str | None = None
+    mobile: str | None = None
     company: str | None = None
     position: str | None = None
     street: str | None = None

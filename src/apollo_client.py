@@ -43,9 +43,15 @@ def enrich_contact(contact: ContactData) -> EnrichmentResult | None:
     enriched_fields: list[str] = []
 
     phone = None
-    phone_numbers = person.get("phone_numbers") or []
-    if phone_numbers:
-        phone = phone_numbers[0].get("sanitized_number") or phone_numbers[0].get("raw_number")
+    mobile = None
+    for entry in person.get("phone_numbers") or []:
+        number = entry.get("sanitized_number") or entry.get("raw_number")
+        if not number:
+            continue
+        if "mobile" in (entry.get("type") or "").lower():
+            mobile = mobile or number
+        else:
+            phone = phone or number
     if not phone:
         org_phone = org.get("phone")
         if org_phone:
@@ -69,6 +75,9 @@ def enrich_contact(contact: ContactData) -> EnrichmentResult | None:
     if phone and not contact.phone:
         result.phone = phone
         enriched_fields.append("phone")
+    if mobile and not contact.mobile:
+        result.mobile = mobile
+        enriched_fields.append("mobile")
     if company and not contact.company:
         result.company = company
         enriched_fields.append("company")
@@ -101,6 +110,8 @@ def enrich_contact(contact: ContactData) -> EnrichmentResult | None:
 def apply_enrichment(contact: ContactData, enrichment: EnrichmentResult) -> ContactData:
     if enrichment.phone:
         contact.phone = enrichment.phone
+    if enrichment.mobile:
+        contact.mobile = enrichment.mobile
     if enrichment.company:
         contact.company = enrichment.company
     if enrichment.position:

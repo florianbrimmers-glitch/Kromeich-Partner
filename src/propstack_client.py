@@ -33,6 +33,23 @@ def _derive_salutation(first_name: str | None) -> str | None:
     return {"male": "mr", "female": "ms"}.get(guess)
 
 
+def _norm_name(name: str | None) -> str:
+    """Vergleichsform für Firmennamen: nur Buchstaben und Ziffern zählen
+    ("L.I.T. AG" == "LIT AG", "GmbH & Co.KG" == "GmbH & Co. KG")."""
+    return re.sub(r"[^0-9a-zäöüß]", "", (name or "").lower())
+
+
+def _company_display_names(record: dict) -> set[str]:
+    """Alle Namensformen, unter denen ein Firmen-Datensatz auftauchen kann.
+    Altlasten mit last_name == company werden als "X (X)" angezeigt."""
+    names = {_norm_name(record.get("name")), _norm_name(record.get("company"))}
+    m = re.fullmatch(r"(.+) \((\1)\)", (record.get("name") or "").strip())
+    if m:
+        names.add(_norm_name(m.group(1)))
+    names.discard("")
+    return names
+
+
 def _api_key() -> str:
     return os.environ["PROPSTACK_API_KEY"]
 
@@ -67,7 +84,7 @@ def check_duplicate_by_name(first_name: str, last_name: str) -> bool | None:
     try:
         response = httpx.get(
             f"{PROPSTACK_BASE_URL}/contacts",
-            params={"api_key": _api_key(), "q": f"{first_name} {last_name}", "per_page": 25},
+            params={"api_key": _api_key(), "q": f"{first_name} {last_name}", "per": 25},
             timeout=30.0,
         )
         response.raise_for_status()
@@ -76,9 +93,10 @@ def check_duplicate_by_name(first_name: str, last_name: str) -> bool | None:
             return False
         target_first = first_name.strip().lower()
         target_last = last_name.strip().lower()
+        # Kein is_company-Filter: es gibt Personen, die fälschlich als Firma
+        # markiert sind ("Max Muster (Firma GmbH)"). Echte Firmen-Datensätze
+        # haben keinen Vornamen und matchen hier ohnehin nicht.
         for c in data:
-            if c.get("is_company"):
-                continue
             if (
                 (c.get("first_name") or "").strip().lower() == target_first
                 and (c.get("last_name") or "").strip().lower() == target_last
@@ -96,16 +114,17 @@ def find_company(company_name: str) -> int | None:
     try:
         response = httpx.get(
             f"{PROPSTACK_BASE_URL}/contacts",
-            params={"api_key": _api_key(), "q": company_name, "per_page": 25},
+            params={"api_key": _api_key(), "q": company_name, "per": 25},
             timeout=30.0,
         )
         response.raise_for_status()
         data = response.json()
         if not isinstance(data, list):
             return None
-        target = company_name.strip().lower()
+        target = _norm_name(company_name)
         for c in data:
-            if c.get("is_company") and (c.get("name") or "").strip().lower() == target:
+            # Personen, die fälschlich als Firma markiert sind, haben einen Vornamen
+            if c.get("is_company") and not c.get("first_name") and target in _company_display_names(c):
                 logger.info("Firma gefunden: %s (id=%s)", company_name, c.get("id"))
                 return c.get("id")
         logger.info("Keine bestehende Firma gefunden für: %s", company_name)
@@ -145,10 +164,12 @@ def create_company(contact: ContactData) -> int | None:
 
         v2_key = _api_key_v2()
         if v2_key:
+            # last_name wieder leeren: bleibt er stehen, zeigt Propstack die Firma
+            # als "X (X)" an und find_company() findet sie nicht mehr -> Dubletten.
             v2_resp = httpx.put(
                 f"{PROPSTACK_BASE_URL_V2}/clients/{company_id}",
                 headers={"X-Api-Key": v2_key, "Content-Type": "application/json"},
-                json={"commercial": True, "company": contact.company},
+                json={"commercial": True, "company": contact.company, "last_name": None},
                 timeout=30.0,
             )
             if v2_resp.status_code == 200:
@@ -224,6 +245,10 @@ def create_contact(
 
     if contact.phone:
         client_data["office_phone"] = contact.phone
+    # Mobilnummern gehören in office_cell – ein Feld "mobile" kennt die
+    # Propstack-API nicht, sie verwirft es ohne Fehlermeldung (HTTP 200).
+    if contact.mobile:
+        client_data["office_cell"] = contact.mobile
     if contact.company:
         client_data["company"] = contact.company
     if contact.position:
