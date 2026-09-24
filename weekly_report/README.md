@@ -8,12 +8,12 @@ Eigenständiges Paket, **rein lesend** – keine Propstack-Writes, kein Code-Sha
 
 ## Ablauf
 
-1. **Stunden-Guard**: Lauf nur, wenn es in Berlin `RUN_HOUR_BERLIN` Uhr ist (siehe Zeitzonen unten).
-2. Fenster `[jetzt − REPORT_HOURS, jetzt)` berechnen – rollierend, kein persistierter Zustand. Fällt ein Lauf aus, ist die Woche danach wieder korrekt.
+1. **Saison-Guard**: Lauf nur, wenn der auslösende Cron in der aktuellen Saison `RUN_HOUR_BERLIN` Uhr Berliner Zeit entspricht (siehe Zeitzonen unten).
+2. Fenster `[geplant − REPORT_HOURS, geplant)` berechnen – am geplanten Cron-Zeitpunkt verankert, kein persistierter Zustand. Fällt ein Lauf aus, ist die Woche danach wieder korrekt.
 3. **Neue Einheiten**: `GET /v1/units?expand=1&created_at_from=…&created_at_to=…`, seitenweise. Der Serverfilter wirkt nur tagesgenau, also wird er um je einen Tag geweitet und der exakte Schnitt clientseitig gezogen. `expand=1` ist zwingend, sonst ist `created_at` im Payload `null`.
 4. **Projekte** aus den `project_id`s der neuen Einheiten bündeln und je Projekt über die **früheste Einheit** datieren (`GET /v1/units?project_id=…&sort_by=created_at&order=asc&per=1`) → *neues Projekt* vs. *bestehendes Projekt mit neuen Einheiten*.
 5. **Prüfaufgaben**: `GET /v1/activities?item_type=reminder&broker_id=…&sort_by=updated_at&order=desc`, absteigend lesen und abbrechen, sobald `updated_at` aus dem Fenster fällt. Gemeldet wird, was `done = true` trägt.
-6. Nachricht bauen und per `chat.postMessage` als DM senden; eine JSONL-Zeile pro Lauf ins Report-Log (Actions-Artefakt, 30 Tage).
+6. Nachricht bauen und per `chat.postMessage` als DM senden; eine JSONL-Zeile pro Lauf ins Report-Log (nur lokal bzw. auf dem Runner – kein Actions-Artefakt, siehe #15; Zähler und Fenster stehen im Lauf-Log).
 
 ## Was die API hergibt – und was nicht
 
@@ -52,11 +52,25 @@ Der Sitz `254958` lief früher auf Oguzhan Sahin und ist auf **Lena Klinnert** u
 
 Das Feld `done` wird nur auf dieser ID gepflegt (25 von 317). Sollte der Report zu dünn werden, schaltet `REPORT_INCLUDE_TOUCHED=true` einen zweiten Block „bearbeitet, aber offen" dazu (`updated_at > original_created_at`).
 
-## Zeitzonen
+## Zeitzonen und Verspätung
 
-GitHub-Actions-Cron kennt nur UTC, Berlin wechselt zwischen CET und CEST. Der Workflow feuert deshalb **zweimal** – `3 17 * * 2` und `3 18 * * 2` – und der Guard in `main.py` lässt je Saison genau einen Lauf durch. So kommt der Report ganzjährig um 19 Uhr Ortszeit an, statt nach der Zeitumstellung um eine Stunde zu verrutschen.
+GitHub-Actions-Cron kennt nur UTC, Berlin wechselt zwischen CET und CEST. Der Workflow feuert deshalb **zweimal** – `3 17 * * 2` und `3 18 * * 2`.
 
-Bei `workflow_dispatch` ist der Guard standardmäßig **aus**, damit manuelle Läufe zu jeder Zeit funktionieren.
+Welcher davon in der aktuellen Saison gilt, entscheidet `main.darf_laufen()` anhand des **auslösenden Crons** (`TRIGGER_SCHEDULE` = `github.event.schedule`), nicht anhand der tatsächlichen Startzeit. Das ist wichtig: GitHub startet Cron-Läufe in diesem Account **4–6 Stunden verspätet** (gemessen September 2026):
+
+| Workflow | Soll (UTC) | Ist (UTC) |
+|---|---|---|
+| Objekte-Handler | 02:00 | 07:20–07:42 |
+| Events-Handler | 03:30 | 08:13–09:12 |
+| Kontakt-Import | 01:00 | 05:11–06:20 |
+
+Ein Vergleich mit der Wanduhr („ist es jetzt 19 Uhr?") würde dann beide Trigger abweisen – schon eine Stunde Verspätung hätte gereicht.
+
+Aus demselben Grund endet das Berichtsfenster am **geplanten** Zeitpunkt (Dienstag 19:03), nicht beim tatsächlichen Start. So schließen die Wochenfenster lückenlos aneinander, egal wie stark die Verspätung schwankt.
+
+**Folge für die Zustellung:** Die DM kommt realistisch nicht um 19:00, sondern gegen **Mitternacht bis 1 Uhr** in der Nacht auf Mittwoch an. Der Inhalt deckt trotzdem genau Dienstag 19:03 bis Dienstag 19:03 ab.
+
+Bei `workflow_dispatch` ist der Guard aus und das Fenster endet beim Start, damit manuelle Läufe zu jeder Zeit funktionieren.
 
 ## Umgebungsvariablen
 
@@ -68,7 +82,8 @@ Bei `workflow_dispatch` ist der Guard standardmäßig **aus**, damit manuelle L�
 | `PROPSTACK_KEY_TASKS` | nein | – | Optionaler Override für Aktivitäten |
 | `DRY_RUN` | nein | `true` | Nur loggen, keine DM (Cron setzt explizit `false`) |
 | `REPORT_HOURS` | nein | `168` | Berichtsfenster in Stunden zurück |
-| `RUN_HOUR_BERLIN` | nein | `19` | Stunden-Guard; leer = aus |
+| `RUN_HOUR_BERLIN` | nein | `19` | Berliner Zielstunde für den Guard; leer = aus |
+| `TRIGGER_SCHEDULE` | nein | – | Auslösender Cron, setzt der Workflow aus `github.event.schedule` |
 | `REPORT_RECIPIENT` | nein | `U087H2UMREF` | Slack-User-ID des Empfängers |
 | `PRUEFER_BROKER_IDS` | nein | `254958` | Kommagetrennte Broker-IDs für Prüfaufgaben |
 | `REPORT_INCLUDE_TOUCHED` | nein | `false` | Zusatzblock „bearbeitet, aber offen" |

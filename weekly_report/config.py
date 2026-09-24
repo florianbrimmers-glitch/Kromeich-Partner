@@ -53,13 +53,18 @@ def report_hours() -> int:
 
 
 def run_hour_berlin() -> int | None:
-    """Stunde (Europe/Berlin), zu der der Lauf durchgehen darf – None = Guard aus.
+    """Berliner Stunde, für die der Report geplant ist – None = Guard aus.
 
     GitHub-Actions-Cron kennt nur UTC. Der Workflow feuert deshalb zweimal (17:03 und
-    18:03 UTC); dieser Guard lässt je nach Sommer-/Winterzeit genau einen Lauf durch,
-    damit der Report ganzjährig um 19 Uhr Ortszeit ankommt."""
+    18:03 UTC); main.darf_laufen() lässt anhand des auslösenden Crons je nach Sommer-/
+    Winterzeit genau einen davon durch."""
     raw = os.environ.get("RUN_HOUR_BERLIN", "19").strip()
     return int(raw) if raw else None
+
+
+def trigger_schedule() -> str | None:
+    """Der auslösende Cron (github.event.schedule), leer bei manuellen Läufen."""
+    return _env_str("TRIGGER_SCHEDULE", "") or None
 
 
 def pruefer_broker_ids() -> list[int]:

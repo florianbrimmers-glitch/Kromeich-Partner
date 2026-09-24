@@ -1,12 +1,12 @@
 """Zeitfenster und der Sommer-/Winterzeit-Guard.
 
 Der Workflow feuert zweimal (17:03 und 18:03 UTC), weil GitHub-Actions-Cron nur UTC
-kennt. Genau ein Lauf darf durchkommen, damit der Report ganzjährig um 19 Uhr
-Berliner Zeit ankommt."""
+kennt. Genau ein Lauf darf durchkommen – und zwar unabhängig davon, wie spät GitHub
+ihn startet (in diesem Account 4–6 h)."""
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from weekly_report.main import berechne_fenster, darf_laufen
+from weekly_report.main import berechne_fenster, darf_laufen, geplanter_zeitpunkt
 
 BERLIN = ZoneInfo("Europe/Berlin")
 UTC = ZoneInfo("UTC")
@@ -26,37 +26,74 @@ def test_fenster_respektiert_report_hours():
     assert jetzt - since == timedelta(hours=2400)
 
 
-def test_guard_laesst_sommerzeit_lauf_durch():
-    """CEST: 17:03 UTC ist 19:03 Berlin -> laufen. 18:03 UTC ist 20:03 -> überspringen."""
-    sommer_treffer = datetime(2026, 8, 20, 17, 3, tzinfo=UTC).astimezone(BERLIN)
-    sommer_zweitschlag = datetime(2026, 8, 20, 18, 3, tzinfo=UTC).astimezone(BERLIN)
-    assert sommer_treffer.hour == 19
-    assert darf_laufen(sommer_treffer, 19) is True
-    assert darf_laufen(sommer_zweitschlag, 19) is False
+SOMMER_CRON = "3 17 * * 2"  # 19:03 Berlin während CEST
+WINTER_CRON = "3 18 * * 2"  # 19:03 Berlin während CET
 
 
-def test_guard_laesst_winterzeit_lauf_durch():
-    """CET: 18:03 UTC ist 19:03 Berlin -> laufen. 17:03 UTC ist 18:03 -> überspringen."""
-    winter_treffer = datetime(2026, 12, 15, 18, 3, tzinfo=UTC).astimezone(BERLIN)
-    winter_frueh = datetime(2026, 12, 15, 17, 3, tzinfo=UTC).astimezone(BERLIN)
-    assert winter_treffer.hour == 19
-    assert darf_laufen(winter_treffer, 19) is True
-    assert darf_laufen(winter_frueh, 19) is False
+def _berlin(jahr, monat, tag, stunde, minute=0):
+    return datetime(jahr, monat, tag, stunde, minute, tzinfo=BERLIN)
 
 
-def test_guard_abschaltbar_fuer_lokale_laeufe():
-    assert darf_laufen(datetime(2026, 8, 20, 3, 0, tzinfo=BERLIN), None) is True
+def test_sommer_nur_der_17_uhr_cron():
+    jetzt = _berlin(2026, 9, 22, 19, 3)
+    assert darf_laufen(SOMMER_CRON, jetzt, 19) is True
+    assert darf_laufen(WINTER_CRON, jetzt, 19) is False
 
 
-def test_beide_crons_treffen_je_saison_genau_einmal():
-    """Regressionsschutz: keine Saison ohne Report, keine Saison mit doppeltem Report."""
-    for tag in (datetime(2026, 8, 20), datetime(2026, 12, 15)):
-        treffer = [
-            stunde
-            for stunde in (17, 18)
-            if darf_laufen(tag.replace(hour=stunde, minute=3, tzinfo=UTC).astimezone(BERLIN), 19)
-        ]
-        assert len(treffer) == 1, f"{tag:%Y-%m-%d}: {treffer}"
+def test_winter_nur_der_18_uhr_cron():
+    jetzt = _berlin(2026, 12, 15, 19, 3)
+    assert darf_laufen(WINTER_CRON, jetzt, 19) is True
+    assert darf_laufen(SOMMER_CRON, jetzt, 19) is False
+
+
+def test_verspaeteter_start_wird_nicht_abgewiesen():
+    """Regression: GitHub startet Crons in diesem Account 4–6 h zu spät (Objekte-Handler
+    Soll 02:00, Ist 07:20–07:42 UTC). Der alte Guard verglich die Wanduhr mit 19 Uhr und
+    hätte bei Start gegen Mitternacht BEIDE Trigger abgewiesen – kein Report, nie."""
+    for verspaetung_h in (0, 1, 3, 5, 6, 8):
+        start = _berlin(2026, 9, 22, 19, 3) + timedelta(hours=verspaetung_h)
+        treffer = [c for c in (SOMMER_CRON, WINTER_CRON) if darf_laufen(c, start, 19)]
+        assert treffer == [SOMMER_CRON], f"{verspaetung_h} h Verspätung: {treffer}"
+
+
+def test_je_saison_genau_ein_trigger_auch_mit_verspaetung():
+    """Keine Saison ohne Report, keine mit doppeltem – für jede realistische Verspätung."""
+    for tag in (_berlin(2026, 8, 18, 19, 3), _berlin(2026, 12, 15, 19, 3)):
+        for verspaetung_h in range(0, 9):
+            start = tag + timedelta(hours=verspaetung_h)
+            treffer = [c for c in (SOMMER_CRON, WINTER_CRON) if darf_laufen(c, start, 19)]
+            assert len(treffer) == 1, f"{tag:%d.%m.} +{verspaetung_h} h: {treffer}"
+
+
+def test_manueller_lauf_und_abgeschalteter_guard_laufen_immer():
+    assert darf_laufen(None, _berlin(2026, 9, 24, 3), 19) is True
+    assert darf_laufen(SOMMER_CRON, _berlin(2026, 12, 15, 3), None) is True
+
+
+def test_fenster_endet_am_geplanten_zeitpunkt_nicht_am_start():
+    """Start Mittwoch 00:40 (5,6 h zu spät) – das Fenster endet trotzdem Dienstag 19:03."""
+    start = _berlin(2026, 9, 23, 0, 40)
+    assert geplanter_zeitpunkt(start, SOMMER_CRON) == _berlin(2026, 9, 22, 19, 3)
+
+
+def test_puenktlicher_start_endet_exakt_am_start():
+    start = _berlin(2026, 9, 22, 19, 3)
+    assert geplanter_zeitpunkt(start, SOMMER_CRON) == start
+
+
+def test_winterzeit_anker():
+    start = _berlin(2026, 12, 16, 0, 10)  # Mittwoch, 5 h nach 18:03 UTC
+    assert geplanter_zeitpunkt(start, WINTER_CRON) == _berlin(2026, 12, 15, 19, 3)
+
+
+def test_wochenfenster_schliessen_trotz_schwankender_verspaetung_aneinander():
+    """Zwei Läufe mit 4 bzw. 6 h Verspätung: das zweite Fenster beginnt exakt, wo das
+    erste endete – keine Lücke, keine Doppelzählung."""
+    lauf1 = _berlin(2026, 9, 15, 23, 3)  # Di 15.09. +4 h
+    lauf2 = _berlin(2026, 9, 23, 1, 3)   # Di 22.09. +6 h
+    _, ende1 = berechne_fenster(geplanter_zeitpunkt(lauf1, SOMMER_CRON), 168)
+    beginn2, _ = berechne_fenster(geplanter_zeitpunkt(lauf2, SOMMER_CRON), 168)
+    assert ende1 == beginn2
 
 
 def test_leere_env_werte_fallen_auf_default_zurueck(monkeypatch):

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from . import config, propstack, report, slack
@@ -17,10 +17,41 @@ def berechne_fenster(jetzt: datetime, stunden: int) -> tuple[datetime, datetime]
     return jetzt - timedelta(hours=stunden), jetzt
 
 
-def darf_laufen(jetzt: datetime, ziel_stunde: int | None) -> bool:
-    """GitHub-Actions-Cron kennt nur UTC, Berlin wechselt zwischen CET und CEST.
-    Der Workflow feuert deshalb zu beiden Zeiten; hier läuft nur die richtige durch."""
-    return ziel_stunde is None or jetzt.hour == ziel_stunde
+def darf_laufen(ausloeser_cron: str | None, jetzt: datetime, ziel_stunde: int | None) -> bool:
+    """Welcher der beiden Cron-Trigger ist in der aktuellen Jahreszeit der richtige?
+
+    GitHub-Actions-Cron kennt nur UTC, Berlin wechselt zwischen CET und CEST – der
+    Workflow feuert deshalb zweimal. Entschieden wird über den *auslösenden* Cron,
+    nicht über die tatsächliche Startzeit: GitHub startet Cron-Läufe in diesem Account
+    4–6 Stunden verspätet (Objekte-Handler: Soll 02:00, Ist 07:20–07:42 UTC). Ein
+    Vergleich mit der Wanduhr würde dann beide Trigger abweisen.
+
+    Manuelle Läufe (kein Cron) und ein abgeschalteter Guard laufen immer."""
+    if ziel_stunde is None or not ausloeser_cron:
+        return True
+    cron_stunde_utc = int(ausloeser_cron.split()[1])
+    offset_stunden = int(jetzt.utcoffset().total_seconds() // 3600)
+    return (cron_stunde_utc + offset_stunden) % 24 == ziel_stunde
+
+
+def geplanter_zeitpunkt(jetzt: datetime, ausloeser_cron: str) -> datetime:
+    """Letzter planmäßiger Feuerzeitpunkt des Crons, der nicht nach `jetzt` liegt.
+
+    Das Berichtsfenster endet hier statt bei `jetzt`: bei schwankender Verspätung
+    würden sich sonst Wochenfenster überlappen oder Lücken entstehen. So schließen
+    Dienstag-bis-Dienstag-Fenster exakt aneinander, egal wann GitHub startet."""
+    minute, stunde, _, _, wochentag = ausloeser_cron.split()[:5]
+    jetzt_utc = jetzt.astimezone(timezone.utc)
+    # Cron zählt Sonntag = 0, Python Montag = 0.
+    python_wochentag = (int(wochentag) - 1) % 7
+    for tage_zurueck in range(8):
+        tag = (jetzt_utc - timedelta(days=tage_zurueck)).date()
+        if tag.weekday() != python_wochentag:
+            continue
+        kandidat = datetime(tag.year, tag.month, tag.day, int(stunde), int(minute), tzinfo=timezone.utc)
+        if kandidat <= jetzt_utc:
+            return kandidat.astimezone(jetzt.tzinfo)
+    raise ValueError(f"Kein Feuerzeitpunkt für Cron {ausloeser_cron!r} vor {jetzt.isoformat()}")
 
 
 def klassifiziere_projekte(
@@ -88,15 +119,22 @@ def main() -> int:
     )
 
     jetzt = datetime.now(ZoneInfo(config.BERLIN_TZ))
+    ausloeser = config.trigger_schedule()
     ziel_stunde = config.run_hour_berlin()
-    if not darf_laufen(jetzt, ziel_stunde):
+    if not darf_laufen(ausloeser, jetzt, ziel_stunde):
         logger.info(
-            "Übersprungen: %02d Uhr Berliner Zeit, erwartet %02d Uhr (Sommer-/Winterzeit-Guard)",
-            jetzt.hour, ziel_stunde,
+            "Übersprungen: Cron %r entspricht jetzt nicht %02d Uhr Berliner Zeit "
+            "(Sommer-/Winterzeit-Guard)", ausloeser, ziel_stunde,
         )
         return 0
 
-    since, until = berechne_fenster(jetzt, config.report_hours())
+    ende = geplanter_zeitpunkt(jetzt, ausloeser) if ausloeser else jetzt
+    if ausloeser:
+        logger.info(
+            "Geplant %s, gestartet %s (Verspätung %d min)",
+            ende.isoformat(), jetzt.isoformat(), (jetzt - ende).total_seconds() // 60,
+        )
+    since, until = berechne_fenster(ende, config.report_hours())
     logger.info("Berichtsfenster %s bis %s", since.isoformat(), until.isoformat())
 
     einheiten = propstack.fetch_new_units(since, until)
@@ -136,7 +174,11 @@ def main() -> int:
 
 
 def _schreibe_log(data: ReportData, *, empfaenger: str, gesendet: bool) -> None:
-    """Eine JSONL-Zeile pro Lauf – wird als Actions-Artifact hochgeladen."""
+    """Eine JSONL-Zeile pro Lauf, nur lokal bzw. auf dem Runner.
+
+    Bewusst kein Actions-Artefakt: die Storage-Quota des Accounts ist voll, und ein
+    fehlschlagender Upload-Step würde einen fachlich fehlerfreien Lauf rot melden
+    (siehe #15). Zähler und Fenster stehen ohnehin im Lauf-Log."""
     zeile = {
         "fenster_von": data.since,
         "fenster_bis": data.until,
