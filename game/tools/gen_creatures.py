@@ -155,50 +155,129 @@ def limb(p, x, y, z_top, length, w, col, out_deg=0.0, bend_deg=0.0,
     return parts
 
 
-def sil_humanoid(p, build, H):
-    lean = 0.0
+# --- HALTUNG ---------------------------------------------------------------
+#
+# DER GROESSTE EINZELNE UNTERSCHIED ZU ECHTER SPIELGRAFIK, und er kostet
+# keine einzige Flaeche.
+#
+# Erst in It. 67 habe ich mir Referenz angesehen - Einheiten aus Heroes:
+# Olden Era in Kampfgroesse. Befund: KEIN EINZIGES Wesen dort steht
+# gerade. Der Satyr lehnt mit dem Speer quer vor dem Koerper und einem
+# Bein vor; der Halbling steht auf einem Bein mit ungleichen Armen; der
+# Drache kauert mit weggedrehtem Kopf. Meine Figuren standen bis dahin
+# ausnahmslos stramm, symmetrisch, achsenparallel und blickten geradeaus.
+#
+# Symmetrie ist das, was eine Figur zur Spielzeugfigur macht. Vier
+# Abweichungen davon reichen: ein Bein vor, Rumpf verdreht, Kopf gedreht,
+# Arme ungleich.
+#
+# Die Werte kommen deterministisch aus der Einheiten-ID (crc32), damit
+# nicht alle 28 dieselbe Haltung haben und trotzdem jeder Lauf dasselbe
+# Ergebnis liefert. Wo die Waffe die Haltung diktiert, steht sie explizit
+# in STANCE.
+# Die Werte waren im ersten Anlauf zu zaghaft. Gegen die Referenz gehalten
+# war der Unterschied da, aber die Figuren standen weiter "leicht aus dem
+# Gleichgewicht" statt "in Aktion". Die Referenz uebertreibt: Rumpf um 30
+# bis 40 Grad verdreht, Arme weit, Waffe quer durch die Silhouette.
+DEFAULT_STANCE = dict(lead=1, step=0.075, twist=26.0, head_turn=0.07,
+                      lean=0.04, arm_hi=0.09, yaw=14.0)
+
+STANCE = {
+    # Speer und Lanze quer vor dem Koerper: Waffenarm hoch, Rumpf stark
+    # verdreht - so haelt man eine Stangenwaffe, und so liest man sie auch.
+    "men_spearman": dict(twist=38.0, arm_hi=0.15, step=0.10, yaw=22.0),
+    "ork_wolfrider": dict(twist=30.0, arm_hi=0.13),
+    # Schuetzen ziehen den fuehrenden Arm vor und den anderen zurueck.
+    "men_archer": dict(twist=-34.0, arm_hi=0.05, step=0.08, yaw=-26.0),
+    "elf_archer": dict(twist=-36.0, arm_hi=0.05, step=0.085, yaw=-28.0),
+    "ork_orc": dict(twist=-30.0, arm_hi=0.06, yaw=-22.0),
+    # Schwerkaempfer stehen breit, Gewicht hinten, Waffe hoch.
+    "men_crusader": dict(twist=28.0, arm_hi=0.19, step=0.11, lean=0.06,
+                         yaw=24.0),
+    "nec_blackknight": dict(twist=-26.0, arm_hi=0.18, step=0.10, yaw=-20.0),
+    # Der Zombie haengt: kaum Verdrehung, viel Neigung, Arme tief.
+    "nec_zombie": dict(twist=14.0, arm_hi=-0.07, lean=0.13, step=0.045,
+                       yaw=10.0),
+}
+
+
+def stance_for(uid):
+    import zlib
+    st = dict(DEFAULT_STANCE)
+    h = zlib.crc32(uid.encode("utf-8"))
+    st["lead"] = 1 if (h & 1) == 0 else -1
+    st["twist"] = st["twist"] + float((h >> 1) % 11) - 5.0
+    st["step"] = st["step"] + float((h >> 5) % 5) * 0.008
+    st["head_turn"] = st["head_turn"] * (0.6 + float((h >> 9) % 9) * 0.1)
+    st["yaw"] = st["yaw"] * (0.5 + float((h >> 13) % 11) * 0.1) * st["lead"]
+    st.update(STANCE.get(uid, {}))
+    return st
+
+
+def sil_humanoid(p, build, H, st):
+    lean = float(st.get("lean", 0.0))
+    lead = int(st.get("lead", 1))
+    step = float(st.get("step", 0.0))
+    twist = float(st.get("twist", 0.0)) * lead
+    arm_hi = float(st.get("arm_hi", 0.0))
     sw, hw = 0.20, 0.16
     if build == "broad":
         sw, hw = 0.25, 0.20
     elif build == "hunched":
-        sw, hw, lean = 0.21, 0.17, 0.07
+        sw, hw, lean = 0.21, 0.17, lean + 0.07
     leg = 0.36 * H
     tor = 0.38 * H
     parts = []
+    # EIN BEIN VOR, EINS ZURUECK. Das vordere traegt weniger, knickt also
+    # staerker; das hintere ist gestreckt. Zwei Beine nebeneinander sind
+    # eine Puppe.
     for sx in (-1, 1):
-        parts += limb(p, sx * 0.085, 0.0, leg, leg, 0.062, p["dark"],
-                      out_deg=sx * 3.0, bend_deg=-7.0, foot=p["dark"],
-                      foot_fwd=0.9)
-    # RUMPF MIT BRUST UND TAILLE: unten schmal, oben breit. Ein Kasten von
-    # gleichbleibender Breite ist genau das, was eine Figur zum Klotz
-    # macht.
+        front: bool = (sx == lead)
+        parts += limb(p, sx * 0.085, (-step if front else step * 0.8),
+                      leg, leg, 0.062, p["dark"],
+                      out_deg=sx * 3.0,
+                      bend_deg=(-13.0 if front else -3.0),
+                      foot=p["dark"], foot_fwd=0.9)
+    # RUMPF MIT BRUST UND TAILLE, und um die Hochachse verdreht.
     parts.append(box((hw * 0.88, 0.10, tor * 0.5), (0, -lean * 0.5,
                      leg + tor * 0.5), p["main"], 0.035,
+                     rot=(0, 0, rad(twist * 0.45)),
                      taper=(sw / (hw * 0.88))))
     parts.append(box((sw, 0.105, 0.05), (0, -lean, leg + tor - 0.03),
-                     p["mid"], 0.028))
-    # HALS. Vorher sass der Kopf unmittelbar auf den Schultern - das liest
-    # sich als Kiste mit Deckel.
+                     p["mid"], 0.028, rot=(0, 0, rad(twist))))
     parts.append(box((sw * 0.30, sw * 0.30, 0.045 * H),
                      (0, -lean, leg + tor + 0.035 * H), p["light"], 0.012,
                      taper=0.85))
+    # ARME UNGLEICH: der Waffenarm (Seite `lead`) setzt hoeher an und
+    # greift weiter nach vorn, der andere haengt zurueck.
     for sx in (-1, 1):
-        parts += limb(p, sx * (sw + 0.035), -lean, leg + tor - 0.03,
+        wpn: bool = (sx == lead)
+        sh_x: float = sx * (sw + 0.035)
+        sh_z: float = leg + tor - 0.03 + (arm_hi if wpn else -arm_hi * 0.5)
+        parts += limb(p, sh_x, -lean - (0.09 if wpn else -0.07), sh_z,
                       tor * 0.86, 0.048, p["main"],
-                      out_deg=sx * 7.0, bend_deg=-14.0)
+                      out_deg=sx * (2.0 if wpn else 19.0),
+                      bend_deg=(-42.0 if wpn else -4.0))
     top = leg + tor + 0.07 * H
-    return parts, (0, -lean, top + 0.075 * H, 0.125 * H), \
-        (sw + 0.05, -0.07, leg + tor * 0.34), (0, 0.08, leg + tor * 0.8)
+    # Der Kopf sitzt leicht aus der Achse - eine Figur, die genau
+    # geradeaus schaut, wirkt wie aufgestellt.
+    hx: float = float(st.get("head_turn", 0.0)) * lead
+    return parts, (hx, -lean - 0.02, top + 0.075 * H, 0.125 * H), \
+        (sw + 0.05, -0.12, leg + tor * 0.34 + arm_hi), \
+        (0, 0.08, leg + tor * 0.8)
 
 
-def sil_squat(p, H):
+def sil_squat(p, H, st):
     leg = 0.20 * H
     tor = 0.44 * H
     parts = []
+    lead = int(st.get("lead", 1))
+    step = float(st.get("step", 0.0))
     for sx in (-1, 1):
-        parts += limb(p, sx * 0.095, 0, leg, leg, 0.072, p["dark"],
-                      out_deg=sx * 4.0, bend_deg=-6.0, foot=p["dark"],
-                      foot_fwd=0.9)
+        parts += limb(p, sx * 0.095, (-step if sx == lead else step * 0.8),
+                      leg, leg, 0.072, p["dark"], out_deg=sx * 4.0,
+                      bend_deg=(-12.0 if sx == lead else -3.0),
+                      foot=p["dark"], foot_fwd=0.9)
     parts.append(box((0.19, 0.125, tor * 0.5), (0, 0, leg + tor * 0.5),
                      p["main"], 0.045, taper=1.14))
     parts.append(box((0.10, 0.09, 0.035), (0, 0, leg + tor + 0.02),
@@ -211,14 +290,17 @@ def sil_squat(p, H):
         (0.25, -0.07, leg + tor * 0.32), (0, 0.09, top - 0.05)
 
 
-def sil_brute(p, H):
+def sil_brute(p, H, st):
     leg = 0.28 * H
     tor = 0.44 * H
     parts = []
+    lead = int(st.get("lead", 1))
+    step = float(st.get("step", 0.0)) * 1.2
     for sx in (-1, 1):
-        parts += limb(p, sx * 0.13, 0, leg, leg, 0.092, p["dark"],
-                      out_deg=sx * 5.0, bend_deg=-8.0, foot=p["dark"],
-                      foot_fwd=0.8)
+        parts += limb(p, sx * 0.13, (-step if sx == lead else step * 0.8),
+                      leg, leg, 0.092, p["dark"], out_deg=sx * 5.0,
+                      bend_deg=(-14.0 if sx == lead else -4.0),
+                      foot=p["dark"], foot_fwd=0.8)
     # Breite Schultern, schmale Huefte - beim Schlaeger noch staerker als
     # beim Menschen.
     parts.append(box((0.22, 0.155, tor * 0.5), (0, -0.02, leg + tor * 0.5),
@@ -245,12 +327,18 @@ def sil_robed(p, H):
         (0.19, -0.07, hgt * 0.64), (0, 0.09, hgt - 0.05)
 
 
-def sil_skeletal(p, H):
+def sil_skeletal(p, H, st):
     leg = 0.38 * H
     tor = 0.34 * H
     parts = [
-        box((0.038, 0.04, leg * 0.5), (-0.075, 0, leg * 0.5), p["bone"], 0.01),
-        box((0.038, 0.04, leg * 0.5), (0.075, 0, leg * 0.5), p["bone"], 0.01),
+        box((0.038, 0.04, leg * 0.5),
+            (-0.075, (-st.get("step", 0.0) if st.get("lead", 1) == -1
+                      else st.get("step", 0.0) * 0.8), leg * 0.5),
+            p["bone"], 0.01),
+        box((0.038, 0.04, leg * 0.5),
+            (0.075, (-st.get("step", 0.0) if st.get("lead", 1) == 1
+                     else st.get("step", 0.0) * 0.8), leg * 0.5),
+            p["bone"], 0.01),
         # Rippen: drei Platten mit Luecke. Der Zwischenraum ist das
         # Erkennungsmerkmal - ein geschlossener Rumpf sieht nur duenn aus.
         box((0.135, 0.075, 0.022), (0, 0, leg + tor * 0.28), p["bone"], 0.01),
@@ -461,17 +549,20 @@ def sil_mounted(p, H, mount):
     return parts, rider, head, (0.155, -0.05, seat + 0.17 * H), wing
 
 
+# Jede Koerperform bekommt die Haltung mit. Die meisten ignorieren sie
+# noch - der Humanoide zuerst, weil dort die Haelfte der Kreaturen haengt
+# und der Unterschied am deutlichsten ist.
 BODIES = {
-    "humanoid": lambda p, a, H: sil_humanoid(p, a, H),
-    "squat": lambda p, a, H: sil_squat(p, H),
-    "brute": lambda p, a, H: sil_brute(p, H),
-    "robed": lambda p, a, H: sil_robed(p, H),
-    "skeletal": lambda p, a, H: sil_skeletal(p, H),
-    "spectre": lambda p, a, H: sil_spectre(p, H),
-    "bird": lambda p, a, H: sil_bird(p, H),
-    "tree": lambda p, a, H: sil_tree(p, H, bool(a)),
-    "quadruped": lambda p, a, H: sil_quadruped(p, H, a),
-    "dragon": lambda p, a, H: sil_dragon(p, H),
+    "humanoid": lambda p, a, H, st: sil_humanoid(p, a, H, st),
+    "squat": lambda p, a, H, st: sil_squat(p, H, st),
+    "brute": lambda p, a, H, st: sil_brute(p, H, st),
+    "robed": lambda p, a, H, st: sil_robed(p, H),
+    "skeletal": lambda p, a, H, st: sil_skeletal(p, H, st),
+    "spectre": lambda p, a, H, st: sil_spectre(p, H),
+    "bird": lambda p, a, H, st: sil_bird(p, H),
+    "tree": lambda p, a, H, st: sil_tree(p, H, bool(a)),
+    "quadruped": lambda p, a, H, st: sil_quadruped(p, H, a),
+    "dragon": lambda p, a, H, st: sil_dragon(p, H),
 }
 
 
@@ -742,13 +833,14 @@ def build(unit):
     H = 1.0
     kind, arg = r["sil"]
 
+    st = stance_for(unit["id"])
     rider_head = None
     if kind == "mounted":
         parts, head_at, mount_head, hand, wing_at = sil_mounted(p, H, arg)
         rider_head = head_at
         head_at = mount_head
     else:
-        parts, head_at, hand, wing_at = BODIES[kind](p, arg, H)
+        parts, head_at, hand, wing_at = BODIES[kind](p, arg, H, st)
 
     out = []
     if r.get("wing"):
@@ -774,6 +866,10 @@ def build(unit):
         out.append(box((0.030, 0.010, 0.036), (-hx * 0.85, hy - 0.08, hz + 0.02),
                        p["metal"], 0.02))
     ob = merge(unit["id"], out)
+    yaw = float(st.get("yaw", 0.0)) if kind != "mounted" else 0.0
+    if abs(yaw) > 0.01:
+        ob.rotation_euler = (0, 0, rad(yaw))
+        bpy.ops.object.transform_apply(rotation=True)
     fit_to_tier(ob, int(unit["tier"]))
     if kind == "spectre":
         # ERST NACH dem Einpassen anheben: fit_to_tier setzt die
