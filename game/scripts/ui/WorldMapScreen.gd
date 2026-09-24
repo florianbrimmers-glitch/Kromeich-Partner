@@ -2025,6 +2025,14 @@ func _build_map3d() -> void:
 	cont.show_behind_parent = true
 	_map_area.add_child(cont)
 	_map3d_vp = SubViewport.new()
+	# EIGENE 3D-WELT. Ohne das teilen sich ALLE SubViewports die Welt des
+	# Hauptviewports: jede Kamera sieht dann die Geometrie der anderen
+	# Ansichten, und jede Ansicht bringt zwei eigene Richtungslichter mit.
+	# Auf dem Geraet lag deshalb unter dem Kampfbrett die Weltkarte, im
+	# Stadthof das Kartengelaende, und alles war von sechs Lichtern
+	# ueberstrahlt. Gefunden hat es der Nutzer auf dem Handy - kein
+	# Vorschauwerkzeug konnte es sehen, weil jedes genau EINEN Schirm baut.
+	_map3d_vp.own_world_3d = true
 	_map3d_vp.transparent_bg = false
 	_map3d_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	cont.add_child(_map3d_vp)

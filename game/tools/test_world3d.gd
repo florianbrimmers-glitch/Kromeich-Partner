@@ -43,6 +43,7 @@ func _init() -> void:
 	await _test_tile_at_roundtrip()
 	await _test_screen_integration()
 	await _test_guard_labels()
+	await _test_views_do_not_share_a_world()
 
 	var missing: Array = []
 	for m in get_method_list():
@@ -330,6 +331,76 @@ func _test_guard_labels() -> void:
 	wm.queue_free()
 	await process_frame
 	_done.append("_test_guard_labels")
+
+
+# DREI ANSICHTEN, DREI WELTEN.
+#
+# Gefunden auf dem GERAET, nicht hier: auf den Bildschirmfotos des Nutzers
+# lag unter dem Kampfbrett die Weltkarte, im Stadthof das Kartengelaende,
+# und auf der Karte ein Stueck Stadt. Ursache: ein `SubViewport` bekommt
+# NICHT von selbst eine eigene 3D-Welt - ohne `own_world_3d` teilen sich
+# alle drei Ansichten die Welt des Hauptviewports. Jede Kamera sieht dann
+# die Geometrie der anderen, und jede Ansicht bringt zwei eigene Lichter
+# mit: bei drei offenen Schirmen brennen sechs Richtungslichter auf allem,
+# was auch das flaue, zu helle Bild auf dem Geraet erklaert.
+#
+# WARUM ES KEIN WERKZEUG GESEHEN HAT: jede Vorschau baut genau EINEN
+# Schirm. Im Spiel bleibt die Weltkarte bestehen, waehrend Stadt oder
+# Kampf aufgehen. Ein Fehler ZWISCHEN zwei Schirmen ist fuer ein Werkzeug,
+# das immer nur einen baut, unsichtbar. Dieser Test baut deshalb zwei.
+func _test_views_do_not_share_a_world() -> void:
+	print("== Jede raeumliche Ansicht hat ihre eigene Welt ==")
+	var scene := load("res://scenes/WorldMap.tscn") as PackedScene
+	var wm = scene.instantiate()
+	root.add_child(wm)
+	await process_frame
+	wm.call("_start", 4711, 1)
+	await process_frame
+	wm.call("_toggle_view3d")
+	await process_frame
+	await process_frame
+
+	var cs = load("res://scripts/ui/CityScreen.gd").new()
+	root.add_child(cs)
+	await process_frame
+	cs.open({
+		"city": {"faction": 1, "buildings": ["markt"], "garrison": []},
+		"buildings": [{"id": "markt", "name": "Markt", "cost": {"gold": 1},
+			"effect": "x"}],
+		"faction_names": ["Waldvolk", "Menschen", "Totenreich", "Orks"],
+		"faction_colors": [Color.GREEN, Color.YELLOW, Color.PURPLE, Color.RED],
+		"wallet": Wallet.new(), "own_city": true,
+	})
+	await process_frame
+	cs.call("_toggle_view3d")
+	await process_frame
+	await process_frame
+
+	var mv = wm.get("_map3d")
+	var cv = cs.get("_city3d")
+	_check(mv != null and cv != null, "beide Ansichten sind gebaut")
+	if mv != null and cv != null:
+		var mw: World3D = (mv as Node3D).get_world_3d()
+		var cw: World3D = (cv as Node3D).get_world_3d()
+		_check(mw != cw,
+			"Karte und Stadt liegen NICHT in derselben 3D-Welt")
+		# Und die URSACHE beim Namen nennen. Der erste Anlauf hat statt
+		# dessen die Modellnamen beider Ansichten verglichen - das war
+		# selbst falsch: Stadt und Karte benutzen ABSICHTLICH dieselben
+		# Modelle (Gras, Steine, Blumen aus world.glb), der Test waere also
+		# auch nach der Reparatur rot geblieben.
+		var vps: Array = []
+		for pair in [[mv, "Karte"], [cv, "Stadt"]]:
+			var vp := (pair[0] as Node).get_viewport() as SubViewport
+			if vp == null or not vp.own_world_3d:
+				vps.append(String(pair[1]))
+		_check(vps.is_empty(),
+			"jeder SubViewport hat own_world_3d gesetzt (fehlt: %s)" % str(vps))
+
+	cs.queue_free()
+	wm.queue_free()
+	await process_frame
+	_done.append("_test_views_do_not_share_a_world")
 
 
 func _terrain_instances() -> int:

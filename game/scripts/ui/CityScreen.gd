@@ -329,6 +329,9 @@ func _build_city3d() -> void:
 	cont.show_behind_parent = true
 	add_child(cont)
 	_city3d_vp = SubViewport.new()
+	# Eigene 3D-Welt - siehe WorldMapScreen._build_map3d. Ohne das lag der
+	# Stadthof mitten im Kartengelaende.
+	_city3d_vp.own_world_3d = true
 	_city3d_vp.transparent_bg = false
 	_city3d_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	cont.add_child(_city3d_vp)

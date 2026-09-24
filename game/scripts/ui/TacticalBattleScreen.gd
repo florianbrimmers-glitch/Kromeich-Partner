@@ -1089,6 +1089,9 @@ func _build_field3d() -> void:
 	cont.show_behind_parent = true
 	_grid_area.add_child(cont)
 	_field3d_vp = SubViewport.new()
+	# Eigene 3D-Welt - siehe WorldMapScreen._build_map3d. Ohne das stand
+	# das Kampfbrett auf der Weltkarte.
+	_field3d_vp.own_world_3d = true
 	_field3d_vp.transparent_bg = false
 	_field3d_vp.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	cont.add_child(_field3d_vp)
