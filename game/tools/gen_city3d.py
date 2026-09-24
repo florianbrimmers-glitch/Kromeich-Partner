@@ -336,9 +336,125 @@ def make_props():
     ob.data.materials.append(bk.material("city_patch_m", "#4d472f"))
 
 
+def scaffolding(w, d, h, pal):
+    """Geruest um einen Rohbau: vier Eckstangen und EIN Laufbrett-Ring.
+
+    Die Stangen stehen auf der GRUNDFLAECHE des Gebaeudes - dadurch
+    unterscheidet sich das Geruest eines breiten Marktes von dem einer
+    schmalen Kapelle, auch wenn der Rohbau darunter noch niedrig ist.
+    """
+    px = w * 0.5 + u(14)
+    py = d * 0.5 + u(14)
+    top = h + u(26)
+    parts = []
+    for sx in (-1, 1):
+        for sy in (-1, 1):
+            parts.append(box((u(5), u(5), top * 0.5), (sx * px, sy * py, top * 0.5),
+                             pal["wood"], 0.0))
+    # Laufbrett NUR an den beiden Laengsseiten. Ein geschlossener Ring
+    # sah von oben aus wie ein Deckel und verdeckte den Rohbau - genau der
+    # Fehler des alten Geruests, dessen zwei breite Bretter bei 44 Grad
+    # Neigung zu einer flachen Tafel verschmolzen.
+    for sy in (-1, 1):
+        parts.append(box((px, u(4), u(4)), (0, sy * py, h * 0.82),
+                         pal["roof_light"], 0.0))
+    # Leiter an einer Seite: zwei Holme, drei Sprossen.
+    lx = -px - u(10)
+    for sx in (-1, 1):
+        parts.append(box((u(3), u(3), top * 0.44), (lx, sx * u(16), top * 0.44),
+                         pal["wood"], 0.0))
+    for i in range(3):
+        parts.append(box((u(3), u(17), u(3)),
+                         (lx, 0, top * (0.28 + 0.24 * i)), pal["wood"], 0.0))
+    # Baumaterial daneben - macht den Platz als Baustelle lesbar, nicht als
+    # halbes Gebaeude.
+    parts.append(box((u(18), u(12), u(8)), (w * 0.22, py - u(16), u(8)),
+                     pal["wall_dark"], 0.01))
+    parts.append(box((u(11), u(9), u(6)), (-w * 0.26, py - u(14), u(6)),
+                     pal["wall_dark"], 0.01))
+    return parts
+
+
+def build_site(bid):
+    """Baustelle JE BAUPLATZ - das raeumliche Gegenstueck zu
+    gen_city_buildings.build_construction(). Rohbau auf 45 Prozent Hoehe,
+    kein Dach, kein Zierrat, dazu Geruest.
+
+    WARUM JE BAUPLATZ (It. 69): bis dahin gab es EIN Geruest fuer alle
+    neun Plaetze. Eine frische Stadt - der haeufigste Anblick im Spiel -
+    zeigte damit neun identische Kaesten, waehrend die 2D-Ansicht seit
+    It. 18 neun eigene construction-<id>.svg hat. Der Nutzer hat genau das
+    auf dem Geraet gesehen: "sehr schwierig in den Farben zu sehen was was
+    ist".
+
+    FRAKTIONSNEUTRAL wie in 2D: eine Baustelle ist Geruest und Rohmauer,
+    keine Fraktionsarchitektur. Das spart 27 Modelle und hebt den Rohbau
+    grau vom Hofboden ab, der in jeder Fraktion erdfarben ist.
+    """
+    r = cb.RECIPES[bid]
+    # NICHT cb.SCAFFOLD: dessen wall_mid (#9a9086) kam unter dem Licht der
+    # Stadt fast weiss heraus, und neun weisse Kaesten sind so wenig
+    # unterscheidbar wie neun graue. Der Rohbau ist Bruchstein, das Geruest
+    # helles Holz - der Kontrast liegt zwischen den beiden, nicht zum Hof.
+    pal = dict(cb.SCAFFOLD, wall_mid="#6b6359", wall_dark="#4e483f",
+               roof_light="#b79a63", wood="#a8843f")
+    w = u(r["w"])
+    d = w * 0.62
+    parts = []
+
+    if r.get("custom") == "wall":
+        # Mauerbahn: ein angefangener Abschnitt, ueber die ganze Breite.
+        h = u(52)
+        parts.append(box((w * 0.5, d * 0.22, h * 0.5), (0, 0, h * 0.5),
+                         pal["wall_mid"], 0.02))
+    elif r.get("custom") == "scout":
+        # Spaeherturm: der Mast steht schon, die Plattform fehlt.
+        h = u(118)
+        parts.append(box((u(20), u(20), h * 0.5), (0, 0, h * 0.5),
+                         pal["wood"], 0.01))
+        d = u(40)
+    elif r.get("tower"):
+        h = u(r["h"]) * 0.32
+        parts.append(cone(w * 0.5, h, (0, 0, h * 0.5), pal["wall_mid"],
+                          verts=10))
+    else:
+        # FUNDAMENT ALS MAUERRING, nicht als Klotz. Ein voller Quader auf
+        # 32 Prozent Hoehe ist breiter als hoch: bei 44 Grad Neigung sieht
+        # man fast nur seine Deckflaeche, und neun Bauplaetze werden zu
+        # neun grauen Platten. Ein Ring zeigt den Boden dazwischen, wirft
+        # Schatten nach innen und liest sich sofort als angefangener Bau.
+        h = u(r["h"]) * 0.30
+        t = u(24)
+        parts += [
+            box((w * 0.5, t * 0.5, h * 0.5), (0, d * 0.5 - t * 0.5, h * 0.5),
+                pal["wall_mid"], 0.015),
+            box((w * 0.5, t * 0.5, h * 0.5), (0, -d * 0.5 + t * 0.5, h * 0.5),
+                pal["wall_mid"], 0.015),
+            box((t * 0.5, d * 0.5 - t, h * 0.5),
+                (-w * 0.5 + t * 0.5, 0, h * 0.5), pal["wall_dark"], 0.015),
+            box((t * 0.5, d * 0.5 - t, h * 0.5),
+                (w * 0.5 - t * 0.5, 0, h * 0.5), pal["wall_dark"], 0.015),
+        ]
+        # Ein angefangener Pfeiler INNEN gibt dem Ring Tiefe - sonst liest
+        # er sich von oben als gezeichnetes Rechteck.
+        parts.append(box((t * 0.55, t * 0.55, h * 0.85),
+                         (w * 0.18, -d * 0.12, h * 0.85), pal["wall_mid"],
+                         0.015))
+
+    # VERWORFEN: eine gezahnte Mauerkrone. Die Zaehne standen als helle
+    # Streifen quer ueber dem Rohbau und machten aus neun unterschiedlichen
+    # Bauplaetzen wieder neun gestreifte Kaesten - dasselbe Muster wie bei
+    # den Schulterstuecken des Kreuzritters (It. 32). Die Silhouette traegt
+    # den Unterschied, nicht die Verzierung.
+
+    parts += scaffolding(w, d, h, pal)
+    merge("city_site_%s" % bid, parts)
+
+
 def make_scaffold():
-    """Baustelle: Geruest statt Gebaeude. Fraktionsneutral, wie die
-    2D-Baustellen in assets/city/_shared/."""
+    """Das alte, bauplatz-unabhaengige Geruest. Es bleibt als Notausgang
+    fuer einen Bauplatz ohne eigene Baustelle (CityView3D faellt darauf
+    zurueck), so wie 2D auf construction.svg zurueckfaellt."""
     parts = []
     for sx in (-1, 1):
         for sy in (-1, 1):
@@ -348,6 +464,128 @@ def make_scaffold():
     parts.append(box((0.36, 0.26, 0.016), (0, 0, 0.66), "#9a7a44", 0.01))
     parts.append(box((0.30, 0.22, 0.10), (0, 0, 0.10), "#6a6055", 0.02))
     merge("city_scaffold", parts)
+
+
+# --------------------------------------------------------------- Pruefer
+
+VIEW = os.path.join(HERE, "..", "scripts", "ui", "CityView3D.gd")
+
+# Hoechstens so viel darf von der Silhouette eines Gebaeudes hinter einem
+# anderen verschwinden. 0.45 ist nicht gegriffen: bei diesem Wert geht der
+# Lauf gerade noch durch, den ich in city3d-menschen-voll.png als leserlich
+# beurteilt habe - jedes der neun Gebaeude ist dort als es selbst erkennbar.
+MAX_HIDDEN = 0.45
+
+
+def view_consts():
+    """Die Zahlen des Hofs kommen AUS CityView3D.gd, nicht aus einer Kopie.
+
+    Eine zweite Kopie waere genau die Doppelung, an der It. 36/37, It. 42
+    und It. 33 gescheitert sind: die Regel wird woanders nachgebaut und
+    driftet still auseinander. gen_city_bg.py liest aus demselben Grund
+    city_layout.json statt eigener Koordinaten.
+    """
+    import re
+    txt = open(VIEW, encoding="utf-8").read()
+    out = {}
+    for m in re.finditer(r"^const (\w+) := (-?[0-9.]+)$", txt, re.M):
+        out[m.group(1)] = float(m.group(2))
+    need = ["YARD_W", "YARD_D", "PITCH", "PLOT_Y_LO", "PLOT_Y_HI",
+            "YARD_Y_LO", "YARD_Y_HI", "BUILDING_SCALE"]
+    missing = [k for k in need if k not in out]
+    if missing:
+        raise SystemExit("CityView3D.gd: Konstanten fehlen: %s" % missing)
+    return out
+
+
+def dims_of(name):
+    ob = bpy.data.objects[name]
+    import mathutils
+    cs = [ob.matrix_world @ mathutils.Vector(c) for c in ob.bound_box]
+    return (max(c.x for c in cs) - min(c.x for c in cs),
+            max(c.y for c in cs) - min(c.y for c in cs),
+            max(c.z for c in cs))
+
+
+def check_occlusion(layout):
+    """Kein Bauplatz darf einen anderen verdecken.
+
+    DIE REGEL IST DIESELBE WIE BEIM GELAENDE (It. 53): bei der Neigung p
+    verdeckt die Hoehe h genau h / tan(p) Einheiten Tiefe DAHINTER. Bis
+    It. 69 war sie auf die Stadt nie angewendet - bei 44 Grad verdeckte
+    1 Einheit Hoehe 1.04 Einheiten Tiefe, waehrend die Reihenabstaende bei
+    0.13 bis 1.30 lagen. Fuenf von neun Plaetzen verschwanden hinter ihrem
+    Vordermann, und das war der Hauptgrund, warum die raeumliche Stadt
+    unleserlich aussah.
+
+    Geprueft wird mit den ECHTEN Maszen der gebauten Meshes, nicht mit
+    Schaetzungen aus den Rezepten.
+    """
+    c = view_consts()
+    tan_p = math.tan(math.radians(abs(c["PITCH"])))
+    plots = layout["buildings"]
+
+    def depth(y):
+        t = (y - c["PLOT_Y_LO"]) / (c["PLOT_Y_HI"] - c["PLOT_Y_LO"])
+        t = min(1.0, max(0.0, t))
+        return c["YARD_Y_LO"] + t * (c["YARD_Y_HI"] - c["YARD_Y_LO"])
+
+    info = {}
+    for bid, pl in plots.items():
+        sc = pl.get("s", 1.0) * c["BUILDING_SCALE"]
+        # Das groesste Modell ueber alle Fraktionen zaehlt - eine Stadt
+        # zeigt immer nur eine, aber leserlich muessen alle vier sein.
+        w = d = h = 0.0
+        for fac in FACTIONS:
+            fw, fd, fh = dims_of("b_%s_%s" % (fac, bid))
+            w, d, h = max(w, fw), max(d, fd), max(h, fh)
+        info[bid] = dict(x=(pl["x"] - 0.5) * c["YARD_W"],
+                         z=(depth(pl["y"]) - 0.5) * c["YARD_D"],
+                         w=w * sc, d=d * sc, h=h * sc)
+
+    # WIE VIEL verdeckt wird, nicht OB. In jeder Schraegsicht ueberschneiden
+    # sich Baukoerper ein wenig - das ist Tiefe, kein Fehler. Unleserlich
+    # wird es erst, wenn von einem Gebaeude kaum noch etwas uebrig bleibt.
+    #
+    # Gerechnet wird in Bildschirmhoehe: bei der Neigung p liegt ein Punkt
+    # (Hoehe y, Tiefe z) auf  y*cos(p) - z*sin(p).  Ein Baukoerper reicht
+    # damit von seiner vorderen Unterkante bis zu seiner hinteren Oberkante.
+    sin_p = math.sin(math.radians(abs(c["PITCH"])))
+    cos_p = math.cos(math.radians(abs(c["PITCH"])))
+
+    def span(q):
+        lo = -(q["z"] + q["d"] / 2) * sin_p
+        hi = q["h"] * cos_p - (q["z"] - q["d"] / 2) * sin_p
+        return lo, hi
+
+    bad = []
+    ids = sorted(info)
+    for i, a in enumerate(ids):
+        for b in ids[i + 1:]:
+            pa, pb = info[a], info[b]
+            ox = (min(pa["x"] + pa["w"] / 2, pb["x"] + pb["w"] / 2)
+                  - max(pa["x"] - pa["w"] / 2, pb["x"] - pb["w"] / 2))
+            if ox <= 0:
+                continue
+            near, far = (a, b) if pa["z"] > pb["z"] else (b, a)
+            pn, pf = info[near], info[far]
+            nlo, nhi = span(pn)
+            flo, fhi = span(pf)
+            oy = min(nhi, fhi) - max(nlo, flo)
+            if oy <= 0:
+                continue
+            # Anteil der Silhouette des HINTEREN Baus, den der vordere deckt.
+            hidden = (oy / (fhi - flo)) * min(1.0, ox / pf["w"])
+            if hidden > MAX_HIDDEN:
+                bad.append("%s verdeckt %s zu %.0f Prozent"
+                           % (near, far, hidden * 100.0))
+    if bad:
+        raise SystemExit("Bauplaetze verdecken sich zu stark (Grenze %.0f "
+                         "Prozent):\n  %s" % (MAX_HIDDEN * 100.0,
+                                              "\n  ".join(bad)))
+    print("[OK] kein Bauplatz ist zu mehr als %.0f Prozent verdeckt "
+          "(%d Paare geprueft)"
+          % (MAX_HIDDEN * 100.0, len(ids) * (len(ids) - 1) // 2))
 
 
 def main():
@@ -360,9 +598,12 @@ def main():
     for fac in FACTIONS:
         for bid in ids:
             build_one(bid, fac)
+    for bid in ids:
+        build_site(bid)
     make_ground()
     make_props()
     make_scaffold()
+    check_occlusion(layout)
 
     try:
         out = sys.argv[sys.argv.index("--") + 1]

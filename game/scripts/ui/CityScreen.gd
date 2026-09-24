@@ -363,7 +363,8 @@ func _city3d_ctx() -> Dictionary:
 			continue
 		var lp: Dictionary = layout[bid]
 		out.append({"id": bid, "x": float(lp.get("x", 0.5)),
-			"y": float(lp.get("y", 0.5)), "built": built.has(bid)})
+			"y": float(lp.get("y", 0.5)), "s": float(lp.get("s", 1.0)),
+			"built": built.has(bid)})
 	return {"faction": _faction_dir(), "buildings": out,
 		"plaza": _plaza_def()}
 

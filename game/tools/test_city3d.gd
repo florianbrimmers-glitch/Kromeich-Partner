@@ -104,9 +104,29 @@ func _test_unbuilt_shows_scaffold() -> void:
 		bs.append({"id": String(ids[i]), "x": 0.3 + 0.4 * float(i % 2),
 			"y": 0.1 + 0.1 * float(i), "built": i < 3})
 	_v.refresh({"faction": "menschen", "buildings": bs, "plaza": {}})
-	_check(_count(City3D.SCAFFOLD) == ids.size() - 3,
-		"%d Geruestee fuer %d ungebaute Plaetze"
-			% [_count(City3D.SCAFFOLD), ids.size() - 3])
+	# JEDER BAUPLATZ HAT SEINE EIGENE BAUSTELLE (It. 69).
+	#
+	# Vorher bekam jeder ungebaute Platz dasselbe Geruest. Eine frische
+	# Stadt - der haeufigste Anblick im Spiel - zeigte damit neun
+	# identische Kaesten; der Nutzer hat genau das auf dem Geraet gesehen.
+	# Die 2D-Ansicht macht es seit It. 18 richtig (construction-<id>.svg),
+	# und dieser Test ist die Gegenprobe fuer die raeumliche Seite.
+	var ohne: Array = []
+	var je: int = 0
+	for i in range(3, ids.size()):
+		var bid: String = String(ids[i])
+		var n: int = _count(City3D.SITE_PREFIX + bid)
+		je += n
+		if n != 1:
+			ohne.append("%s (%d)" % [bid, n])
+	_check(ohne.is_empty(),
+		"jeder ungebaute Platz zeigt SEINE Baustelle (%d von %d, fehlend: %s)"
+			% [je, ids.size() - 3, str(ohne)])
+	# Das allgemeine Geruest ist nur noch der Notausgang und darf bei
+	# vollstaendigem Modellsatz gar nicht mehr vorkommen.
+	_check(_count(City3D.SCAFFOLD) == 0,
+		"kein Platz faellt auf das allgemeine Geruest zurueck (%d)"
+			% _count(City3D.SCAFFOLD))
 	var built := 0
 	for i in range(3):
 		built += _count("b_menschen_%s" % String(ids[i]))

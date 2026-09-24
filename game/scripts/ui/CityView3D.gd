@@ -63,6 +63,9 @@ const PITCH := -44.0
 
 # Ungebaut: das Geruest steht an derselben Stelle wie das Gebaeude spaeter.
 const SCAFFOLD := "city_scaffold"
+# Baustelle JE BAUPLATZ (It. 69). Vorher bekam jeder ungebaute Platz
+# dasselbe Geruest - eine frische Stadt zeigte neun identische Kaesten.
+const SITE_PREFIX := "city_site_"
 
 var _built: bool = false
 
@@ -76,8 +79,39 @@ func _init() -> void:
 
 
 # Anteil (0..1) aus city_layout.json -> Ort im Hof.
+# TIEFE NUR FUER DIE RAEUMLICHE ANSICHT SPREIZEN (It. 69).
+#
+# Die Bauplaetze in data/city_layout.json liegen zwischen y 0.47 und 0.875.
+# Fuer die 2D-Ansicht ist das richtig - dort fuellt der gemalte Hintergrund
+# den oberen Hof. RAEUMLICH ist der obere Hof aber echter Boden: er blieb
+# leer, waehrend unten die Reihen so dicht standen, dass ein Gebaeude das
+# naechste verdeckte.
+#
+# Gemessen: bei 44 Grad Neigung verdeckt 1 Einheit Hoehe 1.04 Einheiten
+# Tiefe dahinter (dieselbe Regel wie beim Gelaende, h / tan(p)) - die
+# Reihenabstaende lagen bei 0.13 bis 1.30. Fuenf von neun Plaetzen
+# verschwanden hinter ihrem Vordermann.
+#
+# Das LAYOUT bleibt unberuehrt: die 2D-Ansicht sieht gut aus, und eine
+# zweite Koordinatenquelle waere genau die Doppelung, die It. 33
+# zusammengelegt hat.
+const PLOT_Y_LO := 0.47
+const PLOT_Y_HI := 0.875
+const YARD_Y_LO := 0.20
+const YARD_Y_HI := 0.88
+
+# Gebaeude-Massstab. Zusammen mit der gespreizten Tiefe faellt damit KEIN
+# Bauplatz mehr hinter einen anderen - nachgerechnet ueber alle 36 Paare.
+const BUILDING_SCALE := 0.88
+
+
+func plot_depth(y: float) -> float:
+	var t: float = clampf((y - PLOT_Y_LO) / (PLOT_Y_HI - PLOT_Y_LO), 0.0, 1.0)
+	return YARD_Y_LO + t * (YARD_Y_HI - YARD_Y_LO)
+
+
 func plot_pos(x: float, y: float) -> Vector3:
-	return Vector3((x - 0.5) * YARD_W, 0.0, (y - 0.5) * YARD_D)
+	return Vector3((x - 0.5) * YARD_W, 0.0, (plot_depth(y) - 0.5) * YARD_D)
 
 
 # ctx:
@@ -137,14 +171,21 @@ func refresh(ctx: Dictionary) -> void:
 		# UNGEBAUT ZEIGT DAS GERUEST, nicht nichts. Ein leerer Platz saehe
 		# aus wie ein Fehler; genauso macht es die 2D-Ansicht mit
 		# construction.svg.
+		var bid: String = String(bd.get("id", ""))
+		# Der Groessenfaktor steht seit It. 33 im Layout (Zitadelle 1.05,
+		# Kapelle 0.84) und wurde von der raeumlichen Ansicht IGNORIERT -
+		# das Spitzengebaeude stand dadurch so gross da wie die Kaserne.
+		var sc: float = float(bd.get("s", 1.0)) * BUILDING_SCALE
+		var siz: Vector3 = Vector3(sc, sc, sc)
 		if not bool(bd.get("built", false)):
-			add.call(SCAFFOLD, pos, one)
+			var site: String = SITE_PREFIX + bid
+			add.call(site if _meshes.has(site) else SCAFFOLD, pos, siz)
 			continue
-		var model: String = "b_%s_%s" % [fac, String(bd.get("id", ""))]
+		var model: String = "b_%s_%s" % [fac, bid]
 		if not _meshes.has(model):
-			add.call(SCAFFOLD, pos, one)
+			add.call(SCAFFOLD, pos, siz)
 			continue
-		add.call(model, pos, one)
+		add.call(model, pos, siz)
 
 	_scatter_props(per_model, ctx, int(ctx.get("seed", 7)))
 

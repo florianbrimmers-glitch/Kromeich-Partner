@@ -112,6 +112,28 @@ def make_terrain():
         ob.location = (0, 0, 0)
 
 
+def make_battle_ground():
+    """Flache Boeden fuer das SCHLACHTFELD (It. 69).
+
+    Das Kampfbrett ist eben - dort braucht keine Kachel Hoehe, und die
+    Gelaendeplatten der Weltkarte haben sie nur, damit Wald und Gebirge
+    sich abheben. Als Quader aneinandergelegt bringen sie aber genau den
+    Fehler mit, den make_fog() unten beschreibt: bei voller Kachelbreite
+    liegen die SEITENflaechen benachbarter Quader deckungsgleich, und seit
+    die Fase auf 0.003 steht, halten sie einander nicht mehr auseinander.
+    Auf dem Schlachtfeld sind die Kacheln 115 px gross statt 60 - dort
+    waren die Z-Fighting-Baender als dunkle Linien quer ueber Brett und
+    Rand zu sehen. Gemessen lagen sie exakt auf Zellgrenzen (83 px
+    Abstand bei 115.6 px Zellbreite und 46 Grad Neigung).
+
+    Eine FLAECHE hat keine Seitenflaechen, die kollidieren koennen - und
+    von oben sieht man ohnehin nur die Oberseite.
+    """
+    for name, col, _extra in TERRAIN:
+        ob = bk.plane((TILE, TILE), (0, 0, 0.0), col, name="bt_" + name)
+        ob.location = (0, 0, 0)
+
+
 def make_fog():
     """Platte fuer UNERFORSCHTES Gelaende.
 
@@ -362,6 +384,7 @@ def make_markers():
 def main():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     make_terrain()
+    make_battle_ground()
     make_fog()
     make_deco()
     make_scatter()

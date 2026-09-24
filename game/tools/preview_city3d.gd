@@ -19,6 +19,12 @@ const CASES := [
 		"mauer"]},
 	{"name": "orks-halb", "faction": 3,
 		"built": ["kaserne", "markt", "schmiede"]},
+	# NEUE STADT - der haeufigste Anblick im Spiel und bis It. 69 in keinem
+	# Vorschauwerkzeug enthalten. Beide Faelle oben haben etwas gebaut;
+	# dass alle NEUN Baustellen identisch aussahen, konnte deshalb keine
+	# Vorschau zeigen. Der Nutzer hat es auf dem Handy gesehen.
+	{"name": "orks-neu", "faction": 3, "built": []},
+	{"name": "menschen-neu", "faction": 1, "built": []},
 ]
 
 

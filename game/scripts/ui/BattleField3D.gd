@@ -21,8 +21,12 @@ const WORLD_PATH := "res://assets/models/world.glb"
 # Gelaendeart -> Bodenmodell. Reihenfolge ist MapGen.TILE_*, wie in
 # WorldMap3D. Wasser gibt es als Schlachtfeld nicht; dort wird auf Sand
 # gekaempft (Kuestenkampf), sonst stuenden die Einheiten im Meer.
-const GROUND_MODEL := ["t_grass", "t_forest", "t_sand", "t_mountain",
-	"t_sand", "t_swamp"]
+# FLACHE Boeden (bt_), nicht die Gelaendequader der Weltkarte (t_). Die
+# Quader haben deckungsgleiche Seitenflaechen und erzeugten dunkle
+# Z-Fighting-Linien quer ueber das Brett - derselbe Fehler wie im Nebel
+# (It. 62), dieselbe Loesung: eine Flaeche ohne Seitenflaechen.
+const GROUND_MODEL := ["bt_grass", "bt_forest", "bt_sand", "bt_mountain",
+	"bt_sand", "bt_swamp"]
 
 # Seitenfarben. Dieselbe Sprache wie auf der Weltkarte: das Modell zeigt
 # WAS dort steht, der Ring darunter WEM es gehoert.
@@ -62,6 +66,24 @@ const FACING := [PI * 0.5, -PI * 0.5]
 # -46 Grad also um ein Achtel gegenueber -40. Noch steiler saehe wieder
 # aus wie die 2D-Ansicht.
 const PITCH := -46.0
+
+# DER RAND UM DAS BRETT (It. 69).
+#
+# Gemessen an der echten Gitterflaeche (1040 x 1485 px): die Kamera zeigt
+# 9 Zellen ueber die BREITE (KEEP_WIDTH), das sind bei 46 Grad Neigung
+# 17.9 Zellreihen in der Tiefe - das Brett ist 8 tief. 55 Prozent der
+# Flaeche waren damit reine Hintergrundfarbe, also schwarz. Die 2D-Ansicht
+# fuellt denselben Platz seit It. 21 mit Kulisse und Vordergrund; raeumlich
+# stand das Brett im Nichts.
+#
+# Der Rand ist DEUTLICH DUNKLER als das Brett. Er muss als "ausserhalb"
+# lesbar bleiben - sonst zaehlt man Felder ab, die es nicht gibt.
+const APRON_SHADE := 0.58
+const APRON_MIX := ["deco_grass", "deco_grass", "deco_grass", "deco_stone",
+	"deco_tree", "deco_flower"]
+# Notbremse: bei einem entarteten Seitenverhaeltnis (Viewport noch 0 hoch)
+# darf der Rand nicht ins Unendliche wachsen.
+const APRON_MAX := 26
 
 var _built: bool = false
 
@@ -112,6 +134,7 @@ func refresh(ctx: Dictionary) -> void:
 			var shade: float = 1.0 if (x + y) % 2 == 0 else 0.90
 			add.call(ground, Vector2i(x, y), 0.0, 0.0,
 				Color(shade, shade, shade))
+	_apron(per_model, ground, cols, rows, sd)
 
 	var picked: Vector2i = ctx.get("picked", Vector2i(-1, -1))
 	var ring: Array = []
@@ -172,6 +195,85 @@ func _cell_pos(cell: Vector2i) -> Vector3:
 
 # Kamera so, dass das ganze Brett im Bild ist - das Schlachtfeld wird nie
 # gescrollt, anders als die Weltkarte.
+# Wie viele Zellreihen die Kamera ueber die Hoehe zeigt. Aus DENSELBEN
+# Zahlen, mit denen frame_board die Kamera setzt - eine zweite Kopie waere
+# die Doppelung, an der It. 36/37 und It. 42 gescheitert sind.
+func _visible_half_depth(cols: int) -> float:
+	var vp := get_viewport()
+	if vp == null:
+		return float(cols)
+	var vs: Vector2 = Vector2(vp.get_visible_rect().size)
+	if vs.x <= 0.0 or vs.y <= 0.0:
+		return float(cols)
+	var aspect: float = vs.x / vs.y
+	var half_screen: float = (float(cols) + 1.0) * 0.5 / maxf(0.05, aspect)
+	return half_screen / sin(deg_to_rad(absf(PITCH)))
+
+
+# Welcher Zellbereich mit Boden belegt wird - Brett UND Rand. Oeffentlich,
+# damit tools/test_creatures3d.gd dieselbe Rechnung benutzt statt einer
+# zweiten Kopie: headless sind die MultiMesh-Transformationen nicht
+# auslesbar (sie liefern alle den Ursprung, wie get_instance_color seit
+# It. 58), also ist die ANZAHL das Einzige, was ein Test sehen kann.
+func apron_rect(cols: int, rows: int) -> Rect2i:
+	var half_w: float = (float(cols) + 1.0) * 0.5
+	var half_d: float = _visible_half_depth(cols)
+	var cx: float = float(cols - 1) * 0.5
+	var cz: float = float(rows - 1) * 0.5
+	var x0: int = maxi(int(floor(cx - half_w)) - 1, -APRON_MAX)
+	var x1: int = mini(int(ceil(cx + half_w)) + 1, cols + APRON_MAX)
+	var z0: int = maxi(int(floor(cz - half_d)) - 1, -APRON_MAX)
+	var z1: int = mini(int(ceil(cz + half_d)) + 1, rows + APRON_MAX)
+	return Rect2i(x0, z0, x1 - x0 + 1, z1 - z0 + 1)
+
+
+# Gelaende ausserhalb des Bretts, bis der Bildrand erreicht ist.
+func _apron(per_model: Dictionary, ground: String, cols: int, rows: int,
+		sd: int) -> void:
+	var r: Rect2i = apron_rect(cols, rows)
+	var x0: int = r.position.x
+	var x1: int = r.position.x + r.size.x - 1
+	var z0: int = r.position.y
+	var z1: int = r.position.y + r.size.y - 1
+	if not per_model.has(ground):
+		per_model[ground] = []
+	var tiles: Array = per_model[ground]
+	for z in range(z0, z1 + 1):
+		for x in range(x0, x1 + 1):
+			if x >= 0 and x < cols and z >= 0 and z < rows:
+				continue
+			# Unregelmaessige Helligkeit statt Schachbrett: das Muster ist
+			# die Ablesehilfe des SPIELFELDS und darf draussen nicht
+			# auftauchen.
+			var h: int = hash3(x, z, sd + 991)
+			var sh: float = APRON_SHADE + float(h % 12) * 0.006
+			tiles.append({
+				"pos": Vector3(float(x) * CELL, 0.0, float(z) * CELL),
+				"rot": 0.0, "color": Color(sh, sh, sh),
+			})
+			# Bewuchs, aber nicht dicht am Brett - ein Baum direkt an der
+			# Kante sieht aus, als stuende er auf einem Spielfeld.
+			var near_edge: bool = (x >= -1 and x <= cols and z >= -1
+				and z <= rows)
+			if near_edge or (h / 16) % 5 == 0:
+				continue
+			var model: String = APRON_MIX[(h / 128) % APRON_MIX.size()]
+			if not _meshes.has(model):
+				continue
+			if not per_model.has(model):
+				per_model[model] = []
+			var jx: float = (float((h / 32) % 100) / 100.0 - 0.5) * 0.7
+			var jz: float = (float((h / 2048) % 100) / 100.0 - 0.5) * 0.7
+			var gs: float = 0.85 + float((h / 65536) % 90) * 0.012
+			(per_model[model] as Array).append({
+				"pos": Vector3((float(x) + jx) * CELL, 0.0,
+					(float(z) + jz) * CELL),
+				"rot": float(h % 360) * PI / 180.0,
+				"scale": Vector3(gs, gs, gs),
+				"color": Color(0.70, 0.73, 0.68),
+			})
+
+
 func frame_board(cols: int, rows: int) -> void:
 	look_at_cells(Vector2(float(cols - 1) * 0.5, float(rows - 1) * 0.5),
 		float(cols) + 1.0)

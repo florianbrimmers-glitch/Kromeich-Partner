@@ -71,12 +71,46 @@ UNITS = os.path.join(HERE, "..", "data", "units.json")
 # Stufe - in 2D uebernimmt das die Punktreihe am Sockel, in 3D gibt es
 # nichts anderes. Eine Zahl je Stufe, EINMAL angewandt: dann kann die
 # Reihenfolge gar nicht mehr auseinanderlaufen, und die Suite prueft es.
-TIER_SPAN = {1: 0.72, 2: 0.80, 3: 0.90, 4: 0.99, 5: 1.07, 6: 1.16, 7: 1.30}
+# GROESSE JE STUFE, als Raumdiagonale der Bounding-Box.
+#
+# Vorher: 0.72 bis 1.30. Das war schlicht ZU KLEIN. Bei 46 Grad Neigung
+# erscheint eine Hoehe h als h * cos(46) = 0.69 Zellbreiten auf dem
+# Schirm; aus einer Diagonale von 0.72 wurde eine Figur von rund einer
+# halben Zelle. In Heroes ist eine Kreatur ungefaehr so hoch wie ihre
+# Zelle breit. Die Zahlen sind deshalb um gut die Haelfte groesser.
+#
+# WARUM DIE DIAGONALE UND NICHT DIE HOEHE: ich habe It. 69 zuerst auf
+# Hoehe umgestellt, weil in der Diagonale Breite und Tiefe mitstecken und
+# breite Wesen dadurch flacher werden. Der Test war sofort rot - und zu
+# Recht: mit Hoehen-Normierung ist die GESAMTGROESSE nicht mehr monoton
+# (ein Greif mit ausgebreiteten Fluegeln wurde groesser als der
+# Kreuzritter eine Stufe darueber). Die Diagonale ist das ehrliche Mass
+# fuer "wie viel Wesen steht da"; dass ein Drache dabei lang statt hoch
+# ist, ist richtig so.
+TIER_SPAN = {1: 1.12, 2: 1.24, 3: 1.40, 4: 1.53, 5: 1.66, 6: 1.80,
+             7: 2.02}
 
 # Nichts darf ueber seine Zelle hinausragen - sonst ist nicht zu sehen, wo
 # eine Einheit steht (der Fehler, den die Staedte in It. 53 hatten). Wer
 # nach der Stufengroesse zu breit waere, wird nachtraeglich kleiner.
-MAX_XY = 0.98
+# GRUNDFLAECHE JE STUFE.
+#
+# Die Regel aus It. 53 - eine Figur darf ihre Zelle nicht verdecken - ist
+# richtig und bleibt. Falsch war, sie fuer alle Stufen auf dieselbe Zahl zu
+# setzen: 13 der 28 Figuren stiessen an die Grenze, fast alle mit
+# ausgebreiteten Fluegeln (Greif, Ross, Engel, Knochendrache, Goldwyrm).
+# Bei ihnen zog die Grenze die ganze Figur klein, die Hoehe mit - genau
+# die Wesen, die eindrucksvoll sein sollen, wurden am staerksten gestaucht.
+#
+# Hoehere Stufen duerfen deshalb etwas ueber ihre Zelle hinausragen. Das
+# ist vertretbar, weil unter jeder Figur ein Ring auf dem Boden liegt, der
+# die Zelle unabhaengig von der Figur markiert - und weil ein Drache, der
+# in sein Feld passt, kein Drache ist.
+#
+# EINE QUELLE: tools/test_creatures3d.gd liest diese Tabelle aus DIESER
+# Datei, statt sie nachzubauen.
+MAX_XY_BY_TIER = {1: 0.98, 2: 0.98, 3: 1.02, 4: 1.08, 5: 1.14, 6: 1.22,
+                  7: 1.32}
 
 
 def fit_to_tier(ob, tier):
@@ -96,10 +130,11 @@ def fit_to_tier(ob, tier):
     if span <= 0.0001:
         return
     k = TIER_SPAN[int(tier)] / span
-    if w * k > MAX_XY:
-        k = MAX_XY / w
-    if d * k > MAX_XY:
-        k = min(k, MAX_XY / d)
+    cap = MAX_XY_BY_TIER[int(tier)]
+    if w * k > cap:
+        k = cap / w
+    if d * k > cap:
+        k = min(k, cap / d)
     ob.scale = (k, k, k)
     bpy.ops.object.transform_apply(scale=True)
     _w, _d, _h, z1 = dims()

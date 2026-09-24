@@ -126,29 +126,69 @@ func _test_stands_on_the_ground() -> void:
 	_done.append("_test_stands_on_the_ground")
 
 
+# Die erlaubte Grundflaeche je Stufe kommt AUS DEM GENERATOR, nicht aus
+# einer zweiten Tabelle hier. Eine Kopie waere genau die Doppelung, an der
+# It. 36/37, It. 42 und It. 33 gescheitert sind: die Zahl wird woanders
+# nachgebaut und driftet still auseinander. gen_city3d.py liest aus
+# demselben Grund die Hofzahlen aus CityView3D.gd.
+func _caps_from_generator() -> Dictionary:
+	var out: Dictionary = {}
+	var f := FileAccess.open("res://tools/gen_creatures.py", FileAccess.READ)
+	if f == null:
+		return out
+	var txt: String = f.get_as_text()
+	var i: int = txt.find("MAX_XY_BY_TIER")
+	if i < 0:
+		return out
+	var j: int = txt.find("}", i)
+	if j < 0:
+		return out
+	var body: String = txt.substr(i, j - i)
+	var re := RegEx.new()
+	re.compile("(\\d+)\\s*:\\s*([0-9.]+)")
+	for m in re.search_all(body):
+		out[int(m.get_string(1))] = float(m.get_string(2))
+	return out
+
+
 func _test_fits_the_cell() -> void:
 	print("== Jede Figur bleibt auf ihrer Zelle ==")
+	var caps: Dictionary = _caps_from_generator()
+	_check(caps.size() == 7,
+		"Grundflaechen-Tabelle aus gen_creatures.py gelesen (%d Stufen)"
+		% caps.size())
 	var over: Array = []
 	for u in _units:
-		var id: String = String((u as Dictionary)["id"])
+		var ud: Dictionary = u as Dictionary
+		var id: String = String(ud["id"])
 		if not _f._meshes.has(id):
 			continue
+		var cap: float = float(caps.get(int(ud["tier"]), 0.98)) * Scene3D.CELL
 		var a: AABB = (_f._meshes[id] as Mesh).get_aabb()
-		if a.size.x > Scene3D.CELL + 0.01 or a.size.z > Scene3D.CELL + 0.01:
-			over.append("%s (%.2f x %.2f)" % [id, a.size.x, a.size.z])
-	_check(over.is_empty(), "keine Figur breiter als eine Zelle (%s)" % str(over))
+		if a.size.x > cap + 0.01 or a.size.z > cap + 0.01:
+			over.append("%s (%.2f x %.2f, erlaubt %.2f)"
+				% [id, a.size.x, a.size.z, cap])
+	_check(over.is_empty(),
+		"keine Figur breiter als ihre Stufe erlaubt (%s)" % str(over))
 	_done.append("_test_fits_the_cell")
 
 
 # Die Groesse IST die Stufenanzeige (in 2D uebernimmt das die Punktreihe am
 # Sockel). Innerhalb einer Fraktion muss sie deshalb monoton wachsen.
 #
-# GEMESSEN WIRD DIE RAUMDIAGONALE, nicht die Hoehe. Der erste Anlauf hat
-# die Hoehe genommen, und die Suite war zurecht rot: ein Vierbeiner ist
-# lang statt hoch, ein Baum breit statt hoch - der Greif (Stufe 3) war
-# niedriger als der Armbruster (Stufe 2), ohne kleiner zu sein. Der
-# Generator passt jede Figur auf eine Diagonale je Stufe ein (TIER_SPAN);
-# das hier ist die Gegenprobe dazu.
+# GEMESSEN WIRD DIE RAUMDIAGONALE, nicht die Hoehe.
+#
+# Das stand hier schon vor It. 69 und war richtig: ein Vierbeiner ist lang
+# statt hoch, ein Baum breit statt hoch - der Greif waere sonst "kleiner"
+# als der Armbruster, ohne es zu sein.
+#
+# It. 69 hat den GENERATOR umgestellt (er normiert jetzt die Hoehe, nicht
+# die Diagonale, weil in der Diagonale Breite und Tiefe mitsteckten und
+# breite Wesen dadurch flach wurden). Ich habe daraufhin auch diesen Test
+# auf die Hoehe umgestellt - und er war sofort rot, mit Recht: die
+# Grundflaechen-Grenze drueckt breite Figuren unter ihre Stufenhoehe.
+# Die Diagonale bleibt also das Mass fuer "wie gross ist das Wesen"; die
+# Hoehe ist nur, woran der Generator skaliert.
 func _test_size_tells_the_tier() -> void:
 	print("== Groesse waechst mit der Stufe ==")
 	var by_fac: Dictionary = {}
@@ -203,7 +243,33 @@ func _test_field_places_everything() -> void:
 		# Android-Export unzuverlaessig.
 		"stacks": stacks, "obstacles": [{"pos": Vector2i(4, 4), "kind": 0}],
 		"move": [Vector2i(2, 2), Vector2i(3, 2)], "targets": [Vector2i(6, 2)]})
-	_check(_count("t_grass") == 64, "64 Bodenzellen (%d)" % _count("t_grass"))
+	# Boden: das Brett SIND 64 Zellen, dazu kommt seit It. 69 der Rand, der
+	# den Rest des Bildes fuellt (vorher standen dort 55 Prozent schwarze
+	# Flaeche). Wie viele Randkacheln es sind, haengt vom Seitenverhaeltnis
+	# des Viewports ab - eine feste Zahl waere hier eine Kopie der
+	# Kamerarechnung. Geprueft wird deshalb, was wirklich gelten muss.
+	var gname: String = String(Field.GROUND_MODEL[0])
+	var gc: int = _count(gname)
+	_check(gc >= 64, "mindestens die 64 Brettzellen (%d, Modell %s)"
+		% [gc, gname])
+	_check(gc > 64, "das Brett hat einen Rand (%d Bodenkacheln)" % gc)
+	# DER RAND LAESST DIE BRETTFLAECHE AUS. Tut er das nicht, liegen zwei
+	# Kacheln aufeinander und streiten sich um die Tiefe - genau der
+	# Z-Fight, dessen dunkle Linien It. 69 beseitigt hat.
+	#
+	# Geprueft wird ueber die ANZAHL, nicht ueber die Positionen: headless
+	# liefert MultiMesh.get_instance_transform fuer JEDE Instanz den
+	# Ursprung (nachgemessen), genau wie get_instance_color seit It. 58
+	# schwarz liefert. Ein Positionsvergleich waere hier dauerhaft rot und
+	# wuerde nichts aussagen. Der Ausschnitt kommt aus apron_rect() - der
+	# Funktion, die auch die Ansicht benutzt.
+	var ar: Rect2i = _f.apron_rect(8, 8)
+	var ganz: int = ar.size.x * ar.size.y
+	# Brett (64) + Rand (Rest) = genau einmal jede Zelle des Ausschnitts.
+	# Ohne die Auslassung waeren es 64 mehr.
+	_check(gc == ganz,
+		"jede Zelle des Ausschnitts genau einmal belegt (%d von %d)"
+		% [gc, ganz])
 	for s in stacks:
 		var t: String = String((s as Dictionary)["type"])
 		_check(_count(t) == 1, "%s steht einmal (%d)" % [t, _count(t)])
