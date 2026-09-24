@@ -17,4 +17,5 @@ env/
 objekte_decisions.jsonl
 newsletter_decisions.jsonl
 events_decisions.jsonl
+weekly_report.jsonl
 .pytest_cache/

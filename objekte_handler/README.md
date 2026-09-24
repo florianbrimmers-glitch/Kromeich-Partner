@@ -11,7 +11,7 @@ Eigenständiges Paket – **kein Code-Sharing mit `src/`** (Visitenkarten-Pipeli
 3. Objekt-Matching gegen `GET /v1/units?q=` mit lokaler Nachfilterung (Straße + **exakte Hausnummer**; mehrere Einheiten am selben Objekt über Flächenangabe wie "die kleine Einheit").
 4. Entscheidung:
    - **Stufe A** (eindeutig + reversibel, nur bei `DRY_RUN=false`): `rented=true` setzen (Objekt-Status bleibt unberührt), Doku-Notiz, offene Deals per Absage-Aktivität (Grund 256998 "Fläche nicht mehr verfügbar") schließen.
-   - **Stufe B** (mehrdeutig oder konsequenzreich): Review-Aufgabe an den Objekt-Verantwortlichen (Fallback Oguzhan, 254958), fällig +2 Werktage, mit Original-Text, Permalink und vorbereiteter Aktion.
+   - **Stufe B** (mehrdeutig oder konsequenzreich): Review-Aufgabe an den Objekt-Verantwortlichen (Fallback: Sammelpostfach 254958, heute Lena Klinnert), fällig +2 Werktage, mit Original-Text, Permalink und vorbereiteter Aktion.
 5. Rückmeldung als Thread-Reply + ✅-Reaction; jede Entscheidung landet als JSONL-Zeile im Entscheidungslog (nur lokal, siehe unten).
 
 ## Betriebsmodi
@@ -89,6 +89,6 @@ jq -r 'select(.fehler) | "\(.message_ts)  \(.fehler)"' objekte_decisions.jsonl
 ## Explizit außerhalb des Scopes
 
 - Exposé-PDF-Verarbeitung (Workflow abgeschaltet)
-- Objekt-Neuanlage aus Nachrichten (nur Aufgabe an Oguzhan)
+- Objekt-Neuanlage aus Nachrichten (nur Review-Aufgabe an den Fallback-Sitz)
 - Newsletter-Parsing der Flächenupdates (nur Review-Aufgabe)
 - Änderungen an Objekt-Status, Suchprofilen oder Kontakten

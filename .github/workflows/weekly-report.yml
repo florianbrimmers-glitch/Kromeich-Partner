@@ -1,0 +1,78 @@
+name: Weekly Report
+
+on:
+  schedule:
+    # Dienstag 19:03 Berliner Zeit. GitHub-Actions-Cron kennt nur UTC, Berlin wechselt
+    # zwischen CET und CEST – daher beide Zeiten. main.py entscheidet anhand des
+    # auslösenden Crons (TRIGGER_SCHEDULE), welcher in der aktuellen Saison gilt – nicht
+    # anhand der Startzeit, denn GitHub startet Crons hier 4–6 Stunden verspätet.
+    - cron: "3 17 * * 2" # 19:03 Berlin während CEST (Sommerzeit)
+    - cron: "3 18 * * 2" # 19:03 Berlin während CET (Winterzeit)
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (nur loggen, keine Slack-DM)"
+        required: false
+        default: "true"
+        type: choice
+        options:
+          - "true"
+          - "false"
+      report_hours:
+        description: "Berichtsfenster in Stunden zurück (Standard 168 = 7 Tage)"
+        required: false
+        default: "168"
+      include_touched:
+        description: "Zusätzlich bearbeitete, aber offene Prüfaufgaben melden"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+      recipient:
+        description: "Slack-Empfänger (User-ID) – leer = Oguzhan Sahin"
+        required: false
+        default: ""
+      run_hour_berlin:
+        description: "Stunden-Guard (leer = aus, für manuelle Läufe zu jeder Zeit)"
+        required: false
+        default: ""
+
+concurrency:
+  group: weekly-report
+  cancel-in-progress: false
+
+jobs:
+  weekly-report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run weekly report
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          PROPSTACK_API_KEY: ${{ secrets.PROPSTACK_API_KEY }}
+          # Der Cron soll wirklich senden; manuelle Läufe defaulten auf Dry-Run.
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+          REPORT_HOURS: ${{ github.event.inputs.report_hours || '168' }}
+          REPORT_INCLUDE_TOUCHED: ${{ github.event.inputs.include_touched || 'false' }}
+          REPORT_RECIPIENT: ${{ github.event.inputs.recipient }}
+          # Beim Cron greift der Guard (19), bei workflow_dispatch ist er standardmäßig aus.
+          RUN_HOUR_BERLIN: ${{ github.event_name == 'schedule' && '19' || github.event.inputs.run_hour_berlin }}
+          # Welcher der beiden Crons ausgelöst hat – leer bei manuellen Läufen.
+          TRIGGER_SCHEDULE: ${{ github.event.schedule }}
+          REPORT_LOG_PATH: weekly_report.jsonl
+        run: python -m weekly_report.main

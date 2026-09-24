@@ -41,7 +41,10 @@ def decide(cls: Classification | None, match: MatchResult | None) -> Decision:
         return Decision(
             tier=Tier.B,
             grund="Objekt fehlt in Propstack – Anlage nur manuell",
-            geplante_aktionen=[f"Review-Aufgabe an Oguzhan ({config.BROKER_OGUZHAN}): Objekt anlegen"],
+            geplante_aktionen=[
+                f"Review-Aufgabe an {config.BROKER_REVIEW_FALLBACK_NAME} "
+                f"({config.BROKER_REVIEW_FALLBACK}): Objekt anlegen"
+            ],
         )
 
     if cls.typ == MessageType.FLAECHENUPDATE:

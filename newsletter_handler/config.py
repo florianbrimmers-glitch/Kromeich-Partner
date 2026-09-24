@@ -7,7 +7,6 @@ NEWSLETTER_CHANNEL = "C07NL0KET40"
 CLAUDE_MODEL = "claude-opus-4-8"
 
 BROKER_MAREK = 387451    # Empfänger der Newsletter-Review-Aufgaben (Stufe B)
-BROKER_OGUZHAN = 254958
 
 # Absagegrund "Fläche nicht mehr verfügbar" (Standard für Fremdvermietung)
 RESERVATION_REASON_ABSAGE = 256998

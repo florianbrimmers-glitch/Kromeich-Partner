@@ -149,8 +149,8 @@ def _stufe_b(msg: dict, cls: Classification | None, match: MatchResult | None,
     """Review-Aufgabe statt Ausführung."""
     slack_datum = datetime.fromtimestamp(float(msg["ts"]), tz=timezone.utc).date().isoformat()
 
-    broker_id = config.BROKER_OGUZHAN
-    broker_name = "Oguzhan"
+    broker_id = config.BROKER_REVIEW_FALLBACK
+    broker_name = config.BROKER_REVIEW_FALLBACK_NAME
     unit: Unit | None = match.units[0] if match and match.units else None
     if unit is None and match and match.kandidaten:
         unit = match.kandidaten[0]

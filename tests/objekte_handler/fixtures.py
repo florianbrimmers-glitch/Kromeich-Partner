@@ -19,7 +19,7 @@ HAMBURGRING_UNITS = [
 # Viersen Aconlog: 2 Einheiten am Industriering 21, 7.666 m² vs. 9.024 m²
 VIERSEN_UNITS = [
     Unit(id=5050165, name="Aconlog Viersen kleine Einheit", street="Industriering", house_number="21",
-         city="Viersen", property_space_value=7666.0, broker_id=254958, broker_name="Oguzhan"),
+         city="Viersen", property_space_value=7666.0, broker_id=254958, broker_name="Lena Klinnert"),
     Unit(id=5050166, name="Aconlog Viersen große Einheit", street="Industriering", house_number="21",
-         city="Viersen", property_space_value=9024.0, broker_id=254958, broker_name="Oguzhan"),
+         city="Viersen", property_space_value=9024.0, broker_id=254958, broker_name="Lena Klinnert"),
 ]

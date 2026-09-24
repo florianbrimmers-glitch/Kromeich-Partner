@@ -6,7 +6,12 @@ OBJEKTE_CHANNEL = "C07GH7AN80J"
 CLAUDE_MODEL = "claude-sonnet-4-6"
 
 BROKER_MAREK = 387451
-BROKER_OGUZHAN = 254958  # Fallback + Empfänger für fehlt_in_ps
+# Sammelpostfach für Review-Aufgaben ohne eindeutigen Objekt-Verantwortlichen
+# (Fallback + Empfänger für fehlt_in_ps). Der Sitz lief früher auf Oguzhan Sahin und ist
+# inzwischen auf Lena Klinnert umgestellt – deshalb kein Personenname im Konstantennamen.
+# Aktueller Inhaber laut GET /v1/brokers: Lena Klinnert.
+BROKER_REVIEW_FALLBACK = 254958
+BROKER_REVIEW_FALLBACK_NAME = "Lena Klinnert"
 
 # Absagegrund "Fläche nicht mehr verfügbar" (Standard für Fremdvermietung)
 RESERVATION_REASON_ABSAGE = 256998
