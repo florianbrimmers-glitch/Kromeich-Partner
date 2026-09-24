@@ -42,10 +42,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python 3.12
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: "pip"
@@ -58,20 +58,20 @@ jobs:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           PROPSTACK_API_KEY: ${{ secrets.PROPSTACK_API_KEY }}
-          # Start im Dry-Run: Cron läuft vorerst mit DRY_RUN=true (nur Review-Aufgaben).
-          # Scharfschalten nach Auswertung der ersten Läufe: 'true' -> 'false'.
+          # DRY_RUN=true ist der gewählte Dauerbetrieb, kein offener Testlauf:
+          # Vermietungen gehen immer als Review-Aufgabe an einen Menschen, der
+          # Handler setzt nie selbst 'rented'. Auswertung der Läufe 68-74:
+          # von 13 Vermietungen waren nur 2 eindeutig gematcht (6x mehrdeutig,
+          # 5x nicht im Bestand). Scharf würde also ~2 Handgriffe je 2 Wochen
+          # sparen - zu wenig gegen das Risiko, bei einem falschen Treffer
+          # eigenständig eine Fläche auf vermietet zu setzen und offene Deals
+          # abzusagen. Umstellen nur nach bewusster Entscheidung, nicht als
+          # vermeintlich überfälliger nächster Schritt.
           DRY_RUN: ${{ github.event.inputs.dry_run || 'true' }}
           NO_WRITE: ${{ github.event.inputs.no_write || 'false' }}
           SCAN_HOURS: ${{ github.event.inputs.scan_from_hours || '27' }}
           SCAN_LATEST_HOURS: ${{ github.event.inputs.scan_to_hours || '0' }}
+          # Entscheidungslog bleibt lokal auf dem Runner: bewusst kein Artefakt,
+          # das füllte nur die Quota und meldete grüne Läufe rot.
           DECISION_LOG_PATH: newsletter_decisions.jsonl
         run: python -m newsletter_handler.main
-
-      - name: Upload decision log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: newsletter-decisions-${{ github.run_id }}
-          path: newsletter_decisions.jsonl
-          if-no-files-found: ignore
-          retention-days: 30

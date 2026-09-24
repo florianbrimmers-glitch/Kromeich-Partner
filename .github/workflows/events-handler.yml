@@ -42,10 +42,10 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python 3.12
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: "pip"
@@ -72,14 +72,7 @@ jobs:
           NO_WRITE: ${{ github.event.inputs.no_write || 'false' }}
           SCAN_HOURS: ${{ github.event.inputs.scan_from_hours || '27' }}
           SCAN_LATEST_HOURS: ${{ github.event.inputs.scan_to_hours || '0' }}
+          # Entscheidungslog bleibt lokal auf dem Runner: bewusst kein Artefakt,
+          # das füllte nur die Quota und meldete grüne Läufe rot.
           DECISION_LOG_PATH: events_decisions.jsonl
         run: python -m events_handler.main
-
-      - name: Upload decision log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: events-decisions-${{ github.run_id }}
-          path: events_decisions.jsonl
-          if-no-files-found: ignore
-          retention-days: 30

@@ -16,7 +16,7 @@ Eigenständiges Paket – kein Code-Sharing mit `src/` oder den anderen Handlern
    - **Fälligkeitsdatum:** der Starttag des Events, damit der Abschnitt chronologisch sortierbar ist.
    - **Beschreibung:** Branche, Ort, Kosten (nur Ticket), Anmelde-/Info-Link, Slack-Permalink als Quelle.
    - **„Funktion KP" und „Spannend für" werden NICHT gefüllt** – das sind Wertungen, die ein Mensch ergänzt (ein Hinweis dazu steht in der Beschreibung).
-5. ✅-Reaction + Thread-Antwort je Post. Jede Entscheidung landet als JSONL-Zeile im Entscheidungslog (Actions-Artefakt).
+5. ✅-Reaction + Thread-Antwort je Post. Jede Entscheidung landet als JSONL-Zeile im Entscheidungslog (nur lokal).
 
 ## Betriebsmodi
 

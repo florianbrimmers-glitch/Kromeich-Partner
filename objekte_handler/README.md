@@ -12,7 +12,7 @@ Eigenständiges Paket – **kein Code-Sharing mit `src/`** (Visitenkarten-Pipeli
 4. Entscheidung:
    - **Stufe A** (eindeutig + reversibel, nur bei `DRY_RUN=false`): `rented=true` setzen (Objekt-Status bleibt unberührt), Doku-Notiz, offene Deals per Absage-Aktivität (Grund 256998 "Fläche nicht mehr verfügbar") schließen.
    - **Stufe B** (mehrdeutig oder konsequenzreich): Review-Aufgabe an den Objekt-Verantwortlichen (Fallback: Sammelpostfach 254958, heute Lena Klinnert), fällig +2 Werktage, mit Original-Text, Permalink und vorbereiteter Aktion.
-5. Rückmeldung als Thread-Reply + ✅-Reaction; jede Entscheidung landet als JSONL-Zeile im Entscheidungslog (Actions-Artefakt, 30 Tage).
+5. Rückmeldung als Thread-Reply + ✅-Reaction; jede Entscheidung landet als JSONL-Zeile im Entscheidungslog (nur lokal, siehe unten).
 
 ## Betriebsmodi
 
@@ -64,7 +64,9 @@ pytest tests/objekte_handler/ -v
 
 ## Auswertung des Entscheidungslogs
 
-JSONL-Artefakte der Läufe herunterladen (Actions → Run → Artifacts), dann z.B.:
+Das Entscheidungslog entsteht nur beim lokalen Lauf (`DECISION_LOG_PATH`); Cron-Läufe
+laden es nicht hoch. Zum Auswerten den Handler lokal gegen das gewünschte Zeitfenster
+laufen lassen (Beispiel oben, `SCAN_HOURS` passend gesetzt), dann z.B.:
 
 ```bash
 # Verteilung der Nachrichtentypen
