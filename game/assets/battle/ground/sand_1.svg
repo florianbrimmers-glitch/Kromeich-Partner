@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Kampfboden sand, Variante 1
+     Erzeugt von tools/gen_battle_art.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <rect width="64" height="64" fill="#574d33"/>
+  <ellipse cx="21.4" cy="44.6" rx="23.0" ry="11.8" fill="#6b5f40" opacity="0.20"/>
+  <ellipse cx="44.0" cy="32.8" rx="27.0" ry="18.3" fill="#6b5f40" opacity="0.19"/>
+  <ellipse cx="26.2" cy="30.4" rx="18.5" ry="10.4" fill="#6b5f40" opacity="0.17"/>
+  <path d="M 50.1 26.0 q 9.6 -3.5 19.2 0" fill="none" stroke="#7d6f4c" stroke-width="2" stroke-linecap="round" opacity="0.21"/>
+  <path d="M 33.6 11.3 q 7.7 -3.5 15.5 0" fill="none" stroke="#7d6f4c" stroke-width="2" stroke-linecap="round" opacity="0.22"/>
+</svg>

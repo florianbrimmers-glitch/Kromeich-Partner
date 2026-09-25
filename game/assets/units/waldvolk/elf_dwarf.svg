@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Kampf-Token Zwerg (elf_dwarf), Stufe 1.
+     Generiert von tools/gen_unit_sprites.py - nicht per Hand editieren,
+     sondern den Generator anpassen und neu laufen lassen. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <ellipse cx="64.0" cy="117.0" rx="24.4" ry="7" fill="#000" opacity="0.42"/>
+  <g transform="translate(64.0,114.0) scale(0.88) translate(-64.0,-114.0)">
+  <polygon points="45.5,94.0 56.5,94.0 56.5,110.0 59.5,114.0 42.5,114.0" fill="#478647" stroke="#122312" stroke-width="2.5" stroke-linejoin="round"/>
+  <polygon points="71.5,94.0 82.5,94.0 82.5,110.0 85.5,114.0 68.5,114.0" fill="#478647" stroke="#122312" stroke-width="2.5" stroke-linejoin="round"/>
+  <polygon points="38.0,62.0 90.0,62.0 84.0,96.0 44.0,96.0" fill="#5eb25e" stroke="#122312" stroke-width="2.5" stroke-linejoin="round"/>
+  <ellipse cx="64.0" cy="41.5" rx="18.0" ry="14.4" fill="#a2e6a2" stroke="#122312" stroke-width="2.5"/>
+  <path d="M 47.8 50.5 q 16.2 34.2 32.4 0 l -3.6 5.4 Z" fill="#e8e0cc" stroke="#122312" stroke-width="2.0" stroke-linejoin="round" stroke-linecap="round"/>
+  <ellipse cx="57.7" cy="39.7" rx="2.5" ry="3.1" fill="#122312"/>
+  <ellipse cx="70.3" cy="39.7" rx="2.5" ry="3.1" fill="#122312"/>
+  <path d="M 92 34 L 86 100" fill="none" stroke="#7a5a34" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 90 32 q 20 4 16 26 q -14 -6 -20 -4 Z" fill="#c8d2dc" stroke="#122312" stroke-width="2.0" stroke-linejoin="round" stroke-linecap="round"/>
+  </g>
+  <circle cx="64.0" cy="122.0" r="2.6" fill="#a2e6a2" opacity="0.75"/>
+</svg>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Erzeugt von tools/gen_city_buildings.py - nicht von Hand editieren.
+     Bodenraute-Mitte bei y=288 (CityScreen SPRITE_GROUND_FRAC 0.56). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<polygon points="81.1,294.0 256.0,206.6 430.9,294.0 256.0,381.4" fill="#000000" opacity="0.30"/>
+<polygon points="91.0,288.0 256.0,370.5 256.0,266.5 91.0,184.0" fill="#c9b184" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="256.0,370.5 421.0,288.0 421.0,184.0 256.0,266.5" fill="#9a8460" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="256.0,101.5 421.0,184.0 256.0,266.5 91.0,184.0" fill="#4a5a72" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="121.0,184.0 163.9,184.0 163.9,152.0 121.0,152.0" fill="#4a5a72" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="177.8,184.0 220.7,184.0 220.7,152.0 177.8,152.0" fill="#4a5a72" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="234.6,184.0 277.4,184.0 277.4,152.0 234.6,152.0" fill="#4a5a72" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="291.3,184.0 334.2,184.0 334.2,152.0 291.3,152.0" fill="#4a5a72" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="348.1,184.0 391.0,184.0 391.0,152.0 348.1,152.0" fill="#4a5a72" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<path d="M 230.0 294.0 L 230.0 252.2 A 26.0 34.2 0 0 1 282.0 252.2 L 282.0 294.0 Z" fill="#6b5330" stroke="#2c2418" stroke-width="2"/>
+<rect x="175.0" y="196.0" width="22.0" height="30.0" rx="9.9" fill="#ffd98a" stroke="#2c2418" stroke-width="2"/>
+<rect x="245.0" y="196.0" width="22.0" height="30.0" rx="9.9" fill="#ffd98a" stroke="#2c2418" stroke-width="2"/>
+<rect x="315.0" y="196.0" width="22.0" height="30.0" rx="9.9" fill="#ffd98a" stroke="#2c2418" stroke-width="2"/>
+<line x1="116.0" y1="152.0" x2="116.0" y2="278.0" stroke="#2c2418" stroke-width="5"/>
+<polygon points="116.0,152.0 170.0,168.0 116.0,186.0" fill="#a8342c" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+
+</svg>

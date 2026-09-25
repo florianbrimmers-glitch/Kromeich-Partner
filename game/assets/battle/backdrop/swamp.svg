@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Kampf-Kulisse swamp (Ferne, ueber dem Gitter)
+     Erzeugt von tools/gen_battle_art.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 540 200" width="540" height="200">
+  <rect x="0" y="10" width="540" height="19" fill="#4d5840" opacity="0.040"/>
+  <rect x="0" y="28" width="540" height="19" fill="#4d5840" opacity="0.075"/>
+  <rect x="0" y="45" width="540" height="19" fill="#4d5840" opacity="0.110"/>
+  <rect x="0" y="63" width="540" height="19" fill="#4d5840" opacity="0.145"/>
+  <rect x="0" y="81" width="540" height="19" fill="#4d5840" opacity="0.180"/>
+  <rect x="0" y="99" width="540" height="19" fill="#4d5840" opacity="0.215"/>
+  <rect x="0" y="116" width="540" height="19" fill="#4d5840" opacity="0.250"/>
+  <polygon points="0,200 0,47 77,39 154,25 231,46 309,69 386,22 463,14 540,27 540,200" fill="#20261a" opacity="0.45"/>
+  <polygon points="0,200 0,82 60,93 120,64 180,75 240,99 300,78 360,73 420,78 480,93 540,87 540,200" fill="#20261a" opacity="0.62"/>
+  <rect x="0" y="40" width="540" height="26" fill="#4d5840" opacity="0.06"/>
+  <rect x="0" y="66" width="540" height="26" fill="#4d5840" opacity="0.06"/>
+  <rect x="0" y="130" width="540" height="70" fill="#414a33" opacity="0.35"/>
+  <polygon points="0,200 0,152 60,115 120,105 180,141 240,151 300,114 360,104 420,141 480,155 540,136 540,200" fill="#20261a" opacity="0.85"/>
+  <path d="M 86 180 q -3 -32 2 -54" fill="none" stroke="#20261a" stroke-width="4" opacity="0.85"/>
+  <ellipse cx="88" cy="126" rx="13" ry="8" fill="#414a33" opacity="0.7"/>
+  <path d="M 329 180 q -3 -22 2 -36" fill="none" stroke="#20261a" stroke-width="4" opacity="0.85"/>
+  <ellipse cx="331" cy="144" rx="13" ry="8" fill="#414a33" opacity="0.7"/>
+  <path d="M 12 180 q -3 -19 2 -32" fill="none" stroke="#20261a" stroke-width="4" opacity="0.85"/>
+  <ellipse cx="14" cy="148" rx="13" ry="8" fill="#414a33" opacity="0.7"/>
+  <path d="M 495 180 q -3 -20 2 -34" fill="none" stroke="#20261a" stroke-width="4" opacity="0.85"/>
+  <ellipse cx="497" cy="146" rx="13" ry="8" fill="#414a33" opacity="0.7"/>
+  <path d="M 82 180 q -3 -28 2 -47" fill="none" stroke="#20261a" stroke-width="4" opacity="0.85"/>
+  <ellipse cx="84" cy="133" rx="13" ry="8" fill="#414a33" opacity="0.7"/>
+  <path d="M 30 180 q -3 -27 2 -44" fill="none" stroke="#20261a" stroke-width="4" opacity="0.85"/>
+  <ellipse cx="32" cy="136" rx="13" ry="8" fill="#414a33" opacity="0.7"/>
+  <path d="M 325 180 q -3 -19 2 -32" fill="none" stroke="#20261a" stroke-width="4" opacity="0.85"/>
+  <ellipse cx="327" cy="148" rx="13" ry="8" fill="#414a33" opacity="0.7"/>
+  <ellipse cx="108" cy="172" rx="120" ry="14" fill="#cfe8d8" opacity="0.10"/>
+  <ellipse cx="270" cy="172" rx="120" ry="14" fill="#cfe8d8" opacity="0.10"/>
+  <ellipse cx="432" cy="172" rx="120" ry="14" fill="#cfe8d8" opacity="0.10"/>
+</svg>

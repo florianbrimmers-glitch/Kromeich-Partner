@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Kampf-Token Greif (men_griffin), Stufe 3.
+     Generiert von tools/gen_unit_sprites.py - nicht per Hand editieren,
+     sondern den Generator anpassen und neu laufen lassen. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <ellipse cx="64.0" cy="117.0" rx="29.2" ry="7" fill="#000" opacity="0.42"/>
+  <g transform="translate(64.0,114.0) scale(0.92) translate(-64.0,-114.0)">
+  <polygon points="54.0,60.0 36.4,36.0 23.8,48.0 31.3,56.0 54.0,72.0" fill="#f7e692" stroke="#27230e" stroke-width="2.0" stroke-linejoin="round"/>
+  <polygon points="54.0,65.0 23.8,46.0 15.4,58.0 22.9,66.0 54.0,77.0" fill="#f7e692" stroke="#27230e" stroke-width="2.0" stroke-linejoin="round"/>
+  <polygon points="54.0,70.0 15.4,60.0 12.0,72.0 19.6,80.0 54.0,82.0" fill="#968637" stroke="#27230e" stroke-width="2.0" stroke-linejoin="round"/>
+  <polygon points="74.0,60.0 91.6,36.0 104.2,48.0 96.7,56.0 74.0,72.0" fill="#f7e692" stroke="#27230e" stroke-width="2.0" stroke-linejoin="round"/>
+  <polygon points="74.0,65.0 104.2,46.0 112.6,58.0 105.1,66.0 74.0,77.0" fill="#f7e692" stroke="#27230e" stroke-width="2.0" stroke-linejoin="round"/>
+  <polygon points="74.0,70.0 112.6,60.0 116.0,72.0 108.4,80.0 74.0,82.0" fill="#968637" stroke="#27230e" stroke-width="2.0" stroke-linejoin="round"/>
+  <polygon points="38.1,86.0 49.9,86.0 47.2,100.0 45.0,107.0 39.0,107.0 38.4,100.0" fill="#968637" stroke="#27230e" stroke-width="2.2" stroke-linejoin="round"/>
+  <polygon points="37.8,106.0 48.1,106.0 49.7,114.0 36.7,114.0" fill="#968637" stroke="#27230e" stroke-width="2.0" stroke-linejoin="round"/>
+  <path d="M 44.0 109.0 l 3.5 4.5" fill="none" stroke="#6f6429" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 48.0 109.0 l 3.5 4.5" fill="none" stroke="#6f6429" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <polygon points="76.1,86.0 87.9,86.0 87.2,100.0 87.0,107.0 81.0,107.0 78.4,100.0" fill="#968637" stroke="#27230e" stroke-width="2.2" stroke-linejoin="round"/>
+  <polygon points="81.0,105.0 87.0,105.0 87.0,111.0 81.0,111.0" fill="#dac350" stroke="#27230e" stroke-width="1.8" stroke-linejoin="round"/>
+  <path d="M 84.0 110.0 q -4.0 4 -7.0 5" fill="none" stroke="#dac350" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 84.0 110.0 q 0.0 4 0.0 5" fill="none" stroke="#dac350" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 84.0 110.0 q 4.0 4 7.0 5" fill="none" stroke="#dac350" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <polygon points="33.4,88.0 46.6,88.0 45.6,101.0 45.3,107.0 38.7,107.0 35.9,101.0" fill="#c7b249" stroke="#27230e" stroke-width="2.2" stroke-linejoin="round"/>
+  <polygon points="37.4,106.0 48.8,106.0 50.6,114.0 36.1,114.0" fill="#c7b249" stroke="#27230e" stroke-width="2.0" stroke-linejoin="round"/>
+  <path d="M 44.2 109.0 l 3.5 4.5" fill="none" stroke="#6f6429" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 48.2 109.0 l 3.5 4.5" fill="none" stroke="#6f6429" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <polygon points="79.4,88.0 92.6,88.0 89.6,101.0 87.3,107.0 80.7,107.0 79.9,101.0" fill="#c7b249" stroke="#27230e" stroke-width="2.2" stroke-linejoin="round"/>
+  <polygon points="80.7,105.0 87.3,105.0 87.3,111.0 80.7,111.0" fill="#dac350" stroke="#27230e" stroke-width="1.8" stroke-linejoin="round"/>
+  <path d="M 84.0 110.0 q -4.0 4 -7.0 5" fill="none" stroke="#dac350" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 84.0 110.0 q 0.0 4 0.0 5" fill="none" stroke="#dac350" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 84.0 110.0 q 4.0 4 7.0 5" fill="none" stroke="#dac350" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 29.0 70.0 q -18.0 -12 -24.0 6" fill="none" stroke="#c7b249" stroke-width="6.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <ellipse cx="5.0" cy="76.0" rx="6.0" ry="6.0" fill="#dac350" stroke="#27230e" stroke-width="2.0"/>
+  <path d="M 26.0 76.0 Q 24.0 68.0 40.0 64.4 L 70.0 62.0 Q 87.0 62.0 89.0 74.6 Q 90.0 88.0 72.0 90.0 L 42.0 90.0 Q 25.0 89.0 26.0 76.0 Z" fill="#c7b249" stroke="#27230e" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <ellipse cx="41.0" cy="77.0" rx="13.0" ry="11.8" fill="#968637"/>
+  <ellipse cx="71.0" cy="76.0" rx="12.0" ry="11.2" fill="#f7e692"/>
+  <polygon points="68.0,66.0 88.0,68.0 103.5,46.0 88.5,42.0" fill="#c7b249" stroke="#27230e" stroke-width="2.2" stroke-linejoin="round"/>
+  <ellipse cx="96.0" cy="42.0" rx="16.0" ry="15.2" fill="#f7e692" stroke="#27230e" stroke-width="2.5"/>
+  <polygon points="104.0,38.0 124.0,45.2 104.0,50.0" fill="#dac350" stroke="#27230e" stroke-width="2.0" stroke-linejoin="round"/>
+  <ellipse cx="98.4" cy="38.0" rx="3.2" ry="3.5" fill="#27230e"/>
+  <path d="M 34.0 66 q -3.0 10 -1.0 20" fill="none" stroke="#27230e" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M 29.0 66 q -3.0 10 -1.0 20" fill="none" stroke="#27230e" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M 24.0 66 q -3.0 10 -1.0 20" fill="none" stroke="#27230e" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M 94.0 66 q 3.0 10 1.0 20" fill="none" stroke="#27230e" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M 99.0 66 q 3.0 10 1.0 20" fill="none" stroke="#27230e" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M 104.0 66 q 3.0 10 1.0 20" fill="none" stroke="#27230e" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>
+  </g>
+  <circle cx="55.0" cy="122.0" r="2.6" fill="#f7e692" opacity="0.75"/>
+  <circle cx="64.0" cy="122.0" r="2.6" fill="#f7e692" opacity="0.75"/>
+  <circle cx="73.0" cy="122.0" r="2.6" fill="#f7e692" opacity="0.75"/>
+</svg>

@@ -1,0 +1,113 @@
+{
+ "_comment": "It. 33: Komposition neu. Vorher lagen alle neun Bauplaetze im Band y 0.475-0.80, also im oberen Drittel des Hofs - darunter blieb rund ein Drittel der Mauerflaeche leer, und zwei Paare (Kapelle/Schmiede, Zitadelle/Reiterei) lagen nur 0.06 auseinander und ueberdeckten sich. Jetzt drei Tiefenreihen ueber y 0.47-0.87 mit unregelmaessigem x (ein Raster lesen wir als Schachbrett, nicht als Stadt) und 's' als Groessenfaktor: hinten kleiner, vorn groesser. Die Zeichenreihenfolge kommt aus y, also verdeckt Vorderes automatisch Hinteres. tools/gen_city_bg.py LIEST diese Datei - Wege und Platz weichen den Bauplaetzen damit automatisch aus, statt einer zweiten Kopie der Koordinaten zu folgen. Der Pruefer im Generator meldet Ueberdeckungen und Plaetze ausserhalb des Mauerrings.",
+ "buildings": {
+  "zitadelle": {
+   "x": 0.535,
+   "y": 0.47,
+   "z": 0,
+   "s": 1.05
+  },
+  "kapelle": {
+   "x": 0.235,
+   "y": 0.52,
+   "z": 0,
+   "s": 0.84
+  },
+  "wachturm": {
+   "x": 0.79,
+   "y": 0.545,
+   "z": 0,
+   "s": 0.86
+  },
+  "schmiede": {
+   "x": 0.3,
+   "y": 0.645,
+   "z": 0,
+   "s": 1.0
+  },
+  "reiterei": {
+   "x": 0.725,
+   "y": 0.67,
+   "z": 0,
+   "s": 1.0
+  },
+  "markt": {
+   "x": 0.215,
+   "y": 0.76,
+   "z": 0,
+   "s": 0.98
+  },
+  "kaserne": {
+   "x": 0.5,
+   "y": 0.785,
+   "z": 0,
+   "s": 1.1
+  },
+  "spaeher": {
+   "x": 0.78,
+   "y": 0.775,
+   "z": 0,
+   "s": 0.98
+  },
+  "mauer": {
+   "x": 0.36,
+   "y": 0.875,
+   "z": 0,
+   "s": 1.02
+  }
+ },
+ "_comment_plain": "buildings_plain: Layout fuer Fraktionen OHNE gemalten Hintergrund. Der Satz 'buildings' sitzt im Innenhof der gemalten Menschen-Ringmauer (Band y 0.48-0.80) - ohne Bild wirkt die obere Haelfte leer und die Beschriftungen (Name + Zustand) kollidieren, weil die Reihen nur ~95 px auseinander liegen. 'plain' verteilt dieselben 9 Plots ueber y 0.14-0.86 mit ~0.12 Zeilenabstand, das reicht fuer zwei Textzeilen je Plot.",
+ "buildings_plain": {
+  "kapelle": {
+   "x": 0.26,
+   "y": 0.14,
+   "z": 0
+  },
+  "zitadelle": {
+   "x": 0.74,
+   "y": 0.14,
+   "z": 0
+  },
+  "schmiede": {
+   "x": 0.26,
+   "y": 0.32,
+   "z": 0
+  },
+  "reiterei": {
+   "x": 0.74,
+   "y": 0.32,
+   "z": 0
+  },
+  "markt": {
+   "x": 0.26,
+   "y": 0.5,
+   "z": 0
+  },
+  "wachturm": {
+   "x": 0.74,
+   "y": 0.5,
+   "z": 0
+  },
+  "kaserne": {
+   "x": 0.26,
+   "y": 0.68,
+   "z": 0
+  },
+  "spaeher": {
+   "x": 0.74,
+   "y": 0.68,
+   "z": 0
+  },
+  "mauer": {
+   "x": 0.5,
+   "y": 0.86,
+   "z": 0
+  }
+ },
+ "plaza": {
+  "x": 0.63,
+  "y": 0.885,
+  "rx": 0.115,
+  "ry": 0.05
+ }
+}

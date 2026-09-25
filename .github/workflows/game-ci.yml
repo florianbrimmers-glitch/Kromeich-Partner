@@ -1,0 +1,194 @@
+name: Game CI
+
+# Testet das ECHTE Spiel (GDScript, headless Godot), nicht mehr den
+# verworfenen Python/C#-Prototyp. Drei Stufen:
+#   1. Projekt-Import + Parse-Check: jede .gd/.tscn muss sauber laden.
+#   2. Logik-Tests: tools/test_core_logic.gd + tools/test_city_screen.gd
+#      (Exit-Code-basiert, brechen den Build).
+#   3. Balance-Sim: informativ (Balance ist bekannt ausserhalb des
+#      Korridors), bricht den Build NICHT, Output landet im Log.
+
+on:
+  push:
+    branches: [main, 'claude/**']
+    paths:
+      - 'game/**'
+      - '.github/workflows/game-ci.yml'
+  pull_request:
+    paths:
+      - 'game/**'
+
+env:
+  GODOT_VERSION: '4.6'
+  GODOT_STATUS: stable
+
+jobs:
+  gdscript-tests:
+    name: Godot Headless - Parse + Logik-Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache Godot binary
+        id: godot-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/godot-bin
+          key: godot-${{ env.GODOT_VERSION }}-${{ env.GODOT_STATUS }}-linux
+
+      - name: Download Godot
+        if: steps.godot-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/godot-bin
+          curl -sL -o ~/godot-bin/godot.zip \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-${GODOT_STATUS}/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64.zip"
+          unzip -o ~/godot-bin/godot.zip -d ~/godot-bin
+          chmod +x ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64
+
+      - name: Import project (Class-Cache aufbauen)
+        run: |
+          GODOT=~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64
+          $GODOT --headless --path game/ --import || true
+          # class_name-Cache braucht manchmal zwei Anlaeufe bei frischem Checkout.
+          $GODOT --headless --path game/ --import
+
+      - name: Parse-Check (Projekt laedt ohne Script-Fehler)
+        run: |
+          GODOT=~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64
+          OUT=$($GODOT --headless --path game/ --quit 2>&1 || true)
+          echo "$OUT"
+          if echo "$OUT" | grep -qiE "SCRIPT ERROR|Parse Error"; then
+            echo "::error::Script-/Parse-Fehler beim Projekt-Load"
+            exit 1
+          fi
+
+      - name: Core-Logik-Tests
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/test_core_logic.gd
+
+      - name: CityScreen-Smoke-Test
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/test_city_screen.gd
+
+      - name: Save/Load-Tests (inkl. Szenen-Roundtrip + Fixture)
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/test_save_load.gd
+
+      - name: Neues-Spiel-Tests (Fraktionswahl + Seed)
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/test_new_game.gd
+
+      - name: Wallet-/Ressourcen-Tests
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/test_wallet.gd
+
+      - name: Kampf-Tests (Abilities, Schuss-Limit)
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/test_battle.gd
+
+      - name: KI-Smoke (30 Tage)
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/test_ai_smoke.gd
+
+      - name: Belagerungs-Tests (Mauer, Katapult, Turm)
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/test_siege.gd
+
+      - name: Garnison-Tests (echte Stadt-Verteidiger)
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/test_garrison.gd
+
+      - name: Effekt-Tests (Kampf-Animationen, Test-Bremse)
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/test_battle_vfx.gd
+
+      - name: Helden-Skill-Tests (Primaerwerte, Angebot, Kampf-Prozente)
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/test_hero_skills.gd
+
+      - name: Zauber-Tests (Mana, Zauberbuch, Wirkung)
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/test_spells.gd
+
+      - name: Karten-Objekt-Tests (Schreine, Brunnen, Windmuehle)
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/test_map_objects.gd
+
+      - name: Wochenereignis-Tests (Wachstum, Ernte, Seuche)
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/test_week_events.gd
+
+      - name: Geraeusch-Tests (Dateien, SfxBus, Ausloeser)
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/test_sfx.gd
+
+      - name: Bewegungs-Tests (Gelaendekosten, Wegfindung, Migration v3->v4)
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/test_movement.gd
+
+      - name: Kreatur-Bild-Tests (UnitArt, Panels, Heldenblatt)
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/test_unit_art.gd
+
+      - name: Helden-Struktur-Tests (mehrere Helden, geteilter Beutel)
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/test_multi_hero.gd
+
+      - name: Menue-Tests (Titelschirm, Anleitung, Speichern beim Verlassen)
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/test_menu.gd
+
+      - name: Artefakt-Tests (Werte-Bonus, Truhen, Tausch)
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/test_artifacts.gd
+
+      - name: Meldungs-Tests (Wortlaut und Breite der Spielmeldungen)
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/test_messages.gd
+
+      - name: Weltkarte-3D-Tests (Modelle, Oberkanten, Nebel, Tap)
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/test_world3d.gd
+
+      - name: Kreaturen-3D-Tests (Modelle, Groesse je Stufe, Kampffeld)
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/test_creatures3d.gd
+
+      - name: Stadt-3D-Tests (Bauplaetze, Geruest, Tipp)
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/test_city3d.gd
+
+      - name: Durchspiel-Test (Weltkarte -> Kampf -> Callback -> Weltkarte)
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/test_playthrough.gd
+
+      - name: Balance-Simulator (informativ, bricht nicht)
+        continue-on-error: true
+        run: |
+          ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64 \
+            --headless --path game/ --script tools/balance_sim.gd -- --runs=500

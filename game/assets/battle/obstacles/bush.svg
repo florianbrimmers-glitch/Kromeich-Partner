@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Kampf-Hindernis bush
+     Erzeugt von tools/gen_battle_art.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <ellipse cx="32" cy="56" rx="21" ry="5" fill="#000" opacity="0.35"/>
+  <ellipse cx="22" cy="40" rx="15" ry="13" fill="#2c5223" stroke="#16250f" stroke-width="2.5"/>
+  <ellipse cx="44" cy="38" rx="14" ry="12" fill="#37652b" stroke="#16250f" stroke-width="2.5"/>
+  <ellipse cx="33" cy="30" rx="17" ry="14" fill="#417a31" stroke="#16250f" stroke-width="2.5"/>
+  <ellipse cx="27" cy="26" rx="6" ry="5" fill="#5d9542" opacity="0.9"/>
+  <circle cx="46" cy="46" r="3" fill="#c93a2c"/>
+</svg>

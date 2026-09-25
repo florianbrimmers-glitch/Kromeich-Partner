@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Kampf-Token Kreuzritter (men_crusader), Stufe 4.
+     Generiert von tools/gen_unit_sprites.py - nicht per Hand editieren,
+     sondern den Generator anpassen und neu laufen lassen. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <ellipse cx="64.0" cy="117.0" rx="31.6" ry="7" fill="#000" opacity="0.42"/>
+  <g transform="translate(64.0,114.0) scale(0.94) translate(-64.0,-114.0)">
+  <polygon points="45.5,80.0 54.5,80.0 54.5,110.0 57.5,114.0 42.5,114.0" fill="#968637" stroke="#27230e" stroke-width="2.5" stroke-linejoin="round"/>
+  <polygon points="73.5,80.0 82.5,80.0 82.5,110.0 85.5,114.0 70.5,114.0" fill="#968637" stroke="#27230e" stroke-width="2.5" stroke-linejoin="round"/>
+  <polygon points="39.0,52.0 89.0,52.0 79.0,82.0 49.0,82.0" fill="#c7b249" stroke="#27230e" stroke-width="2.5" stroke-linejoin="round"/>
+  <polygon points="52.8,56.0 75.2,56.0 71.5,74.0 56.5,74.0" fill="#f7e692" stroke="#27230e" stroke-width="1.8" stroke-linejoin="round"/>
+  <path d="M 46.0 36.7 q 0 -27.0 18.0 -20.7 q 18.0 0 18.0 20.7 l -6.3 17.1 l -23.4 0 Z" fill="#c8d2dc" stroke="#27230e" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M 51.0 34.0 L 77.0 34.0" fill="none" stroke="#27230e" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 56.8 18.7 q 1.8 -7.2 15.3 -11.2 q -3.2 3.6 -15.3 6.1 Z" fill="#dac350" stroke="#27230e" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>
+  <polygon points="40.5,86.0 47.5,82.0 107.5,16.0 100.5,20.0" fill="#c8d2dc" stroke="#27230e" stroke-width="2.0" stroke-linejoin="round"/>
+  <polygon points="42.2,72.6 58.2,67.6 60.2,75.6 44.2,80.6" fill="#dac350" stroke="#27230e" stroke-width="1.6" stroke-linejoin="round"/>
+  <polygon points="87.5,86.0 80.5,82.0 20.5,16.0 27.5,20.0" fill="#c8d2dc" stroke="#27230e" stroke-width="2.0" stroke-linejoin="round"/>
+  <polygon points="85.8,72.6 69.8,67.6 67.8,75.6 83.8,80.6" fill="#dac350" stroke="#27230e" stroke-width="1.6" stroke-linejoin="round"/>
+  </g>
+  <circle cx="50.5" cy="122.0" r="2.6" fill="#f7e692" opacity="0.75"/>
+  <circle cx="59.5" cy="122.0" r="2.6" fill="#f7e692" opacity="0.75"/>
+  <circle cx="68.5" cy="122.0" r="2.6" fill="#f7e692" opacity="0.75"/>
+  <circle cx="77.5" cy="122.0" r="2.6" fill="#f7e692" opacity="0.75"/>
+</svg>

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Stadt-Icon Orks. Robuste Stein-Festung mit Eisenstacheln, rotes Banner. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="co_stone" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8a7060"/>
+      <stop offset="1" stop-color="#4a3828"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="32" cy="56" rx="22" ry="4" fill="#000" opacity="0.55"/>
+  <!-- Grobe asymmetrische Mauer -->
+  <polygon points="6,54 8,32 12,28 18,32 22,26 28,30 36,26 42,32 48,28 52,32 56,30 58,54"
+           fill="url(#co_stone)" stroke="#2a1a10" stroke-width="1.5"/>
+  <!-- Unebene Steinstruktur -->
+  <line x1="14" y1="34" x2="14" y2="52" stroke="#2a1a10" stroke-width="1" opacity="0.7"/>
+  <line x1="22" y1="32" x2="22" y2="52" stroke="#2a1a10" stroke-width="1" opacity="0.7"/>
+  <line x1="34" y1="32" x2="34" y2="52" stroke="#2a1a10" stroke-width="1" opacity="0.7"/>
+  <line x1="44" y1="34" x2="44" y2="52" stroke="#2a1a10" stroke-width="1" opacity="0.7"/>
+  <line x1="52" y1="34" x2="52" y2="52" stroke="#2a1a10" stroke-width="1" opacity="0.7"/>
+  <!-- Tor -->
+  <path d="M 24 54 L 24 42 Q 24 36 32 36 Q 40 36 40 42 L 40 54 Z" fill="#1a0e06"/>
+  <!-- Eisen-Stacheln auf der Mauer (zackige Linien) -->
+  <g fill="#2a2a2c" stroke="#0a0a0c" stroke-width="0.5">
+    <polygon points="10,30 12,22 14,30"/>
+    <polygon points="18,32 20,22 22,30"/>
+    <polygon points="28,28 30,18 32,28"/>
+    <polygon points="36,28 38,18 40,28"/>
+    <polygon points="46,30 48,22 50,30"/>
+    <polygon points="52,32 54,22 56,30"/>
+  </g>
+  <!-- Banner rot mit Schaedel-Andeutung in der Mitte -->
+  <line x1="32" y1="18" x2="32" y2="6" stroke="#2a1a10" stroke-width="1"/>
+  <polygon points="32,6 46,10 32,14" fill="#a02418" stroke="#5a1410" stroke-width="0.8"/>
+  <circle cx="38" cy="9" r="2" fill="#e6dec8"/>
+  <circle cx="37" cy="8.5" r="0.6" fill="#1a1408"/>
+  <circle cx="39" cy="8.5" r="0.6" fill="#1a1408"/>
+</svg>
