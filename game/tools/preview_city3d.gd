@@ -25,6 +25,17 @@ const CASES := [
 	# Vorschau zeigen. Der Nutzer hat es auf dem Handy gesehen.
 	{"name": "orks-neu", "faction": 3, "built": []},
 	{"name": "menschen-neu", "faction": 1, "built": []},
+	# Alle vier Fraktionen ausgebaut: die Dachmaterialien (It. 70) haengen
+	# an der Palette, also muss jede einmal zu sehen sein.
+	{"name": "orks-voll", "faction": 3, "built": ["zitadelle", "kapelle",
+		"schmiede", "markt", "kaserne", "wachturm", "reiterei", "spaeher",
+		"mauer"]},
+	{"name": "totenreich-voll", "faction": 2, "built": ["zitadelle",
+		"kapelle", "schmiede", "markt", "kaserne", "wachturm", "reiterei",
+		"spaeher", "mauer"]},
+	{"name": "waldvolk-voll", "faction": 0, "built": ["zitadelle",
+		"kapelle", "schmiede", "markt", "kaserne", "wachturm", "reiterei",
+		"spaeher", "mauer"]},
 ]
 
 

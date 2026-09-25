@@ -143,6 +143,53 @@ def cone(radius, depth, loc, hexstr, verts=6, rot=None, name=None):
     return ob
 
 
+def prism(sx, sy, rise, loc, hexstr, along="x", name=None):
+    """Satteldach: Dreiecksprisma mit FIRST.
+
+    WARUM ES DAS GIBT (It. 70): das "Satteldach" war ein Kegel mit vier
+    Ecken. Ein Kegel hat eine SPITZE, keinen First - Schmiede, Reiterei
+    und das Obergeschoss der Zitadelle waren dadurch alle drei Pyramiden,
+    und in der Stadt standen drei gleiche Dachformen nebeneinander.
+
+    sx / sy sind IMMER die Ausdehnung in x / y - unabhaengig von der
+    Firstrichtung. Die erste Fassung hatte Laenge und Breite, und bei
+    First in die Tiefe wurden die beiden vertauscht: das Schmiededach war
+    schmaler als der Bau und stand vorn weit ueber.
+
+    `along` ist die Richtung des Firsts: "x" laeuft quer (die Dachflaeche
+    zeigt zur Kamera), "y" laeuft in die Tiefe (der GIEBEL zeigt zur
+    Kamera - die klassische Hausform). `loc` ist die Mitte der Traufe.
+    """
+    import bmesh
+    hx, hy = sx * 0.5, sy * 0.5
+    base = [(-hx, -hy, 0), (hx, -hy, 0), (hx, hy, 0), (-hx, hy, 0)]
+    if along == "y":
+        verts = base + [(0, -hy, rise), (0, hy, rise)]
+        faces = [(0, 3, 2, 1), (1, 2, 5, 4), (3, 0, 4, 5), (0, 1, 4),
+                 (2, 3, 5)]
+    else:
+        verts = base + [(-hx, 0, rise), (hx, 0, rise)]
+        faces = [(0, 3, 2, 1), (0, 1, 5, 4), (2, 3, 4, 5), (3, 0, 4),
+                 (1, 2, 5)]
+    me = bpy.data.meshes.new(name or _uniq("prism"))
+    me.from_pydata(verts, [], faces)
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(me)
+    bm.free()
+    ob = bpy.data.objects.new(me.name, me)
+    bpy.context.collection.objects.link(ob)
+    for o in bpy.context.selected_objects:
+        o.select_set(False)
+    ob.select_set(True)
+    bpy.context.view_layer.objects.active = ob
+    ob.location = loc
+    _bake(ob)
+    ob.data.materials.append(material(ob.name + "_m", hexstr))
+    return ob
+
+
 def ball(radius, loc, hexstr, subdiv=1, name=None):
     bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=subdiv, radius=radius,
                                           location=loc)

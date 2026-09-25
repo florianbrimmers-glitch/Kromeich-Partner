@@ -61,28 +61,157 @@ def u(px):
 
 # ---------------------------------------------------------------- Daecher
 
-def roof(kind, pal, w, top, rise):
+# DACHMATERIAL NACH FUNKTION (It. 70).
+#
+# Bis dahin nahm jedes Dach pal["roof"] - und bei den Menschen sind sogar
+# roof, roof_light und roof_dark drei Blautoene. In der Stadt standen
+# damit gleiche Dachfarben auf gleichen Dachformen. Eine echte Stadt
+# deckt nach Zweck: der Stall mit Stroh, die Schmiede mit Schiefer (Funken
+# und Russ), die repraesentativen Bauten in der Farbe ihres Herrn.
+#
+# NUR FUER DIE RAEUMLICHE ANSICHT. Die 2D-Rezepte bleiben unberuehrt.
+# Stroh gedaempft: #b8984f kam unter ACES und Saettigung 1.22 als grelles
+# Gelb heraus und war das Hellste in der ganzen Stadt.
+THATCH = {"menschen": "#9c8349", "waldvolk": "#8d7c45",
+          "totenreich": "#6c6773", "orks": "#86693c"}
+# Kupfer mit Gruenspan fuer Turmspitzen - bewusst KEINE Palettenfarbe, damit
+# sich die Spitze vom Dach darunter abhebt.
+COPPER = {"menschen": "#5d8a76", "waldvolk": "#b0893f",
+          "totenreich": "#4d7a66", "orks": "#8a5634"}
+# Tierhaut fuer die Zeltdaecher der Orks.
+HIDE = "#7a5a3a"
+SLATE = {"menschen": "#3b4350", "waldvolk": "#344230",
+         "totenreich": "#26232f", "orks": "#2f2618"}
+
+# Welches Dach auf welchem Bau - Form, Material, Hoehenfaktor.
+#   Material: ein Schluessel der Fraktionspalette ODER "thatch"/"slate".
+# Fehlt ein Bau hier, gilt das Rezept aus gen_city_buildings.py.
+ROOF_3D = {
+    # Hausform: der GIEBEL zeigt zur Kamera, Schiefer.
+    "schmiede": ("gable_front", "slate", 1.00),
+    # Langer Stall mit Strohdach, First quer.
+    "reiterei": ("gable", "thatch", 1.10),
+    # Das Spitzengebaeude: steiles Walmdach in der Farbe des Herrn.
+    "zitadelle": ("pyramid", "roof", 1.45),
+    # Kirchenschiff mit Glockenturm und Kupferspitze.
+    "kapelle": ("chapel", "roof", 1.00),
+}
+
+# DACHSTIL JE FRAKTION (It. 70).
+#
+# Bis dahin waren die Formen in allen vier Staedten gleich, nur umgefaerbt -
+# die Orkstadt war die Menschenstadt in Braun. Hier bekommt jede Fraktion
+# eine Neigung und eine Ersetzung einzelner Formen:
+#   Menschen    Grundform.
+#   Orks        steile Zeltdaecher aus Tierhaut statt Walmdach und Spitze.
+#   Totenreich  gotisch steil - alles spitzer und hoeher.
+#   Waldvolk    gerundet: Kuppeln statt Pyramiden, flachere Giebel.
+ROOF_STYLE = {
+    "menschen": dict(steep=1.00, swap={}),
+    "orks": dict(steep=1.30, swap={"pyramid": "tent", "spike": "tent"}),
+    "totenreich": dict(steep=1.55, swap={}),
+    "waldvolk": dict(steep=0.85, swap={"pyramid": "dome", "spike": "dome"}),
+}
+
+
+def roof_color(key, pal, fac):
+    if key == "thatch":
+        return THATCH[fac]
+    if key == "slate":
+        return SLATE[fac]
+    if key == "copper":
+        return COPPER[fac]
+    return pal[key]
+
+
+def trim(sx, sy, top, rise, along, col):
+    """Firstbalken und Traufbretter in dunklem Holz.
+
+    Ohne sie verschmelzen beide Dachflaechen bei 44 Grad Neigung zu EINER
+    Flaeche gleicher Farbe - das Strohdach der Reiterei las sich als flache
+    gelbe Platte. Die dunkle Linie oben und unten zeichnet die Dachform.
+
+    sx / sy sind die MASZE DES DACHES (wie bei bk.prism), nicht des Baus -
+    die erste Fassung bekam die schon vergroesserte Breite und rechnete
+    noch einmal drauf; die Bretter standen als lose Stangen neben dem Haus.
+    """
+    t = 0.022
+    hx, hy = sx * 0.5, sy * 0.5
+    if along == "x":
+        return [box((hx, t, t), (0, 0, top + rise), col, 0.0),
+                box((hx, t * 0.8, t * 0.8), (0, -hy, top), col, 0.0),
+                box((hx, t * 0.8, t * 0.8), (0, hy, top), col, 0.0)]
+    return [box((t, hy, t), (0, 0, top + rise), col, 0.0),
+            box((t * 0.8, hy, t * 0.8), (-hx, 0, top), col, 0.0),
+            box((t * 0.8, hy, t * 0.8), (hx, 0, top), col, 0.0)]
+
+
+def roof(kind, pal, w, top, rise, col=None):
     """Dach auf einem Koerper der Breite w, Oberkante top."""
     d = w * 0.62
     if kind == "gable":
-        # Satteldach: ein Prisma. In Blender gibt es das als Kegel mit
-        # vier Ecken, um 45 Grad gedreht und flachgedrueckt - hier
-        # einfacher als zwei geneigte Platten, die nie ganz schliessen.
-        ob = cone(w * 0.72, rise, (0, 0, top + rise * 0.5), pal["roof"],
-                  verts=4, rot=(0, 0, rad(45)))
-        ob.scale = (1.0, 0.86, 1.0)
-        bpy.ops.object.transform_apply(scale=True)
-        return [ob]
+        # First QUER: die Dachflaeche zeigt zur Kamera. Mit Ueberstand an
+        # Traufe und Ortgang - ohne ihn sitzt das Dach wie ein Deckel auf.
+        return [bk.prism(w * 1.08, d * 1.22, rise, (0, 0, top),
+                         col or pal["roof"], along="x")] + \
+            trim(w * 1.08, d * 1.22, top, rise, "x", pal["line"])
+    if kind == "gable_front":
+        # First IN DIE TIEFE: der dreieckige Giebel zeigt zur Kamera.
+        return [bk.prism(w * 1.10, d * 1.16, rise, (0, 0, top),
+                         col or pal["roof"], along="y")] + \
+            trim(w * 1.10, d * 1.16, top, rise, "y", pal["line"])
+    if kind == "chapel":
+        # KIRCHENSCHIFF + GLOCKENTURM. Vorher stand hier ein achteckiger
+        # Kegel, dessen Fuss breiter war als der Bau - bei 44 Grad sah er
+        # aus wie ein blauer Edelstein. Eine Kapelle erkennt man am
+        # schmalen Turm VOR dem Schiff, nicht an einem grossen Kegel.
+        out = [bk.prism(w * 1.06, d * 1.14, rise, (0, 0, top),
+                        col or pal["roof"], along="y")]
+        out += trim(w * 1.06, d * 1.14, top, rise, "y", pal["line"])
+        bw = w * 0.20
+        by = -d * 0.36
+        bh = rise * 1.25
+        out.append(box((bw, bw, bh * 0.5), (0, by, top + bh * 0.5),
+                       pal["wall_mid"], 0.01))
+        out.append(box((bw * 1.1, bw * 1.1, u(5)), (0, by, top + bh),
+                       pal["wall_dark"], 0.005))
+        spire_c = COPPER.get(pal.get("_fac", ""), pal["roof_light"])
+        out.append(cone(bw * 1.25, rise * 2.1, (0, by, top + bh + rise * 1.05),
+                        spire_c, verts=4, rot=(0, 0, rad(45))))
+        return out
+    if kind == "tent":
+        # Orks: steiles Zeltdach aus Tierhaut, sechseckig, mit
+        # herausragenden Stangen an der Spitze.
+        out = [cone(w * 0.64, rise * 1.6, (0, 0, top + rise * 0.8),
+                    col if col and col != pal["roof"] else HIDE, verts=6)]
+        for a in (0, 120, 240):
+            x = math.cos(rad(a)) * w * 0.05
+            y = math.sin(rad(a)) * w * 0.05
+            out.append(box((u(3), u(3), rise * 0.35),
+                           (x, y, top + rise * 1.6 + rise * 0.15),
+                           pal["wood"], 0.0))
+        return out
     if kind == "pyramid":
-        return [cone(w * 0.70, rise, (0, 0, top + rise * 0.5), pal["roof"],
-                     verts=4, rot=(0, 0, rad(45)))]
+        return [cone(w * 0.70, rise, (0, 0, top + rise * 0.5),
+                     col or pal["roof"], verts=4, rot=(0, 0, rad(45)))]
+    if kind == "spire":
+        # Hoch und schlank: achteckig, doppelte Hoehe, schmaler Fuss.
+        return [cone(w * 0.40, rise * 2.2, (0, 0, top + rise * 1.1),
+                     col or pal["roof"], verts=8)]
     if kind == "spike":
         return [cone(w * 0.56, rise * 1.5, (0, 0, top + rise * 0.75),
-                     pal["roof_dark"], verts=6)]
+                     col or pal["roof_dark"], verts=6)]
     if kind == "dome":
-        ob = ball(w * 0.52, (0, 0, top), pal["roof_light"], subdiv=2)
-        ob.scale = (1.0, 1.0, 0.62)
+        # ERST am Ursprung stauchen, DANN hinstellen. ball() backt die Lage
+        # sofort ins Mesh (siehe bk._bake) - eine Stauchung danach wirkt um
+        # den WELTursprung und zieht die Kuppel nach unten. Beim Waldvolk
+        # klebte sie dadurch als Linse vorn an der Zitadelle. Die Form war
+        # vor It. 70 nie in Gebrauch, darum fiel es nicht auf.
+        ob = ball(w * 0.50, (0, 0, 0), col or pal["roof_light"], subdiv=2)
+        ob.scale = (1.0, 1.0, 0.70)
         bpy.ops.object.transform_apply(scale=True)
+        ob.location = (0, 0, top)
+        bpy.ops.object.transform_apply(location=True)
         return [ob]
     if kind == "flat":
         # Flachdach mit Zinnen: die Zinnen SIND die Silhouette, ohne sie
@@ -219,23 +348,38 @@ def build_one(bid, fac):
                           verts=10))
         parts.append(cone(w * 0.60, u(20), (0, 0, h + u(10)),
                           pal["wall_dark"], verts=10))
-        parts += roof("spike", pal, w, h + u(20), u(70))
-        h += u(20) + u(70)
+        # Auch der Turm folgt dem Fraktionsstil - sonst traegt er als
+        # einziger Bau die Menschen-Spitze.
+        tstyle = ROOF_STYLE[fac]
+        tkind = tstyle["swap"].get("spike", "spike")
+        trise = u(70) * tstyle["steep"]
+        parts += roof(tkind, pal, w, h + u(20), trise)
+        h += u(20) + trise * {"spike": 1.5, "tent": 1.95}.get(tkind, 1.0)
     else:
         parts.append(box((w * 0.5, d * 0.5, h * 0.5), (0, 0, h * 0.5),
                          pal["wall_mid"], 0.02))
         top = h
+        kind3, colk, rf = ROOF_3D.get(bid, (r.get("roof"), None, 1.0))
+        style = ROOF_STYLE[fac]
+        kind3 = style["swap"].get(kind3, kind3)
+        rf *= style["steep"]
+        col3 = roof_color(colk, pal, fac) if colk else None
+        pal = dict(pal, _fac=fac)
         if r.get("roof"):
-            parts += roof(r["roof"], pal, w, top, u(r.get("rise", 40)))
-            top += u(r.get("rise", 40))
+            rise = u(r.get("rise", 40)) * rf
+            parts += roof(kind3, pal, w, top, rise, col3)
+            top += rise * {"spire": 2.2, "chapel": 3.4, "tent": 1.95}.get(
+                kind3, 1.0) if kind3 != "dome" else w * 0.35
         if r.get("upper"):
             uw, uh, ur, urise = r["upper"]
             uw3 = u(uw)
             uh3 = u(uh)
             parts.append(box((uw3 * 0.5, uw3 * 0.31, uh3 * 0.5),
                              (0, 0, h + uh3 * 0.5), pal["wall_mid"], 0.02))
-            parts += roof(ur, pal, uw3, h + uh3, u(urise))
-            top = h + uh3 + u(urise)
+            ukind = kind3 if bid in ROOF_3D else style["swap"].get(ur, ur)
+            rise = u(urise) * rf
+            parts += roof(ukind, pal, uw3, h + uh3, rise, col3)
+            top = h + uh3 + rise
         h = top
 
     parts += ornaments(r.get("orn", []), pal, w, u(r["h"]) if r["h"] else h)
