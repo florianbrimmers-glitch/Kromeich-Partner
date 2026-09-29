@@ -26,6 +26,9 @@ Der Server prüft die Hausregeln selbst und lehnt Verstöße mit **„REGELVERST
 10. **Prüfungsaufgabe immer an Lena Klinnert** (`pruefaufgabe_anlegen` setzt sie automatisch).
 11. **Portale:** Wir laden nichts auf Portale hoch.
 12. **Newsletter:** Immer den Stand des aktuellsten Newsletters nehmen.
+13. **Feste Provisionsregeln je Eigentümer** (Vorgaben Florian Brimmers):
+    - **Mileway: immer provisionsfrei.** Mileway zahlt uns, deshalb bieten wir dem Kunden provisionsfrei an. Vorgabe vom 29.09.2026.
+    - **Scheren Logistik: provisionspflichtig**, auch wenn die Scheren-Exposés „provisionsfrei“ nennen. Vorgabe vom 24.09.2026.
 
 ## Schritt 1 – Quelle lesen
 
