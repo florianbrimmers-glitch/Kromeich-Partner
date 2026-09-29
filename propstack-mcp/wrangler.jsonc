@@ -1,0 +1,34 @@
+/**
+ * Propstack-MCP-Server fuer Kromeich & Partner.
+ * Secrets (nie ins Repo): PROPSTACK_OBJ_KEY, PROPSTACK_TASK_KEY, ACCESS_CLIENT_ID,
+ * ACCESS_CLIENT_SECRET, ACCESS_TOKEN_URL, ACCESS_AUTHORIZATION_URL,
+ * ACCESS_JWKS_URL, COOKIE_ENCRYPTION_KEY
+ */
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "propstack-mcp",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-03-10",
+	"compatibility_flags": ["nodejs_compat"],
+	"migrations": [{ "new_sqlite_classes": ["PropstackMCP"], "tag": "v1" }],
+	"durable_objects": { "bindings": [{ "class_name": "PropstackMCP", "name": "MCP_OBJECT" }] },
+	"kv_namespaces": [
+		{ "binding": "OAUTH_KV", "id": "363311f95a22464980a618c4c6de16d8" },
+		{ "binding": "AUDIT_KV", "id": "697a46c2d61d47878ee0de0f115b0750" }
+	],
+	"vars": { "ERLAUBTE_DOMAIN": "kromeichpartner.de" },
+	"observability": { "enabled": true },
+	"dev": { "port": 8788 },
+	"secrets": {
+		"required": [
+			"PROPSTACK_OBJ_KEY",
+			"PROPSTACK_TASK_KEY",
+			"ACCESS_CLIENT_ID",
+			"ACCESS_CLIENT_SECRET",
+			"ACCESS_TOKEN_URL",
+			"ACCESS_AUTHORIZATION_URL",
+			"ACCESS_JWKS_URL",
+			"COOKIE_ENCRYPTION_KEY"
+		]
+	}
+}

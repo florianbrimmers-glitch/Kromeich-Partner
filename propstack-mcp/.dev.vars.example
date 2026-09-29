@@ -1,0 +1,8 @@
+PROPSTACK_OBJ_KEY=<Objekte-API-Key aus Propstack>
+PROPSTACK_TASK_KEY=<Aufgaben-API-Key aus Propstack>
+ACCESS_CLIENT_ID=<Client ID der Access-for-SaaS-App>
+ACCESS_CLIENT_SECRET=<Client secret>
+ACCESS_TOKEN_URL=<Token endpoint>
+ACCESS_AUTHORIZATION_URL=<Authorization endpoint>
+ACCESS_JWKS_URL=<Key endpoint>
+COOKIE_ENCRYPTION_KEY=<openssl rand -hex 32>
