@@ -1,0 +1,48 @@
+name: Hallentinder Diagnose
+
+# Read-only-Lauf gegen die Live-Propstack-API: prüft Bestandsabruf, Filter,
+# Feldpflege und Ranking. Schreibt nichts (NO_WRITE=true).
+#
+# Manuell zu starten – sinnvoll nach Änderungen am Bestandsfilter, am Ranking
+# oder wenn sich die Datenpflege in Propstack geändert hat. Der temporäre
+# push-Trigger der ersten Läufe ist zurückgebaut.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: hallentinder-diagnose
+  cancel-in-progress: true
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Diagnose gegen Propstack (read-only)
+        env:
+          PROPSTACK_API_KEY: ${{ secrets.PROPSTACK_API_KEY }}
+          PROPSTACK_KEY_OBJEKTE: ${{ secrets.PROPSTACK_KEY_OBJEKTE }}
+          NO_WRITE: "true"
+        run: python -m hallentinder.diagnose | tee hallentinder_diagnose.txt
+
+      - name: Upload Diagnosebericht
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: hallentinder-diagnose-${{ github.run_id }}
+          path: hallentinder_diagnose.txt
+          if-no-files-found: ignore
+          retention-days: 30

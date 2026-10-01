@@ -1,0 +1,12 @@
+.git
+.github
+tests
+scripts
+src
+objekte_handler
+newsletter_handler
+events_handler
+*.md
+*.csv
+*.jsonl
+__pycache__
