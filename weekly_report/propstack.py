@@ -223,6 +223,24 @@ def fetch_pruef_tasks(since: datetime, until: datetime, broker_ids: list[int]) -
     return sorted(tasks, key=lambda t: t.updated_at or "", reverse=True)
 
 
+
+def fetch_all_tasks(broker_ids: list[int]) -> list[PruefTask]:
+    """GET /activities – alle Aufgaben der Broker, offen wie erledigt, ohne Zeitfenster.
+
+    Fürs Dashboard: der offene Bestand ist ein Stand, kein Zeitraum, und reicht weit
+    zurück (Oktober 2026: 307 offene Aufgaben, 285 davon älter als 30 Tage). Bei rund
+    350 Aufgaben je Sitz sind das zwei Seiten à 200."""
+    tasks: list[PruefTask] = []
+    for broker_id in broker_ids:
+        for row in _paginate(
+            "/activities",
+            key=config.propstack_key_tasks(),
+            params={"item_type": "reminder", "broker_id": broker_id, "sort_by": "updated_at", "order": "desc"},
+        ):
+            tasks.append(_to_task(row))
+    logger.info("Propstack: %d Aufgaben insgesamt (Broker %s)", len(tasks), broker_ids)
+    return tasks
+
 def _parse(value: str) -> datetime:
     """ISO-8601 aus Propstack ("2026-08-19T11:29:56.983+02:00") in ein aware datetime."""
     return datetime.fromisoformat(value)

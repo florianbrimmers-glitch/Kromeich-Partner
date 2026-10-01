@@ -125,7 +125,12 @@ Zusätzlich zur Slack-DM gibt es ein Live-Dashboard: https://claude.ai/artifact/
 - **Daten:** Die Seite darf Propstack nicht selbst abfragen (die Artifact-Umgebung blockiert fremde
   Server). Ein täglicher Claude-Lauf (Routine „Propstack-Dashboard abgleichen", ca. 6 Uhr) führt
   `python -m weekly_report.dashboard_export --out <verzeichnis>` aus und schreibt die Dateien in die
-  Datenbank des Artifacts: `meta/stand`, `meta/projekte`, `wochen/<JJJJ-KWnn>`.
+  Datenbank des Artifacts: `meta/stand`, `meta/projekte`, `wochen/<JJJJ-KWnn>` (neue Einheiten) und
+  `pruefung/teil-<nn>` (Prüfaufgaben: ganzer offener Bestand plus alles im Fenster Angelegte oder Erledigte).
+- **Bereich „Prüfung · Oguzhan Sahin":** Oguzhan prüft über den Propstack-Sitz 254958. Abgeschlossen und
+  neu eingegangen beziehen sich auf den Zeitraum, „offen" ist immer der aktuelle Bestand. Die „Art" einer
+  Aufgabe ist der Titel vor dem Doppelpunkt; seltene Arten (unter 3 offenen) fasst das Dashboard als
+  „Einzelaufgaben" zusammen, weil frei formulierte Aufgaben dort einen Objektnamen tragen.
 - **Warum pro Woche:** Ein Dokument darf höchstens 256 KiB groß sein. Spitzenwochen (KW 31/32 2026
   mit je ~255 Einheiten) liegen bei ~68 KB.
 - **Schreibrecht:** nur der Besitzer des Artifacts (Regel `write: owner`); alle, mit denen es geteilt

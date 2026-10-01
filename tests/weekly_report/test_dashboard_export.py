@@ -3,7 +3,9 @@ import json
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from weekly_report.dashboard_export import MAX_DOKUMENT_BYTES, baue_dokumente, wochen_schluessel
+from weekly_report.dashboard_export import (
+    AUFGABEN_PRO_TEIL, MAX_DOKUMENT_BYTES, aufgaben_art, baue_dokumente, wochen_schluessel,
+)
 from weekly_report.models import NewUnit, PruefTask
 
 BERLIN = ZoneInfo("Europe/Berlin")
@@ -35,17 +37,64 @@ def test_einheiten_landen_in_ihrer_woche():
     assert docs["meta/stand"]["wochen"] == ["2026-KW39", "2026-KW40"]
 
 
-def test_nur_abgeschlossene_aufgaben_nach_abschlusswoche():
+def _task(tid, done, angelegt, geaendert, titel="Pruefung Panattoni Welle 3: Park Rheine"):
+    return PruefTask(id=tid, title=titel, done=done, original_created_at=angelegt, updated_at=geaendert,
+                     property_names=["Unit 1.1"])
+
+
+def test_pruefung_offener_bestand_plus_fenster():
+    """Offen zählt immer (Bestand, auch uralt); erledigt nur, wenn im Fenster angelegt
+    oder erledigt – sonst wächst die Liste ohne Ende."""
     docs = _bauen([], aufgaben=[
-        PruefTask(id=10, title="Pruefung X", done=True,
-                  original_created_at="2026-07-30T08:00:00+02:00",
-                  updated_at="2026-09-23T09:00:00+02:00", property_names=["Unit 1.1"]),
-        PruefTask(id=11, title="Offen", done=None, updated_at="2026-09-23T09:00:00+02:00"),
+        _task(1, None, "2026-03-29T09:00:00+02:00", "2026-03-29T09:00:00+02:00"),   # offen, alt
+        _task(2, True, "2026-07-30T08:00:00+02:00", "2026-09-23T09:00:00+02:00"),   # erledigt im Fenster
+        _task(3, True, "2026-03-01T08:00:00+01:00", "2026-03-30T10:00:00+02:00"),   # erledigt, alt
+        _task(4, None, "2026-09-28T08:00:00+02:00", "2026-09-28T08:00:00+02:00"),   # neu, offen
     ])
-    aufgaben = docs["wochen/2026-KW39"]["aufgaben"]
-    assert [a["id"] for a in aufgaben] == [10]
+    aufgaben = docs["pruefung/teil-01"]["aufgaben"]
+    assert [a["id"] for a in aufgaben] == [1, 2, 4]
+    assert [a["erledigt"] for a in aufgaben] == [False, True, False]
+    assert aufgaben[1]["geaendert"] == "2026-09-23T09:00:00+02:00"
     assert aufgaben[0]["bezug"] == "Unit 1.1"
-    assert docs["meta/stand"]["anzahl_aufgaben"] == 1
+    stand = docs["meta/stand"]
+    assert (stand["anzahl_offen"], stand["anzahl_aufgaben"]) == (2, 3)
+    assert stand["pruefung_teile"] == ["teil-01"]
+
+
+def test_wochen_enthalten_keine_aufgaben_mehr():
+    """Prüfaufgaben stehen nur noch in pruefung/ – eine Quelle, nicht zwei."""
+    docs = _bauen([NewUnit(id=1, created_at="2026-09-28T10:00:00+02:00")],
+                  aufgaben=[_task(2, True, "2026-09-28T08:00:00+02:00", "2026-09-29T09:00:00+02:00")])
+    assert set(docs["wochen/2026-KW40"]) == {"woche", "einheiten"}
+
+
+def test_aufgaben_art_aus_titel():
+    assert aufgaben_art("Pruefung Panattoni Welle 3: Park Rheine") == "Prüfung Panattoni Welle 3"
+    assert aufgaben_art("Prüfung: Logistikfläche in (85) Kirchheim") == "Prüfung"
+    assert aufgaben_art("Pruefung: Logistikhalle in (45) Waltrop") == "Prüfung"
+    assert aufgaben_art("Newsletter-Vermietung prüfen: Bauer Property") == "Newsletter-Vermietung prüfen"
+    assert aufgaben_art('Gesuch "FIRMA" "Kontakt" | "Größe"') == "Sonstige"
+    assert aufgaben_art(None) == "Sonstige"
+
+
+def test_pruefung_wird_in_teile_aufgeteilt():
+    n = AUFGABEN_PRO_TEIL + 5
+    docs = _bauen([], aufgaben=[_task(i, None, "2026-09-01T08:00:00+02:00", "2026-09-01T08:00:00+02:00")
+                                for i in range(n)])
+    assert len(docs["pruefung/teil-01"]["aufgaben"]) == AUFGABEN_PRO_TEIL
+    assert len(docs["pruefung/teil-02"]["aufgaben"]) == 5
+    assert docs["meta/stand"]["pruefung_teile"] == ["teil-01", "teil-02"]
+
+
+def test_volles_pruefungs_teil_bleibt_unter_der_dokumentgrenze():
+    lang = "Pruefung GARBE Welle 4 Nord: Logistikhalle in (21) Hamburg-Billbrook – Bauteil C – Halle 12"
+    docs = _bauen([], aufgaben=[PruefTask(id=440_000_000 + i, title=lang, done=None,
+                                          original_created_at="2026-09-01T08:00:00+02:00",
+                                          updated_at="2026-09-01T08:00:00+02:00",
+                                          property_names=["Logistikhalle Hamburg-Billbrook Halle 12"])
+                                for i in range(AUFGABEN_PRO_TEIL)])
+    groesse = len(json.dumps(docs["pruefung/teil-01"], ensure_ascii=False).encode())
+    assert groesse < MAX_DOKUMENT_BYTES, groesse
 
 
 def test_projekte_mit_beginn_und_geloeschtem_projekt():
@@ -66,6 +115,7 @@ def test_leeres_fenster_erzeugt_nur_meta():
     docs = _bauen([])
     assert set(docs) == {"meta/stand", "meta/projekte"}
     assert docs["meta/stand"]["wochen"] == []
+    assert docs["meta/stand"]["pruefung_teile"] == []
 
 
 def test_realistische_spitzenwoche_bleibt_unter_der_dokumentgrenze():
