@@ -1,0 +1,571 @@
+<title>Propstack-Neuzugänge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jomolhari&family=Poppins:wght@400;500;600&display=swap">
+<style>
+/* Layout: dunkelgrünes Markenband oben, darunter eine Spalte — Zeitraum, Kennzahlen,
+   Wochenverlauf (klickbar), Detaillisten in Reitern. K&P-Styleguide: Dunkelgrün primär,
+   Neongrün nur als Signal. */
+:root {
+  --bg: #f6f7f2;
+  --surface: #ffffff;
+  --ink: #191919;
+  --muted: #5a645d;
+  --line: #e1e6da;
+  --brand: #0a2a1f;
+  --brand-ink: #ffffff;
+  --signal: #bced09;
+  --bar: #2c634f;
+  --bar-dim: #c4cfc0;
+  --bar-hover: #0a2a1f;
+  --focus: #2c634f;
+  --chip: #eef2e4;
+  --good: #0a7a0a;
+  --warn: #9a5b00;
+  --display: "Jomolhari", "Iowan Old Style", Georgia, serif;
+  --body: "Poppins", "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1813; --surface: #13231c; --ink: #edf1e8; --muted: #a2b0a6; --line: #24382e;
+    --brand: #0a2a1f; --brand-ink: #ffffff; --signal: #bced09;
+    --bar: #c2d076; --bar-dim: #3a5045; --bar-hover: #bced09; --focus: #bced09; --chip: #1c3027;
+    --good: #5fd35f; --warn: #f2b33d; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1813; --surface: #13231c; --ink: #edf1e8; --muted: #a2b0a6; --line: #24382e;
+  --brand: #0a2a1f; --brand-ink: #ffffff; --signal: #bced09;
+  --bar: #c2d076; --bar-dim: #3a5045; --bar-hover: #bced09; --focus: #bced09; --chip: #1c3027;
+  --good: #5fd35f; --warn: #f2b33d; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font: 400 14px/1.5 var(--body); }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.band { background: var(--brand); color: var(--brand-ink); }
+.band-inner, main { max-width: 1120px; margin: 0 auto; padding-inline: 20px; }
+.band-inner { display: flex; align-items: center; gap: 16px; padding-block: 22px 20px; flex-wrap: wrap; }
+.signet { width: 26px; height: auto; flex: none; }
+.band h1 { margin: 0; font: 400 clamp(22px, 3.2vw, 30px)/1.15 var(--display); text-wrap: balance; }
+.band .sub { margin: 2px 0 0; font-size: 11px; letter-spacing: .17em; text-transform: uppercase; opacity: .78; }
+.stand { margin-left: auto; display: flex; align-items: center; gap: 10px; font-size: 12.5px; flex-wrap: wrap; }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 8px; border-radius: 999px;
+  font-size: 12px; font-weight: 500; background: rgba(255,255,255,.1); }
+.pill .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.pill.ok { color: #c8f24a; } .pill.alt { color: #ffcf6b; }
+
+main { padding-block: 22px 48px; display: grid; gap: 22px; }
+.controls { display: flex; gap: 10px 14px; align-items: center; flex-wrap: wrap; }
+.controls .label { font-size: 12px; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+.seg { display: inline-flex; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 3px; gap: 2px; }
+.seg button { border: 0; background: none; color: var(--ink); font: 500 13px var(--body); padding: 6px 12px; border-radius: 7px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--brand); color: var(--brand-ink); }
+.seg button:not([aria-pressed="true"]):hover { background: var(--chip); }
+.wochenchip { display: inline-flex; align-items: center; gap: 8px; background: var(--brand); color: var(--brand-ink);
+  border-radius: 999px; padding: 5px 6px 5px 12px; font-size: 13px; font-weight: 500; }
+.wochenchip button { border: 0; background: rgba(255,255,255,.14); color: inherit; border-radius: 50%; width: 22px; height: 22px; cursor: pointer; font-size: 14px; line-height: 1; }
+.zeitraum { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.kpi { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; display: grid; gap: 4px; }
+.kpi .k { font-size: 12px; color: var(--muted); letter-spacing: .06em; text-transform: uppercase; }
+.kpi .v { font: 400 40px/1.05 var(--display); font-variant-numeric: tabular-nums; }
+.kpi .d { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; min-height: 1.5em; }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px 18px 14px; min-width: 0; }
+.panel h2 { margin: 0 0 2px; font: 600 15px/1.3 var(--body); }
+.panel .hint { margin: 0 0 14px; font-size: 12.5px; color: var(--muted); }
+.charts { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; align-items: start; }
+@media (max-width: 760px) { .charts { grid-template-columns: 1fr; } }
+
+.chart { position: relative; height: 190px; margin-left: 30px; }
+.chart.klein { height: 120px; }
+.grid-line { position: absolute; left: 0; right: 0; border-top: 1px solid var(--line); }
+.grid-line span { position: absolute; right: calc(100% + 8px); top: -9px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.bars { position: absolute; inset: 0; display: flex; align-items: flex-end; gap: 2px; }
+.col { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center;
+  background: none; border: 0; padding: 0; cursor: pointer; position: relative; min-width: 0; }
+.col .bar { width: 62%; max-width: 34px; background: var(--bar-dim); border-radius: 4px 4px 0 0; min-height: 0; }
+.col.an .bar { background: var(--bar); }
+.col:hover .bar, .col:focus-visible .bar { background: var(--bar-hover); }
+.col .val { font-size: 11px; color: var(--ink); font-variant-numeric: tabular-nums; margin-bottom: 3px; font-weight: 500; }
+.achse { display: flex; gap: 2px; margin: 6px 0 0 30px; }
+.achse span { flex: 1; text-align: center; font-size: 10.5px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 0; }
+.achse.dicht span:nth-child(even) { visibility: hidden; }
+.tip { position: fixed; z-index: 5; pointer-events: none; background: var(--brand); color: var(--brand-ink);
+  border-radius: 8px; padding: 8px 10px; font-size: 12px; line-height: 1.45; box-shadow: 0 6px 18px rgba(0,0,0,.18);
+  font-variant-numeric: tabular-nums; max-width: 240px; }
+.tip b { font-weight: 600; }
+
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin: -4px 0 14px; overflow-x: auto; }
+.tabs button { border: 0; background: none; color: var(--muted); font: 500 13.5px var(--body); padding: 9px 12px 10px;
+  border-bottom: 2px solid transparent; margin-bottom: -1px; cursor: pointer; white-space: nowrap; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--bar); }
+.tabs .n { display: inline-block; margin-left: 6px; padding: 0 7px; border-radius: 999px; background: var(--chip); color: var(--ink); font-size: 12px; font-variant-numeric: tabular-nums; }
+.werkzeug { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.werkzeug input, .werkzeug select { font: 400 13px var(--body); color: var(--ink); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; }
+.werkzeug input { flex: 1 1 220px; min-width: 0; }
+.tbl-wrap { overflow-x: auto; }
+table { width: 100%; min-width: 620px; border-collapse: collapse; font-size: 13px; }
+th { text-align: left; font-weight: 500; font-size: 11.5px; color: var(--muted); letter-spacing: .05em; text-transform: uppercase;
+  padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.dat { white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--muted); }
+td .titel { font-weight: 500; }
+td .neben { display: block; color: var(--muted); font-size: 12px; }
+.oeffnen { font-size: 12.5px; white-space: nowrap; }
+.weg { font-size: 12px; color: var(--muted); font-style: italic; white-space: nowrap; }
+.mehr { margin-top: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); font: 500 13px var(--body);
+  padding: 7px 14px; border-radius: 8px; cursor: pointer; }
+.leer { padding: 28px 8px; text-align: center; color: var(--muted); }
+.leer strong { display: block; color: var(--ink); font-weight: 500; margin-bottom: 4px; }
+footer { font-size: 12px; color: var(--muted); max-width: 72ch; }
+footer p { margin: 0 0 6px; }
+@media (prefers-reduced-motion: no-preference) { .col .bar { transition: height .25s ease; } }
+</style>
+
+<header class="band">
+  <div class="band-inner">
+    <svg class="signet" aria-hidden="true" focusable="false" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 803.61 1091.73"><path fill="#BCED09" d="M540.84,545.82c-.15,.15-.15,.4,0,.55,.01,.01,.03,.03,.05,.04,28.69,20.24,55.65,42.89,80.89,67.94,12.78,12.69,26.03,27.27,39.74,43.74,33.57,40.32,61.25,83.88,83.04,130.69,3.95,8.49,5.93,12.75,5.94,12.78,1.25,2.62,3.11,6.93,5.57,12.92,2.07,5.05,4.99,12.56,8.74,22.55,20.59,54.75,33.66,114.18,37.51,173.27,1.68,25.75,1.26,54.67,1.19,80.33,0,.37-.3,.67-.67,.67h-223.48c-.32,0-.58-.26-.58-.58h0c0-21.46-.01-34.41-.03-38.86-.16-33.91-4.5-67.17-13.01-99.78-8.49-32.55-21.11-63.61-37.84-93.17-19.3-34.09-42.9-64.47-70.8-91.13-20.61-19.69-43.72-37.3-69.33-52.83-60.8-36.87-130.71-56.2-201.78-56.43-.56,0-1.02-.46-1.02-1.02v-78.41c0-.58,.47-1.05,1.05-1.06,94.81-.37,188.75-25.27,270.38-73.25,29.67-17.44,57.29-37.33,82.87-59.66,65.94-57.58,116.4-130.1,148.1-211.72,2.1-5.4,3.49-9.24,4.18-11.51,1.61-5.32,3.64-9.69,5.46-15.41,13.07-41.09,21.29-82.94,24.66-125.53,.02-.27-.18-.51-.46-.53-.01,0-.03,0-.04,0h-63.07c-.43,0-.78,.32-.83,.75-.93,8.92-1.68,20.08-3.49,29-.59,2.91-1.05,6.06-1.36,9.45-.12,1.39-.67,4.52-1.66,9.4-6.37,31.69-15.2,61.4-26.5,89.12-37.38,91.68-102.74,169.42-186.27,222.41-18.54,11.76-37.17,21.88-55.88,30.36-12.79,5.79-25.97,11.1-39.56,15.94-90.39,32.21-190.25,35.43-282.77,10.24-19.45-5.3-39.11-12.3-58.96-19.66-.31-.11-.52-.41-.52-.74V.44C.3,.2,.5,0,.74,0H224.31c.55,0,.99,.44,.99,.98h0V430.86c0,.23,.18,.41,.41,.41,.01,0,.03,0,.04,0,55.28-5.83,106.87-22.47,154.76-49.9,31.51-18.05,60.57-40.57,87.19-67.56,.39-.4,4.88-5.37,13.45-14.9,4.77-5.31,9.07-10.43,12.88-15.37,21.79-28.22,40.41-58.68,53.9-90.92,19.68-47.04,29.93-96.29,30.75-147.75,.22-13.55,.22-28.24,0-44.08,0-.43,.34-.78,.77-.79,0,0,0,0,.01,0h223.23c.46,0,.83,.37,.83,.82,.02,4.15,.02,18.44,0,42.87-.03,52.46-7.53,105.65-20.88,155.39-8.36,31.16-18.94,61.48-31.75,90.97-2.32,5.36-4.52,8.89-6.38,13.76-.41,1.07-1.99,4.34-4.73,9.81-46.61,93.02-112.09,169.72-196.42,230.1-1.03,.73-1.87,1.43-2.52,2.1Zm-396.07-114.96V80.83c0-.35-.29-.64-.65-.64h-63.06c-.31,0-.56,.25-.56,.55V418.86c0,.35,.24,.66,.58,.75,21.15,5.61,42.28,9.45,63.39,11.52,.15,.02,.28-.09,.3-.24,0-.01,0-.02,0-.03Zm420.04,147.86c.11-.07,.14-.19,.11-.36-.02-.12-.1-.22-.22-.26-.17-.06-.32-.05-.44,.03-.19,.12-.22,.34-.07,.51,.15,.16,.43,.2,.62,.08Zm-175.64,45.57c9,5.13,21.62,10.92,32.46,17.26,23.21,13.57,44.16,27.99,64.26,44.62,8.02,6.63,13.94,11.7,17.77,15.21,49.05,44.99,88.88,99.66,115.5,160.35,9.96,22.71,17.82,45,23.59,66.87,7.12,27.01,11.92,54.41,14.41,82.19,.04,.43,.4,.75,.82,.75h63.26c.22,0,.39-.17,.39-.39,0-.01,0-.02,0-.03-4.33-58.2-17.83-114.23-40.51-168.09-7.17-17.03-13.13-29.82-17.87-38.36-9.12-16.42-15.85-28.12-20.18-35.11-13.28-21.41-28.42-42.43-45.41-63.08-17.83-21.66-38.77-42.85-62.8-63.56-14.39-12.4-31.11-24.78-42.99-33-3.19-2.21-12.24-8.06-27.15-17.57-.46-.29-1.04-.33-1.53-.09-24.15,11.84-48.98,22.55-73.94,31.16-.25,.09-.38,.36-.3,.61,.04,.11,.11,.2,.22,.26Zm152.01-30.11c.09,.03,.19,0,.3-.08,.1-.07,.12-.21,.04-.31-.05-.06-.13-.1-.21-.09-.18,.03-.27,.12-.28,.25,0,.12,.04,.2,.15,.23Z"/><rect fill="#BCED09" y="577.87" width="141.52" height="513.86" rx=".7" ry=".7"/></svg>
+    <div>
+      <h1>Propstack-Neuzugänge</h1>
+      <p class="sub">Projekte · Einheiten · Prüfaufgaben</p>
+    </div>
+    <div class="stand" id="stand" aria-live="polite">
+      <span class="pill alt"><span class="dot"></span><span>Lade Daten …</span></span>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="controls">
+    <span class="label" id="zr-label">Zeitraum</span>
+    <div class="seg" role="group" aria-labelledby="zr-label" id="perioden">
+      <button type="button" id="p7" data-tage="7" aria-pressed="true">7 Tage</button>
+      <button type="button" id="p30" data-tage="30" aria-pressed="false">30 Tage</button>
+      <button type="button" id="p90" data-tage="90" aria-pressed="false">90 Tage</button>
+    </div>
+    <span class="wochenchip" id="wochenchip" hidden><span id="wochenchip-text"></span>
+      <button type="button" id="woche-weg" aria-label="Wochenauswahl aufheben">×</button></span>
+    <span class="zeitraum" id="zeitraum"></span>
+  </div>
+
+  <section class="kpis" aria-label="Kennzahlen im Zeitraum">
+    <div class="kpi"><span class="k">Neue Projekte</span><span class="v" id="k-proj">–</span><span class="d" id="d-proj"></span></div>
+    <div class="kpi"><span class="k">Neue Einheiten</span><span class="v" id="k-einh">–</span><span class="d" id="d-einh"></span></div>
+    <div class="kpi"><span class="k">Abgeschlossene Prüfaufgaben</span><span class="v" id="k-aufg">–</span><span class="d" id="d-aufg"></span></div>
+  </section>
+
+  <section class="charts">
+    <div class="panel">
+      <h2>Neue Einheiten je Kalenderwoche</h2>
+      <p class="hint">Letzte 13 Wochen. Klick auf eine Woche zeigt nur diese.</p>
+      <div class="chart" id="chart-einh" role="group" aria-label="Neue Einheiten je Kalenderwoche"></div>
+      <div class="achse" id="achse-einh"></div>
+    </div>
+    <div class="panel">
+      <h2>Abgeschlossene Prüfaufgaben</h2>
+      <p class="hint">Je Kalenderwoche, nach Abschlussdatum.</p>
+      <div class="chart klein" id="chart-aufg" role="group" aria-label="Abgeschlossene Prüfaufgaben je Kalenderwoche"></div>
+      <div class="achse dicht" id="achse-aufg"></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="tabs" role="tablist" aria-label="Details">
+      <button type="button" role="tab" id="t-projekte" aria-selected="true" aria-controls="liste">Neue Projekte<span class="n" id="n-projekte">0</span></button>
+      <button type="button" role="tab" id="t-einheiten" aria-selected="false" aria-controls="liste">Neue Einheiten<span class="n" id="n-einheiten">0</span></button>
+      <button type="button" role="tab" id="t-bestehend" aria-selected="false" aria-controls="liste">Bestehende Projekte<span class="n" id="n-bestehend">0</span></button>
+      <button type="button" role="tab" id="t-aufgaben" aria-selected="false" aria-controls="liste">Prüfaufgaben<span class="n" id="n-aufgaben">0</span></button>
+    </div>
+    <div class="werkzeug" id="werkzeug" hidden>
+      <input id="suche" type="search" aria-label="Einheiten durchsuchen" placeholder="Titel, Stadt oder Projekt suchen" autocomplete="off">
+      <select id="sortierung" aria-label="Sortierung">
+        <option value="neu">Neueste zuerst</option>
+        <option value="flaeche">Größte Fläche zuerst</option>
+        <option value="stadt">Nach Stadt</option>
+      </select>
+    </div>
+    <div id="liste" role="tabpanel" aria-live="polite"></div>
+  </section>
+
+  <footer>
+    <p>Quelle: Propstack. Die Daten werden täglich gegen 6 Uhr abgeglichen; „Stand" oben zeigt den letzten Abgleich.</p>
+    <p>Projekte liefert Propstack ohne Anlagedatum. Ein Projekt gilt deshalb als neu, wenn seine früheste Einheit im Zeitraum liegt; Projekte ganz ohne Einheit erscheinen nicht.</p>
+    <p>Prüfaufgaben: Aufgaben auf dem Sitz von Lena Klinnert mit Status erledigt. Propstack führt kein Abschlussdatum; maßgeblich ist die letzte Änderung.</p>
+  </footer>
+</main>
+<div class="tip" id="tip" hidden></div>
+
+<script>
+(() => {
+  "use strict";
+
+  const APP = "https://crm.propstack.de/app/portfolio";
+  const WOCHEN_IM_VERLAUF = 13;
+  const SEITE = 100;
+  const FRISCH_STUNDEN = 30;
+
+  const $ = (id) => document.getElementById(id);
+  const zahl = new Intl.NumberFormat("de-DE");
+  const tagMonat = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit" });
+  const datum = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric" });
+  const datumZeit = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
+  const berlinYmd = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit" });
+  const berlinStunde = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Berlin", hour: "2-digit", hourCycle: "h23" });
+
+  // ---- Zustand ----------------------------------------------------------------
+  const daten = { stand: null, projekte: {}, wochen: new Map(), geladen: { stand: false, projekte: false, wochen: false } };
+  const ansicht = { tage: 7, woche: null, reiter: "projekte", suche: "", sortierung: "neu", limit: SEITE };
+  try {
+    const t = Number(localStorage.getItem("pn.tage"));
+    if ([7, 30, 90].includes(t)) ansicht.tage = t;
+  } catch (_) { /* Browser-Speicher ist nur Komfort */ }
+
+  // ---- Kalender (ISO-Wochen in Berliner Zeit, wie wochen_schluessel() im Export) --
+  const pad = (n) => String(n).padStart(2, "0");
+  function ymdBerlin(d) {
+    const [y, m, t] = berlinYmd.format(d).split("-").map(Number);
+    return { y, m, t };
+  }
+  function isoWoche(y, m, t) {
+    const d = new Date(Date.UTC(y, m - 1, t));
+    const wt = (d.getUTCDay() + 6) % 7;
+    d.setUTCDate(d.getUTCDate() - wt + 3);
+    const jahr = d.getUTCFullYear();
+    const jan4 = new Date(Date.UTC(jahr, 0, 4));
+    const woche = 1 + Math.round(((d - jan4) / 864e5 - 3 + ((jan4.getUTCDay() + 6) % 7)) / 7);
+    return { jahr, woche };
+  }
+  const wochenKey = (jahr, woche) => `${jahr}-KW${pad(woche)}`;
+  function keyVon(d) { const p = ymdBerlin(d); const w = isoWoche(p.y, p.m, p.t); return wochenKey(w.jahr, w.woche); }
+  function mitternachtBerlin(y, m, t) {
+    const utc = Date.UTC(y, m - 1, t);
+    const versatz = Number(berlinStunde.format(new Date(utc))); // 1 (MEZ) oder 2 (MESZ)
+    return new Date(utc - versatz * 36e5);
+  }
+  function wochenMontag(jahr, woche) {
+    const jan4 = new Date(Date.UTC(jahr, 0, 4));
+    const mo = new Date(jan4); mo.setUTCDate(jan4.getUTCDate() - ((jan4.getUTCDay() + 6) % 7) + (woche - 1) * 7);
+    return mitternachtBerlin(mo.getUTCFullYear(), mo.getUTCMonth() + 1, mo.getUTCDate());
+  }
+  function wocheVorher(key, n = 1) {
+    const [j, w] = key.split("-KW").map(Number);
+    const mo = wochenMontag(j, w);
+    return keyVon(new Date(mo.getTime() - n * 7 * 864e5 + 12 * 36e5));
+  }
+  function wochenSpanne(key) {
+    const [j, w] = key.split("-KW").map(Number);
+    const von = wochenMontag(j, w);
+    const naechste = new Date(von.getTime() + 7 * 864e5 + 12 * 36e5);
+    const p = ymdBerlin(naechste);
+    return { von, bis: mitternachtBerlin(p.y, p.m, p.t) };
+  }
+
+  // ---- Zeiträume ----------------------------------------------------------------
+  function ende() { return daten.stand ? new Date(daten.stand.aktualisiert) : new Date(); }
+  function periode() {
+    if (ansicht.woche) {
+      const s = wochenSpanne(ansicht.woche);
+      const v = wochenSpanne(wocheVorher(ansicht.woche));
+      return { ...s, vorher: v, text: `${tagMonat.format(s.von)}–${datum.format(new Date(s.bis - 1))}` };
+    }
+    const bis = ende();
+    const von = new Date(bis - ansicht.tage * 864e5);
+    const fensterVon = daten.stand ? new Date(daten.stand.fenster_von) : von;
+    const vorVon = new Date(bis - 2 * ansicht.tage * 864e5);
+    // Vorperiode nur, wenn die gespeicherten Daten sie vollständig abdecken.
+    const vorher = vorVon >= fensterVon ? { von: vorVon, bis: von } : null;
+    return { von, bis, vorher, text: `${datum.format(von)} – ${datumZeit.format(bis)}` };
+  }
+  const drin = (iso, p) => { if (!iso) return false; const d = new Date(iso); return d >= p.von && d < p.bis; };
+
+  // ---- Auswertung -------------------------------------------------------------
+  function alleEinheiten() { const a = []; for (const w of daten.wochen.values()) a.push(...(w.einheiten || [])); return a; }
+  function alleAufgaben() { const a = []; for (const w of daten.wochen.values()) a.push(...(w.aufgaben || [])); return a; }
+
+  function auswerten(p) {
+    const einheiten = alleEinheiten().filter((e) => drin(e.angelegt, p));
+    const aufgaben = alleAufgaben().filter((a) => drin(a.abgeschlossen, p));
+    const proProjekt = new Map();
+    for (const e of einheiten) {
+      if (!e.projekt_id) continue;
+      const g = proProjekt.get(e.projekt_id) || { id: e.projekt_id, einheiten: 0, flaeche: 0 };
+      g.einheiten += 1; g.flaeche += Number(e.flaeche) || 0;
+      proProjekt.set(e.projekt_id, g);
+    }
+    const neu = [], bestehend = [];
+    for (const g of proProjekt.values()) {
+      const meta = daten.projekte[String(g.id)] || {};
+      const erste = meta.erste_einheit;
+      const eintrag = { ...g, titel: meta.titel || `Projekt ${g.id}`, vorhanden: meta.vorhanden !== false, erste };
+      // Ohne Datum gilt ein Projekt als neu – wie im Wochenreport, damit nichts verschwindet.
+      (!erste || new Date(erste) >= p.von ? neu : bestehend).push(eintrag);
+    }
+    const nachGroesse = (a, b) => b.einheiten - a.einheiten || a.titel.localeCompare(b.titel, "de");
+    return { einheiten, aufgaben, neu: neu.sort(nachGroesse), bestehend: bestehend.sort(nachGroesse) };
+  }
+
+  // ---- Darstellung ------------------------------------------------------------
+  function el(tag, attrs = {}, ...kinder) {
+    const n = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs)) {
+      if (v == null || v === false) continue;
+      if (k === "class") n.className = v; else if (k === "text") n.textContent = v; else n.setAttribute(k, v === true ? "" : v);
+    }
+    for (const k of kinder) if (k != null) n.append(k);
+    return n;
+  }
+  const qm = (v) => (v ? `${zahl.format(Math.round(v))} m²` : "–");
+  const link = (pfad, id) => el("a", { class: "oeffnen", href: `${APP}/${pfad}/${id}`, target: "_blank", rel: "noopener", text: "öffnen ↗" });
+
+  function standZeigen() {
+    const box = $("stand");
+    box.replaceChildren();
+    if (!daten.stand) {
+      const txt = daten.geladen.stand ? "Noch kein Abgleich" : "Lade Daten …";
+      box.append(el("span", { class: "pill alt" }, el("span", { class: "dot" }), el("span", { text: txt })));
+      return;
+    }
+    const alter = (Date.now() - new Date(daten.stand.aktualisiert)) / 36e5;
+    const frisch = alter <= FRISCH_STUNDEN;
+    box.append(
+      el("span", { text: `Stand ${datumZeit.format(new Date(daten.stand.aktualisiert))}` }),
+      el("span", { class: `pill ${frisch ? "ok" : "alt"}` }, el("span", { class: "dot" }),
+        el("span", { text: frisch ? "aktuell" : `seit ${Math.floor(alter / 24)} Tagen nicht abgeglichen` })),
+    );
+  }
+
+  function delta(jetzt, vorher, einheit) {
+    if (vorher == null) return "";
+    const d = jetzt - vorher;
+    const pfeil = d > 0 ? "↑" : d < 0 ? "↓" : "→";
+    return `${pfeil} ${d > 0 ? "+" : ""}${zahl.format(d)} ggü. ${einheit} (${zahl.format(vorher)})`;
+  }
+
+  function kennzahlen(e, ev, p) {
+    const einheit = ansicht.woche ? "Vorwoche" : "Vorperiode";
+    const flaeche = e.einheiten.reduce((s, x) => s + (Number(x.flaeche) || 0), 0);
+    $("k-proj").textContent = zahl.format(e.neu.length);
+    $("k-einh").textContent = zahl.format(e.einheiten.length);
+    $("k-aufg").textContent = zahl.format(e.aufgaben.length);
+    $("d-proj").textContent = ev ? delta(e.neu.length, ev.neu.length, einheit) : "";
+    $("d-einh").textContent = [flaeche ? qm(flaeche) + " gesamt" : "", ev ? delta(e.einheiten.length, ev.einheiten.length, einheit) : ""].filter(Boolean).join(" · ");
+    $("d-aufg").textContent = ev ? delta(e.aufgaben.length, ev.aufgaben.length, einheit) : "";
+    $("zeitraum").textContent = p.text;
+  }
+
+  function wochenFolge() {
+    let key = keyVon(ende());
+    const folge = [key];
+    for (let i = 1; i < WOCHEN_IM_VERLAUF; i++) { key = wocheVorher(key); folge.unshift(key); }
+    return folge;
+  }
+  function schoeneSkala(max) {
+    if (max <= 4) return Math.max(max, 1);
+    const roh = max / 4, mag = 10 ** Math.floor(Math.log10(roh));
+    const schritt = [1, 2, 2.5, 5, 10].map((f) => f * mag).find((s) => s >= roh);
+    return Math.ceil(max / schritt) * schritt;
+  }
+
+  function diagramm(boxId, achseId, folge, werte, p, tipp) {
+    const box = $(boxId), achse = $(achseId);
+    box.replaceChildren(); achse.replaceChildren();
+    const max = schoeneSkala(Math.max(0, ...folge.map((k) => werte.get(k) || 0)));
+    for (const f of [0, 0.5, 1]) {
+      const v = max * f;
+      if (f === 0.5 && max < 2) continue;
+      box.append(el("div", { class: "grid-line", style: `bottom:${f * 100}%` }, el("span", { text: zahl.format(Math.round(v * 10) / 10) })));
+    }
+    const bars = el("div", { class: "bars" });
+    const an = folge.filter((k) => { const s = wochenSpanne(k); return s.bis > p.von && s.von < p.bis; });
+    const spitze = folge.reduce((m, k) => ((werte.get(k) || 0) > (werte.get(m) || 0) ? k : m), folge[0]);
+    for (const k of folge) {
+      const v = werte.get(k) || 0;
+      const aktiv = an.includes(k);
+      const beschriften = v > 0 && (an.length <= 2 ? aktiv : k === spitze);
+      const col = el("button", {
+        type: "button", class: `col${aktiv ? " an" : ""}`, "data-woche": k,
+        "aria-label": `${k.replace("-KW", " KW ")}: ${zahl.format(v)}. Auswählen`,
+        "aria-pressed": ansicht.woche === k ? "true" : "false",
+      },
+      beschriften ? el("span", { class: "val", text: zahl.format(v) }) : null,
+      el("span", { class: "bar", style: `height:${max ? (v / max) * 100 : 0}%` }));
+      col.addEventListener("click", () => wocheWaehlen(ansicht.woche === k ? null : k));
+      col.addEventListener("mousemove", (ev) => tipZeigen(ev, tipp(k, v)));
+      col.addEventListener("mouseleave", tipWeg);
+      col.addEventListener("focus", (ev) => { const r = ev.target.getBoundingClientRect(); tipZeigen({ clientX: r.left + r.width / 2, clientY: r.top }, tipp(k, v)); });
+      col.addEventListener("blur", tipWeg);
+      bars.append(col);
+      achse.append(el("span", { text: k.split("-KW")[1] }));
+    }
+    box.append(bars);
+  }
+
+  function tipZeigen(ev, inhalt) {
+    const t = $("tip");
+    t.replaceChildren(...inhalt); t.hidden = false;
+    const r = t.getBoundingClientRect();
+    let x = ev.clientX + 14, y = ev.clientY - r.height - 10;
+    if (x + r.width > innerWidth - 8) x = ev.clientX - r.width - 14;
+    if (y < 8) y = ev.clientY + 16;
+    t.style.left = `${Math.max(8, x)}px`; t.style.top = `${y}px`;
+  }
+  function tipWeg() { $("tip").hidden = true; }
+
+  function verlauf(p) {
+    const folge = wochenFolge();
+    const einh = new Map(), flaeche = new Map(), aufg = new Map(), neuProj = new Map();
+    for (const e of alleEinheiten()) { const k = keyVon(new Date(e.angelegt)); einh.set(k, (einh.get(k) || 0) + 1); flaeche.set(k, (flaeche.get(k) || 0) + (Number(e.flaeche) || 0)); }
+    for (const a of alleAufgaben()) { const k = keyVon(new Date(a.abgeschlossen)); aufg.set(k, (aufg.get(k) || 0) + 1); }
+    for (const pr of Object.values(daten.projekte)) if (pr.erste_einheit) { const k = keyVon(new Date(pr.erste_einheit)); neuProj.set(k, (neuProj.get(k) || 0) + 1); }
+    const kopf = (k) => { const s = wochenSpanne(k); return el("b", { text: `KW ${Number(k.split("-KW")[1])} · ${tagMonat.format(s.von)}–${tagMonat.format(new Date(s.bis - 1))}` }); };
+    diagramm("chart-einh", "achse-einh", folge, einh, p, (k, v) => [
+      kopf(k), el("br"), `${zahl.format(v)} neue Einheiten`, el("br"),
+      `${qm(flaeche.get(k))}`, el("br"), `${zahl.format(neuProj.get(k) || 0)} neue Projekte`,
+    ]);
+    diagramm("chart-aufg", "achse-aufg", folge, aufg, p, (k, v) => [kopf(k), el("br"), `${zahl.format(v)} abgeschlossen`]);
+  }
+
+  function leer(titel, text) { return el("div", { class: "leer" }, el("strong", { text: titel }), el("span", { text })); }
+
+  function tabelle(kopf, zeilen) {
+    const thead = el("thead", {}, el("tr", {}, ...kopf.map(([t, cls]) => el("th", { class: cls, text: t }))));
+    return el("div", { class: "tbl-wrap" }, el("table", {}, thead, el("tbody", {}, ...zeilen)));
+  }
+
+  function projektZeilen(liste) {
+    return liste.map((g) => el("tr", {},
+      el("td", {}, el("span", { class: "titel", text: g.titel })),
+      el("td", { class: "num", text: zahl.format(g.einheiten) }),
+      el("td", { class: "num", text: qm(g.flaeche) }),
+      el("td", { class: "dat", text: g.erste ? datum.format(new Date(g.erste)) : "–" }),
+      el("td", {}, g.vorhanden ? link("projects", g.id) : el("span", { class: "weg", text: "nicht mehr in Propstack" })),
+    ));
+  }
+
+  function liste(e) {
+    const box = $("liste");
+    $("n-projekte").textContent = zahl.format(e.neu.length);
+    $("n-einheiten").textContent = zahl.format(e.einheiten.length);
+    $("n-bestehend").textContent = zahl.format(e.bestehend.length);
+    $("n-aufgaben").textContent = zahl.format(e.aufgaben.length);
+    $("werkzeug").hidden = ansicht.reiter !== "einheiten";
+    box.setAttribute("aria-labelledby", `t-${ansicht.reiter}`);
+
+    if (!daten.stand && daten.geladen.stand) {
+      box.replaceChildren(leer("Noch keine Daten", "Der tägliche Abgleich mit Propstack läuft gegen 6 Uhr. Danach erscheinen hier Projekte, Einheiten und Prüfaufgaben."));
+      return;
+    }
+    const projektKopf = [["Projekt"], ["Einheiten im Zeitraum", "num"], ["Fläche", "num"], ["Erste Einheit"], [""]];
+
+    if (ansicht.reiter === "projekte") {
+      box.replaceChildren(e.neu.length ? tabelle(projektKopf, projektZeilen(e.neu))
+        : leer("Keine neuen Projekte", "Im gewählten Zeitraum wurde kein Projekt angelegt."));
+    } else if (ansicht.reiter === "bestehend") {
+      box.replaceChildren(e.bestehend.length ? tabelle(projektKopf, projektZeilen(e.bestehend))
+        : leer("Keine bestehenden Projekte mit neuen Einheiten", "Alle neuen Einheiten gehören zu neuen Projekten oder zu keinem Projekt."));
+    } else if (ansicht.reiter === "aufgaben") {
+      const z = [...e.aufgaben].sort((a, b) => (b.abgeschlossen || "").localeCompare(a.abgeschlossen || "")).map((a) => el("tr", {},
+        el("td", {}, el("span", { class: "titel", text: a.titel }), a.bezug ? el("span", { class: "neben", text: a.bezug }) : null),
+        el("td", { class: "dat", text: a.angelegt ? datum.format(new Date(a.angelegt)) : "–" }),
+        el("td", { class: "dat", text: datum.format(new Date(a.abgeschlossen)) }),
+      ));
+      box.replaceChildren(z.length ? tabelle([["Prüfaufgabe"], ["Angelegt"], ["Abgeschlossen"]], z)
+        : leer("Keine abgeschlossenen Prüfaufgaben", "Im gewählten Zeitraum wurde keine Prüfaufgabe als erledigt markiert."));
+    } else {
+      const q = ansicht.suche.trim().toLocaleLowerCase("de");
+      let rows = e.einheiten.map((u) => ({ ...u, projekt: u.projekt_id ? (daten.projekte[String(u.projekt_id)] || {}).titel || "" : "" }));
+      if (q) rows = rows.filter((u) => [u.titel, u.stadt, u.projekt].some((f) => (f || "").toLocaleLowerCase("de").includes(q)));
+      const sort = {
+        neu: (a, b) => (b.angelegt || "").localeCompare(a.angelegt || ""),
+        flaeche: (a, b) => (Number(b.flaeche) || 0) - (Number(a.flaeche) || 0),
+        stadt: (a, b) => (a.stadt || "~").localeCompare(b.stadt || "~", "de") || (b.angelegt || "").localeCompare(a.angelegt || ""),
+      }[ansicht.sortierung];
+      rows.sort(sort);
+      const sichtbar = rows.slice(0, ansicht.limit);
+      const z = sichtbar.map((u) => el("tr", {},
+        el("td", {}, el("span", { class: "titel", text: u.titel }), u.projekt ? el("span", { class: "neben", text: u.projekt }) : null),
+        el("td", { text: u.stadt || "–" }),
+        el("td", { class: "num", text: qm(Number(u.flaeche)) }),
+        el("td", { text: u.vermarktung === "RENT" ? "Miete" : u.vermarktung === "BUY" ? "Kauf" : (u.vermarktung || "–") }),
+        el("td", { class: "dat", text: datum.format(new Date(u.angelegt)) }),
+        el("td", {}, link("properties", u.id)),
+      ));
+      const teile = [];
+      if (z.length) teile.push(tabelle([["Einheit"], ["Stadt"], ["Fläche", "num"], ["Art"], ["Angelegt"], [""]], z));
+      else teile.push(q ? leer("Keine Treffer", `Keine neue Einheit passt zu „${ansicht.suche.trim()}".`)
+        : leer("Keine neuen Einheiten", "Im gewählten Zeitraum wurde keine Einheit angelegt."));
+      if (rows.length > sichtbar.length) {
+        const b = el("button", { type: "button", class: "mehr", text: `Alle ${zahl.format(rows.length)} anzeigen` });
+        b.addEventListener("click", () => { ansicht.limit = Infinity; zeichnen(); });
+        teile.push(b);
+      }
+      box.replaceChildren(...teile);
+    }
+  }
+
+  function zeichnen() {
+    const p = periode();
+    const e = auswerten(p);
+    const ev = p.vorher ? auswerten(p.vorher) : null;
+    standZeigen();
+    kennzahlen(e, ev, p);
+    verlauf(p);
+    liste(e);
+    for (const b of $("perioden").querySelectorAll("button")) b.setAttribute("aria-pressed", String(!ansicht.woche && Number(b.dataset.tage) === ansicht.tage));
+    $("wochenchip").hidden = !ansicht.woche;
+    if (ansicht.woche) $("wochenchip-text").textContent = `KW ${Number(ansicht.woche.split("-KW")[1])}`;
+    for (const t of document.querySelectorAll('[role="tab"]')) t.setAttribute("aria-selected", String(t.id === `t-${ansicht.reiter}`));
+  }
+
+  function wocheWaehlen(key) { ansicht.woche = key; ansicht.limit = SEITE; zeichnen(); }
+
+  // ---- Bedienung --------------------------------------------------------------
+  for (const b of $("perioden").querySelectorAll("button")) {
+    b.addEventListener("click", () => {
+      ansicht.tage = Number(b.dataset.tage); ansicht.woche = null; ansicht.limit = SEITE;
+      try { localStorage.setItem("pn.tage", String(ansicht.tage)); } catch (_) {}
+      zeichnen();
+    });
+  }
+  $("woche-weg").addEventListener("click", () => wocheWaehlen(null));
+  for (const t of document.querySelectorAll('[role="tab"]')) {
+    t.addEventListener("click", () => { ansicht.reiter = t.id.slice(2); ansicht.limit = SEITE; zeichnen(); });
+  }
+  let suchTimer;
+  $("suche").addEventListener("input", (ev) => {
+    clearTimeout(suchTimer);
+    suchTimer = setTimeout(() => { ansicht.suche = ev.target.value; ansicht.limit = SEITE; zeichnen(); }, 120);
+  });
+  $("sortierung").addEventListener("change", (ev) => { ansicht.sortierung = ev.target.value; zeichnen(); });
+
+  zeichnen();
+
+  // ---- Daten (db-Capability; befüllt vom täglichen Claude-Lauf) ----------------
+  function fehler(text) {
+    daten.geladen = { stand: true, projekte: true, wochen: true };
+    $("liste").replaceChildren(leer("Daten nicht verfügbar", text));
+    const box = $("stand"); box.replaceChildren(el("span", { class: "pill alt" }, el("span", { class: "dot" }), el("span", { text: "keine Verbindung" })));
+  }
+
+  (async () => {
+    const db = window.claude?.use ? await window.claude.use("db") : null;
+    if (!db) { fehler("Diese Ansicht kann die Dashboard-Daten nicht laden. Melde dich bei claude.ai an und öffne das Dashboard dort."); return; }
+    let geplant = false;
+    const neuZeichnen = () => { if (geplant) return; geplant = true; requestAnimationFrame(() => { geplant = false; zeichnen(); }); };
+    const beiFehler = (e) => fehler(`Die Daten konnten nicht geladen werden (${e?.code || "unbekannt"}). Lade die Seite neu.`);
+    db.doc("meta/stand").onSnapshot((s) => { daten.stand = s.exists ? s.data() : null; daten.geladen.stand = true; neuZeichnen(); }, beiFehler);
+    db.doc("meta/projekte").onSnapshot((s) => { daten.projekte = (s.exists && s.data().projekte) || {}; daten.geladen.projekte = true; neuZeichnen(); }, beiFehler);
+    db.collection("wochen").onSnapshot((q) => {
+      daten.wochen = new Map(q.docs.map((d) => [d.id, d.data()]));
+      daten.geladen.wochen = true; neuZeichnen();
+    }, beiFehler);
+  })();
+})();
+</script>
