@@ -114,3 +114,21 @@ Tests (ohne Netz/Credentials):
 ```bash
 pytest tests/weekly_report/ -v
 ```
+
+## Dashboard (claude.ai-Artifact)
+
+Zusätzlich zur Slack-DM gibt es ein Live-Dashboard: https://claude.ai/artifact/16L9gZSPFtGKvfFrUsPj7d
+(Zeitraum 7/30/90 Tage oder eine Kalenderwoche per Klick, Wochenverlauf, durchsuchbare Listen).
+
+- **Quelle der Seite:** `weekly_report/dashboard/dashboard.html`. Änderungen dort machen und mit dem
+  Artifact-Tool an dieselbe URL veröffentlichen.
+- **Daten:** Die Seite darf Propstack nicht selbst abfragen (die Artifact-Umgebung blockiert fremde
+  Server). Ein täglicher Claude-Lauf (Routine „Propstack-Dashboard abgleichen", ca. 6 Uhr) führt
+  `python -m weekly_report.dashboard_export --out <verzeichnis>` aus und schreibt die Dateien in die
+  Datenbank des Artifacts: `meta/stand`, `meta/projekte`, `wochen/<JJJJ-KWnn>`.
+- **Warum pro Woche:** Ein Dokument darf höchstens 256 KiB groß sein. Spitzenwochen (KW 31/32 2026
+  mit je ~255 Einheiten) liegen bei ~68 KB.
+- **Schreibrecht:** nur der Besitzer des Artifacts (Regel `write: owner`); alle, mit denen es geteilt
+  ist, lesen nur.
+- Wochen werden im Export und im Dashboard identisch bestimmt (ISO-Woche in Berliner Zeit,
+  `wochen_schluessel()` bzw. `keyVon()`).
