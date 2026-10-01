@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex">
+<title>Halle einstellen – Kromeich &amp; Partner</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2319372C'/%3E%3Cpath d='M6 20 16 11l10 9v6H6z' fill='%23BCED09'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<header class="kopf">
+  <span class="marke">Kromeich &amp; Partner</span>
+  <h1>Halle einstellen</h1>
+</header>
+
+<main>
+  <p class="intro">Stellen Sie Ihre Hallenfläche selbst ein – ohne Provision. Wir prüfen einmalig, dass Sie über die Fläche verfügen dürfen, danach ist das Objekt für Suchende sichtbar.</p>
+
+  <form id="formular" novalidate>
+    <fieldset>
+      <legend>1. Wer stellt ein?</legend>
+      <label class="wahl">
+        <input type="radio" name="rolle" value="eigentuemer" checked>
+        <span><strong>Ich bin Eigentümer</strong><em>Nachweis: Grundbuchauszug</em></span>
+      </label>
+      <label class="wahl">
+        <input type="radio" name="rolle" value="makler">
+        <span><strong>Ich vermarkte im Auftrag</strong><em>Nachweis: Alleinvermarktungsauftrag</em></span>
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>2. Kontakt</legend>
+      <div class="zeile">
+        <label>Vorname<input name="vorname" maxlength="100" autocomplete="given-name"></label>
+        <label>Nachname*<input name="nachname" maxlength="100" required autocomplete="family-name"></label>
+      </div>
+      <label>Firma<input name="firma" maxlength="200" autocomplete="organization"></label>
+      <label>E-Mail*<input name="email" type="email" maxlength="200" required autocomplete="email"></label>
+      <label>Telefon<input name="telefon" type="tel" maxlength="50" autocomplete="tel"></label>
+    </fieldset>
+
+    <fieldset>
+      <legend>3. Die Halle</legend>
+      <div class="zeile">
+        <label class="breit">Straße*<input name="strasse" maxlength="200" required></label>
+        <label class="schmal">Nr.<input name="hausnummer" maxlength="20"></label>
+      </div>
+      <div class="zeile">
+        <label class="schmal">PLZ*<input name="plz" inputmode="numeric" maxlength="5" required></label>
+        <label class="breit">Ort*<input name="stadt" maxlength="120" required></label>
+      </div>
+      <div class="zeile">
+        <label>Fläche in m²*<input name="flaeche_qm" type="number" min="1" step="10" required></label>
+        <label>Hallenhöhe in m<input name="hallenhoehe_m" type="number" min="1" step="0.1"></label>
+      </div>
+      <div class="zeile">
+        <label>Nutzung
+          <select name="nutzung">
+            <option value="lager">Lager</option>
+            <option value="produktion">Produktion</option>
+            <option value="umschlag">Umschlag</option>
+            <option value="gemischt" selected>Gemischt</option>
+          </select>
+        </label>
+        <label>Miete €/m²<input name="miete_eur_qm" type="number" min="0" step="0.1"></label>
+      </div>
+      <label>Verfügbar ab<input name="verfuegbar_ab" maxlength="40" placeholder="sofort, 01.2027, nach Absprache"></label>
+      <label class="check">
+        <input type="checkbox" name="rampe">
+        <span>Rampe vorhanden</span>
+      </label>
+      <label>Beschreibung<textarea name="beschreibung" rows="4" maxlength="4000" placeholder="Was sollte ein Interessent wissen?"></textarea></label>
+      <label>Fotos (bis zu 10)
+        <input name="bilder" type="file" accept="image/jpeg,image/png,image/webp" multiple>
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>4. Nachweis</legend>
+      <p class="hinweis" id="nachweis-hinweis"></p>
+      <label>Datei* (PDF, JPG oder PNG, max. 10 MB)
+        <input name="nachweis" type="file" accept="application/pdf,image/jpeg,image/png" required>
+      </label>
+      <p class="hinweis stark">Der Nachweis wird ausschließlich zur Prüfung verwendet und <strong>unmittelbar nach der Prüfung gelöscht</strong>. Gespeichert bleibt nur, wer ihn wann geprüft hat.</p>
+    </fieldset>
+
+    <label class="check">
+      <input type="checkbox" name="einwilligung" required>
+      <span>Ich bin damit einverstanden, dass Kromeich &amp; Partner meine Angaben zur Prüfung und Veröffentlichung des Objekts verarbeitet. Es gilt die <a href="https://kromeichpartner.de/datenschutz" target="_blank" rel="noopener noreferrer">Datenschutzerklärung</a>.</span>
+    </label>
+
+    <button type="submit" class="primaer">Zur Prüfung einreichen</button>
+    <p id="fehler" class="fehler" hidden></p>
+  </form>
+
+  <section id="danke" hidden>
+    <h2>Eingegangen</h2>
+    <p>Ihr Vorgang hat die Nummer <strong id="nummer"></strong>. Wir prüfen den Nachweis und melden uns.</p>
+    <p>Den Stand können Sie jederzeit hier abrufen – bitte den Link aufbewahren:</p>
+    <p><a id="statuslink" class="statuslink" href="#"></a></p>
+  </section>
+</main>
+
+<footer class="fuss">
+  <a href="https://kromeichpartner.de/impressum" target="_blank" rel="noopener noreferrer">Impressum</a>
+  <span aria-hidden="true">·</span>
+  <a href="https://kromeichpartner.de/datenschutz" target="_blank" rel="noopener noreferrer">Datenschutz</a>
+</footer>
+
+<script src="/app.js"></script>
+</body>
+</html>

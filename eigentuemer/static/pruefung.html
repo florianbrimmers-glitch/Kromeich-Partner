@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Interne Prüfung – Kromeich &amp; Partner</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2319372C'/%3E%3Cpath d='M6 20 16 11l10 9v6H6z' fill='%23BCED09'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<header class="kopf">
+  <span class="marke">Intern</span>
+  <h1>Prüfung</h1>
+</header>
+<main class="weit">
+  <div class="filter">
+    <button type="button" data-status="in_pruefung" class="aktiv">Offen</button>
+    <button type="button" data-status="freigegeben">Freigegeben</button>
+    <button type="button" data-status="abgelehnt">Abgelehnt</button>
+    <button type="button" data-status="">Alle</button>
+  </div>
+  <div id="liste"></div>
+  <p id="fehler" class="fehler" hidden></p>
+</main>
+<script src="/pruefung.js"></script>
+</body>
+</html>

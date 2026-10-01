@@ -19,3 +19,6 @@ newsletter_decisions.jsonl
 events_decisions.jsonl
 weekly_report.jsonl
 .pytest_cache/
+
+# Eigentümer-Portal: Datenbank und hochgeladene Nachweise gehören nie ins Repo
+eigentuemer_daten/
