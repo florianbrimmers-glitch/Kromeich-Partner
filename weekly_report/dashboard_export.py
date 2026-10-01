@@ -8,13 +8,16 @@ Klassifikation (neues vs. bestehendes Projekt) selbst daraus.
 
 Aufbau der Ausgabe (ein Verzeichnis, eine JSON-Datei pro Datenbank-Dokument):
 
-    meta/stand.json        Zeitpunkt, Fenster, Zähler
-    meta/projekte.json     alle Projekte, auf die Einheiten im Fenster zeigen,
-                           mit Titel und frühester Einheit (= Anlagedatum)
-    wochen/<JJJJ-KWnn>.json  Einheiten und abgeschlossene Prüfaufgaben je ISO-Woche
+    meta/stand.json            Zeitpunkt, Fenster, Zähler
+    meta/projekte.json         alle Projekte, auf die Einheiten im Fenster zeigen,
+                               mit Titel und frühester Einheit (= Anlagedatum)
+    wochen/<JJJJ-KWnn>.json    neue Einheiten je ISO-Woche
+    pruefung/teil-<nn>.json    Prüfaufgaben: der ganze offene Bestand plus alles,
+                               was im Fenster angelegt oder erledigt wurde
 
-Pro Woche statt eines Gesamtdokuments, weil ein Dokument höchstens 256 KiB groß sein
-darf; 13 Wochen mit je bis zu 60 Einheiten passen nicht sicher in eines.
+Aufgeteilt, weil ein Dokument höchstens 256 KiB groß sein darf: Einheiten pro Woche
+(Spitzenwochen ~68 KB), Prüfaufgaben in Paketen zu je AUFGABEN_PRO_TEIL, weil der
+offene Bestand wächst.
 
     python -m weekly_report.dashboard_export --out <verzeichnis> [--tage 91]
 """
@@ -24,6 +27,7 @@ import argparse
 import json
 import logging
 import pathlib
+import re
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -34,6 +38,7 @@ logger = logging.getLogger(__name__)
 
 STANDARD_TAGE = 91  # 13 volle Wochen für den Verlauf
 MAX_DOKUMENT_BYTES = 256 * 1024
+AUFGABEN_PRO_TEIL = 400  # ~90 KB je Teil bei langen Titeln
 
 
 def wochen_schluessel(zeitpunkt: datetime) -> str:
@@ -43,6 +48,21 @@ def wochen_schluessel(zeitpunkt: datetime) -> str:
     Sonntagabend in einer anderen Woche als die, unter der das Dashboard sie zählt."""
     jahr, woche, _ = zeitpunkt.astimezone(ZoneInfo(config.BERLIN_TZ)).isocalendar()
     return f"{jahr}-KW{woche:02d}"
+
+
+def aufgaben_art(titel: str | None) -> str:
+    """Art einer Prüfaufgabe = Titel vor dem ersten Doppelpunkt.
+
+    Die Automatisierungen benennen ihre Aufgaben nach festem Muster
+    ("Pruefung Panattoni Welle 3: …", "Newsletter-Vermietung prüfen: …"). Die
+    ASCII-Schreibweise aus dem Exposé-Workflow ("Pruefung") wird mit "Prüfung"
+    zusammengeführt, sonst zerfiele eine Art in zwei Gruppen."""
+    if not titel or ":" not in titel:
+        return "Sonstige"
+    art = titel.split(":", 1)[0].strip()
+    art = re.sub(r"\bPruefung\b", "Prüfung", art)
+    art = re.sub(r"\bpruefen\b", "prüfen", art)
+    return art or "Sonstige"
 
 
 def _einheit(u: NewUnit) -> dict:
@@ -62,10 +82,23 @@ def _aufgabe(t: PruefTask) -> dict:
     return {
         "id": t.id,
         "titel": t.label(),
-        "abgeschlossen": t.updated_at,
+        "art": aufgaben_art(t.title),
+        "erledigt": t.done is True,
         "angelegt": t.original_created_at,
+        # Propstack führt kein Abschlussdatum; bei erledigten Aufgaben ist die letzte
+        # Änderung der einzige Zeitstempel dafür.
+        "geaendert": t.updated_at,
         "bezug": bezug[0] if bezug else None,
     }
+
+
+def _relevant(t: PruefTask, since: datetime) -> bool:
+    """Offen (zählt immer zum Bestand) oder im Fenster angelegt bzw. erledigt."""
+    if t.done is not True:
+        return True
+    if t.original_created_at and datetime.fromisoformat(t.original_created_at) >= since:
+        return True
+    return bool(t.updated_at) and datetime.fromisoformat(t.updated_at) >= since
 
 
 def baue_dokumente(
@@ -81,18 +114,10 @@ def baue_dokumente(
 ) -> dict[str, dict]:
     """Reine Funktion: Rohdaten -> {"collection/doc_id": body}. Ohne Netz testbar."""
     wochen: dict[str, dict] = {}
-
-    def woche(zeitpunkt_iso: str) -> dict:
-        key = wochen_schluessel(datetime.fromisoformat(zeitpunkt_iso))
-        return wochen.setdefault(key, {"woche": key, "einheiten": [], "aufgaben": []})
-
     for u in einheiten:
         if u.created_at:
-            woche(u.created_at)["einheiten"].append(_einheit(u))
-
-    abgeschlossen = [t for t in aufgaben if t.done is True and t.updated_at]
-    for t in abgeschlossen:
-        woche(t.updated_at)["aufgaben"].append(_aufgabe(t))
+            key = wochen_schluessel(datetime.fromisoformat(u.created_at))
+            wochen.setdefault(key, {"woche": key, "einheiten": []})["einheiten"].append(_einheit(u))
 
     projekte = {
         str(pid): {
@@ -105,6 +130,12 @@ def baue_dokumente(
         for pid in sorted({u.project_id for u in einheiten if u.project_id})
     }
 
+    pruefung = sorted(
+        (_aufgabe(t) for t in aufgaben if _relevant(t, since)),
+        key=lambda a: (a["angelegt"] or "", a["id"]),
+    )
+    teile = [pruefung[i:i + AUFGABEN_PRO_TEIL] for i in range(0, len(pruefung), AUFGABEN_PRO_TEIL)]
+
     dokumente: dict[str, dict] = {
         "meta/stand": {
             "aktualisiert": until.isoformat(),
@@ -114,13 +145,17 @@ def baue_dokumente(
             "pruefer_broker_ids": broker_ids,
             "anzahl_einheiten": len(einheiten),
             "anzahl_projekte": len(projekte),
-            "anzahl_aufgaben": len(abgeschlossen),
+            "anzahl_offen": sum(not a["erledigt"] for a in pruefung),
+            "anzahl_aufgaben": len(pruefung),
             "wochen": sorted(wochen),
+            "pruefung_teile": [f"teil-{i:02d}" for i in range(1, len(teile) + 1)],
         },
         "meta/projekte": {"projekte": projekte},
     }
     for key, body in wochen.items():
         dokumente[f"wochen/{key}"] = body
+    for i, teil in enumerate(teile, start=1):
+        dokumente[f"pruefung/teil-{i:02d}"] = {"teil": i, "aufgaben": teil}
     return dokumente
 
 
@@ -142,7 +177,7 @@ def main() -> int:
     for pid in projekt_ids:
         erste = propstack.earliest_unit_created_at(pid)
         beginn[pid] = erste.isoformat() if erste else None
-    aufgaben = propstack.fetch_pruef_tasks(since, until, broker_ids)
+    aufgaben = propstack.fetch_all_tasks(broker_ids)
 
     dokumente = baue_dokumente(
         einheiten,
@@ -168,8 +203,9 @@ def main() -> int:
 
     stand = dokumente["meta/stand"]
     logger.info(
-        "Fertig: %d Einheiten, %d Projekte, %d abgeschlossene Prüfaufgaben in %d Wochen",
-        stand["anzahl_einheiten"], stand["anzahl_projekte"], stand["anzahl_aufgaben"], len(stand["wochen"]),
+        "Fertig: %d Einheiten, %d Projekte in %d Wochen; %d Prüfaufgaben (%d offen) in %d Teil(en)",
+        stand["anzahl_einheiten"], stand["anzahl_projekte"], len(stand["wochen"]),
+        stand["anzahl_aufgaben"], stand["anzahl_offen"], len(stand["pruefung_teile"]),
     )
     return 0
 

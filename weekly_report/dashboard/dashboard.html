@@ -22,6 +22,9 @@
   --chip: #eef2e4;
   --good: #0a7a0a;
   --warn: #9a5b00;
+  /* Reihen Eingang/Erledigt – per validate_palette.js geprüft (CVD, Helligkeit, Kontrast) */
+  --s-erledigt: #1f7a45;
+  --s-eingang: #4a6fb8;
   --display: "Jomolhari", "Iowan Old Style", Georgia, serif;
   --body: "Poppins", "Segoe UI", system-ui, sans-serif;
 }
@@ -30,14 +33,14 @@
     --bg: #0d1813; --surface: #13231c; --ink: #edf1e8; --muted: #a2b0a6; --line: #24382e;
     --brand: #0a2a1f; --brand-ink: #ffffff; --signal: #bced09;
     --bar: #c2d076; --bar-dim: #3a5045; --bar-hover: #bced09; --focus: #bced09; --chip: #1c3027;
-    --good: #5fd35f; --warn: #f2b33d; color-scheme: dark;
+    --good: #5fd35f; --warn: #f2b33d; --s-erledigt: #4aa36a; --s-eingang: #5b8fe0; color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #0d1813; --surface: #13231c; --ink: #edf1e8; --muted: #a2b0a6; --line: #24382e;
   --brand: #0a2a1f; --brand-ink: #ffffff; --signal: #bced09;
   --bar: #c2d076; --bar-dim: #3a5045; --bar-hover: #bced09; --focus: #bced09; --chip: #1c3027;
-  --good: #5fd35f; --warn: #f2b33d; color-scheme: dark;
+  --good: #5fd35f; --warn: #f2b33d; --s-erledigt: #4aa36a; --s-eingang: #5b8fe0; color-scheme: dark;
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
@@ -76,25 +79,28 @@ main { padding-block: 22px 48px; display: grid; gap: 22px; }
 .kpi .d { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; min-height: 1.5em; }
 
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px 18px 14px; min-width: 0; }
-.panel h2 { margin: 0 0 2px; font: 600 15px/1.3 var(--body); }
+.panel h3 { margin: 0 0 2px; font: 600 15px/1.3 var(--body); }
 .panel .hint { margin: 0 0 14px; font-size: 12.5px; color: var(--muted); }
-.charts { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; align-items: start; }
-@media (max-width: 760px) { .charts { grid-template-columns: 1fr; } }
 
 .chart { position: relative; height: 190px; margin-left: 30px; }
-.chart.klein { height: 120px; }
 .grid-line { position: absolute; left: 0; right: 0; border-top: 1px solid var(--line); }
 .grid-line span { position: absolute; right: calc(100% + 8px); top: -9px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
 .bars { position: absolute; inset: 0; display: flex; align-items: flex-end; gap: 2px; }
 .col { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center;
   background: none; border: 0; padding: 0; cursor: pointer; position: relative; min-width: 0; }
-.col .bar { width: 62%; max-width: 34px; background: var(--bar-dim); border-radius: 4px 4px 0 0; min-height: 0; }
+.col .gruppe { display: flex; align-items: flex-end; justify-content: center; gap: 2px; width: 70%; max-width: 40px; height: 100%; }
+.col .saeule { flex: 1; max-width: 34px; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; min-width: 0; }
+.col .bar { width: 100%; background: var(--bar-dim); border-radius: 4px 4px 0 0; min-height: 0; }
 .col.an .bar { background: var(--bar); }
 .col:hover .bar, .col:focus-visible .bar { background: var(--bar-hover); }
+/* Zwei Reihen: Farbe gehört zur Reihe, Auswahl wird über Deckkraft gezeigt, nicht über Umfärben */
+.col .bar.erledigt { background: var(--s-erledigt); opacity: .4; }
+.col .bar.eingang { background: var(--s-eingang); opacity: .4; }
+.col.an .bar.erledigt, .col.an .bar.eingang, .col:hover .bar.erledigt, .col:hover .bar.eingang,
+.col:focus-visible .bar.erledigt, .col:focus-visible .bar.eingang { opacity: 1; }
 .col .val { font-size: 11px; color: var(--ink); font-variant-numeric: tabular-nums; margin-bottom: 3px; font-weight: 500; }
 .achse { display: flex; gap: 2px; margin: 6px 0 0 30px; }
 .achse span { flex: 1; text-align: center; font-size: 10.5px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 0; }
-.achse.dicht span:nth-child(even) { visibility: hidden; }
 .tip { position: fixed; z-index: 5; pointer-events: none; background: var(--brand); color: var(--brand-ink);
   border-radius: 8px; padding: 8px 10px; font-size: 12px; line-height: 1.45; box-shadow: 0 6px 18px rgba(0,0,0,.18);
   font-variant-numeric: tabular-nums; max-width: 240px; }
@@ -124,6 +130,33 @@ td .neben { display: block; color: var(--muted); font-size: 12px; }
   padding: 7px 14px; border-radius: 8px; cursor: pointer; }
 .leer { padding: 28px 8px; text-align: center; color: var(--muted); }
 .leer strong { display: block; color: var(--ink); font-weight: 500; margin-bottom: 4px; }
+.bereich { display: grid; gap: 14px; }
+.bereich-kopf { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.bereich-titel { margin: 0; font: 400 26px/1.15 var(--display); text-wrap: balance; }
+.person { font-size: 12px; font-weight: 500; letter-spacing: .06em; text-transform: uppercase; color: var(--brand-ink);
+  background: var(--brand); padding: 3px 10px; border-radius: 999px; }
+.bereich-text { margin: -8px 0 0; color: var(--muted); font-size: 13px; max-width: 70ch; }
+.neu-raster { display: grid; grid-template-columns: minmax(220px, 1fr) 2.4fr; gap: 14px; align-items: start; }
+.kpis-stapel { grid-template-columns: 1fr; }
+.pruef-raster { display: grid; grid-template-columns: 2fr 1fr; gap: 14px; align-items: start; }
+@media (max-width: 820px) { .neu-raster, .pruef-raster { grid-template-columns: 1fr; } .kpis-stapel { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); } }
+.legende { display: flex; gap: 16px; flex-wrap: wrap; font-size: 12px; color: var(--muted); margin: 4px 0 12px; }
+.sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+.sw.erledigt { background: var(--s-erledigt); } .sw.eingang { background: var(--s-eingang); }
+.tip .sw { outline: 1px solid rgba(255,255,255,.5); }
+.rang { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.rang li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; font-size: 13px; }
+.rang .lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rang .cnt { font-variant-numeric: tabular-nums; font-weight: 500; }
+.rang .spur { grid-column: 1 / -1; height: 6px; background: var(--chip); border-radius: 3px; overflow: hidden; }
+.rang .fuell { display: block; height: 100%; background: var(--bar); border-radius: 3px; }
+.rang .leer-zeile { color: var(--muted); display: block; }
+.rang li.sammel .lbl { color: var(--muted); font-style: italic; }
+.rang li.sammel .fuell { background: var(--bar-dim); }
+td.art { color: var(--muted); white-space: nowrap; }
+.status { font-size: 12px; font-weight: 500; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+.status.erledigt { color: var(--s-erledigt); background: var(--chip); }
+.status.offen { color: var(--muted); background: var(--chip); }
 footer { font-size: 12px; color: var(--muted); max-width: 72ch; }
 footer p { margin: 0 0 6px; }
 @media (prefers-reduced-motion: no-preference) { .col .bar { transition: height .25s ease; } }
@@ -155,24 +188,48 @@ footer p { margin: 0 0 6px; }
     <span class="zeitraum" id="zeitraum"></span>
   </div>
 
-  <section class="kpis" aria-label="Kennzahlen im Zeitraum">
-    <div class="kpi"><span class="k">Neue Projekte</span><span class="v" id="k-proj">–</span><span class="d" id="d-proj"></span></div>
-    <div class="kpi"><span class="k">Neue Einheiten</span><span class="v" id="k-einh">–</span><span class="d" id="d-einh"></span></div>
-    <div class="kpi"><span class="k">Abgeschlossene Prüfaufgaben</span><span class="v" id="k-aufg">–</span><span class="d" id="d-aufg"></span></div>
+  <section class="bereich" aria-labelledby="h-neu">
+    <h2 class="bereich-titel" id="h-neu">Neuzugänge</h2>
+    <div class="neu-raster">
+      <div class="kpis kpis-stapel">
+        <div class="kpi"><span class="k">Neue Projekte</span><span class="v" id="k-proj">–</span><span class="d" id="d-proj"></span></div>
+        <div class="kpi"><span class="k">Neue Einheiten</span><span class="v" id="k-einh">–</span><span class="d" id="d-einh"></span></div>
+      </div>
+      <div class="panel">
+        <h3>Neue Einheiten je Kalenderwoche</h3>
+        <p class="hint">Letzte 13 Wochen. Klick auf eine Woche zeigt nur diese.</p>
+        <div class="chart" id="chart-einh" role="group" aria-label="Neue Einheiten je Kalenderwoche"></div>
+        <div class="achse" id="achse-einh"></div>
+      </div>
+    </div>
   </section>
 
-  <section class="charts">
-    <div class="panel">
-      <h2>Neue Einheiten je Kalenderwoche</h2>
-      <p class="hint">Letzte 13 Wochen. Klick auf eine Woche zeigt nur diese.</p>
-      <div class="chart" id="chart-einh" role="group" aria-label="Neue Einheiten je Kalenderwoche"></div>
-      <div class="achse" id="achse-einh"></div>
+  <section class="bereich" aria-labelledby="h-pruef">
+    <div class="bereich-kopf">
+      <h2 class="bereich-titel" id="h-pruef">Prüfung</h2>
+      <span class="person">Oguzhan Sahin</span>
     </div>
-    <div class="panel">
-      <h2>Abgeschlossene Prüfaufgaben</h2>
-      <p class="hint">Je Kalenderwoche, nach Abschlussdatum.</p>
-      <div class="chart klein" id="chart-aufg" role="group" aria-label="Abgeschlossene Prüfaufgaben je Kalenderwoche"></div>
-      <div class="achse dicht" id="achse-aufg"></div>
+    <p class="bereich-text">Alle Prüfaufgaben auf Oguzhans Prüfer-Sitz in Propstack: was neu hereinkommt und was er abschließt.</p>
+    <div class="kpis">
+      <div class="kpi"><span class="k">Abgeschlossen</span><span class="v" id="k-erl">–</span><span class="d" id="d-erl"></span></div>
+      <div class="kpi"><span class="k">Neu eingegangen</span><span class="v" id="k-ein">–</span><span class="d" id="d-ein"></span></div>
+      <div class="kpi"><span class="k">Offen</span><span class="v" id="k-off">–</span><span class="d" id="d-off"></span></div>
+    </div>
+    <div class="pruef-raster">
+      <div class="panel">
+        <h3>Eingang und Erledigt je Kalenderwoche</h3>
+        <div class="legende" aria-hidden="true">
+          <span><i class="sw erledigt"></i>Abgeschlossen</span>
+          <span><i class="sw eingang"></i>Neu eingegangen</span>
+        </div>
+        <div class="chart" id="chart-pruef" role="group" aria-label="Eingang und abgeschlossene Prüfaufgaben je Kalenderwoche"></div>
+        <div class="achse" id="achse-pruef"></div>
+      </div>
+      <div class="panel">
+        <h3>Offen nach Art</h3>
+        <p class="hint">Woraus der offene Bestand besteht. „Einzelaufgaben" sind frei formulierte Aufgaben und seltene Arten.</p>
+        <ol class="rang" id="rang-art"></ol>
+      </div>
     </div>
   </section>
 
@@ -184,12 +241,13 @@ footer p { margin: 0 0 6px; }
       <button type="button" role="tab" id="t-aufgaben" aria-selected="false" aria-controls="liste">Prüfaufgaben<span class="n" id="n-aufgaben">0</span></button>
     </div>
     <div class="werkzeug" id="werkzeug" hidden>
-      <input id="suche" type="search" aria-label="Einheiten durchsuchen" placeholder="Titel, Stadt oder Projekt suchen" autocomplete="off">
-      <select id="sortierung" aria-label="Sortierung">
-        <option value="neu">Neueste zuerst</option>
-        <option value="flaeche">Größte Fläche zuerst</option>
-        <option value="stadt">Nach Stadt</option>
-      </select>
+      <div class="seg" role="group" aria-label="Prüfaufgaben anzeigen" id="aufg-modus">
+        <button type="button" data-modus="erledigt" aria-pressed="true">Abgeschlossen</button>
+        <button type="button" data-modus="eingang" aria-pressed="false">Neu eingegangen</button>
+        <button type="button" data-modus="offen" aria-pressed="false">Offen</button>
+      </div>
+      <input id="suche" type="search" aria-label="Liste durchsuchen" placeholder="Suchen" autocomplete="off">
+      <select id="sortierung" aria-label="Sortierung"></select>
     </div>
     <div id="liste" role="tabpanel" aria-live="polite"></div>
   </section>
@@ -197,7 +255,7 @@ footer p { margin: 0 0 6px; }
   <footer>
     <p>Quelle: Propstack. Die Daten werden täglich gegen 6 Uhr abgeglichen; „Stand" oben zeigt den letzten Abgleich.</p>
     <p>Projekte liefert Propstack ohne Anlagedatum. Ein Projekt gilt deshalb als neu, wenn seine früheste Einheit im Zeitraum liegt; Projekte ganz ohne Einheit erscheinen nicht.</p>
-    <p>Prüfaufgaben: Aufgaben auf dem Sitz von Lena Klinnert mit Status erledigt. Propstack führt kein Abschlussdatum; maßgeblich ist die letzte Änderung.</p>
+    <p>Prüfaufgaben: alle Aufgaben auf Oguzhans Prüfer-Sitz. „Offen" ist der aktuelle Bestand und hängt nicht vom Zeitraum ab. Propstack führt kein Abschlussdatum; bei abgeschlossenen Aufgaben zählt die letzte Änderung.</p>
   </footer>
 </main>
 <div class="tip" id="tip" hidden></div>
@@ -210,6 +268,7 @@ footer p { margin: 0 0 6px; }
   const WOCHEN_IM_VERLAUF = 13;
   const SEITE = 100;
   const FRISCH_STUNDEN = 30;
+  const ARTEN_SICHTBAR = 12;
 
   const $ = (id) => document.getElementById(id);
   const zahl = new Intl.NumberFormat("de-DE");
@@ -220,8 +279,8 @@ footer p { margin: 0 0 6px; }
   const berlinStunde = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Berlin", hour: "2-digit", hourCycle: "h23" });
 
   // ---- Zustand ----------------------------------------------------------------
-  const daten = { stand: null, projekte: {}, wochen: new Map(), geladen: { stand: false, projekte: false, wochen: false } };
-  const ansicht = { tage: 7, woche: null, reiter: "projekte", suche: "", sortierung: "neu", limit: SEITE };
+  const daten = { stand: null, projekte: {}, wochen: new Map(), pruefung: [], geladen: { stand: false } };
+  const ansicht = { tage: 7, woche: null, reiter: "projekte", modus: "erledigt", suche: "", sortierung: {}, limit: SEITE };
   try {
     const t = Number(localStorage.getItem("pn.tage"));
     if ([7, 30, 90].includes(t)) ansicht.tage = t;
@@ -266,6 +325,7 @@ footer p { margin: 0 0 6px; }
     const p = ymdBerlin(naechste);
     return { von, bis: mitternachtBerlin(p.y, p.m, p.t) };
   }
+  const kwNummer = (key) => Number(key.split("-KW")[1]);
 
   // ---- Zeiträume ----------------------------------------------------------------
   function ende() { return daten.stand ? new Date(daten.stand.aktualisiert) : new Date(); }
@@ -287,11 +347,9 @@ footer p { margin: 0 0 6px; }
 
   // ---- Auswertung -------------------------------------------------------------
   function alleEinheiten() { const a = []; for (const w of daten.wochen.values()) a.push(...(w.einheiten || [])); return a; }
-  function alleAufgaben() { const a = []; for (const w of daten.wochen.values()) a.push(...(w.aufgaben || [])); return a; }
 
   function auswerten(p) {
     const einheiten = alleEinheiten().filter((e) => drin(e.angelegt, p));
-    const aufgaben = alleAufgaben().filter((a) => drin(a.abgeschlossen, p));
     const proProjekt = new Map();
     for (const e of einheiten) {
       if (!e.projekt_id) continue;
@@ -308,8 +366,16 @@ footer p { margin: 0 0 6px; }
       (!erste || new Date(erste) >= p.von ? neu : bestehend).push(eintrag);
     }
     const nachGroesse = (a, b) => b.einheiten - a.einheiten || a.titel.localeCompare(b.titel, "de");
-    return { einheiten, aufgaben, neu: neu.sort(nachGroesse), bestehend: bestehend.sort(nachGroesse) };
+    return {
+      einheiten,
+      neu: neu.sort(nachGroesse),
+      bestehend: bestehend.sort(nachGroesse),
+      erledigt: daten.pruefung.filter((a) => a.erledigt && drin(a.geaendert, p)),
+      eingang: daten.pruefung.filter((a) => drin(a.angelegt, p)),
+    };
   }
+  // Der offene Bestand ist ein Stand, kein Zeitraum.
+  const offeneAufgaben = () => daten.pruefung.filter((a) => !a.erledigt);
 
   // ---- Darstellung ------------------------------------------------------------
   function el(tag, attrs = {}, ...kinder) {
@@ -323,6 +389,7 @@ footer p { margin: 0 0 6px; }
   }
   const qm = (v) => (v ? `${zahl.format(Math.round(v))} m²` : "–");
   const link = (pfad, id) => el("a", { class: "oeffnen", href: `${APP}/${pfad}/${id}`, target: "_blank", rel: "noopener", text: "öffnen ↗" });
+  const tageSeit = (iso) => Math.max(0, Math.floor((ende() - new Date(iso)) / 864e5));
 
   function standZeigen() {
     const box = $("stand");
@@ -353,10 +420,14 @@ footer p { margin: 0 0 6px; }
     const flaeche = e.einheiten.reduce((s, x) => s + (Number(x.flaeche) || 0), 0);
     $("k-proj").textContent = zahl.format(e.neu.length);
     $("k-einh").textContent = zahl.format(e.einheiten.length);
-    $("k-aufg").textContent = zahl.format(e.aufgaben.length);
     $("d-proj").textContent = ev ? delta(e.neu.length, ev.neu.length, einheit) : "";
     $("d-einh").textContent = [flaeche ? qm(flaeche) + " gesamt" : "", ev ? delta(e.einheiten.length, ev.einheiten.length, einheit) : ""].filter(Boolean).join(" · ");
-    $("d-aufg").textContent = ev ? delta(e.aufgaben.length, ev.aufgaben.length, einheit) : "";
+    $("k-erl").textContent = zahl.format(e.erledigt.length);
+    $("d-erl").textContent = ev ? delta(e.erledigt.length, ev.erledigt.length, einheit) : "im Zeitraum";
+    $("k-ein").textContent = zahl.format(e.eingang.length);
+    $("d-ein").textContent = ev ? delta(e.eingang.length, ev.eingang.length, einheit) : "im Zeitraum";
+    $("k-off").textContent = zahl.format(offeneAufgaben().length);
+    $("d-off").textContent = daten.stand ? `aktueller Bestand, Stand ${datum.format(ende())}` : "aktueller Bestand";
     $("zeitraum").textContent = p.text;
   }
 
@@ -372,37 +443,46 @@ footer p { margin: 0 0 6px; }
     const schritt = [1, 2, 2.5, 5, 10].map((f) => f * mag).find((s) => s >= roh);
     return Math.ceil(max / schritt) * schritt;
   }
+  function aktiveWochen(folge, p) {
+    return folge.filter((k) => { const s = wochenSpanne(k); return s.bis > p.von && s.von < p.bis; });
+  }
 
-  function diagramm(boxId, achseId, folge, werte, p, tipp) {
+  // Ein Diagramm, eine oder mehrere Reihen je Woche. `reihen`: [{klasse, werte: Map}]
+  function diagramm(boxId, achseId, folge, reihen, p, tipp) {
     const box = $(boxId), achse = $(achseId);
     box.replaceChildren(); achse.replaceChildren();
-    const max = schoeneSkala(Math.max(0, ...folge.map((k) => werte.get(k) || 0)));
+    const max = schoeneSkala(Math.max(0, ...reihen.flatMap((r) => folge.map((k) => r.werte.get(k) || 0))));
     for (const f of [0, 0.5, 1]) {
-      const v = max * f;
       if (f === 0.5 && max < 2) continue;
-      box.append(el("div", { class: "grid-line", style: `bottom:${f * 100}%` }, el("span", { text: zahl.format(Math.round(v * 10) / 10) })));
+      box.append(el("div", { class: "grid-line", style: `bottom:${f * 100}%` }, el("span", { text: zahl.format(Math.round(max * f * 10) / 10) })));
     }
     const bars = el("div", { class: "bars" });
-    const an = folge.filter((k) => { const s = wochenSpanne(k); return s.bis > p.von && s.von < p.bis; });
-    const spitze = folge.reduce((m, k) => ((werte.get(k) || 0) > (werte.get(m) || 0) ? k : m), folge[0]);
+    const an = aktiveWochen(folge, p);
+    // Direkte Beschriftung sparsam: bei 1–2 gewählten Wochen deren Werte, sonst nur die Spitze je Reihe.
+    const spitzen = reihen.map((r) => folge.reduce((m, k) => ((r.werte.get(k) || 0) > (r.werte.get(m) || 0) ? k : m), folge[0]));
     for (const k of folge) {
-      const v = werte.get(k) || 0;
       const aktiv = an.includes(k);
-      const beschriften = v > 0 && (an.length <= 2 ? aktiv : k === spitze);
+      const gruppe = el("span", { class: "gruppe" });
+      reihen.forEach((r, i) => {
+        const v = r.werte.get(k) || 0;
+        const beschriften = v > 0 && (an.length <= 2 ? aktiv : k === spitzen[i]);
+        gruppe.append(el("span", { class: "saeule" },
+          beschriften ? el("span", { class: "val", text: zahl.format(v) }) : null,
+          el("span", { class: `bar ${r.klasse}`, style: `height:${max ? (v / max) * 100 : 0}%` })));
+      });
+      const werteText = reihen.map((r) => `${r.name}: ${zahl.format(r.werte.get(k) || 0)}`).join(", ");
       const col = el("button", {
         type: "button", class: `col${aktiv ? " an" : ""}`, "data-woche": k,
-        "aria-label": `${k.replace("-KW", " KW ")}: ${zahl.format(v)}. Auswählen`,
+        "aria-label": `KW ${kwNummer(k)}: ${werteText}. Woche auswählen`,
         "aria-pressed": ansicht.woche === k ? "true" : "false",
-      },
-      beschriften ? el("span", { class: "val", text: zahl.format(v) }) : null,
-      el("span", { class: "bar", style: `height:${max ? (v / max) * 100 : 0}%` }));
+      }, gruppe);
       col.addEventListener("click", () => wocheWaehlen(ansicht.woche === k ? null : k));
-      col.addEventListener("mousemove", (ev) => tipZeigen(ev, tipp(k, v)));
+      col.addEventListener("mousemove", (ev) => tipZeigen(ev, tipp(k)));
       col.addEventListener("mouseleave", tipWeg);
-      col.addEventListener("focus", (ev) => { const r = ev.target.getBoundingClientRect(); tipZeigen({ clientX: r.left + r.width / 2, clientY: r.top }, tipp(k, v)); });
+      col.addEventListener("focus", (ev) => { const r = ev.target.getBoundingClientRect(); tipZeigen({ clientX: r.left + r.width / 2, clientY: r.top }, tipp(k)); });
       col.addEventListener("blur", tipWeg);
       bars.append(col);
-      achse.append(el("span", { text: k.split("-KW")[1] }));
+      achse.append(el("span", { text: String(kwNummer(k)) }));
     }
     box.append(bars);
   }
@@ -418,18 +498,66 @@ footer p { margin: 0 0 6px; }
   }
   function tipWeg() { $("tip").hidden = true; }
 
+  function zaehleJeWoche(liste, feld) {
+    const m = new Map();
+    for (const x of liste) if (x[feld]) { const k = keyVon(new Date(x[feld])); m.set(k, (m.get(k) || 0) + 1); }
+    return m;
+  }
+
   function verlauf(p) {
     const folge = wochenFolge();
-    const einh = new Map(), flaeche = new Map(), aufg = new Map(), neuProj = new Map();
-    for (const e of alleEinheiten()) { const k = keyVon(new Date(e.angelegt)); einh.set(k, (einh.get(k) || 0) + 1); flaeche.set(k, (flaeche.get(k) || 0) + (Number(e.flaeche) || 0)); }
-    for (const a of alleAufgaben()) { const k = keyVon(new Date(a.abgeschlossen)); aufg.set(k, (aufg.get(k) || 0) + 1); }
-    for (const pr of Object.values(daten.projekte)) if (pr.erste_einheit) { const k = keyVon(new Date(pr.erste_einheit)); neuProj.set(k, (neuProj.get(k) || 0) + 1); }
-    const kopf = (k) => { const s = wochenSpanne(k); return el("b", { text: `KW ${Number(k.split("-KW")[1])} · ${tagMonat.format(s.von)}–${tagMonat.format(new Date(s.bis - 1))}` }); };
-    diagramm("chart-einh", "achse-einh", folge, einh, p, (k, v) => [
-      kopf(k), el("br"), `${zahl.format(v)} neue Einheiten`, el("br"),
-      `${qm(flaeche.get(k))}`, el("br"), `${zahl.format(neuProj.get(k) || 0)} neue Projekte`,
+    const einheiten = alleEinheiten();
+    const einh = zaehleJeWoche(einheiten, "angelegt");
+    const flaeche = new Map();
+    for (const e of einheiten) { const k = keyVon(new Date(e.angelegt)); flaeche.set(k, (flaeche.get(k) || 0) + (Number(e.flaeche) || 0)); }
+    const neuProj = zaehleJeWoche(Object.values(daten.projekte), "erste_einheit");
+    const erledigt = zaehleJeWoche(daten.pruefung.filter((a) => a.erledigt), "geaendert");
+    const eingang = zaehleJeWoche(daten.pruefung, "angelegt");
+    const kopf = (k) => { const s = wochenSpanne(k); return el("b", { text: `KW ${kwNummer(k)} · ${tagMonat.format(s.von)}–${tagMonat.format(new Date(s.bis - 1))}` }); };
+
+    diagramm("chart-einh", "achse-einh", folge, [{ klasse: "", name: "Neue Einheiten", werte: einh }], p, (k) => [
+      kopf(k), el("br"), `${zahl.format(einh.get(k) || 0)} neue Einheiten`, el("br"),
+      qm(flaeche.get(k)), el("br"), `${zahl.format(neuProj.get(k) || 0)} neue Projekte`,
     ]);
-    diagramm("chart-aufg", "achse-aufg", folge, aufg, p, (k, v) => [kopf(k), el("br"), `${zahl.format(v)} abgeschlossen`]);
+    diagramm("chart-pruef", "achse-pruef", folge, [
+      { klasse: "erledigt", name: "Abgeschlossen", werte: erledigt },
+      { klasse: "eingang", name: "Neu eingegangen", werte: eingang },
+    ], p, (k) => [
+      kopf(k), el("br"),
+      el("span", {}, el("i", { class: "sw erledigt" }), `${zahl.format(erledigt.get(k) || 0)} abgeschlossen`), el("br"),
+      el("span", {}, el("i", { class: "sw eingang" }), `${zahl.format(eingang.get(k) || 0)} neu eingegangen`),
+    ]);
+  }
+
+  // Nur die Automatisierungen benennen Aufgaben nach festem Muster ("Prüfung Panattoni Welle 3: …").
+  // Frei formulierte Aufgaben tragen vor dem Doppelpunkt einen Objektnamen ("SEGRO Sachsenheim: …") –
+  // als eigene "Art" zerfiele der Bestand sonst in über 100 Einzelzeilen. Was seltener als
+  // MIN_ART vorkommt, fällt deshalb unter "Einzelaufgaben".
+  const MIN_ART = 3;
+  function rangNachArt() {
+    const box = $("rang-art");
+    const zaehler = new Map();
+    for (const a of offeneAufgaben()) zaehler.set(a.art || "Sonstige", (zaehler.get(a.art || "Sonstige") || 0) + 1);
+    if (!zaehler.size) {
+      box.replaceChildren(el("li", { class: "leer-zeile", text: daten.stand ? "Keine offenen Prüfaufgaben." : "Lade …" }));
+      return;
+    }
+    let einzeln = 0;
+    const gruppen = [];
+    for (const [art, n] of zaehler) {
+      if (n < MIN_ART || art === "Sonstige") einzeln += n; else gruppen.push([art, n]);
+    }
+    gruppen.sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], "de"));
+    let zeilen = gruppen.slice(0, ARTEN_SICHTBAR);
+    const rest = gruppen.slice(ARTEN_SICHTBAR);
+    if (rest.length) zeilen.push([`Weitere ${rest.length} Arten`, rest.reduce((s, [, n]) => s + n, 0), "rest"]);
+    if (einzeln) zeilen.push(["Einzelaufgaben", einzeln, "einzeln"]);
+    const max = Math.max(...zeilen.map(([, n]) => n));
+    box.replaceChildren(...zeilen.map(([art, n, art2]) => el("li", { class: art2 ? "sammel" : null },
+      el("span", { class: "lbl", title: art2 === "einzeln" ? "Frei formulierte Aufgaben und Arten mit weniger als drei offenen Aufgaben" : art, text: art }),
+      el("span", { class: "cnt", text: zahl.format(n) }),
+      el("span", { class: "spur", "aria-hidden": "true" }, el("span", { class: "fuell", style: `width:${(n / max) * 100}%` })),
+    )));
   }
 
   function leer(titel, text) { return el("div", { class: "leer" }, el("strong", { text: titel }), el("span", { text })); }
@@ -449,65 +577,123 @@ footer p { margin: 0 0 6px; }
     ));
   }
 
+  // Sortierungen je Liste; die erste ist die Vorgabe.
+  const SORTIERUNGEN = {
+    einheiten: [["neu", "Neueste zuerst"], ["flaeche", "Größte Fläche zuerst"], ["stadt", "Nach Stadt"]],
+    erledigt: [["neu", "Zuletzt abgeschlossen zuerst"], ["art", "Nach Art"]],
+    eingang: [["neu", "Neueste zuerst"], ["art", "Nach Art"]],
+    offen: [["alt", "Am längsten offen zuerst"], ["neu", "Neueste zuerst"], ["art", "Nach Art"]],
+  };
+  const listenSchluessel = () => (ansicht.reiter === "aufgaben" ? ansicht.modus : ansicht.reiter);
+
+  function werkzeugZeigen() {
+    const sl = listenSchluessel();
+    const mitWerkzeug = ansicht.reiter === "einheiten" || ansicht.reiter === "aufgaben";
+    $("werkzeug").hidden = !mitWerkzeug;
+    $("aufg-modus").hidden = ansicht.reiter !== "aufgaben";
+    for (const b of $("aufg-modus").querySelectorAll("button")) b.setAttribute("aria-pressed", String(b.dataset.modus === ansicht.modus));
+    if (!mitWerkzeug) return;
+    $("suche").placeholder = ansicht.reiter === "einheiten" ? "Titel, Stadt oder Projekt suchen" : "Aufgabe, Art oder Objekt suchen";
+    const sel = $("sortierung"), opts = SORTIERUNGEN[sl];
+    if (sel.dataset.fuer !== sl) {
+      sel.replaceChildren(...opts.map(([v, t]) => el("option", { value: v, text: t })));
+      sel.dataset.fuer = sl;
+    }
+    sel.value = ansicht.sortierung[sl] || opts[0][0];
+  }
+
+  function trifft(q, ...felder) { return !q || felder.some((f) => (f || "").toLocaleLowerCase("de").includes(q)); }
+
+  function mehrKnopf(gesamt, sichtbar) {
+    if (gesamt <= sichtbar) return null;
+    const b = el("button", { type: "button", class: "mehr", text: `Alle ${zahl.format(gesamt)} anzeigen` });
+    b.addEventListener("click", () => { ansicht.limit = Infinity; zeichnen(); });
+    return b;
+  }
+
   function liste(e) {
     const box = $("liste");
+    const offen = offeneAufgaben();
+    const aufgabenListe = { erledigt: e.erledigt, eingang: e.eingang, offen }[ansicht.modus];
     $("n-projekte").textContent = zahl.format(e.neu.length);
     $("n-einheiten").textContent = zahl.format(e.einheiten.length);
     $("n-bestehend").textContent = zahl.format(e.bestehend.length);
-    $("n-aufgaben").textContent = zahl.format(e.aufgaben.length);
-    $("werkzeug").hidden = ansicht.reiter !== "einheiten";
+    $("n-aufgaben").textContent = zahl.format(aufgabenListe.length);
+    werkzeugZeigen();
     box.setAttribute("aria-labelledby", `t-${ansicht.reiter}`);
 
     if (!daten.stand && daten.geladen.stand) {
       box.replaceChildren(leer("Noch keine Daten", "Der tägliche Abgleich mit Propstack läuft gegen 6 Uhr. Danach erscheinen hier Projekte, Einheiten und Prüfaufgaben."));
       return;
     }
+    const q = ansicht.suche.trim().toLocaleLowerCase("de");
+    const sort = ansicht.sortierung[listenSchluessel()] || SORTIERUNGEN[listenSchluessel()]?.[0][0];
     const projektKopf = [["Projekt"], ["Einheiten im Zeitraum", "num"], ["Fläche", "num"], ["Erste Einheit"], [""]];
 
     if (ansicht.reiter === "projekte") {
       box.replaceChildren(e.neu.length ? tabelle(projektKopf, projektZeilen(e.neu))
         : leer("Keine neuen Projekte", "Im gewählten Zeitraum wurde kein Projekt angelegt."));
-    } else if (ansicht.reiter === "bestehend") {
+      return;
+    }
+    if (ansicht.reiter === "bestehend") {
       box.replaceChildren(e.bestehend.length ? tabelle(projektKopf, projektZeilen(e.bestehend))
         : leer("Keine bestehenden Projekte mit neuen Einheiten", "Alle neuen Einheiten gehören zu neuen Projekten oder zu keinem Projekt."));
-    } else if (ansicht.reiter === "aufgaben") {
-      const z = [...e.aufgaben].sort((a, b) => (b.abgeschlossen || "").localeCompare(a.abgeschlossen || "")).map((a) => el("tr", {},
-        el("td", {}, el("span", { class: "titel", text: a.titel }), a.bezug ? el("span", { class: "neben", text: a.bezug }) : null),
-        el("td", { class: "dat", text: a.angelegt ? datum.format(new Date(a.angelegt)) : "–" }),
-        el("td", { class: "dat", text: datum.format(new Date(a.abgeschlossen)) }),
-      ));
-      box.replaceChildren(z.length ? tabelle([["Prüfaufgabe"], ["Angelegt"], ["Abgeschlossen"]], z)
-        : leer("Keine abgeschlossenen Prüfaufgaben", "Im gewählten Zeitraum wurde keine Prüfaufgabe als erledigt markiert."));
-    } else {
-      const q = ansicht.suche.trim().toLocaleLowerCase("de");
-      let rows = e.einheiten.map((u) => ({ ...u, projekt: u.projekt_id ? (daten.projekte[String(u.projekt_id)] || {}).titel || "" : "" }));
-      if (q) rows = rows.filter((u) => [u.titel, u.stadt, u.projekt].some((f) => (f || "").toLocaleLowerCase("de").includes(q)));
-      const sort = {
-        neu: (a, b) => (b.angelegt || "").localeCompare(a.angelegt || ""),
-        flaeche: (a, b) => (Number(b.flaeche) || 0) - (Number(a.flaeche) || 0),
-        stadt: (a, b) => (a.stadt || "~").localeCompare(b.stadt || "~", "de") || (b.angelegt || "").localeCompare(a.angelegt || ""),
-      }[ansicht.sortierung];
-      rows.sort(sort);
-      const sichtbar = rows.slice(0, ansicht.limit);
-      const z = sichtbar.map((u) => el("tr", {},
-        el("td", {}, el("span", { class: "titel", text: u.titel }), u.projekt ? el("span", { class: "neben", text: u.projekt }) : null),
-        el("td", { text: u.stadt || "–" }),
-        el("td", { class: "num", text: qm(Number(u.flaeche)) }),
-        el("td", { text: u.vermarktung === "RENT" ? "Miete" : u.vermarktung === "BUY" ? "Kauf" : (u.vermarktung || "–") }),
-        el("td", { class: "dat", text: datum.format(new Date(u.angelegt)) }),
-        el("td", {}, link("properties", u.id)),
-      ));
-      const teile = [];
-      if (z.length) teile.push(tabelle([["Einheit"], ["Stadt"], ["Fläche", "num"], ["Art"], ["Angelegt"], [""]], z));
-      else teile.push(q ? leer("Keine Treffer", `Keine neue Einheit passt zu „${ansicht.suche.trim()}".`)
-        : leer("Keine neuen Einheiten", "Im gewählten Zeitraum wurde keine Einheit angelegt."));
-      if (rows.length > sichtbar.length) {
-        const b = el("button", { type: "button", class: "mehr", text: `Alle ${zahl.format(rows.length)} anzeigen` });
-        b.addEventListener("click", () => { ansicht.limit = Infinity; zeichnen(); });
-        teile.push(b);
-      }
-      box.replaceChildren(...teile);
+      return;
     }
+    if (ansicht.reiter === "aufgaben") {
+      const vergleich = {
+        neu: ansicht.modus === "erledigt"
+          ? (a, b) => (b.geaendert || "").localeCompare(a.geaendert || "")
+          : (a, b) => (b.angelegt || "").localeCompare(a.angelegt || ""),
+        alt: (a, b) => (a.angelegt || "").localeCompare(b.angelegt || ""),
+        art: (a, b) => (a.art || "").localeCompare(b.art || "", "de") || (b.angelegt || "").localeCompare(a.angelegt || ""),
+      }[sort];
+      const rows = aufgabenListe.filter((a) => trifft(q, a.titel, a.art, a.bezug)).sort(vergleich);
+      const sichtbar = rows.slice(0, ansicht.limit);
+      const letzteSpalte = { erledigt: "Abgeschlossen", eingang: "Status", offen: "Offen seit" }[ansicht.modus];
+      const z = sichtbar.map((a) => el("tr", {},
+        el("td", {}, el("span", { class: "titel", text: a.titel }), a.bezug ? el("span", { class: "neben", text: a.bezug }) : null),
+        el("td", { class: "art", text: a.art || "Sonstige" }),
+        el("td", { class: "dat", text: a.angelegt ? datum.format(new Date(a.angelegt)) : "–" }),
+        ansicht.modus === "erledigt" ? el("td", { class: "dat", text: datum.format(new Date(a.geaendert)) })
+          : ansicht.modus === "offen" ? el("td", { class: "num", text: a.angelegt ? `${zahl.format(tageSeit(a.angelegt))} Tagen` : "–" })
+            : el("td", {}, el("span", { class: `status ${a.erledigt ? "erledigt" : "offen"}`, text: a.erledigt ? "abgeschlossen" : "offen" })),
+      ));
+      const leerText = {
+        erledigt: ["Keine abgeschlossenen Prüfaufgaben", "Im gewählten Zeitraum wurde keine Prüfaufgabe als erledigt markiert."],
+        eingang: ["Keine neuen Prüfaufgaben", "Im gewählten Zeitraum ist keine Prüfaufgabe hinzugekommen."],
+        offen: ["Keine offenen Prüfaufgaben", "Alle Prüfaufgaben sind abgeschlossen."],
+      }[ansicht.modus];
+      box.replaceChildren(...[
+        z.length ? tabelle([["Prüfaufgabe"], ["Art"], ["Angelegt"], [letzteSpalte, ansicht.modus === "offen" ? "num" : ""]], z)
+          : q ? leer("Keine Treffer", `Keine Prüfaufgabe passt zu „${ansicht.suche.trim()}".`) : leer(...leerText),
+        mehrKnopf(rows.length, sichtbar.length),
+      ].filter(Boolean));
+      return;
+    }
+    // Neue Einheiten
+    let rows = e.einheiten.map((u) => ({ ...u, projekt: u.projekt_id ? (daten.projekte[String(u.projekt_id)] || {}).titel || "" : "" }));
+    rows = rows.filter((u) => trifft(q, u.titel, u.stadt, u.projekt));
+    rows.sort({
+      neu: (a, b) => (b.angelegt || "").localeCompare(a.angelegt || ""),
+      flaeche: (a, b) => (Number(b.flaeche) || 0) - (Number(a.flaeche) || 0),
+      stadt: (a, b) => (a.stadt || "~").localeCompare(b.stadt || "~", "de") || (b.angelegt || "").localeCompare(a.angelegt || ""),
+    }[sort]);
+    const sichtbar = rows.slice(0, ansicht.limit);
+    const z = sichtbar.map((u) => el("tr", {},
+      el("td", {}, el("span", { class: "titel", text: u.titel }), u.projekt ? el("span", { class: "neben", text: u.projekt }) : null),
+      el("td", { text: u.stadt || "–" }),
+      el("td", { class: "num", text: qm(Number(u.flaeche)) }),
+      el("td", { text: u.vermarktung === "RENT" ? "Miete" : u.vermarktung === "BUY" ? "Kauf" : (u.vermarktung || "–") }),
+      el("td", { class: "dat", text: datum.format(new Date(u.angelegt)) }),
+      el("td", {}, link("properties", u.id)),
+    ));
+    box.replaceChildren(...[
+      z.length ? tabelle([["Einheit"], ["Stadt"], ["Fläche", "num"], ["Art"], ["Angelegt"], [""]], z)
+        : q ? leer("Keine Treffer", `Keine neue Einheit passt zu „${ansicht.suche.trim()}".`)
+          : leer("Keine neuen Einheiten", "Im gewählten Zeitraum wurde keine Einheit angelegt."),
+      mehrKnopf(rows.length, sichtbar.length),
+    ].filter(Boolean));
   }
 
   function zeichnen() {
@@ -517,10 +703,11 @@ footer p { margin: 0 0 6px; }
     standZeigen();
     kennzahlen(e, ev, p);
     verlauf(p);
+    rangNachArt();
     liste(e);
     for (const b of $("perioden").querySelectorAll("button")) b.setAttribute("aria-pressed", String(!ansicht.woche && Number(b.dataset.tage) === ansicht.tage));
     $("wochenchip").hidden = !ansicht.woche;
-    if (ansicht.woche) $("wochenchip-text").textContent = `KW ${Number(ansicht.woche.split("-KW")[1])}`;
+    if (ansicht.woche) $("wochenchip-text").textContent = `KW ${kwNummer(ansicht.woche)}`;
     for (const t of document.querySelectorAll('[role="tab"]')) t.setAttribute("aria-selected", String(t.id === `t-${ansicht.reiter}`));
   }
 
@@ -538,18 +725,21 @@ footer p { margin: 0 0 6px; }
   for (const t of document.querySelectorAll('[role="tab"]')) {
     t.addEventListener("click", () => { ansicht.reiter = t.id.slice(2); ansicht.limit = SEITE; zeichnen(); });
   }
+  for (const b of $("aufg-modus").querySelectorAll("button")) {
+    b.addEventListener("click", () => { ansicht.modus = b.dataset.modus; ansicht.limit = SEITE; zeichnen(); });
+  }
   let suchTimer;
   $("suche").addEventListener("input", (ev) => {
     clearTimeout(suchTimer);
     suchTimer = setTimeout(() => { ansicht.suche = ev.target.value; ansicht.limit = SEITE; zeichnen(); }, 120);
   });
-  $("sortierung").addEventListener("change", (ev) => { ansicht.sortierung = ev.target.value; zeichnen(); });
+  $("sortierung").addEventListener("change", (ev) => { ansicht.sortierung[listenSchluessel()] = ev.target.value; zeichnen(); });
 
   zeichnen();
 
   // ---- Daten (db-Capability; befüllt vom täglichen Claude-Lauf) ----------------
   function fehler(text) {
-    daten.geladen = { stand: true, projekte: true, wochen: true };
+    daten.geladen.stand = true;
     $("liste").replaceChildren(leer("Daten nicht verfügbar", text));
     const box = $("stand"); box.replaceChildren(el("span", { class: "pill alt" }, el("span", { class: "dot" }), el("span", { text: "keine Verbindung" })));
   }
@@ -561,10 +751,11 @@ footer p { margin: 0 0 6px; }
     const neuZeichnen = () => { if (geplant) return; geplant = true; requestAnimationFrame(() => { geplant = false; zeichnen(); }); };
     const beiFehler = (e) => fehler(`Die Daten konnten nicht geladen werden (${e?.code || "unbekannt"}). Lade die Seite neu.`);
     db.doc("meta/stand").onSnapshot((s) => { daten.stand = s.exists ? s.data() : null; daten.geladen.stand = true; neuZeichnen(); }, beiFehler);
-    db.doc("meta/projekte").onSnapshot((s) => { daten.projekte = (s.exists && s.data().projekte) || {}; daten.geladen.projekte = true; neuZeichnen(); }, beiFehler);
-    db.collection("wochen").onSnapshot((q) => {
-      daten.wochen = new Map(q.docs.map((d) => [d.id, d.data()]));
-      daten.geladen.wochen = true; neuZeichnen();
+    db.doc("meta/projekte").onSnapshot((s) => { daten.projekte = (s.exists && s.data().projekte) || {}; neuZeichnen(); }, beiFehler);
+    db.collection("wochen").onSnapshot((q) => { daten.wochen = new Map(q.docs.map((d) => [d.id, d.data()])); neuZeichnen(); }, beiFehler);
+    db.collection("pruefung").onSnapshot((q) => {
+      daten.pruefung = q.docs.flatMap((d) => d.data().aufgaben || []);
+      neuZeichnen();
     }, beiFehler);
   })();
 })();
