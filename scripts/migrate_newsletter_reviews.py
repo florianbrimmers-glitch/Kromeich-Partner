@@ -1,102 +1,14 @@
-"""EINMAL-Migration: offene 'Newsletter-Vermietung prüfen'-Aufgaben von Marek (387451)
-auf Lena Klinnert (254958) umhängen. Vom User am 02.10.2026 freigegeben ("die 73").
-
-Sicherungen: strenger Filter, Plausibilitätsgrenze, erst EINE Aufgabe umhängen und
-zurücklesen, dann den Rest; am Ende Gegenzählung."""
-from __future__ import annotations
-
-import os
-import sys
-import time
-
-import httpx
-
+"""LESE-Probe: welches Feld einer /activities-Zeile ist die ID für /tasks/:id?"""
+import json, os, httpx
 BASE = "https://api.propstack.de/v1"
-KEY = os.environ["PROPSTACK_API_KEY"]
-PREFIX = "Newsletter-Vermietung prüfen"
-VON, NACH = 387451, 254958
-ERWARTET = 73
-H = {"X-API-KEY": KEY, "Content-Type": "application/json", "Accept": "application/json"}
-
-
-def req(method, path, **kw):
-    for attempt in range(4):
-        r = httpx.request(method, f"{BASE}{path}", headers=H, timeout=30, **kw)
-        if r.status_code == 429 or r.status_code >= 500:
-            time.sleep(2 ** attempt)
-            continue
-        if r.status_code >= 400:
-            print(f"FEHLER {method} {path}: HTTP {r.status_code} {r.text[:300]}")
-            r.raise_for_status()
-        return r
-    r.raise_for_status()
-
-
-def rows(p):
-    return p if isinstance(p, list) else (p or {}).get("data", [])
-
-
-def s(v):
-    return v["value"] if isinstance(v, dict) and "value" in v else v
-
-
-def offene(broker):
-    out, page = [], 1
-    while True:
-        batch = rows(req("GET", "/activities", params={
-            "item_type": "reminder", "broker_id": broker,
-            "sort_by": "created_at", "order": "desc", "per": 200, "page": page}).json())
-        for t in batch:
-            if (s(t.get("title")) or "").startswith(PREFIX) and not s(t.get("done")) \
-                    and s(t.get("broker_id")) == broker:
-                out.append(t)
-        if len(batch) < 200:
-            return out
-        page += 1
-
-
-def umhaengen(task_id) -> int | None:
-    r = req("PUT", f"/tasks/{task_id}", json={"task": {"broker_id": NACH}})
-    body = r.json() if r.content else {}
-    return s((body.get("task") if isinstance(body.get("task"), dict) else body).get("broker_id"))
-
-
-kandidaten = offene(VON)
-print(f"Kandidaten auf {VON}: {len(kandidaten)} (erwartet {ERWARTET})")
-if not (ERWARTET - 5 <= len(kandidaten) <= ERWARTET + 5):
-    sys.exit("ABBRUCH: Anzahl weicht zu stark ab – nichts geändert.")
-
-lena_vorher = len(offene(NACH))
-
-# 1. Probe mit genau einer Aufgabe
-probe = kandidaten[0]
-ret = umhaengen(probe["id"])
-time.sleep(1)
-noch_bei_marek = {t["id"] for t in offene(VON)}
-if probe["id"] in noch_bei_marek:
-    sys.exit(f"ABBRUCH: Probe #{probe['id']} liegt weiterhin bei {VON} (PUT-Antwort broker_id={ret}). "
-             "Nur diese eine Aufgabe wurde versucht.")
-print(f"Probe ok: #{probe['id']} '{s(probe.get('title'))}' -> {NACH} (Antwort broker_id={ret})")
-
-# 2. Rest
-ok, fehler = 1, []
-for t in kandidaten[1:]:
-    try:
-        umhaengen(t["id"])
-        ok += 1
-    except Exception as e:  # weiter, aber protokollieren
-        fehler.append((t["id"], str(e)))
-    time.sleep(0.4)
-
-# 3. Gegenzählung
-time.sleep(2)
-rest_marek = offene(VON)
-lena_nachher = len(offene(NACH))
-print("=" * 60)
-print(f"umgehängt:                 {ok}/{len(kandidaten)}")
-print(f"Fehler:                    {len(fehler)} {fehler[:5]}")
-print(f"offen bei Marek danach:    {len(rest_marek)}")
-print(f"offen bei Lena vorher/nach: {lena_vorher} -> {lena_nachher}")
-print("=" * 60)
-if fehler or rest_marek:
-    sys.exit(1)
+H = {"X-API-KEY": os.environ["PROPSTACK_API_KEY"], "Accept": "application/json"}
+r = httpx.get(f"{BASE}/activities", headers=H, timeout=30, params={
+    "item_type": "reminder", "broker_id": 387451, "sort_by": "created_at", "order": "desc", "per": 1})
+p = r.json(); row = (p if isinstance(p, list) else p.get("data", []))[0]
+print("KEYS:", sorted(row.keys()))
+print(json.dumps({k: v for k, v in row.items() if not isinstance(v, (list, dict)) or k in ("task", "item")},
+                 ensure_ascii=False, indent=1, default=str)[:3000])
+for k, v in row.items():
+    if isinstance(v, int) and v > 1000:
+        g = httpx.get(f"{BASE}/tasks/{v}", headers=H, timeout=30)
+        print(f"GET /tasks/{v} (Feld {k}): HTTP {g.status_code}")
