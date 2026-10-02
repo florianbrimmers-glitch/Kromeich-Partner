@@ -6,7 +6,11 @@ import os
 NEWSLETTER_CHANNEL = "C07NL0KET40"
 CLAUDE_MODEL = "claude-opus-4-8"
 
-BROKER_MAREK = 387451    # Empfänger der Newsletter-Review-Aufgaben (Stufe B)
+# Empfänger der Newsletter-Review-Aufgaben (Stufe B). Laut GET /v1/brokers: Lena Klinnert
+# (Sitz lief früher auf Oguzhan Sahin – deshalb kein Personenname im Konstantennamen).
+# Bis 02.10.2026 gingen die Reviews an Marek Zimmermann (387451).
+BROKER_REVIEW = 254958
+BROKER_REVIEW_NAME = "Lena Klinnert"
 
 # Absagegrund "Fläche nicht mehr verfügbar" (Standard für Fremdvermietung)
 RESERVATION_REASON_ABSAGE = 256998

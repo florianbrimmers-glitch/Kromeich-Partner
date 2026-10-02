@@ -116,10 +116,10 @@ def _stufe_b(msg: dict, deal: Deal, match: MatchResult | None, decision: Decisio
     """Review-Aufgabe statt Ausführung."""
     slack_datum = datetime.fromtimestamp(float(msg["ts"]), tz=timezone.utc).date().isoformat()
 
-    # Newsletter-Review-Aufgaben gehen zentral an Marek (Marktbeobachtung),
+    # Newsletter-Review-Aufgaben gehen zentral an den Review-Sitz (Marktbeobachtung),
     # unabhängig vom Objekt-Makler.
-    broker_id = config.BROKER_MAREK
-    broker_name = "Marek"
+    broker_id = config.BROKER_REVIEW
+    broker_name = config.BROKER_REVIEW_NAME
     unit = match.units[0] if match and match.units else None
     if unit is None and match and match.kandidaten:
         unit = match.kandidaten[0]
