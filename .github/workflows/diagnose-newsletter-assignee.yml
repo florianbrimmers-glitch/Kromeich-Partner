@@ -1,0 +1,21 @@
+name: Diagnose Newsletter Assignee
+
+# TEMP: einmalige Lese-Diagnose, wird zurückgebaut
+on:
+  push:
+    branches: [claude/diagnose-newsletter-assignee]
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install httpx
+      - name: Run diagnose
+        env:
+          PROPSTACK_API_KEY: ${{ secrets.PROPSTACK_API_KEY }}
+        run: python scripts/diagnose_newsletter_assignee.py
