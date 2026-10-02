@@ -1,0 +1,21 @@
+name: Migrate Newsletter Reviews
+
+# EINMALIG: offene Newsletter-Reviews von Marek auf Lena umhängen (nicht nach main mergen)
+on:
+  push:
+    branches: [claude/migrate-newsletter-reviews]
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install httpx
+      - name: Migrate
+        env:
+          PROPSTACK_API_KEY: ${{ secrets.PROPSTACK_API_KEY }}
+        run: python scripts/migrate_newsletter_reviews.py
