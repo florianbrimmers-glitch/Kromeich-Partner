@@ -28,6 +28,7 @@ class Status(str, Enum):
     IN_PRUEFUNG = "in_pruefung"
     FREIGEGEBEN = "freigegeben"
     ABGELEHNT = "abgelehnt"
+    ZURUECKGEZOGEN = "zurueckgezogen"   # vom Einsender offline genommen
 
 
 class Nutzung(str, Enum):
@@ -86,6 +87,13 @@ class Objektdaten(BaseModel):
         return f"{strasse}, {self.plz} {self.stadt}".strip(", ")
 
 
+class Verlaufseintrag(BaseModel):
+    """Was wann mit dem Vorgang passiert ist – für Einsender und Prüfung."""
+
+    zeitpunkt: str
+    text: str
+
+
 class Einreichung(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -98,6 +106,7 @@ class Einreichung(BaseModel):
     status: Status = Status.IN_PRUEFUNG
     eingegangen_am: str
     bilder: list[str] = Field(default_factory=list)
+    verlauf: list[Verlaufseintrag] = Field(default_factory=list)
 
     # Prüfprotokoll – bleibt erhalten, auch wenn der Nachweis gelöscht ist
     nachweis_art: Nachweisart
@@ -108,6 +117,9 @@ class Einreichung(BaseModel):
 
     def nachweis_vorhanden(self) -> bool:
         return self.nachweis_dateiname is not None
+
+    def oeffentlich_sichtbar(self) -> bool:
+        return self.status is Status.FREIGEGEBEN
 
     def oeffentlich(self) -> dict:
         """Was ein Suchender sehen darf: das Objekt, nie der Einsender."""
@@ -127,6 +139,16 @@ class Einreichung(BaseModel):
             "herkunft": "Direkt vom Eigentümer" if self.rolle is Rolle.EIGENTUEMER
                         else "Über Vermarktungsmandat",
         }
+
+
+def adress_schluessel(objekt: "Objektdaten") -> str:
+    """Vergleichbare Form der Adresse.
+
+    Ändert sich die Adresse, ist es ein anderes Objekt – der geprüfte Nachweis
+    galt für die alte. Groß-/Kleinschreibung und Leerzeichen sollen dafür aber
+    keinen Unterschied machen."""
+    teile = (objekt.strasse, objekt.hausnummer, objekt.plz, objekt.stadt)
+    return "|".join(" ".join(t.split()).casefold() for t in teile)
 
 
 class Entscheidung(BaseModel):

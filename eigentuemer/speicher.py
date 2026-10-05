@@ -9,7 +9,10 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import config
-from .models import Einreichung, Kontakt, Nachweisart, Objektdaten, Rolle, Status
+from .models import (
+    Einreichung, Kontakt, Nachweisart, Objektdaten, Rolle, Status,
+    Verlaufseintrag, adress_schluessel,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +113,7 @@ def anlegen(
             kontakt=kontakt, objekt=objekt, status=Status.IN_PRUEFUNG,
             eingegangen_am=_jetzt(), bilder=bildnamen,
             nachweis_art=Nachweisart.fuer(rolle), nachweis_dateiname=nachweis_name,
+            verlauf=[Verlaufseintrag(zeitpunkt=_jetzt(), text="Eingereicht")],
         )
         _schreiben(verbindung, einreichung)
 
@@ -179,6 +183,10 @@ def entscheiden(einreichung_id: int, freigeben: bool, pruefer: str, grund: str =
             einreichung.nachweis_dateiname = None
 
         einreichung.status = Status.FREIGEGEBEN if freigeben else Status.ABGELEHNT
+        einreichung.verlauf.append(Verlaufseintrag(
+            zeitpunkt=_jetzt(),
+            text=("Freigegeben" if freigeben else "Abgelehnt") + f" von {pruefer.strip()}",
+        ))
         einreichung.geprueft_am = _jetzt()
         einreichung.geprueft_von = pruefer.strip()
         einreichung.ablehnungsgrund = grund.strip() or None
@@ -188,4 +196,147 @@ def entscheiden(einreichung_id: int, freigeben: bool, pruefer: str, grund: str =
         "Vorgang %s %s durch %s – Nachweis gelöscht",
         einreichung.nummer, einreichung.status.value, pruefer,
     )
+    return einreichung
+
+
+def _felder_vergleichen(alt: Objektdaten, neu: Objektdaten) -> list[str]:
+    """Welche Felder sich geändert haben – für den Verlauf in Klartext."""
+    namen = {
+        "strasse": "Straße", "hausnummer": "Hausnummer", "plz": "PLZ", "stadt": "Ort",
+        "flaeche_qm": "Fläche", "hallenhoehe_m": "Hallenhöhe", "rampe": "Rampe",
+        "nutzung": "Nutzung", "verfuegbar_ab": "Verfügbarkeit", "miete_eur_qm": "Miete",
+        "beschreibung": "Beschreibung",
+    }
+    alt_daten, neu_daten = alt.model_dump(), neu.model_dump()
+    return [bezeichnung for feld, bezeichnung in namen.items()
+            if alt_daten.get(feld) != neu_daten.get(feld)]
+
+
+class NeuerNachweisNoetig(Exception):
+    """Die Adresse wurde geändert – der geprüfte Nachweis galt für die alte."""
+
+
+def aktualisieren(
+    einreichung_id: int,
+    objekt: Objektdaten,
+    neuer_nachweis: tuple[str, bytes] | None = None,
+) -> Einreichung | None:
+    """Objektdaten ändern.
+
+    Bei einer neuen Adresse ist es ein anderes Objekt: Der Vorgang geht zurück
+    in die Prüfung und braucht einen neuen Nachweis. Alles andere – Fläche,
+    Miete, Beschreibung – ändert der Einsender ohne erneute Prüfung, denn der
+    Nachweis belegte die Verfügungsbefugnis, nicht die Ausstattung."""
+    with _lock, _verbindung() as verbindung:
+        zeile = verbindung.execute(
+            "SELECT * FROM einreichungen WHERE id = ?", (einreichung_id,)
+        ).fetchone()
+        if zeile is None:
+            return None
+        einreichung = _lesen(zeile)
+
+        adresse_neu = adress_schluessel(objekt) != adress_schluessel(einreichung.objekt)
+        if adresse_neu and neuer_nachweis is None:
+            raise NeuerNachweisNoetig()
+
+        geaendert = _felder_vergleichen(einreichung.objekt, objekt)
+        einreichung.objekt = objekt
+
+        if adresse_neu:
+            alter_pfad = nachweis_pfad(einreichung)
+            if alter_pfad:
+                alter_pfad.unlink(missing_ok=True)
+            name, inhalt = neuer_nachweis
+            (_ordner(einreichung.id) / name).write_bytes(inhalt)
+            einreichung.nachweis_dateiname = name
+            einreichung.status = Status.IN_PRUEFUNG
+            einreichung.geprueft_am = None
+            einreichung.geprueft_von = None
+            einreichung.ablehnungsgrund = None
+            einreichung.verlauf.append(Verlaufseintrag(
+                zeitpunkt=_jetzt(),
+                text="Adresse geändert – zurück in die Prüfung, neuer Nachweis eingereicht",
+            ))
+        elif geaendert:
+            einreichung.verlauf.append(Verlaufseintrag(
+                zeitpunkt=_jetzt(), text="Geändert: " + ", ".join(geaendert),
+            ))
+
+        _schreiben(verbindung, einreichung)
+
+    logger.info("Vorgang %s aktualisiert (%s)", einreichung.nummer, ", ".join(geaendert) or "keine Feldänderung")
+    return einreichung
+
+
+def bilder_ergaenzen(einreichung_id: int, bilder: list[tuple[str, bytes]]) -> Einreichung | None:
+    with _lock, _verbindung() as verbindung:
+        zeile = verbindung.execute(
+            "SELECT * FROM einreichungen WHERE id = ?", (einreichung_id,)
+        ).fetchone()
+        if zeile is None:
+            return None
+        einreichung = _lesen(zeile)
+
+        ordner = _ordner(einreichung.id)
+        vorhandene = {int(n.split("_")[1].split(".")[0]) for n in einreichung.bilder} or {0}
+        naechste = max(vorhandene) + 1
+        for name, inhalt in bilder:
+            endung = Path(name).suffix or ".jpg"
+            bildname = f"bild_{naechste}{endung}"
+            (ordner / bildname).write_bytes(inhalt)
+            einreichung.bilder.append(bildname)
+            naechste += 1
+
+        einreichung.verlauf.append(Verlaufseintrag(
+            zeitpunkt=_jetzt(), text=f"{len(bilder)} Foto(s) ergänzt",
+        ))
+        _schreiben(verbindung, einreichung)
+    return einreichung
+
+
+def bild_entfernen(einreichung_id: int, bildname: str) -> Einreichung | None:
+    with _lock, _verbindung() as verbindung:
+        zeile = verbindung.execute(
+            "SELECT * FROM einreichungen WHERE id = ?", (einreichung_id,)
+        ).fetchone()
+        if zeile is None:
+            return None
+        einreichung = _lesen(zeile)
+        if bildname not in einreichung.bilder:
+            return einreichung
+
+        (_ordner(einreichung.id) / bildname).unlink(missing_ok=True)
+        einreichung.bilder.remove(bildname)
+        einreichung.verlauf.append(Verlaufseintrag(zeitpunkt=_jetzt(), text="Foto entfernt"))
+        _schreiben(verbindung, einreichung)
+    return einreichung
+
+
+def sichtbarkeit_setzen(einreichung_id: int, sichtbar: bool) -> Einreichung | None:
+    """Objekt zurückziehen oder wieder online stellen.
+
+    Zurückziehen ist die häufigste Änderung überhaupt – die Halle ist vermietet.
+    Dafür darf niemand eine Mail schreiben müssen. Wieder online geht nur, wenn
+    der Vorgang schon einmal geprüft war; sonst bliebe die Prüfung umgehbar."""
+    with _lock, _verbindung() as verbindung:
+        zeile = verbindung.execute(
+            "SELECT * FROM einreichungen WHERE id = ?", (einreichung_id,)
+        ).fetchone()
+        if zeile is None:
+            return None
+        einreichung = _lesen(zeile)
+
+        if sichtbar:
+            if einreichung.status is not Status.ZURUECKGEZOGEN or not einreichung.geprueft_am:
+                return einreichung
+            einreichung.status = Status.FREIGEGEBEN
+            einreichung.verlauf.append(Verlaufseintrag(zeitpunkt=_jetzt(), text="Wieder online gestellt"))
+        else:
+            if einreichung.status is not Status.FREIGEGEBEN:
+                return einreichung
+            einreichung.status = Status.ZURUECKGEZOGEN
+            einreichung.verlauf.append(Verlaufseintrag(zeitpunkt=_jetzt(), text="Vom Einsender zurückgezogen"))
+
+        _schreiben(verbindung, einreichung)
+    logger.info("Vorgang %s ist jetzt %s", einreichung.nummer, einreichung.status.value)
     return einreichung

@@ -12,7 +12,7 @@ from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from fastapi.staticfiles import StaticFiles
 from pydantic import ValidationError
 
-from . import config, speicher
+from . import config, mail, speicher
 from .models import Einreichung, Entscheidung, Kontakt, Objektdaten, Rolle, Status
 
 logger = logging.getLogger(__name__)
@@ -99,6 +99,8 @@ async def einreichen(
     einreichung = speicher.anlegen(
         rolle_wert, kontakt_wert, objekt_wert, (nachweis_name, nachweis_inhalt), gelesen,
     )
+    mail.eingang_bestaetigen(einreichung)
+    mail.intern_melden(einreichung, "Neue Einreichung")
     return {
         "nummer": einreichung.nummer,
         "token": einreichung.token,
@@ -129,6 +131,9 @@ def status(token: str):
         "adresse": einreichung.objekt.adresse(),
         "nachweis_art": einreichung.nachweis_art.value,
         "nachweis_geloescht": not einreichung.nachweis_vorhanden(),
+        "objekt": einreichung.objekt.model_dump(),
+        "bilder": einreichung.bilder,
+        "verlauf": [e.model_dump() for e in einreichung.verlauf],
     }
 
 
@@ -144,6 +149,98 @@ def bild(nummer: str, bildname: str):
     if treffer is None:
         raise HTTPException(status_code=404, detail="Nicht gefunden")
     pfad = speicher.bild_pfad(treffer, bildname)
+    if pfad is None:
+        raise HTTPException(status_code=404, detail="Nicht gefunden")
+    return FileResponse(pfad)
+
+
+# --- Bearbeiten durch den Einsender ------------------------------------------
+#
+# Der Statuslink ist der Zugang: Wer ihn hat, hat das Objekt eingereicht.
+# Für einen Prototyp ist das angemessen; für den Echtbetrieb gehört an diese
+# Stelle ein Bestätigungscode per Mail bei jeder Änderung.
+
+def _per_token(token: str):
+    einreichung = speicher.holen_per_token(token)
+    if einreichung is None:
+        raise HTTPException(status_code=404, detail="Zu diesem Link gibt es keinen Vorgang.")
+    return einreichung
+
+
+@app.put("/api/vorgang/{token}")
+async def objekt_aendern(
+    token: str,
+    objekt: str = Form(...),
+    nachweis: UploadFile | None = File(default=None),
+):
+    einreichung = _per_token(token)
+    try:
+        objekt_wert = Objektdaten.model_validate(json.loads(objekt))
+    except (ValueError, ValidationError) as e:
+        raise HTTPException(status_code=400, detail=_fehlertext(e)) from e
+
+    neuer_nachweis = None
+    if nachweis is not None and nachweis.filename:
+        neuer_nachweis = _datei_lesen(
+            nachweis, config.NACHWEIS_TYPEN, config.MAX_NACHWEIS_BYTES, "Nachweis", "nachweis",
+        )
+
+    try:
+        geaendert = speicher.aktualisieren(einreichung.id, objekt_wert, neuer_nachweis)
+    except speicher.NeuerNachweisNoetig:
+        raise HTTPException(
+            status_code=400,
+            detail="Bei einer neuen Adresse ist ein neuer Nachweis nötig – der geprüfte galt für die bisherige.",
+        ) from None
+
+    if geaendert.status is Status.IN_PRUEFUNG and einreichung.status is not Status.IN_PRUEFUNG:
+        mail.intern_melden(geaendert, "Adresse geändert, erneute Prüfung nötig")
+
+    return {"status": geaendert.status.value, "verlauf": [e.model_dump() for e in geaendert.verlauf]}
+
+
+@app.post("/api/vorgang/{token}/bilder")
+async def bilder_ergaenzen(token: str, bilder: list[UploadFile] = File(default=[])):
+    einreichung = _per_token(token)
+    echte = [b for b in bilder if b and b.filename]
+    if not echte:
+        raise HTTPException(status_code=400, detail="Keine Datei empfangen.")
+    if len(einreichung.bilder) + len(echte) > config.MAX_BILDER:
+        raise HTTPException(status_code=400, detail=f"Höchstens {config.MAX_BILDER} Fotos je Objekt.")
+
+    gelesen = [
+        _datei_lesen(b, config.BILD_TYPEN, config.MAX_BILD_BYTES, "Bild", "bild")
+        for b in echte
+    ]
+    geaendert = speicher.bilder_ergaenzen(einreichung.id, gelesen)
+    return {"bilder": geaendert.bilder}
+
+
+@app.delete("/api/vorgang/{token}/bilder/{bildname}")
+def bild_entfernen(token: str, bildname: str):
+    einreichung = _per_token(token)
+    if bildname not in einreichung.bilder:
+        raise HTTPException(status_code=404, detail="Dieses Foto gehört nicht zum Vorgang.")
+    geaendert = speicher.bild_entfernen(einreichung.id, bildname)
+    return {"bilder": geaendert.bilder}
+
+
+@app.post("/api/vorgang/{token}/sichtbarkeit")
+def sichtbarkeit(token: str, sichtbar: bool = Form(...)):
+    einreichung = _per_token(token)
+    if sichtbar and einreichung.status is not Status.ZURUECKGEZOGEN:
+        raise HTTPException(status_code=409, detail="Nur zurückgezogene Objekte lassen sich wieder online stellen.")
+    if not sichtbar and einreichung.status is not Status.FREIGEGEBEN:
+        raise HTTPException(status_code=409, detail="Nur freigegebene Objekte lassen sich zurückziehen.")
+    geaendert = speicher.sichtbarkeit_setzen(einreichung.id, sichtbar)
+    return {"status": geaendert.status.value}
+
+
+@app.get("/api/vorgang/{token}/bild/{bildname}")
+def eigenes_bild(token: str, bildname: str):
+    """Eigene Fotos sieht der Einsender auch vor der Freigabe."""
+    einreichung = _per_token(token)
+    pfad = speicher.bild_pfad(einreichung, bildname)
     if pfad is None:
         raise HTTPException(status_code=404, detail="Nicht gefunden")
     return FileResponse(pfad)
@@ -166,6 +263,7 @@ def _vorgang(einreichung: Einreichung, mit_kontakt: bool) -> dict:
         "geprueft_von": einreichung.geprueft_von,
         "ablehnungsgrund": einreichung.ablehnungsgrund,
         "bilder": einreichung.bilder,
+        "verlauf": [e.model_dump() for e in einreichung.verlauf],
     }
     if mit_kontakt:
         daten["kontakt"] = einreichung.kontakt.model_dump()
@@ -215,6 +313,7 @@ def entscheiden(einreichung_id: int, entscheidung: Entscheidung, name: str = Dep
     einreichung = speicher.entscheiden(
         einreichung_id, entscheidung.freigeben, entscheidung.pruefer, entscheidung.grund,
     )
+    mail.entscheidung_melden(einreichung)
     return _vorgang(einreichung, mit_kontakt=True)
 
 

@@ -15,6 +15,60 @@
 </header>
 <main>
   <div id="inhalt" class="karte-status"><p class="intro">Wird geladen …</p></div>
+
+  <section id="verwaltung" hidden>
+    <div class="knopfreihe">
+      <button type="button" id="btn-bearbeiten" class="sekundaer">Angaben ändern</button>
+      <button type="button" id="btn-zurueckziehen" class="sekundaer" hidden>Objekt zurückziehen</button>
+      <button type="button" id="btn-online" class="sekundaer" hidden>Wieder online stellen</button>
+    </div>
+
+    <form id="bearbeiten" hidden novalidate>
+      <fieldset>
+        <legend>Angaben ändern</legend>
+        <p class="hinweis">Fläche, Miete, Ausstattung und Beschreibung ändern Sie direkt. <strong>Ändert sich die Adresse</strong>, ist es ein anderes Objekt – dann geht der Vorgang zurück in die Prüfung und braucht einen neuen Nachweis.</p>
+        <div class="zeile">
+          <label class="breit">Straße*<input name="strasse" maxlength="200" required></label>
+          <label class="schmal">Nr.<input name="hausnummer" maxlength="20"></label>
+        </div>
+        <div class="zeile">
+          <label class="schmal">PLZ*<input name="plz" inputmode="numeric" maxlength="5" required></label>
+          <label class="breit">Ort*<input name="stadt" maxlength="120" required></label>
+        </div>
+        <div class="zeile">
+          <label>Fläche in m²*<input name="flaeche_qm" type="number" min="1" step="any" required></label>
+          <label>Hallenhöhe in m<input name="hallenhoehe_m" type="number" min="1" step="any"></label>
+        </div>
+        <div class="zeile">
+          <label>Nutzung
+            <select name="nutzung">
+              <option value="lager">Lager</option>
+              <option value="produktion">Produktion</option>
+              <option value="umschlag">Umschlag</option>
+              <option value="gemischt">Gemischt</option>
+            </select>
+          </label>
+          <label>Miete €/m²<input name="miete_eur_qm" type="number" min="0" step="any"></label>
+        </div>
+        <label>Verfügbar ab<input name="verfuegbar_ab" maxlength="40"></label>
+        <label class="check"><input type="checkbox" name="rampe"><span>Rampe vorhanden</span></label>
+        <label>Beschreibung<textarea name="beschreibung" rows="4" maxlength="4000"></textarea></label>
+        <label id="nachweis-feld" hidden>Neuer Nachweis zur geänderten Adresse*
+          <input name="nachweis" type="file" accept="application/pdf,image/jpeg,image/png">
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Fotos</legend>
+        <div id="fotos" class="fotos"></div>
+        <label>Fotos ergänzen<input id="neue-fotos" type="file" accept="image/jpeg,image/png,image/webp" multiple></label>
+      </fieldset>
+
+      <button type="submit" class="primaer">Änderungen speichern</button>
+      <p id="formfehler" class="fehler" hidden></p>
+    </form>
+  </section>
+
   <p><a href="/" class="sekundaer">Weitere Halle einstellen</a></p>
 </main>
 <footer class="fuss">
