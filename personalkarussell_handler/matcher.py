@@ -50,6 +50,10 @@ def firma_passt(gemeldet: str | None, propstack_name: str | None) -> bool:
     def wort_passt(g: str, v: str) -> bool:
         return v == g if len(g) <= 3 else v.startswith(g)
 
+    # Das erste markante Wort ist die Marke und muss vorne stehen: sonst passt
+    # "DEUTZ" auf "SDF (Deutz-Fahr)" – passiert beim Import am 07.10.2026.
+    if not wort_passt(gesucht[0], vorhanden[0]):
+        return False
     return all(any(wort_passt(g, v) for v in vorhanden) for g in gesucht)
 
 

@@ -31,6 +31,13 @@ def test_firma_passt_keine_falschen_treffer():
     assert not firma_passt("Aquila", "Centralis Immobilien Management GmbH")
 
 
+def test_firma_passt_marke_muss_vorne_stehen():
+    # Regression Import 07.10.2026: DEUTZ AG wurde mit SDF (Deutz-Fahr) verknüpft
+    assert not firma_passt("DEUTZ AG", "SDF (Deutz-Fahr)")
+    assert firma_passt("DEUTZ AG", "DEUTZ AG")
+    assert firma_passt("Deutz", "Deutz Fahr Deutschland GmbH")
+
+
 def test_match_person_eindeutig_trotz_aehnlichem_namen():
     m = match_person(FELIX_LORENZ_ALT, "Felix", "Lorenz")
     assert m.status == MatchStatus.UNIQUE
