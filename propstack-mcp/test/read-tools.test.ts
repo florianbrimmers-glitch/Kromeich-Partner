@@ -76,13 +76,14 @@ describe("Such-Tools", () => {
 		const out = await searchContacts(client, { page: 2, per_page: 10, query: "Anna" });
 		expect(out.count).toBe(42);
 		expect(out.result).toEqual({ has_more: true, items: [{ id: 1, name: "Anna", phone: "040" }], page: 2, per_page: 10, total: 42 });
+		expect(calls.filter((c) => c.method === "searchContacts")).toHaveLength(1);
 		expect(calls[0].query).toMatchObject({ page: 2, per: 10, q: "Anna" });
 	});
 
 	it("searchDeals lädt Pipelines für Phasennamen und Kontakt/Objekt per include", async () => {
 		const { client, calls } = fakeClient();
 		const out = await searchDeals(client, { pipeline_id: 1 });
-		expect(calls.map((c) => c.method)).toEqual(["listDealPipelines", "searchDeals"]);
+		expect(calls.map((c) => c.method)).toEqual(["listDealPipelines", "searchDeals", "listBrokers"]);
 		expect(calls[1].query).toMatchObject({ deal_pipeline_id: 1, include: "client,property" });
 		expect((out.result as { items: { stage: string }[] }).items[0].stage).toBe("Besichtigt");
 	});

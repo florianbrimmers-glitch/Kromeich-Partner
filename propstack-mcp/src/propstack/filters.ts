@@ -9,6 +9,10 @@ const date = z
 	.string()
 	.regex(/^\d{4}-\d{2}-\d{2}$/, "Datum im Format JJJJ-MM-TT")
 	.describe("Datum JJJJ-MM-TT");
+const tagMatch = z
+	.enum(["any", "all"])
+	.optional()
+	.describe("Bei mehreren tag_ids: any = mindestens eines (Standard), all = alle gleichzeitig");
 const archived = z
 	.enum(["exclude", "include", "only"])
 	.optional()
@@ -49,8 +53,9 @@ export const contactFilterShape = {
 	query: z.string().min(1).max(200).optional().describe("Volltext: Name, E-Mail, Anschrift, Telefon"),
 	email: z.string().max(200).optional().describe("Exakte E-Mail"),
 	phone: z.string().max(50).optional().describe("Exakte Telefonnummer (Leerzeichen/Bindestriche egal)"),
-	tag_ids: ids.optional().describe("Kontakt muss diese Merkmal-IDs haben (IDs über list_tags)"),
-	exclude_tag_ids: ids.optional().describe("Kontakt darf diese Merkmal-IDs nicht haben"),
+	tag_ids: ids.optional().describe("Merkmal-IDs (über list_tags). Verknüpfung über tag_match, Standard: mindestens eines"),
+	tag_match: tagMatch,
+	exclude_tag_ids: ids.optional().describe("Kontakt hat keines dieser Merkmale"),
 	source_ids: ids.optional().describe("Kontakt-Quellen-IDs (über list_reference kind=contact_sources)"),
 	broker_id: id.optional().describe("Betreuer (Propstack-Nutzer-ID, über list_reference kind=users)"),
 	project_ids: ids.optional().describe("Mit diesen Projekten verknüpft"),
@@ -97,9 +102,17 @@ const range = (label: string) => ({
 });
 
 export const objectFilterShape = {
-	query: z.string().min(1).max(200).optional().describe("Volltext: Einheitennr., Straße, PLZ, Ort, Bezirk, Exposé-ID"),
+	query: z
+		.string()
+		.min(1)
+		.max(200)
+		.optional()
+		.describe("Volltext über Einheitennr., Straße, PLZ, Ort, Bezirk, Exposé-ID – unscharf. Für Orte city bzw. zip_prefix nutzen"),
+	city: z.string().min(2).max(100).optional().describe("Exakter Ort, z. B. Leverkusen (auch Ortsteile wie Leverkusen-Opladen)"),
+	zip_prefix: z.string().regex(/^\d{1,5}$/).optional().describe("PLZ oder PLZ-Anfang, z. B. 51 oder 51373"),
 	status_ids: ids.optional().describe("Objekt-Status-IDs (über list_reference kind=object_statuses)"),
-	tag_ids: ids.optional().describe("Objekt hat eines dieser Merkmale (IDs über list_tags entity=objects)"),
+	tag_ids: ids.optional().describe("Merkmal-IDs (über list_tags entity=objects). Verknüpfung über tag_match, Standard: mindestens eines"),
+	tag_match: tagMatch,
 	marketing_type: z.enum(["BUY", "RENT"]).optional().describe("BUY = Kauf, RENT = Miete"),
 	rs_type: z.string().regex(/^[A-Z_]+$/).optional().describe("Objektart, z. B. HOUSE, APARTMENT, OFFICE, INDUSTRY, INVEST_HALL_STORAGE"),
 	project_id: id.optional(),

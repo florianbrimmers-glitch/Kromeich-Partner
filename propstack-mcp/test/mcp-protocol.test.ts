@@ -70,6 +70,7 @@ describe("MCP-Protokoll", () => {
 	it("führt ein Tool aus, liefert JSON-Text und schreibt das Audit-Log", async () => {
 		const { client, audits } = await connect({
 			getContact: async () => ({ id: 5, identity_number: "GEHEIM", name: "Anna" }),
+			listBrokers: async () => [],
 		});
 		const result = await client.callTool({ arguments: { id: 5 }, name: "get_contact" });
 		expect(result.isError).toBeFalsy();
