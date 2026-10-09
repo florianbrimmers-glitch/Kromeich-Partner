@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { PropstackClient, PropstackError, retryDelayMs } from "../src/propstack-client";
+import { buildQuery, PropstackClient, PropstackError, retryDelayMs, toPage } from "../src/propstack-client";
 
 function scriptedFetch(responses: Response[]) {
 	const requests: { url: string; init?: RequestInit }[] = [];
@@ -39,9 +39,10 @@ describe("PropstackClient", () => {
 	});
 
 	it.each([
-		[401, /API-Key abgelehnt/],
+		[401, /Zugriff verweigert/],
 		[500, /Serverfehler/],
-		[404, /fehlgeschlagen \(404\)/],
+		[404, /Nicht gefunden \(404\)/],
+		[422, /fehlgeschlagen \(422\)/],
 	])("meldet %s ohne Retry", async (status, message) => {
 		const { fetchFn, requests } = scriptedFetch([json({ secret: "nicht durchreichen" }, status)]);
 		const client = new PropstackClient({ apiKey: "k", fetchFn });
@@ -63,5 +64,44 @@ describe("retryDelayMs", () => {
 	});
 	it("ignoriert unbrauchbares Retry-After", () => {
 		expect(retryDelayMs(0, "Wed, 21 Oct 2026 07:28:00 GMT")).toBe(1000);
+	});
+});
+
+describe("buildQuery / toPage", () => {
+	it("baut Rails-Arrays, Booleans und lässt Leeres weg", () => {
+		expect(buildQuery({ a: [1, 2], b: true, c: false, d: undefined, e: "", f: null, g: "x y" })).toBe(
+			"?a%5B%5D=1&a%5B%5D=2&b=1&c=0&g=x+y",
+		);
+		expect(buildQuery({})).toBe("");
+	});
+
+	it("liest nackte Listen und {data, meta}", () => {
+		expect(toPage([{ id: 1 }, null, "x"])).toEqual({ rows: [{ id: 1 }], total: null });
+		expect(toPage({ data: [{ id: 2 }], meta: { total_count: 7 } })).toEqual({ rows: [{ id: 2 }], total: 7 });
+		expect(toPage({ foo: 1 })).toEqual({ rows: [], total: null });
+	});
+});
+
+describe("Request-Budget", () => {
+	it("bricht nach maxRequests mit verständlicher Meldung ab", async () => {
+		const { fetchFn } = scriptedFetch([json([]), json([]), json([])]);
+		const client = new PropstackClient({ apiKey: "k", fetchFn, maxRequests: 2 });
+		await client.listBrokers();
+		await client.listBrokers();
+		await expect(client.listBrokers()).rejects.toThrow(/Filter enger/);
+		expect(client.requestsUsed).toBe(2);
+	});
+
+	it("hängt with_meta an Suchen an und nutzt die dokumentierten Pfade", async () => {
+		const { fetchFn, requests } = scriptedFetch([json({ data: [], meta: { total_count: 0 } }), json([]), json({ data: [] })]);
+		const client = new PropstackClient({ apiKey: "k", fetchFn });
+		await client.searchUnits({ status: "1,2" });
+		await client.getUnit(5);
+		await client.searchDeals({ deal_stage_ids: [3] });
+		expect(requests.map((r) => r.url.replace("https://api.propstack.de/v1", ""))).toEqual([
+			"/units?status=1%2C2&with_meta=1",
+			"/units/5?new=1",
+			"/client_properties?deal_stage_ids%5B%5D=3&with_meta=1",
+		]);
 	});
 });
