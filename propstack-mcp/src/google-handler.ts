@@ -20,7 +20,17 @@ import {
 const app = new Hono<{ Bindings: Env & { OAUTH_PROVIDER: OAuthHelpers } }>();
 
 app.get("/authorize", async (c) => {
-	const oauthReqInfo = await c.env.OAUTH_PROVIDER.parseAuthRequest(c.req.raw);
+	let oauthReqInfo: AuthRequest;
+	try {
+		oauthReqInfo = await c.env.OAUTH_PROVIDER.parseAuthRequest(c.req.raw);
+	} catch (error) {
+		// z. B. unbekannte/abgelaufene Client-Registrierung → 400 statt 500
+		console.warn("Ungültige Autorisierungsanfrage:", (error as Error).message);
+		return c.text(
+			"Ungültige oder abgelaufene Client-Registrierung. Bitte die Verbindung in Claude entfernen und neu hinzufügen.",
+			400,
+		);
+	}
 	const { clientId } = oauthReqInfo;
 	if (!clientId) {
 		return c.text("Invalid request", 400);
