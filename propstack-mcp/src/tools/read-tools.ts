@@ -53,6 +53,10 @@ type Client = Pick<
 
 const SORT_ORDER = z.enum(["asc", "desc"]).optional();
 
+/** Seitengröße beim vollständigen Laden (Doku: möglichst ≤ 500). */
+const LOAD_PAGE_SIZE = 500;
+const LOAD_MAX_PAGES = 10;
+
 function pageParams(input: { page?: number; per_page?: number }) {
 	return { page: input.page ?? 1, per: input.per_page ?? 20 };
 }
@@ -74,6 +78,67 @@ function asObject(value: unknown): Raw {
 	return value as Raw;
 }
 
+/** Alle Treffer einer Suche laden – mit Seitenbudget, Ergebnis kennzeichnet Vollständigkeit. */
+export async function loadAll(
+	search: (q: Query) => Promise<Page>,
+	query: Query,
+	pageSize = LOAD_PAGE_SIZE,
+	maxPages = LOAD_MAX_PAGES,
+): Promise<{ rows: Raw[]; complete: boolean; total: number | null }> {
+	const rows: Raw[] = [];
+	let total: number | null = null;
+	for (let page = 1; page <= maxPages; page++) {
+		const result = await search({ ...query, page, per: pageSize });
+		total = result.total ?? total;
+		rows.push(...result.rows);
+		if (result.rows.length < pageSize || (total !== null && rows.length >= total)) {
+			return { complete: true, rows, total };
+		}
+	}
+	return { complete: false, rows, total };
+}
+
+/**
+ * UND-Verknüpfung von Merkmalen: Propstack verknüpft mehrere Merkmale per ODER.
+ * Deshalb je Merkmal alle Treffer laden und die Schnittmenge bilden.
+ */
+async function rowsWithAllTags(
+	search: (q: Query) => Promise<Page>,
+	base: Query,
+	tagIds: number[],
+	tagParam: (id: number) => Query,
+): Promise<Raw[]> {
+	const sets: Raw[][] = [];
+	for (const id of tagIds) {
+		const loaded = await loadAll(search, { ...base, ...tagParam(id) });
+		if (!loaded.complete) {
+			throw new PropstackError(
+				`Merkmal ${id} hat zu viele Treffer für eine UND-Verknüpfung (> ${LOAD_PAGE_SIZE * LOAD_MAX_PAGES}). Bitte zusätzlich filtern.`,
+				400,
+			);
+		}
+		sets.push(loaded.rows);
+	}
+	sets.sort((a, b) => a.length - b.length);
+	const [smallest, ...others] = sets;
+	const otherIds = others.map((rows) => new Set(rows.map((r) => r.id)));
+	return smallest.filter((row) => otherIds.every((ids) => ids.has(row.id)));
+}
+
+function slicePage(rows: Raw[], params: { page: number; per: number }): Page {
+	return { rows: rows.slice((params.page - 1) * params.per, params.page * params.per), total: rows.length };
+}
+
+/** Nutzer-ID → Name (ein Request je Tool-Aufruf). */
+async function brokerNames(client: Client): Promise<Map<unknown, string>> {
+	return new Map(brokerRows(await client.listBrokers()).map((b) => [b.id, String(scalar(b.name))]));
+}
+
+function withBrokerName<T extends Record<string, unknown>>(item: T, names: Map<unknown, string>): T {
+	const name = item.broker_id !== undefined ? names.get(item.broker_id) : undefined;
+	return name ? { ...item, broker_name: name } : item;
+}
+
 // ---------- Kontakte ----------
 
 export const searchContactsInput = {
@@ -87,13 +152,20 @@ export async function searchContacts(
 	input: ContactFilters & { sort_by?: string; order?: "asc" | "desc"; page?: number; per_page?: number },
 ): Promise<ToolOutput> {
 	const params = pageParams(input);
-	const page = await client.searchContacts({ ...contactQuery(input), order: input.order, sort_by: input.sort_by, ...params });
-	const items = page.rows.map(mapContactSummary);
+	const base = { ...contactQuery(input), order: input.order, sort_by: input.sort_by };
+	const tagIds = input.tag_ids ?? [];
+	const page =
+		input.tag_match === "all" && tagIds.length > 1
+			? slicePage(await rowsWithAllTags((q) => client.searchContacts(q), base, tagIds, (id) => ({ group: [id] })), params)
+			: await client.searchContacts({ ...base, ...params });
+	const names = await brokerNames(client);
+	const items = page.rows.map((row) => withBrokerName(mapContactSummary(row), names));
 	return { count: page.total ?? items.length, result: pageResult(page, items, params) };
 }
 
 export async function getContact(client: Client, input: { id: number }): Promise<ToolOutput> {
-	return { count: 1, result: mapContactDetail(asObject(await client.getContact(input.id))) };
+	const contact = mapContactDetail(asObject(await client.getContact(input.id)));
+	return { count: 1, result: withBrokerName(contact, await brokerNames(client)) };
 }
 
 // ---------- Objekte ----------
@@ -106,14 +178,85 @@ export const searchObjectsInput = {
 	order: SORT_ORDER,
 };
 
+function rowStatusId(row: Raw): unknown {
+	const status = (row.status ?? row.property_status) as Raw | null | undefined;
+	return status && typeof status === "object" ? status.id : undefined;
+}
+
+const normalize = (text: unknown) => (typeof text === "string" ? text.trim().toLocaleLowerCase("de") : "");
+
+/** Ort exakt (inkl. Ortsteile „Ort-Teil“ bzw. „Ort Teil“), PLZ als Präfix. */
+export function matchesLocation(row: Raw, city?: string, zipPrefix?: string): boolean {
+	if (city) {
+		const want = normalize(city);
+		const have = normalize(scalar(row.city));
+		if (!(have === want || have.startsWith(`${want}-`) || have.startsWith(`${want} `))) return false;
+	}
+	if (zipPrefix && !String(scalar(row.zip_code) ?? "").trim().startsWith(zipPrefix)) return false;
+	return true;
+}
+
 export async function searchObjects(
 	client: Client,
 	input: ObjectFilters & { sort_by?: string; order?: "asc" | "desc"; page?: number; per_page?: number },
 ): Promise<ToolOutput> {
 	const params = pageParams(input);
-	const page = await client.searchUnits({ ...objectQuery(input), order: input.order, sort_by: input.sort_by, ...params });
-	const items = page.rows.map(mapUnitSummary);
-	return { count: page.total ?? items.length, result: pageResult(page, items, params) };
+	const search = (q: Query) => client.searchUnits(q);
+	const statusIds = input.status_ids ?? [];
+	const tagIds = input.tag_ids ?? [];
+	const tagAll = input.tag_match === "all" && tagIds.length > 1;
+	const clientSide = Boolean(input.city || input.zip_prefix || tagAll);
+
+	let page: Page;
+	let withoutStatus: number | undefined;
+	if (clientSide) {
+		// Ort/PLZ/UND-Merkmale werden hier gefiltert; Status ebenfalls, um Objekte ohne Status zu zählen.
+		const base: Query = {
+			...objectQuery({ ...input, status_ids: undefined }),
+			order: input.order,
+			q: input.query ?? input.city ?? input.zip_prefix,
+			sort_by: input.sort_by,
+		};
+		let rows: Raw[];
+		if (tagAll) {
+			rows = await rowsWithAllTags(search, base, tagIds, (id) => ({ group: String(id) }));
+		} else {
+			const loaded = await loadAll(search, base);
+			if (!loaded.complete) throw new PropstackError("Zu viele Treffer für den Ortsfilter. Bitte zusätzlich filtern.", 400);
+			rows = loaded.rows;
+		}
+		rows = rows.filter((row) => matchesLocation(row, input.city, input.zip_prefix));
+		if (statusIds.length) {
+			withoutStatus = rows.filter((row) => rowStatusId(row) === undefined || rowStatusId(row) === null).length;
+			rows = rows.filter((row) => statusIds.includes(rowStatusId(row) as number));
+		}
+		page = slicePage(rows, params);
+	} else {
+		const query = { ...objectQuery(input), order: input.order, sort_by: input.sort_by };
+		page = await search({ ...query, ...params });
+		if (statusIds.length) {
+			// Objekte ohne Status = alle ohne Statusfilter − alle mit irgendeinem Status.
+			const statuses = (await client.listPropertyStatuses()).rows.map((s) => s.id).join(",");
+			const [all, anyStatus] = await Promise.all([
+				search({ ...query, page: 1, per: 1, status: undefined }),
+				search({ ...query, page: 1, per: 1, status: statuses }),
+			]);
+			if (all.total !== null && anyStatus.total !== null) withoutStatus = all.total - anyStatus.total;
+		}
+	}
+
+	const names = await brokerNames(client);
+	const items = page.rows.map((row) => withBrokerName(mapUnitSummary(row), names));
+	return {
+		count: page.total ?? items.length,
+		result: compact({
+			...pageResult(page, items, params),
+			excluded_without_status: withoutStatus || undefined,
+			note: withoutStatus
+				? `${withoutStatus} passende Objekte haben keinen Status und sind deshalb nicht enthalten.`
+				: undefined,
+		}),
+	};
 }
 
 export async function getObject(client: Client, input: { id: number }): Promise<ToolOutput> {
@@ -146,23 +289,9 @@ export async function searchDeals(
 		sort_by: input.sort_by,
 		...params,
 	});
-	const items = page.rows.map((row) => mapDeal(row, index));
+	const names = await brokerNames(client);
+	const items = page.rows.map((row) => withBrokerName(mapDeal(row, index), names));
 	return { count: page.total ?? items.length, result: pageResult(page, items, params) };
-}
-
-/** Alle Deals zu einem Filter laden (für Wertsummen), mit Seitenbudget. */
-async function loadAllDeals(client: Client, query: Query): Promise<{ rows: Raw[]; complete: boolean; total: number | null }> {
-	const rows: Raw[] = [];
-	let total: number | null = null;
-	for (let page = 1; page <= DEAL_MAX_PAGES; page++) {
-		const result = await client.searchDeals({ ...query, page, per: DEAL_PAGE_SIZE });
-		total = result.total ?? total;
-		rows.push(...result.rows);
-		if (result.rows.length < DEAL_PAGE_SIZE || (total !== null && rows.length >= total)) {
-			return { complete: true, rows, total };
-		}
-	}
-	return { complete: false, rows, total };
 }
 
 const round = (n: number) => Math.round(n * 100) / 100;
@@ -173,18 +302,35 @@ async function dealsByStage(client: Client, pipeline: Raw, filters: DealFilters)
 	const stageList = (Array.isArray(pipeline.deal_stages) ? (pipeline.deal_stages as Raw[]) : [])
 		.filter((s) => typeof s.id === "number")
 		.sort((a, b) => Number(a.position ?? 0) - Number(b.position ?? 0));
-	const { rows, complete, total } = await loadAllDeals(client, { ...dealQuery(filters), deal_pipeline_id: pipelineId });
+	const { rows, complete, total } = await loadAll(
+		(q) => client.searchDeals(q),
+		{ ...dealQuery(filters), deal_pipeline_id: pipelineId },
+		DEAL_PAGE_SIZE,
+		DEAL_MAX_PAGES,
+	);
 
+	const stageIds = new Set(stageList.map((s) => s.id));
 	const byStage = new Map<number, { count: number; sum: number; withoutPrice: number }>();
+	let outsideStages = 0;
+	let priced = 0;
 	for (const row of rows) {
 		const stageId = row.deal_stage_id as number;
+		if (!stageIds.has(stageId)) {
+			outsideStages++;
+			continue;
+		}
 		const bucket = byStage.get(stageId) ?? { count: 0, sum: 0, withoutPrice: 0 };
 		bucket.count++;
 		const price = dealPrice(row);
 		if (price === null) bucket.withoutPrice++;
-		else bucket.sum += price;
+		else {
+			bucket.sum += price;
+			priced++;
+		}
 		byStage.set(stageId, bucket);
 	}
+	// Ohne gepflegte Preise sind Summen keine Aussage – dann gar keine ausgeben statt „0 €“.
+	const hasValues = priced > 0;
 
 	const totals = { count: 0, sum_price: 0, weighted_value: 0 };
 	const stagesOut = stageList.map((stage) => {
@@ -199,20 +345,32 @@ async function dealsByStage(client: Client, pipeline: Raw, filters: DealFilters)
 			name: scalar(stage.name),
 			chance,
 			count: bucket.count,
-			sum_price: round(bucket.sum),
-			weighted_value: weighted === undefined ? undefined : round(weighted),
-			deals_without_price: bucket.withoutPrice || undefined,
+			sum_price: hasValues ? round(bucket.sum) : undefined,
+			weighted_value: hasValues && weighted !== undefined ? round(weighted) : undefined,
+			deals_without_price: hasValues ? bucket.withoutPrice || undefined : undefined,
 		});
 	});
-	totals.sum_price = round(totals.sum_price);
-	totals.weighted_value = round(totals.weighted_value);
-	return {
+
+	const notes = [
+		complete ? undefined : `Nur die ersten ${rows.length} von ${total ?? "?"} Deals ausgewertet. Bitte Filter enger setzen.`,
+		outsideStages ? `${outsideStages} Deals sind keiner Phase dieser Pipeline zugeordnet (z. B. unqualifiziert) und nicht in den Phasen enthalten.` : undefined,
+		hasValues ? undefined : "Kein Deal hat einen Preis – Summen und gewichtete Werte sind deshalb nicht verfügbar.",
+	].filter(Boolean);
+
+	return compact({
 		complete,
-		note: complete ? undefined : `Nur die ersten ${rows.length} von ${total ?? "?"} Deals ausgewertet. Bitte Filter enger setzen.`,
 		pipeline: { id: pipelineId, name: scalar(pipeline.name) },
 		stages: stagesOut,
-		totals,
-	};
+		totals: compact({
+			count: totals.count,
+			sum_price: hasValues ? round(totals.sum_price) : undefined,
+			weighted_value: hasValues ? round(totals.weighted_value) : undefined,
+		}),
+		deals_total: rows.length,
+		outside_stages: outsideStages || undefined,
+		values_available: hasValues,
+		note: notes.length ? notes.join(" ") : undefined,
+	});
 }
 
 export const pipelineStatusInput = {
@@ -245,7 +403,7 @@ export async function pipelineStatus(
 	const pipeline = pipelines.find((p) => p.id === input.pipeline_id);
 	if (!pipeline) throw new PropstackError(`Pipeline ${input.pipeline_id} nicht gefunden`, 404);
 	const result = await dealsByStage(client, pipeline, input);
-	return { count: result.totals.count, result };
+	return { count: result.deals_total ?? 0, result };
 }
 
 // ---------- Merkmale, Felder, Stammdaten ----------
@@ -397,6 +555,22 @@ export async function aggregate(client: Client, input: AggregateInput): Promise<
 	const allowed = GROUP_BY[input.entity] as readonly string[];
 	if (!allowed.includes(input.group_by)) {
 		throw new PropstackError(`group_by=${input.group_by} ist für ${input.entity} nicht möglich. Erlaubt: ${allowed.join(", ")}`, 400);
+	}
+
+	// Filter, die nur in den Such-Tools clientseitig umgesetzt sind, hier ablehnen statt falsch zu zählen.
+	for (const f of [input.contact_filters, input.object_filters]) {
+		if (f?.tag_match === "all" && (f.tag_ids?.length ?? 0) > 1) {
+			throw new PropstackError(
+				"aggregate kann mehrere Merkmale nur mit ODER verknüpfen (tag_match=any). Für UND bitte search_contacts bzw. search_objects mit tag_match=all nutzen – total ist die Anzahl.",
+				400,
+			);
+		}
+	}
+	if (input.object_filters?.city || input.object_filters?.zip_prefix) {
+		throw new PropstackError(
+			"aggregate unterstützt city/zip_prefix nicht. Bitte search_objects mit city bzw. zip_prefix nutzen (total ist die Anzahl) oder query verwenden.",
+			400,
+		);
 	}
 
 	// Deals je Phase: einmal alle Deals laden und summieren.

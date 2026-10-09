@@ -28,6 +28,10 @@ Grundsätze:
 - **Fehler:** Propstack-Fehler (401/403/404/429/5xx) kommen als verständliche Meldung zurück, bei 429 mit Retry und Backoff. Interna werden nicht ausgegeben.
 - **Sichtbarkeit:** Alle Abfragen laufen über einen API-Key (Entscheidung Florian). Jeder angemeldete Nutzer sieht alles, was der Key sieht. Propstack-Sichtbarkeitsregeln je Nutzer oder Team gelten im Connector nicht.
 
+- **Merkmale:** Propstack verknüpft mehrere Merkmale mit ODER. `tag_match: "all"` bildet die UND-Schnittmenge serverseitig (je Merkmal max. 5.000 Treffer). `aggregate` kann nur ODER und lehnt `all` ab.
+- **Orte:** `query` ist Propstacks unscharfe Volltextsuche (findet z. B. auch „Leverkusener Str.“ in Mannheim). `city`/`zip_prefix` filtern exakt nach dem Ort- bzw. PLZ-Feld. Bei `status_ids` meldet `search_objects`, wie viele passende Objekte **keinen Status** haben.
+- **Pipeline-Werte:** Deals ohne Phase dieser Pipeline (z. B. unqualifiziert) werden als `outside_stages` gemeldet. Hat kein Deal einen Preis, gibt es keine Summen statt „0 €“. Die Gewichtung nutzt die in Propstack hinterlegte Phasen-Wahrscheinlichkeit. Eine Phase „Absage“ sollte dort 0 % haben.
+
 Bewusste Lücken: Ein einzelner Deal per ID und die Kontakt-Status-Liste sind nur in der V2-Doku vorhanden. Deals werden daher über `search_deals` abgerufen, Kontakte lassen sich nicht nach Status gruppieren.
 
 ## Audit-Log (D1)
@@ -131,6 +135,12 @@ Prüfen: `curl -i -X POST https://propstack-mcp.kromeichpartner.workers.dev/mcp`
 
 Ohne diese Secrets wird das Deployment mit einer Warnung übersprungen. Die Worker-Secrets (Google, Propstack, Cookie-Key) bleiben in Cloudflare, ein Deployment löscht sie nicht.
 
+### 5c. Nach einem Deployment mit neuen oder geänderten Tools
+
+Claude speichert die Tool-Liste zwischen. Nach jedem Deployment, das Tools hinzufügt oder ändert:
+1. **Organisationseinstellungen → Konnektoren → Propstack → Tools → neu laden** (Org-Owner).
+2. Jede Person: **Anpassen → Konnektoren → Propstack** → Tools neu laden bzw. trennen und neu verbinden. Danach einen **neuen** Chat öffnen.
+
 ### 6. Connector in Claude eintragen
 
 - **Team/Enterprise (empfohlen, einmal für alle):** Ein Org-Owner geht zu claude.ai → **Admin-Einstellungen → Connectors → Add custom connector**. Name: `Propstack`, URL: `https://propstack-mcp.kromeichpartner.workers.dev/mcp`. Client-ID und Secret leer lassen (Dynamic Client Registration).
@@ -161,6 +171,8 @@ Die Logik ist per Unit-Tests abgedeckt. Die echten Propstack-Antworten lassen si
 | Auswertung | „Wie viele Kontakte haben wir je Quelle?“ (Gesamtzahl mit Propstack vergleichen) |
 | Filter mit Listen | Suche mit zwei Merkmalen gleichzeitig. Prüft, ob Propstack `group[]=` versteht |
 | Audit-Log | Danach in D1: `SELECT * FROM audit_log ORDER BY ts DESC LIMIT 10;` |
+
+Ergebnis des ersten Live-Tests (09.10.2026) und Korrekturen: Merkmale wurden per ODER verknüpft (78 + 85 → 135 statt 28), jetzt gibt es `tag_match`. Die Ortssuche war unscharf (Mannheim bei „Leverkusen“), jetzt gibt es `city`/`zip_prefix`. Objekte ohne Status fielen stillschweigend weg, jetzt werden sie gemeldet. Betreuer kamen nur als ID, jetzt mit `broker_name`. Pipeline-Summen zeigten 0 € ohne Hinweis, jetzt `values_available`/`outside_stages`. Datenbefunde (kein Code): Keine Kontakte haben eine Quelle gesetzt, Deals haben keine Preise, „Absage“ ist in Propstack mit 5 % gewichtet, und `last_contact_at` liegt teils in der Zukunft.
 
 ## Bekannte Grenzen (bewusste Entscheidungen Phase 1)
 

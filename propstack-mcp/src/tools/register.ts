@@ -98,7 +98,7 @@ export function registerReadTools(server: McpServer, ctx: ToolContext): void {
 
 	register(
 		"search_contacts",
-		"Kontakte in Propstack suchen (Personen und Firmen). Liefert eine gekürzte Trefferliste mit Gesamtzahl. Merkmal-, Quellen- und Nutzer-IDs vorher über list_tags bzw. list_reference holen.",
+		"Kontakte in Propstack suchen (Personen und Firmen). Liefert eine gekürzte Trefferliste mit Gesamtzahl und Betreuername. Mehrere Merkmale: tag_match=any (mindestens eines, Standard) oder all (alle gleichzeitig). Merkmal-, Quellen- und Nutzer-IDs vorher über list_tags bzw. list_reference holen. Hinweis: last_contact_at kann in der Zukunft liegen, wenn Termine geplant sind.",
 		{ ...searchContactsInput, ...paginationShape },
 		searchContacts,
 	);
@@ -110,7 +110,7 @@ export function registerReadTools(server: McpServer, ctx: ToolContext): void {
 	);
 	register(
 		"search_objects",
-		"Objekte (Einheiten) in Propstack suchen, z. B. nach Ort, Status, Vermarktungsart, Objektart, Preis- und Flächenbereichen. Liefert eine gekürzte Trefferliste mit Gesamtzahl.",
+		"Objekte (Einheiten) in Propstack suchen. Für Orte immer city bzw. zip_prefix nutzen, query ist eine unscharfe Volltextsuche. Weitere Filter: Status, Vermarktungsart, Objektart, Merkmale (tag_match any/all), Preis- und Flächenbereiche. Liefert eine gekürzte Trefferliste mit Gesamtzahl. Bei Statusfilter wird gemeldet, wie viele passende Objekte keinen Status haben.",
 		{ ...searchObjectsInput, ...paginationShape },
 		searchObjects,
 	);
@@ -128,7 +128,7 @@ export function registerReadTools(server: McpServer, ctx: ToolContext): void {
 	);
 	register(
 		"pipeline_status",
-		"Ohne pipeline_id: alle Deal-Pipelines mit ihren Phasen. Mit pipeline_id: Stand der Pipeline je Phase – Anzahl Deals, Summe Preis und gewichteter Wert (Preis × Phasen-Wahrscheinlichkeit), optional gefiltert.",
+		"Ohne pipeline_id: alle Deal-Pipelines mit ihren Phasen. Mit pipeline_id: Stand der Pipeline je Phase – Anzahl Deals, Summe Preis und gewichteter Wert (Preis × in Propstack hinterlegte Phasen-Wahrscheinlichkeit), optional gefiltert. Deals ohne Phase werden separat gezählt; ohne gepflegte Deal-Preise gibt es keine Summen.",
 		pipelineStatusInput,
 		pipelineStatus,
 	);
@@ -152,7 +152,7 @@ export function registerReadTools(server: McpServer, ctx: ToolContext): void {
 	);
 	register(
 		"aggregate",
-		"Auswertungen: zählt Kontakte, Objekte oder Deals gruppiert nach einer Dimension, mit denselben Filtern wie die Such-Tools. Deals nach Phase liefern zusätzlich Summe Preis und gewichteten Wert.",
+		"Auswertungen: zählt Kontakte, Objekte oder Deals gruppiert nach einer Dimension, mit den Filtern der Such-Tools (Merkmale nur mit ODER, ohne city/zip_prefix). Deals nach Phase liefern zusätzlich Summe Preis und gewichteten Wert.",
 		aggregateInput,
 		aggregate,
 	);
