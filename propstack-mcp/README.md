@@ -46,10 +46,9 @@ Propstack → **Verwaltung → API-Schlüssel**. Ein V1-Key mit Leserecht auf Nu
 
 ```bash
 npx wrangler login                                 # mit dem Firmen-Account kromeichpartner
-npx wrangler kv namespace create OAUTH_KV
 ```
 
-Die ausgegebene `id` in `wrangler.jsonc` bei `kv_namespaces[0].id` eintragen und dort `<KV-ID-eintragen>` ersetzen. Die ID ist kein Secret.
+Der KV-Namespace `propstack-mcp-OAUTH_KV` (ID `759b347676ea454c98f8dbd171d4070f`) ist bereits angelegt und in `wrangler.jsonc` eingetragen. Die ID ist kein Secret.
 
 ### 4. Lokal testen (vor jedem Deployment)
 

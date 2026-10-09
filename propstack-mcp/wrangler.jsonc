@@ -26,7 +26,7 @@
     {
       // OAuth-State + Cache Mail → Propstack-Nutzer-ID (Präfix "propstack-broker:")
       "binding": "OAUTH_KV",
-      "id": "<KV-ID-eintragen>"
+      "id": "759b347676ea454c98f8dbd171d4070f"
     }
   ],
   "observability": {
