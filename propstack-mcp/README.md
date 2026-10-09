@@ -3,7 +3,42 @@
 Remote-MCP-Server auf Cloudflare Workers. Über ihn arbeitet das Team aus Claude heraus mit Propstack.
 Basis ist die Cloudflare-Vorlage [`remote-mcp-google-oauth`](https://github.com/cloudflare/ai/tree/main/demos/remote-mcp-google-oauth).
 
-**Stand: Phase 1, live seit 09.10.2026** unter `https://propstack-mcp.kromeichpartner.workers.dev/mcp`. Login über Google und genau ein Tool: `whoami`. Abnahmetests lokal und Ende-zu-Ende in Claude bestanden.
+Live unter `https://propstack-mcp.kromeichpartner.workers.dev/mcp`, als Organisations-Connector in Claude eingetragen.
+
+- **Phase 1 (abgenommen 09.10.2026):** Login über Google, Propstack-Nutzer-Abgleich, `whoami`.
+- **Phase 2:** Lese-Tools und Audit-Log in D1. Kein Tool schreibt nach Propstack.
+
+## Tools (Phase 2)
+
+| Tool | Zweck | Propstack-Endpunkt (V1) |
+|---|---|---|
+| `whoami` | Angemeldeter Nutzer und Propstack-ID | – |
+| `search_contacts` / `get_contact` | Kontakte suchen bzw. abrufen | `GET /contacts`, `GET /contacts/:id` |
+| `search_objects` / `get_object` | Objekte (Einheiten) suchen bzw. abrufen | `GET /units`, `GET /units/:id?new=1` |
+| `search_deals` | Deals suchen und abrufen (Kontakt, Objekt, Phase, Preis) | `GET /client_properties` |
+| `pipeline_status` | Pipelines mit Phasen; je Phase Anzahl, Summe Preis, gewichteter Wert | `GET /deal_pipelines`, `GET /client_properties` |
+| `list_tags` | Merkmale je Entität mit IDs | `GET /groups`, `GET /super_groups` |
+| `list_fields` | Custom-Felder je Entität | `GET /custom_field_groups` |
+| `list_reference` | Objekt-Status, Kontakt-Quellen, Nutzer, Projekte mit IDs | `GET /property_statuses`, `/contact_sources`, `/brokers`, `/projects` |
+| `aggregate` | Zählen nach Dimension, mit allen Such-Filtern; Deals je Phase mit Summen | `with_meta=1&per=1` → `meta.total_count` |
+
+Grundsätze:
+- **Kürzen:** Antworten enthalten nur relevante Felder (`src/propstack/mappers.ts`). Bei Kontakten werden Ausweis- und Steuernummer, Geburtsdaten, Einkommen, Nationalität und der Kundenportal-Token **nie** ausgegeben.
+- **Begrenzen:** max. 50 Treffer pro Seite und max. 45 Propstack-Anfragen pro Tool-Aufruf. `aggregate` bricht bei mehr als 40 Gruppen mit einem Hinweis ab, statt Propstack zu fluten.
+- **Fehler:** Propstack-Fehler (401/403/404/429/5xx) kommen als verständliche Meldung zurück, bei 429 mit Retry und Backoff. Interna werden nicht ausgegeben.
+- **Sichtbarkeit:** Alle Abfragen laufen über einen API-Key (Entscheidung Florian). Jeder angemeldete Nutzer sieht alles, was der Key sieht. Propstack-Sichtbarkeitsregeln je Nutzer oder Team gelten im Connector nicht.
+
+Bewusste Lücken: Ein einzelner Deal per ID und die Kontakt-Status-Liste sind nur in der V2-Doku vorhanden. Deals werden daher über `search_deals` abgerufen, Kontakte lassen sich nicht nach Status gruppieren.
+
+## Audit-Log (D1)
+
+Jeder Tool-Aufruf wird in `propstack-mcp-audit` (Tabelle `audit_log`, Schema in `migrations/`) protokolliert: Zeitpunkt, Mail, Propstack-ID, Tool, Parameter (max. 2000 Zeichen), Trefferzahl, Erfolg/Fehler, Dauer. Ergebnisdaten werden **nicht** gespeichert. Ein täglicher Cron (03:17 UTC) löscht Einträge, die älter als **12 Monate** sind. Bei Lese-Tools gilt „best effort“: Fällt das Log aus, läuft die Abfrage trotzdem und der Fehler wird geloggt. Ab Phase 3 (Schreiben) muss das Log vor jedem Write erfolgreich sein.
+
+Auswerten (Cloudflare-Dashboard → D1 → `propstack-mcp-audit` → Console, oder `npx wrangler d1 execute AUDIT_DB --remote --command "…"`):
+
+```sql
+SELECT ts, user_email, tool, params, result_count, ok FROM audit_log ORDER BY ts DESC LIMIT 50;
+```
 
 ## So funktioniert der Login
 
@@ -23,7 +58,7 @@ Voraussetzungen: Node ≥ 20, Zugriff auf den Cloudflare-Account **kromeichpartn
 ```bash
 cd propstack-mcp
 npm install
-npm test            # Unit-Tests der Prüflogik 3a/3b
+npm test            # Unit-Tests (Auth, Client, Filter, Mapper, Tools, Audit)
 npm run type-check
 ```
 
@@ -40,7 +75,7 @@ npm run type-check
 
 ### 2. Propstack-API-Key
 
-Propstack → **Verwaltung → API-Schlüssel**. Ein V1-Key mit Leserecht auf Nutzer genügt für Phase 1. Laut Spezifikation hat der Key keine Löschrechte.
+Propstack → **Verwaltung → API-Schlüssel**. Ein V1-Key, laut Spezifikation **ohne Löschrechte**. Ab Phase 2 braucht er **Leserechte** auf: Nutzer, Kontakte (inkl. Quellen), Objekte (inkl. Status), Projekte, Deals, Deal-Pipelines, Merkmale und Custom-Felder. Fehlt ein Recht, meldet das Tool „Zugriff verweigert (401/403)“.
 
 ### 3. Cloudflare: Login und KV
 
@@ -85,6 +120,17 @@ npx wrangler deploy
 
 Prüfen: `curl -i -X POST https://propstack-mcp.kromeichpartner.workers.dev/mcp` muss `401` liefern.
 
+### 5b. Automatisches Deployment (ab Phase 2)
+
+`.github/workflows/propstack-mcp-deploy.yml` veröffentlicht nach jedem Merge auf `main` (bei Änderungen in `propstack-mcp/`): Tests → D1-Migrationen → `wrangler deploy` → Smoke-Test (401 ohne Token). Einmalig einrichten:
+
+1. Cloudflare-Dashboard → **Mein Profil → API-Tokens → Token erstellen** → Vorlage **„Cloudflare Workers bearbeiten“**. Zusätzlich die Berechtigung **Konto → D1 → Bearbeiten** hinzufügen und das Konto auf kromeichpartner beschränken.
+2. GitHub → Repo → **Settings → Secrets and variables → Actions** → zwei Secrets anlegen:
+   - `CLOUDFLARE_API_TOKEN` (Token aus Schritt 1)
+   - `CLOUDFLARE_ACCOUNT_ID` (Cloudflare-Dashboard → Workers & Pages → rechts „Konto-ID“)
+
+Ohne diese Secrets wird das Deployment mit einer Warnung übersprungen. Die Worker-Secrets (Google, Propstack, Cookie-Key) bleiben in Cloudflare, ein Deployment löscht sie nicht.
+
 ### 6. Connector in Claude eintragen
 
 - **Team/Enterprise (empfohlen, einmal für alle):** Ein Org-Owner geht zu claude.ai → **Admin-Einstellungen → Connectors → Add custom connector**. Name: `Propstack`, URL: `https://propstack-mcp.kromeichpartner.workers.dev/mcp`. Client-ID und Secret leer lassen (Dynamic Client Registration).
@@ -100,6 +146,21 @@ Prüfen: `curl -i -X POST https://propstack-mcp.kromeichpartner.workers.dev/mcp`
 | Domain-Konto ohne Propstack-Nutzer → abgelehnt | Mit einem Funktionspostfach anmelden → 403 „kein aktiver Propstack-Nutzer“ |
 | Kein Secret im Repo | `git grep -nE '(PROPSTACK_API_KEY|GOOGLE_CLIENT_SECRET|COOKIE_ENCRYPTION_KEY)\s*[=:]\s*\S{8,}|GOCSPX[-]|[0-9]+-[a-z0-9]{32}\.apps\.googleusercontent\.com'` liefert nichts |
 | Unit-Tests 3a/3b | `npm test` (die CI läuft bei Änderungen in `propstack-mcp/`) |
+
+## Abnahme Phase 2 (live in Claude prüfen)
+
+Die Logik ist per Unit-Tests abgedeckt. Die echten Propstack-Antworten lassen sich aber nur mit dem Live-Key prüfen. Nach dem Deployment:
+
+| Prüfung | Frage an Claude |
+|---|---|
+| Kontaktsuche + Detail | „Suche den Kontakt <Name> und zeig mir die Details.“ |
+| Objektsuche mit Filtern | „Welche verfügbaren Mietobjekte über 1.000 m² haben wir in <Ort>?“ |
+| Deals eines Objekts | „Welche Interessenten gibt es für Objekt <ID>?“ |
+| Pipeline-Status | „Wie steht die Pipeline <Name>? Mit Summen je Phase.“ (Summen stichprobenartig mit Propstack vergleichen) |
+| Merkmale / Felder / Stammdaten | „Welche Kontakt-Merkmale gibt es?“, „Welche Custom-Felder haben Objekte?“ |
+| Auswertung | „Wie viele Kontakte haben wir je Quelle?“ (Gesamtzahl mit Propstack vergleichen) |
+| Filter mit Listen | Suche mit zwei Merkmalen gleichzeitig. Prüft, ob Propstack `group[]=` versteht |
+| Audit-Log | Danach in D1: `SELECT * FROM audit_log ORDER BY ts DESC LIMIT 10;` |
 
 ## Bekannte Grenzen (bewusste Entscheidungen Phase 1)
 

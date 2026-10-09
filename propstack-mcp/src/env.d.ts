@@ -8,6 +8,7 @@ declare namespace Cloudflare {
 		GOOGLE_CLIENT_SECRET: string;
 		COOKIE_ENCRYPTION_KEY: string;
 		PROPSTACK_API_KEY: string;
+		AUDIT_DB: D1Database;
 	}
 }
 interface Env extends Cloudflare.Env {}

@@ -29,6 +29,19 @@
       "id": "759b347676ea454c98f8dbd171d4070f"
     }
   ],
+  "d1_databases": [
+    {
+      // Audit-Log (Phase 2). Schema: migrations/
+      "binding": "AUDIT_DB",
+      "database_name": "propstack-mcp-audit",
+      "database_id": "963d7670-9696-4120-9edf-d168dd1fea16",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "triggers": {
+    // Täglich 03:17 UTC: Audit-Einträge älter als 12 Monate löschen
+    "crons": ["17 3 * * *"]
+  },
   "observability": {
     "enabled": true
   },

@@ -2,18 +2,22 @@ import OAuthProvider, { GrantType, OAuthError } from "@cloudflare/workers-oauth-
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { McpAgent } from "agents/mcp";
 import { env } from "cloudflare:workers";
+import { purgeOldAuditEntries } from "./audit";
 import { recheckOnRefresh, type Props } from "./auth/session";
 import { ACCESS_TOKEN_TTL_SECONDS } from "./config";
 import { GoogleHandler } from "./google-handler";
 import { PropstackClient } from "./propstack-client";
+import { registerReadTools, runTool, type ToolContext } from "./tools/register";
 
 export class PropstackMCP extends McpAgent<Env, Record<string, never>, Props> {
 	server = new McpServer({
 		name: "Propstack MCP – Kromeich",
-		version: "0.1.0",
+		version: "0.2.0",
 	});
 
 	async init() {
+		const ctx: ToolContext = { env: this.env, props: () => this.props! };
+
 		this.server.registerTool(
 			"whoami",
 			{
@@ -21,19 +25,18 @@ export class PropstackMCP extends McpAgent<Env, Record<string, never>, Props> {
 					"Zeigt, als wer du angemeldet bist: E-Mail, Name und Propstack-Nutzer-ID. Unter dieser ID laufen später alle Änderungen.",
 				annotations: { readOnlyHint: true },
 			},
-			async () => {
-				const { email, name, brokerId } = this.props!;
-				const result = { email, name, propstack_user_id: brokerId };
-				return {
-					content: [{ text: JSON.stringify(result), type: "text" }],
-					structuredContent: result,
-				};
-			},
+			async () =>
+				runTool(ctx, "whoami", {}, async () => {
+					const { email, name, brokerId } = this.props!;
+					return { count: 1, result: { email, name, propstack_user_id: brokerId } };
+				}),
 		);
+
+		registerReadTools(this.server, ctx);
 	}
 }
 
-export default new OAuthProvider({
+const provider = new OAuthProvider({
 	accessTokenTTL: ACCESS_TOKEN_TTL_SECONDS,
 	apiHandler: PropstackMCP.serve("/mcp"),
 	apiRoute: "/mcp",
@@ -59,3 +62,13 @@ export default new OAuthProvider({
 		});
 	},
 });
+
+export default {
+	fetch: (request: Request, env: Env, ctx: ExecutionContext) => provider.fetch(request, env, ctx),
+	// Täglich: Audit-Einträge älter als 12 Monate löschen.
+	scheduled: async (_controller: ScheduledController, env: Env, ctx: ExecutionContext) => {
+		ctx.waitUntil(
+			purgeOldAuditEntries(env.AUDIT_DB).then((deleted) => console.log(`Audit-Log: ${deleted} alte Einträge gelöscht`)),
+		);
+	},
+} satisfies ExportedHandler<Env>;
