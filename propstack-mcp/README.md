@@ -3,7 +3,7 @@
 Remote-MCP-Server auf Cloudflare Workers. Über ihn arbeitet das Team aus Claude heraus mit Propstack.
 Basis ist die Cloudflare-Vorlage [`remote-mcp-google-oauth`](https://github.com/cloudflare/ai/tree/main/demos/remote-mcp-google-oauth).
 
-**Stand: Phase 1.** Login über Google und genau ein Tool: `whoami`.
+**Stand: Phase 1, live seit 09.10.2026** unter `https://propstack-mcp.kromeichpartner.workers.dev/mcp`. Login über Google und genau ein Tool: `whoami`. Abnahmetests lokal und Ende-zu-Ende in Claude bestanden.
 
 ## So funktioniert der Login
 
@@ -34,7 +34,7 @@ npm run type-check
    - Scopes: `openid`, `email`, `profile`. Mehr nicht.
 2. **Anmeldedaten → Anmeldedaten erstellen → OAuth-Client-ID**, Typ **Webanwendung**.
    - Autorisierte Weiterleitungs-URIs:
-     - `https://propstack-mcp.<subdomain>.workers.dev/callback` (Produktion; die Subdomain steht im Cloudflare-Dashboard unter Workers → Subdomain)
+     - `https://propstack-mcp.kromeichpartner.workers.dev/callback` (Produktion)
      - `http://localhost:8788/callback` (lokale Tests; besser ein eigener Dev-Client)
 3. Client-ID und Client-Secret notieren. Nur für die Secrets unten, nie ins Repo.
 
@@ -83,11 +83,11 @@ npx wrangler secret put COOKIE_ENCRYPTION_KEY
 npx wrangler deploy
 ```
 
-Prüfen: `curl -i -X POST https://propstack-mcp.<subdomain>.workers.dev/mcp` muss `401` liefern.
+Prüfen: `curl -i -X POST https://propstack-mcp.kromeichpartner.workers.dev/mcp` muss `401` liefern.
 
 ### 6. Connector in Claude eintragen
 
-- **Team/Enterprise (empfohlen, einmal für alle):** Ein Org-Owner geht zu claude.ai → **Admin-Einstellungen → Connectors → Add custom connector**. Name: `Propstack`, URL: `https://propstack-mcp.<subdomain>.workers.dev/mcp`. Client-ID und Secret leer lassen (Dynamic Client Registration).
+- **Team/Enterprise (empfohlen, einmal für alle):** Ein Org-Owner geht zu claude.ai → **Admin-Einstellungen → Connectors → Add custom connector**. Name: `Propstack`, URL: `https://propstack-mcp.kromeichpartner.workers.dev/mcp`. Client-ID und Secret leer lassen (Dynamic Client Registration).
 - **Einzelner Nutzer:** claude.ai → **Einstellungen → Connectors → Add custom connector** mit derselben URL.
 - Danach im Chat den Connector aktivieren und **Connect** wählen. Google-Login mit dem @kromeichpartner.de-Konto. Test: „Wer bin ich in Propstack?“ ruft `whoami` auf.
 
