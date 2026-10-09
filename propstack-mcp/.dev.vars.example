@@ -1,0 +1,5 @@
+# Kopieren nach .dev.vars (wird nicht committet) und Werte eintragen. Nur für `wrangler dev`.
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+COOKIE_ENCRYPTION_KEY=
+PROPSTACK_API_KEY=
