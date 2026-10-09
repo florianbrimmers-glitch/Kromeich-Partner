@@ -1,0 +1,38 @@
+/**
+ * Wrangler-Konfiguration für den Propstack-MCP-Server der Kromeich GmbH.
+ * KEINE Secrets hier eintragen – nur per `wrangler secret put` (siehe README).
+ */
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "propstack-mcp",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-03-10",
+  "compatibility_flags": ["nodejs_compat"],
+  "migrations": [
+    {
+      "new_sqlite_classes": ["PropstackMCP"],
+      "tag": "v1"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "class_name": "PropstackMCP",
+        "name": "MCP_OBJECT"
+      }
+    ]
+  },
+  "kv_namespaces": [
+    {
+      // OAuth-State + Cache Mail → Propstack-Nutzer-ID (Präfix "propstack-broker:")
+      "binding": "OAUTH_KV",
+      "id": "<KV-ID-eintragen>"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  },
+  "dev": {
+    "port": 8788
+  }
+}
