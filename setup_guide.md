@@ -114,3 +114,22 @@ Secret: `SLACK_BOT_TOKEN`
 
 ### Automatischer Lauf
 Der Workflow läuft automatisch **Montag bis Freitag um 8:00 Uhr CET** (6:00 UTC).
+
+## Scrapling MCP-Server (Web-Scraping in Claude Code)
+
+`.mcp.json` bindet den [Scrapling](https://scrapling.readthedocs.io/en/latest/ai/mcp-server.html)
+MCP-Server projektweit als `scrapling` ein (stdio, lokal, kein offener Port).
+
+```bash
+./scripts/setup_scrapling.sh   # pip install + Browser-Download
+```
+
+Danach Claude Code neu starten und den Server beim ersten Start freigeben.
+Tools: `make_request`/`bulk_get` (schnelles HTTP), `fetch`/`bulk_fetch` (JS-Seiten),
+`stealthy_fetch`/`bulk_stealthy_fetch` (Anti-Bot), Sessions und `screenshot`.
+
+Hinweise:
+- Version ist in `requirements-scrapling.txt` gepinnt – Updates bewusst machen.
+- Für Seiten mit personenbezogenen Daten (Ansprechpartner, Makler) gelten DSGVO und AGB der
+  Zielseite; robots.txt und Rate-Limits beachten.
+- `--http`-Modus nur mit `SCRAPLING_MCP_AUTH_TOKEN`, nie mit `--no-auth` auf `0.0.0.0`.

@@ -1,0 +1,4 @@
+# Scrapling MCP-Server (Web-Scraping-Tools für Claude Code), bewusst getrennt
+# von requirements.txt, damit CI und Handler keine Browser-Abhängigkeiten ziehen.
+# Einrichtung: scripts/setup_scrapling.sh
+scrapling[ai]==0.4.15
