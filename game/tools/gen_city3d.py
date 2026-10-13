@@ -611,125 +611,12 @@ def make_scaffold():
 
 
 # --------------------------------------------------------------- Pruefer
-
-VIEW = os.path.join(HERE, "..", "scripts", "ui", "CityView3D.gd")
-
-# Hoechstens so viel darf von der Silhouette eines Gebaeudes hinter einem
-# anderen verschwinden. 0.45 ist nicht gegriffen: bei diesem Wert geht der
-# Lauf gerade noch durch, den ich in city3d-menschen-voll.png als leserlich
-# beurteilt habe - jedes der neun Gebaeude ist dort als es selbst erkennbar.
-MAX_HIDDEN = 0.45
-
-
-def view_consts():
-    """Die Zahlen des Hofs kommen AUS CityView3D.gd, nicht aus einer Kopie.
-
-    Eine zweite Kopie waere genau die Doppelung, an der It. 36/37, It. 42
-    und It. 33 gescheitert sind: die Regel wird woanders nachgebaut und
-    driftet still auseinander. gen_city_bg.py liest aus demselben Grund
-    city_layout.json statt eigener Koordinaten.
-    """
-    import re
-    txt = open(VIEW, encoding="utf-8").read()
-    out = {}
-    for m in re.finditer(r"^const (\w+) := (-?[0-9.]+)$", txt, re.M):
-        out[m.group(1)] = float(m.group(2))
-    need = ["YARD_W", "YARD_D", "PITCH", "PLOT_Y_LO", "PLOT_Y_HI",
-            "YARD_Y_LO", "YARD_Y_HI", "BUILDING_SCALE"]
-    missing = [k for k in need if k not in out]
-    if missing:
-        raise SystemExit("CityView3D.gd: Konstanten fehlen: %s" % missing)
-    return out
-
-
-def dims_of(name):
-    ob = bpy.data.objects[name]
-    import mathutils
-    cs = [ob.matrix_world @ mathutils.Vector(c) for c in ob.bound_box]
-    return (max(c.x for c in cs) - min(c.x for c in cs),
-            max(c.y for c in cs) - min(c.y for c in cs),
-            max(c.z for c in cs))
-
-
-def check_occlusion(layout):
-    """Kein Bauplatz darf einen anderen verdecken.
-
-    DIE REGEL IST DIESELBE WIE BEIM GELAENDE (It. 53): bei der Neigung p
-    verdeckt die Hoehe h genau h / tan(p) Einheiten Tiefe DAHINTER. Bis
-    It. 69 war sie auf die Stadt nie angewendet - bei 44 Grad verdeckte
-    1 Einheit Hoehe 1.04 Einheiten Tiefe, waehrend die Reihenabstaende bei
-    0.13 bis 1.30 lagen. Fuenf von neun Plaetzen verschwanden hinter ihrem
-    Vordermann, und das war der Hauptgrund, warum die raeumliche Stadt
-    unleserlich aussah.
-
-    Geprueft wird mit den ECHTEN Maszen der gebauten Meshes, nicht mit
-    Schaetzungen aus den Rezepten.
-    """
-    c = view_consts()
-    tan_p = math.tan(math.radians(abs(c["PITCH"])))
-    plots = layout["buildings"]
-
-    def depth(y):
-        t = (y - c["PLOT_Y_LO"]) / (c["PLOT_Y_HI"] - c["PLOT_Y_LO"])
-        t = min(1.0, max(0.0, t))
-        return c["YARD_Y_LO"] + t * (c["YARD_Y_HI"] - c["YARD_Y_LO"])
-
-    info = {}
-    for bid, pl in plots.items():
-        sc = pl.get("s", 1.0) * c["BUILDING_SCALE"]
-        # Das groesste Modell ueber alle Fraktionen zaehlt - eine Stadt
-        # zeigt immer nur eine, aber leserlich muessen alle vier sein.
-        w = d = h = 0.0
-        for fac in FACTIONS:
-            fw, fd, fh = dims_of("b_%s_%s" % (fac, bid))
-            w, d, h = max(w, fw), max(d, fd), max(h, fh)
-        info[bid] = dict(x=(pl["x"] - 0.5) * c["YARD_W"],
-                         z=(depth(pl["y"]) - 0.5) * c["YARD_D"],
-                         w=w * sc, d=d * sc, h=h * sc)
-
-    # WIE VIEL verdeckt wird, nicht OB. In jeder Schraegsicht ueberschneiden
-    # sich Baukoerper ein wenig - das ist Tiefe, kein Fehler. Unleserlich
-    # wird es erst, wenn von einem Gebaeude kaum noch etwas uebrig bleibt.
-    #
-    # Gerechnet wird in Bildschirmhoehe: bei der Neigung p liegt ein Punkt
-    # (Hoehe y, Tiefe z) auf  y*cos(p) - z*sin(p).  Ein Baukoerper reicht
-    # damit von seiner vorderen Unterkante bis zu seiner hinteren Oberkante.
-    sin_p = math.sin(math.radians(abs(c["PITCH"])))
-    cos_p = math.cos(math.radians(abs(c["PITCH"])))
-
-    def span(q):
-        lo = -(q["z"] + q["d"] / 2) * sin_p
-        hi = q["h"] * cos_p - (q["z"] - q["d"] / 2) * sin_p
-        return lo, hi
-
-    bad = []
-    ids = sorted(info)
-    for i, a in enumerate(ids):
-        for b in ids[i + 1:]:
-            pa, pb = info[a], info[b]
-            ox = (min(pa["x"] + pa["w"] / 2, pb["x"] + pb["w"] / 2)
-                  - max(pa["x"] - pa["w"] / 2, pb["x"] - pb["w"] / 2))
-            if ox <= 0:
-                continue
-            near, far = (a, b) if pa["z"] > pb["z"] else (b, a)
-            pn, pf = info[near], info[far]
-            nlo, nhi = span(pn)
-            flo, fhi = span(pf)
-            oy = min(nhi, fhi) - max(nlo, flo)
-            if oy <= 0:
-                continue
-            # Anteil der Silhouette des HINTEREN Baus, den der vordere deckt.
-            hidden = (oy / (fhi - flo)) * min(1.0, ox / pf["w"])
-            if hidden > MAX_HIDDEN:
-                bad.append("%s verdeckt %s zu %.0f Prozent"
-                           % (near, far, hidden * 100.0))
-    if bad:
-        raise SystemExit("Bauplaetze verdecken sich zu stark (Grenze %.0f "
-                         "Prozent):\n  %s" % (MAX_HIDDEN * 100.0,
-                                              "\n  ".join(bad)))
-    print("[OK] kein Bauplatz ist zu mehr als %.0f Prozent verdeckt "
-          "(%d Paare geprueft)"
-          % (MAX_HIDDEN * 100.0, len(ids) * (len(ids) - 1) // 2))
+#
+# Der Verdeckungs-Pruefer stand bis It. 74 hier und rechnete mit der
+# orthogonalen Hofkamera. Seit dem Panorama (It. 75: Perspektive,
+# Terrassen) misst ihn `tools/test_city3d.gd` im BILD - mit den echten
+# Mesh-Massen, der echten Kamera und dem Gelaende, auf dem die Gebaeude
+# stehen. Eine Nachrechnung der Projektion hier waere eine zweite Kamera.
 
 
 def main():
@@ -747,7 +634,6 @@ def main():
     make_ground()
     make_props()
     make_scaffold()
-    check_occlusion(layout)
 
     try:
         out = sys.argv[sys.argv.index("--") + 1]

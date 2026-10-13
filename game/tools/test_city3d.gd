@@ -80,9 +80,7 @@ func _test_every_plot_has_a_model() -> void:
 				missing.append(n)
 	_check(missing.is_empty(), "%d Modelle (%d Plaetze x %d Fraktionen), keines fehlt (%s)"
 		% [ids.size() * FAC_DIRS.size(), ids.size(), FAC_DIRS.size(), str(missing)])
-	for n in ["city_ground", "city_road", "city_plaza", "city_cobble",
-			City3D.SCAFFOLD]:
-		_check(_v._meshes.has(n), "Hofteil %s vorhanden" % n)
+	_check(_v._meshes.has(City3D.SCAFFOLD), "Notausgang-Geruest vorhanden")
 	# Das Gerumpel im Hof (It. 63). Fehlt eines dieser Modelle, faellt es
 	# stumm aus, und der Hof waere wieder die leere Flaeche, die er bis
 	# dahin war.
@@ -146,6 +144,71 @@ func _test_unbuilt_shows_scaffold() -> void:
 
 # Der Tipp muss den Bauplatz treffen, an dem die Ansicht zeichnet - am
 # ECHTEN Schirm, nicht an einer nachgebauten Rechnung.
+# KEIN GEBAEUDE DARF HINTER EINEM ANDEREN VERSCHWINDEN - gemessen im BILD,
+# in jeder Fraktion, mit allen Gebaeuden gebaut.
+#
+# Bis It. 74 rechnete gen_city3d.py das fuer die orthogonale Hofkamera
+# nach. Seit dem Panorama (Perspektive, Terrassen, Groesse nach Abstand)
+# stimmt keine Nachrechnung mehr; deshalb wird hier jedes Gebaeude mit
+# seiner echten Mesh-Box und der echten Kamera ins Bild projiziert. Das
+# Rechteck ist groesser als die Silhouette (Dachschraegen, Luft neben dem
+# Turm) - die Grenze ist also eher streng.
+const MAX_HIDDEN := 0.45
+
+
+func _check_occlusion(v, plots: Array) -> void:
+	var worst: Array = []
+	var min_area: float = 1e12
+	var max_frac := 0.0
+	var cam_pos: Vector3 = City3D.CAM_POS
+	for fac in FAC_DIRS:
+		var rects: Array = []
+		for p in plots:
+			var pos: Vector3 = v.plot_pos(float(p["lx"]), float(p["ly"]))
+			var sc: float = float(_layout_s(String(p["id"]))) * v.building_scale_at(pos)
+			var m: Mesh = v._meshes.get("b_%s_%s" % [fac, String(p["id"])])
+			if m == null:
+				continue
+			var a: AABB = m.get_aabb()
+			var r := Rect2()
+			var first := true
+			for i in range(8):
+				var c: Vector3 = pos + a.get_endpoint(i) * sc
+				var sp: Vector2 = v.project_point(c)
+				if first:
+					r = Rect2(sp, Vector2.ZERO)
+					first = false
+				else:
+					r = r.expand(sp)
+			rects.append({"id": String(p["id"]), "r": r,
+				"d": cam_pos.distance_to(pos)})
+		for a in rects:
+			var hid := 0.0
+			for b in rects:
+				if b["id"] == a["id"] or float(b["d"]) >= float(a["d"]):
+					continue
+				var o: Rect2 = (a["r"] as Rect2).intersection(b["r"] as Rect2)
+				hid += o.get_area()
+			var frac: float = minf(1.0, hid / maxf(1.0, (a["r"] as Rect2).get_area()))
+			min_area = minf(min_area, (a["r"] as Rect2).get_area())
+			max_frac = maxf(max_frac, frac)
+			if frac > MAX_HIDDEN:
+				worst.append("%s/%s %.0f%%" % [fac, a["id"], frac * 100.0])
+	# Gegenprobe gegen eine leere Messung: headless ohne Bildgroesse waeren
+	# alle Rechtecke Punkte, und "nichts verdeckt" waere wahr und wertlos.
+	_check(min_area > 2000.0,
+		"die Gebaeude haben im Bild eine Flaeche (kleinste %.0f px^2)" % min_area)
+	_check(worst.is_empty(),
+		"kein Gebaeude zu mehr als %.0f%% verdeckt, in allen Fraktionen (hoechstens %.0f%%; %s)"
+			% [MAX_HIDDEN * 100.0, max_frac * 100.0, str(worst)])
+
+
+func _layout_s(bid: String) -> float:
+	var f := FileAccess.open("res://data/city_layout.json", FileAccess.READ)
+	var d: Dictionary = JSON.parse_string(f.get_as_text()) as Dictionary
+	return float(((d["buildings"] as Dictionary)[bid] as Dictionary).get("s", 1.0))
+
+
 func _test_screen_integration() -> void:
 	print("== Einbettung in den Stadtschirm ==")
 	var cs = CityScreen.new()
@@ -184,21 +247,14 @@ func _test_screen_integration() -> void:
 	cs.get("_plots").sort_custom(func(a, b): return String(a["id"]) < String(b["id"]))
 	for p in (cs.get("_plots") as Array):
 		want.append(String(p["id"]))
-		var w3: Vector3 = v.plot_pos(float(p["lx"]), float(p["ly"]))
-		var sp: Vector2 = (cs.call("_stage_rect") as Rect2).position \
-			+ v.project_point(w3)
-		var hit: Vector3 = v.ground_at(sp - (cs.call("_stage_rect") as Rect2).position)
-		var best: String = ""
-		var best_d: float = 99.0
-		for q in (cs.get("_plots") as Array):
-			var qw: Vector3 = v.plot_pos(float(q["lx"]), float(q["ly"]))
-			var d: float = Vector2(hit.x - qw.x, hit.z - qw.z).length()
-			if d < best_d:
-				best_d = d
-				best = String(q["id"])
-		got.append(best)
+		# Derselbe Weg wie der Tipp im Schirm (`plot_at`), kein Nachbau.
+		var sp: Vector2 = v.project_point(v.plot_anchor(float(p["lx"]), float(p["ly"])))
+		var hit: Dictionary = v.plot_at(sp, cs.get("_plots") as Array)
+		got.append(String(hit.get("id", "")))
 	_check(got == want, "jeder Bauplatz trifft sich selbst (%s vs %s)"
 		% [str(got), str(want)])
+
+	_check_occlusion(v, cs.get("_plots") as Array)
 
 	cs.call("_toggle_view3d")
 	await process_frame

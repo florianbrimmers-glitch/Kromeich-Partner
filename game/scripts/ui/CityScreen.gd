@@ -754,23 +754,12 @@ func _handle_tap(pos: Vector2) -> void:
 	if _hit_plaza(pos):
 		_show_plaza_stats()
 		return
-	# In 3D gibt es keine Rauten: der Strahl der Kamera trifft den Hofboden,
-	# und getroffen ist der Bauplatz, der diesem Punkt am naechsten liegt.
-	# Ein Bauplatz ist rund zwei Einheiten breit, DIST_MAX also grosszuegig
-	# genug, dass man nicht genau treffen muss, und eng genug, dass ein
-	# Tipp auf leeren Hof nichts ausloest.
+	# In 3D gibt es keine Rauten. Seit dem Panorama (It. 75) wird im BILD
+	# gemessen: die Ansicht projiziert jeden Bauplatz und nimmt den
+	# naechsten - auf Terrassen trifft ein Strahl auf den Boden sonst weit
+	# hinter dem Gebaeude, das man antippt.
 	if _city3d_on and _city3d != null:
-		const DIST_MAX := 1.3
-		var local: Vector2 = pos - _stage_rect().position
-		var hit: Vector3 = _city3d.ground_at(local)
-		var best: Dictionary = {}
-		var best_d: float = DIST_MAX
-		for p in _plots:
-			var w3: Vector3 = _city3d.plot_pos(float(p["lx"]), float(p["ly"]))
-			var d: float = Vector2(hit.x - w3.x, hit.z - w3.z).length()
-			if d < best_d:
-				best_d = d
-				best = p
+		var best: Dictionary = _city3d.plot_at(pos - _stage_rect().position, _plots)
 		if not best.is_empty():
 			_act_on_plot(best)
 		return
