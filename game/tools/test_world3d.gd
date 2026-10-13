@@ -11,9 +11,9 @@ extends SceneTree
 # haben in dieser Iteration jeder fuer sich einen Fehler erzeugt, den man
 # auf der Karte nicht sah:
 #
-#  * TERRAIN_TOP in der Ansicht gegen die tatsaechliche Oberkante im glb.
-#    Beide standen auf 1.10 fuer Gebirge, das Modell war aber flach - die
-#    Zahl in GDScript stimmte, die Geometrie nicht.
+#  * Begehbares muss flach sein, sonst trifft der Tipp (Strahl auf y = 0)
+#    das falsche Feld. Seit It. 77 gibt es EINE Hoehenfunktion fuer das
+#    ganze Gelaende; geprueft wird sie selbst.
 #  * Modellnamen gegen den Inhalt des glb. Ein fehlendes Modell faellt
 #    heute stumm aus (_fill kehrt einfach um).
 #  * Grundflaeche gegen die Kachelbreite. Die Stadt mass 1.19 bei
@@ -36,7 +36,7 @@ func _init() -> void:
 	await process_frame
 
 	await _test_models_present()
-	await _test_terrain_tops_match()
+	await _test_walkable_is_flat()
 	await _test_footprints_fit_tile()
 	await _test_instance_colors_enabled()
 	await _test_fog_hides_tiles()
@@ -68,67 +68,118 @@ func _check(cond: bool, msg: String) -> void:
 	print(("[OK]   " if cond else "[FAIL] ") + msg)
 
 
-# Jeder Name, den die Ansicht anfordert, muss im glb liegen.
+# Jeder Name, den die Ansicht anfordert, muss geladen sein. Ein fehlendes
+# Modell faellt sonst stumm aus (_fill kehrt einfach um).
 func _test_models_present() -> void:
-	print("== Alle angeforderten Modelle liegen im glb ==")
+	print("== Alle angeforderten Modelle sind geladen ==")
 	var want: Array = []
-	want.append_array(Map3D.TERRAIN_MODEL)
-	for v in Map3D.DECO_MODEL.values():
-		want.append(String(v))
 	for v in WMS.MAP3D_OBJECT_MODEL.values():
 		want.append(String(v))
 	for f in UnitArt.FACTION_DIRS:
-		want.append("city_" + String(f))
-	want.append_array(["hero", "monster", "marker_disc", "marker_ring"])
-	want.append(Map3D.FOG_MODEL)
-	# Der Bodenbewuchs (It. 62). Fehlt eines dieser Modelle, faellt es
-	# stumm aus - die Wiese waere wieder eine Farbflaeche, und niemand
-	# wuerde nach einem fehlenden Modell suchen.
-	for sc in Map3D.SCATTER_MIX:
-		if not want.has(String(sc)):
-			want.append(String(sc))
+		want.append(Map3D.CITY_MODEL % String(f))
+	want.append_array([Map3D.HERO_MODEL, Map3D.RING_MODEL, Map3D.DISC_MODEL])
+	# Jede Kreatur kann als Monster auf der Karte stehen.
+	var f := FileAccess.open("res://data/units.json", FileAccess.READ)
+	var units: Array = (JSON.parse_string(f.get_as_text()) as Dictionary)["units"]
+	for u in units:
+		want.append(String((u as Dictionary)["id"]))
 	var missing: Array = []
 	for n in want:
 		if not _view._meshes.has(String(n)):
 			missing.append(String(n))
 	_check(missing.is_empty(),
 		"%d Modelle angefordert, keines fehlt (fehlend: %s)" % [want.size(), str(missing)])
+	# Jede Ausstattungsart findet mindestens ein Modell (sonst fehlt der
+	# Wald, und niemand wuerde nach einem Praefix suchen).
+	var empty: Array = []
+	for t in Map3D.SCATTER.keys():
+		for e in (Map3D.SCATTER[t] as Array):
+			var pre: String = String((e as Array)[0])
+			var found := false
+			for k in _view._meshes.keys():
+				if String(k).begins_with(pre):
+					found = true
+					break
+			if not found:
+				empty.append(pre)
+	_check(empty.is_empty(), "jede Ausstattungsart hat Modelle (leer: %s)" % str(empty))
+	# Die Kartenobjekte kommen aus mapobj.glb, nicht mehr aus den alten
+	# Klotz-Modellen in world.glb: das neue Windrad hat Fluegel.
+	var mill: Mesh = _view._meshes.get("obj_windmill")
+	_check(mill != null and mill.get_aabb().size.x > 0.5,
+		"Kartenobjekte im neuen Stil geladen (Windmuehle %.2f breit)"
+			% (mill.get_aabb().size.x if mill != null else 0.0))
 	_done.append("_test_models_present")
 
 
-# Die Zahl in der Ansicht und die Geometrie im glb muessen dasselbe sagen.
-# Toleranz 0.02: die Fase rundet die Kante minimal ab.
-func _test_terrain_tops_match() -> void:
-	print("== TERRAIN_TOP passt zur Oberkante im Modell ==")
-	for t in range(Map3D.TERRAIN_MODEL.size()):
-		var name: String = Map3D.TERRAIN_MODEL[t]
-		if not _view._meshes.has(name):
-			continue
-		var a: AABB = (_view._meshes[name] as Mesh).get_aabb()
-		var top: float = a.position.y + a.size.y
-		var want: float = float(Map3D.TERRAIN_TOP.get(t, 0.0))
-		_check(absf(top - want) <= 0.02,
-			"%s: Modell endet bei %+.3f, TERRAIN_TOP sagt %+.3f" % [name, top, want])
-	_done.append("_test_terrain_tops_match")
+# DER TIPP TRIFFT, WEIL ALLES BEGEHBARE FLACH IST. Scene3D.cell_at schneidet
+# den Strahl mit y = 0; auf einem Huegel laege der Tipp eine Reihe daneben
+# (h / tan(34 Grad), It. 53). Hoch und tief duerfen nur Berg und Wasser
+# sein - beide unpassierbar. Diese Regel steht hier als Eigenschaft der
+# EINEN Hoehenfunktion, die auch das Netz baut.
+func _test_walkable_is_flat() -> void:
+	print("== Begehbares Gelaende ist flach, Berg hoch, Wasser tief ==")
+	var w := 12
+	var h := 12
+	var tiles: Array = []
+	for y in range(h):
+		for x in range(w):
+			# Bloecke je Gelaendeart, damit auch Uebergaenge vorkommen.
+			tiles.append(((x / 4) + (y / 4) * 3) % 6)
+	var fog: Array = []
+	for i in range(w * h):
+		fog.append(2)
+	_view.refresh(_ctx(tiles, w, h, fog))
+	var bad: Array = []
+	var peak := 0.0
+	var deep := 0.0
+	for y in range(h):
+		for x in range(w):
+			var t: int = int(tiles[y * w + x])
+			var gy: float = _view.ground_height(float(x), float(y))
+			if t == Map3D.T_MOUNTAIN:
+				peak = maxf(peak, gy)
+			elif t == Map3D.T_WATER:
+				deep = minf(deep, gy)
+			elif absf(gy) > Map3D.WALK_MAX:
+				bad.append("%s %s %.3f" % [Map3D.TERRAIN_NAMES[t], str(Vector2i(x, y)), gy])
+	_check(bad.is_empty(), "jede begehbare Kachelmitte innerhalb +-%.2f (%s)"
+		% [Map3D.WALK_MAX, str(bad.slice(0, 5))])
+	_check(peak > 0.3, "Gebirge ragt auf (hoechste Kachelmitte %.2f)" % peak)
+	_check(deep < Map3D.WATER_LEVEL, "Wasser liegt unter dem Spiegel (%.2f)" % deep)
+	_check(_view.land_node() != null and _view.water_node() != null,
+		"Gelaende und Wasser sind gebaut")
+	_done.append("_test_walkable_is_flat")
 
 
-# Was auf einer Kachel steht, darf nicht ueber sie hinausragen - sonst
-# ist nicht mehr zu erkennen, auf welchem Feld es steht.
+# Was auf einer Kachel steht, bleibt auf ihr - im AUFGESTELLTEN Massstab.
 func _test_footprints_fit_tile() -> void:
-	print("== Grundflaeche bleibt auf der Kachel ==")
+	print("== Dinge auf der Karte bleiben auf ihrer Kachel ==")
 	var over: Array = []
-	for name in _view._meshes.keys():
-		var a: AABB = (_view._meshes[String(name)] as Mesh).get_aabb()
-		if a.size.x > Map3D.TILE + 0.01 or a.size.z > Map3D.TILE + 0.01:
-			over.append("%s (%.2f x %.2f)" % [String(name), a.size.x, a.size.z])
-	_check(over.is_empty(),
-		"kein Modell breiter als eine Kachel (%.1f) - zu breit: %s"
-			% [Map3D.TILE, str(over)])
+	var check := func(model: String, size: float, limit: float) -> void:
+		if not _view._meshes.has(model):
+			return
+		var a: AABB = (_view._meshes[model] as Mesh).get_aabb()
+		var sc: float = _view.model_scale(model, size)
+		var wmax: float = maxf(a.size.x, a.size.z) * sc
+		if wmax > limit + 0.01:
+			over.append("%s (%.2f)" % [model, wmax])
+	for v in WMS.MAP3D_OBJECT_MODEL.values():
+		check.call(String(v), 0.0, Map3D.TILE)
+	for f in UnitArt.FACTION_DIRS:
+		# Die Stadt darf etwas ueberstehen - eine Burg, die in ihr Feld
+		# passt, ist ein Haus.
+		check.call(Map3D.CITY_MODEL % String(f), -Map3D.CITY_SIZE, Map3D.CITY_SIZE)
+	check.call(Map3D.HERO_MODEL, Map3D.FIGURE_SIZE, Map3D.TILE)
+	var fl := FileAccess.open("res://data/units.json", FileAccess.READ)
+	for u in ((JSON.parse_string(fl.get_as_text()) as Dictionary)["units"] as Array):
+		check.call(String((u as Dictionary)["id"]), Map3D.FIGURE_SIZE, Map3D.TILE)
+	_check(over.is_empty(), "kein Ding breiter als erlaubt (zu breit: %s)" % str(over))
 	_done.append("_test_footprints_fit_tile")
 
 
-# Ohne diesen Schalter kommt KEINE Instanzfarbe an. Das war in dieser
-# Iteration der teuerste Fehler, weil er wie "funktioniert" aussah.
+# Ohne diesen Schalter kommt KEINE Instanzfarbe an (It. 53) - und damit
+# kein Abdunkeln im Nebel und keine Besitzer- oder Bedrohungsfarbe.
 func _test_instance_colors_enabled() -> void:
 	print("== Materialien nehmen die Instanzfarbe an ==")
 	var off: Array = []
@@ -138,48 +189,64 @@ func _test_instance_colors_enabled() -> void:
 			var mat := m.surface_get_material(i) as StandardMaterial3D
 			if mat == null or not mat.vertex_color_use_as_albedo:
 				off.append("%s[%d]" % [String(name), i])
-	_check(off.is_empty(), "alle Materialien mit Instanzfarbe (aus: %s)" % str(off))
+	_check(off.is_empty(), "alle Materialien mit Instanzfarbe (aus: %s)" % str(off.slice(0, 5)))
 	_done.append("_test_instance_colors_enabled")
 
 
-# Unerforschtes wird gar nicht gebaut - die Zahl der Aufstellungen muss
-# der Zahl der sichtbaren Kacheln entsprechen.
+# NEBEL: die Nebeltextur traegt je Kachel ihre Stufe, und auf unerforschten
+# Kacheln steht keine Ausstattung (sie verriete Wald oder Gebirge).
 func _test_fog_hides_tiles() -> void:
-	print("== Nebel: unerforschte Kacheln werden nicht gebaut ==")
+	print("== Nebel: Schleier und keine Ausstattung im Unerforschten ==")
 	var w := 8
 	var h := 6
 	var tiles: Array = []
 	var fog: Array = []
-	var seen := 0
 	for y in range(h):
 		for x in range(w):
-			tiles.append(0)
-			# Nur die linke Haelfte ist erforscht.
-			var f: int = 2 if x < w / 2 else 0
-			fog.append(f)
-			if f > 0:
-				seen += 1
+			tiles.append(Map3D.T_FOREST)
+			fog.append(2 if x < w / 2 else 0)
 	_view.refresh(_ctx(tiles, w, h, fog))
-	_check(_terrain_instances() == seen,
-		"%d von %d Kacheln zeigen ihr Gelaende" % [_terrain_instances(), w * h])
-	# Der Rest bekommt die neutrale Nebelplatte. Kein Feld faellt weg: die
-	# Ausdehnung der Karte muss ablesbar bleiben (siehe make_fog).
-	_check(_fog_instances() == w * h - seen,
-		"%d unerforschte Felder als Nebelplatte" % _fog_instances())
-
-	# Alles sichtbar: dann zeigen alle ihr Gelaende und keine Platte bleibt.
+	var img: Image = _view.fog_image()
+	_check(img != null and img.get_width() == w and img.get_height() == h,
+		"Nebeltextur hat eine Zelle je Kachel")
+	var wrong: Array = []
+	for y in range(h):
+		for x in range(w):
+			var v: float = img.get_pixel(x, y).r
+			var want: float = Map3D.VIS_REACH if x < w / 2 else Map3D.VIS_HIDDEN
+			if absf(v - want) > 0.02:
+				wrong.append(Vector2i(x, y))
+	_check(wrong.is_empty(), "Nebelstufe je Kachel stimmt (falsch: %s)" % str(wrong.slice(0, 5)))
+	var expect := 0
+	for y in range(h):
+		for x in range(w / 2):
+			expect += (_view._scatter.get(y * w + x, []) as Array).size()
+	var shown := _scatter_instances()
+	_check(expect > 0 and shown == expect,
+		"Wald nur im Erforschten: %d Teile aufgestellt, erwartet %d" % [shown, expect])
 	for i in range(fog.size()):
 		fog[i] = 2
 	_view.refresh(_ctx(tiles, w, h, fog))
-	_check(_terrain_instances() == w * h,
-		"ohne Nebel alle %d Kacheln gebaut (%d)" % [w * h, _terrain_instances()])
-	_check(_fog_instances() == 0,
-		"ohne Nebel keine Nebelplatte uebrig (%d)" % _fog_instances())
+	_check(_scatter_instances() == _view.scatter_count(),
+		"ohne Nebel steht die ganze Ausstattung (%d von %d)"
+			% [_scatter_instances(), _view.scatter_count()])
 	_done.append("_test_fog_hides_tiles")
 
 
-# Der Tap muss dieselbe Kachel treffen, auf der die Kachel gezeichnet
-# wird. Hin (unproject) und zurueck (tile_at) muessen sich aufheben.
+func _scatter_instances() -> int:
+	var pres: Array = []
+	for t in Map3D.SCATTER.keys():
+		for e in (Map3D.SCATTER[t] as Array):
+			pres.append(String((e as Array)[0]))
+	var n := 0
+	for name in _view._multi.keys():
+		for pre in pres:
+			if String(name).begins_with(String(pre)):
+				n += (_view._multi[name] as MultiMeshInstance3D).multimesh.instance_count
+				break
+	return n
+
+
 func _test_tile_at_roundtrip() -> void:
 	print("== Bildpunkt -> Kachel trifft die gezeichnete Kachel ==")
 	var vp: Vector2 = Vector2(root.size)
@@ -401,20 +468,6 @@ func _test_views_do_not_share_a_world() -> void:
 	wm.queue_free()
 	await process_frame
 	_done.append("_test_views_do_not_share_a_world")
-
-
-func _terrain_instances() -> int:
-	var n := 0
-	for name in _view._multi.keys():
-		# t_fog ist KEIN Gelaende - es ist das Gegenteil davon.
-		if String(name).begins_with("t_") and String(name) != Map3D.FOG_MODEL:
-			n += (_view._multi[name] as MultiMeshInstance3D).multimesh.instance_count
-	return n
-
-
-func _fog_instances() -> int:
-	var mmi = _view._multi.get(Map3D.FOG_MODEL)
-	return 0 if mmi == null else (mmi as MultiMeshInstance3D).multimesh.instance_count
 
 
 func _ctx(tiles: Array, w: int, h: int, fog: Array) -> Dictionary:

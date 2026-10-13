@@ -4177,6 +4177,8 @@ func _map3d_ctx() -> Dictionary:
 		var md: Dictionary = m as Dictionary
 		monsters_out.append({
 			"pos": Vector2i(md["pos"]),
+			# Die Kreatur, die im Kampf antritt, steht auch auf der Karte.
+			"unit": _monster_unit(md),
 			# Dieselbe Prognosefarbe wie auf der 2D-Karte - ein Spieler
 			# soll nicht zwei Systeme lernen muessen.
 			"color": _threat_color(eff_gold, _threat_gold_of_monster(md)),
