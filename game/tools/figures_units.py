@@ -216,12 +216,9 @@ def elf_unicorn(u):
     G = Q.girth
     n0, n1 = pts["chest"], pts["neck"]
     cols = ["#c96a5a", "#d9a24a", "#8fb85a", "#5a8fc9", "#8a6ab0"]
-    for k in range(5):
-        t = k / 4.0
-        p = (0, n0[1] + (n1[1] - n0[1]) * t + G * 0.30,
-             n0[2] + (n1[2] - n0[2]) * t + G * 0.50)
-        parts.append(lump(p, Q.head * 0.22, cols[k], strength=0.35, squash=1.2,
-                          seed=k))
+    for k, p in enumerate(fg.mane_points(Q, pts)):
+        parts.append(lump(p, Q.head * 0.19, cols[k % len(cols)], strength=0.35,
+                          squash=1.3, seed=k))
     parts += fg.mane_tail(Q, pts, "#e8e0f0", mane=False)
     px, py, pz = hd["poll"]
     hl = Q.head
@@ -383,10 +380,13 @@ def nec_zombie(u):
 def nec_wight(u):
     H = 1.8
     ghost = "#a6d8b6"
-    v = [(0, 0.12 * H, 0.0), (0, 0.05 * H, 0.18 * H), (0, 0.0, 0.42 * H),
-         (0, 0.0, 0.66 * H), (0, 0.0, 0.74 * H)]
-    parts = [fg.skin(u["id"] + "_veil", v, fg.chain(5),
-                     [0.012 * H, 0.065 * H, 0.085 * H, 0.075 * H, 0.035 * H], ghost)]
+    # Schleier als Drehkoerper mit Falten, nach unten in eine Spitze
+    # auslaufend und nach hinten wehend.
+    prof = [(0.0, 0.004 * H), (0.12 * H, 0.05 * H), (0.30 * H, 0.10 * H),
+            (0.50 * H, 0.10 * H), (0.64 * H, 0.085 * H), (0.72 * H, 0.06 * H),
+            (0.76 * H, 0.0)]
+    parts = [fg.lathe(u["id"] + "_veil", prof, ghost, folds=7, depth=0.18,
+                      lean=(0.0, 0.14 * H))]
     P = Pose(H=H)
     z_sh = 0.68 * H
     for sx in (-1, 1):

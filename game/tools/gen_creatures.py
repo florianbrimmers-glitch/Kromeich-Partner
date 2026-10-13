@@ -183,6 +183,10 @@ def build(unit):
         raise SystemExit("Ohne Rezept: %s" % uid)
     out = fu.BUILD[uid](unit)
     ob = merge(uid, out)
+    # HARTE KANTEN, wo Flaechen im Winkel stossen (Helmrand, Klinge,
+    # Schild, Sohle), weich, wo sie fliessen (Haut). Alles glatt
+    # schattiert war der zweite Grund fuer das "Rundliche" (It. 74b).
+    bpy.ops.object.shade_smooth_by_angle(angle=rad(40))
     ob.rotation_euler = (0, 0, rad(yaw_for(uid)))
     bpy.ops.object.transform_apply(rotation=True)
     fit_to_tier(ob, int(unit["tier"]))

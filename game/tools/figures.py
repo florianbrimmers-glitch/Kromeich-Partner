@@ -165,6 +165,25 @@ def rot_z(p, ang, cx=0.0, cy=0.0):
     return (cx + x * c - y * s, cy + x * s + y * c, z)
 
 
+def lerp(a, b, t):
+    return (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t,
+            a[2] + (b[2] - a[2]) * t)
+
+
+def foot(name, ankle, toe, w, col):
+    """Fuss/Stiefel als verjuengter Keil statt runder Kugel - flache Sohle,
+    harte Kante. Ein Wurstende am Bein war der rundlichste Teil der Figur."""
+    import mathutils as mu
+    d = mu.Vector(toe) - mu.Vector(ankle)
+    d.z = 0.0
+    ln = max(d.length, 1e-4)
+    ang = math.atan2(d.x, -d.y)
+    c = ((ankle[0] + toe[0]) / 2, (ankle[1] + toe[1]) / 2, w * 0.55)
+    ob = bk.box((w * 0.85, ln * 0.62, w * 0.55), c, col, w * 0.25,
+                rot=(0, 0, ang), taper=0.8, segments=1)
+    return ob
+
+
 # ---------------------------------------------------------------- Zweibeiner
 
 class Pose:
@@ -230,25 +249,31 @@ def biped(name, P, mats, arms="ready", legs="stride"):
         (-P.hip * 1.1, 0.80 * s, 0.045 * H),             # 7 Knoechel R
         (-P.hip * 1.1, 0.80 * s - 0.07 * H, 0.02 * H),   # 8 Zeh R
     ]
-    th = 0.052 * H * b
-    lr = [0.075 * H * b, th, th * 0.72, th * 0.48, th * 0.42,
-          th, th * 0.72, th * 0.48, th * 0.42]
+    th = 0.048 * H * b
     # JEDES BEIN EINE EIGENE KETTE vom Becken aus. Als ein Netz mit dem
     # Becken als Mittelpunkt erzeugte der Skin-Modifier bei kraeftigen
     # Figuren (Oger, Behemoth) eckige Krausen, die auch die Glaettung nicht
     # mehr rund bekam.
+    #
+    # FORM STATT WURST (It. 74b): Oberschenkel, schmales Knie, Wade, duenner
+    # Knoechel. Mit nur Huefte-Knie-Knoechel und gleichmaessig fallender
+    # Dicke war jedes Bein ein Schlauch - das "Rundliche", das der Nutzer
+    # am ersten Satz bemaengelt hat.
     for a in (1, 5):
-        idx = [0, a, a + 1, a + 2, a + 3]
-        pv = [lv[i] for i in idx]
-        pv[0] = (lv[a][0] * 0.3, lv[a][1], lv[0][2])
-        pr = [lr[1] * 0.95] + [lr[i] for i in idx[1:]]
-        parts.append(skin(name + "_leg", pv, chain(5), pr, mats["legs"]))
-    if mats.get("boots") and legs != "sit":
+        hip, knee, ank = lv[a], lv[a + 1], lv[a + 2]
+        pv = [(hip[0] * 0.3, hip[1], lv[0][2]), hip, lerp(hip, knee, 0.4), knee,
+              lerp(knee, ank, 0.3), lerp(knee, ank, 0.8), ank]
+        pr = [th * 0.95, th, th * 0.92, th * 0.56, th * 0.66, th * 0.42, th * 0.38]
+        parts.append(skin(name + "_leg", pv, chain(len(pv)), pr, mats["legs"]))
+    if legs != "sit":
         for a, t in ((3, 4), (7, 8)):
-            ax, ay, az = lv[a]
-            parts.append(tube(name + "_boot", [(ax, ay + 0.005 * H, az + 0.11 * H),
-                                               (ax, ay, az), lv[t]],
-                              [th * 0.62, th * 0.58, th * 0.5], mats["boots"]))
+            col = mats.get("boots", mats["legs"])
+            if mats.get("boots"):
+                ax, ay, az = lv[a]
+                parts.append(tube(name + "_boot", [(ax, ay, az + 0.12 * H), (ax, ay, az)],
+                                  [th * 0.56, th * 0.5], col))
+            back = lerp(lv[t], lv[a], 1.35)
+            parts.append(foot(name + "_foot", (back[0], back[1], 0), lv[t], th * 0.62, col))
 
     # Rumpf mit Drehung gegen die Huefte.
     tw = P.twist
@@ -258,15 +283,20 @@ def biped(name, P, mats, arms="ready", legs="stride"):
         return rot_z((x, y, z), tw)
 
     hy = -P.hunch
+    # V-FORM: breite Brust, schmale Taille, eigener Hals. Vorher vier
+    # Punkte mit aehnlicher Dicke - ein Fass.
     tv = [
         (0.0, 0.0, L + 0.03 * H),                        # 0 Becken
         R(0.0, hy * 0.3 - 0.005 * H, L + 0.12 * H),      # 1 Taille
         R(0.0, hy * 0.7 - 0.01 * H, top - 0.06 * H),     # 2 Brust
         R(0.0, hy * 1.2 - 0.015 * H, top + 0.025 * H),   # 3 Hals
     ]
-    tr = [0.072 * H * b, (0.068 * H * b, 0.05 * H * b),
-          (0.095 * H * b, 0.062 * H * b), 0.03 * H * b]
-    parts.append(skin(name + "_torso", tv, chain(4), tr, mats["torso"]))
+    tv5 = [tv[0], tv[1], lerp(tv[1], tv[2], 0.55), tv[2],
+           lerp(tv[2], tv[3], 0.55), tv[3]]
+    tr = [(0.068 * H * b, 0.048 * H * b), (0.056 * H * b, 0.042 * H * b),
+          (0.078 * H * b, 0.052 * H * b), (0.092 * H * b, 0.055 * H * b),
+          0.045 * H * b, 0.024 * H * b]
+    parts.append(skin(name + "_torso", tv5, chain(6), tr, mats["torso"]))
 
     # Arme. "ready": rechte Hand vorn auf Hueft-/Brusthoehe (Waffe), linke
     # Hand vorn tiefer (Schild/Bogengriff). "raise": rechte Hand erhoben.
@@ -299,19 +329,31 @@ def biped(name, P, mats, arms="ready", legs="stride"):
     elif arms == "wide":
         elL = R(P.shoulder * 1.9, hy - 0.02 * H, sh_z - 0.10 * H)
         haL = R(P.shoulder * 2.0, hy - 0.10 * H, sh_z - 0.22 * H)
-    ar = 0.034 * H * b
-    # Arme ebenfalls je eine eigene Kette (siehe Beine).
+    ar = 0.031 * H * b
+    # Arme je eine eigene Kette (siehe Beine): Schulter, Oberarm,
+    # schmaler Ellbogen, Unterarm, Handgelenk.
     for sh, el, ha in ((shL, elL, haL), (shR, elR, haR)):
         inner = (sh[0] * 0.55 + tv[2][0] * 0.45, sh[1] * 0.55 + tv[2][1] * 0.45,
                  sh[2] - 0.01 * H)
-        parts.append(skin(name + "_arm", [inner, sh, el, ha], chain(4),
-                          [ar * 1.05, ar, ar * 0.8, ar * 0.62], mats["arms"]))
-    # Haende als kleine Kugeln in Hautfarbe (oder Handschuh).
+        pv = [inner, sh, lerp(sh, el, 0.45), el, lerp(el, ha, 0.3),
+              lerp(el, ha, 0.85)]
+        parts.append(skin(name + "_arm", pv, chain(6),
+                          [ar * 1.1, ar * 1.15, ar * 0.92, ar * 0.62, ar * 0.74,
+                           ar * 0.46], mats["arms"]))
+    # Haende: abgeflachte Kugel, nicht rund.
     for h in (haL, haR):
-        parts.append(ball(ar * 0.95, h, mats.get("hands", mats["skin"]), subdiv=1))
+        parts.append(ball(ar * 0.8, h, mats.get("hands", mats["skin"]),
+                          squash=(0.75, 1.0, 1.15), subdiv=1))
 
     head = (tv[3][0], tv[3][1] - 0.005 * H, tv[3][2] + P.head_r * 1.05)
-    parts.append(ball(P.head_r, head, mats["skin"], squash=(0.92, 1.0, 1.08)))
+    parts.append(ball(P.head_r, head, mats["skin"], squash=(0.86, 0.98, 1.1)))
+    # Kinn und Nase: ohne sie ist der Kopf eine Kugel.
+    parts.append(ball(P.head_r * 0.55, (head[0], head[1] - P.head_r * 0.45,
+                                        head[2] - P.head_r * 0.55),
+                      mats["skin"], squash=(1.0, 0.9, 0.8), subdiv=1))
+    parts.append(cone(P.head_r * 0.16, 0.0, P.head_r * 0.4,
+                      (head[0], head[1] - P.head_r * 1.0, head[2] - P.head_r * 0.05),
+                      mats["skin"], rot=(math.radians(-100), 0, 0), verts=5))
     pts = dict(head=head, handL=haL, handR=haR, shL=shL, shR=shR,
                chest=tv[2], pelvis=tv[0], waist=tv[1], top=top, tw=tw,
                footL=lv[3], footR=lv[7])
@@ -351,37 +393,75 @@ def tabard(name, P, pts, col, trim=None, strip=True):
 
 
 def cape(name, P, pts, col):
-    """Umhang hinten: Bahn von den Schultern bis zur Wade, leicht wehend."""
+    """Umhang: legt sich als Bogen um Schultern und Ruecken und faellt in
+    Falten bis zur Wade.
+
+    Die erste Fassung war eine flache Bahn hinter dem Ruecken - von der
+    Seite ein Brett neben der Figur. Ein Bogen mit Falten wirft eigene
+    Schatten und liest sich aus jeder Richtung als Stoff.
+    """
     H = P.H
-    sh = pts["chest"]
     zt = pts["top"]
-    zb = 0.18 * H
+    zb = 0.16 * H
     w = 0.10 * H * P.bulk
     vs, fs = [], []
-    rows = 5
+    rows, cols = 6, 11
     for i in range(rows):
         t = i / (rows - 1)
         z = zt - (zt - zb) * t
-        y = 0.07 * H + t * 0.10 * H
-        ww = w * (1.0 + 0.3 * t)
-        for x in (-ww, 0.0, ww):
+        r = w * (1.0 + 0.55 * t)
+        cy = 0.02 * H + t * 0.07 * H
+        for j in range(cols):
+            u = j / (cols - 1)
+            ang = math.radians(-80 + 160 * u)
+            fold = 1.0 + (0.10 * t) * math.sin(u * math.pi * 5)
+            x = math.sin(ang) * r * fold
+            y = cy + math.cos(ang) * r * 0.75 * fold
             vs.append(rot_z((x, y, z), pts["tw"]))
     for i in range(rows - 1):
-        for j in range(2):
-            a = i * 3 + j
-            fs.append((a, a + 1, a + 4, a + 3))
-    me = bpy.data.meshes.new(name + "_cape")
+        for j in range(cols - 1):
+            a = i * cols + j
+            fs.append((a, a + 1, a + cols + 1, a + cols))
+    return [sheet(name + "_cape", vs, fs, col, 0.010 * H, rough=0.9)]
+
+
+def lathe(name, profile, col, folds=0, depth=0.0, segs=24, lean=(0.0, 0.0)):
+    """Drehkoerper aus einem Profil [(z, r), ...] mit Faltenwurf.
+
+    Fuer Kutten und Gewaender: der Skin-Modifier machte daraus einen
+    glatten Sack. Falten (`folds` Stueck, `depth` als Anteil des Radius)
+    wachsen nach unten - oben liegt der Stoff an, unten faellt er.
+    """
+    vs, fs = [], []
+    n = len(profile)
+    zmax = max(z for z, _ in profile)
+    zmin = min(z for z, _ in profile)
+    for i, (z, r) in enumerate(profile):
+        t = (zmax - z) / max(1e-6, zmax - zmin)
+        for j in range(segs):
+            a = 2 * math.pi * j / segs
+            rr = r * (1.0 + depth * t * math.sin(a * folds))
+            vs.append((math.cos(a) * rr + lean[0] * t, math.sin(a) * rr + lean[1] * t, z))
+    for i in range(n - 1):
+        for j in range(segs):
+            a = i * segs + j
+            b = i * segs + (j + 1) % segs
+            fs.append((a, b, b + segs, a + segs))
+    me = bpy.data.meshes.new(name)
     me.from_pydata(vs, [], fs)
-    ob = bpy.data.objects.new(name + "_cape", me)
+    ob = bpy.data.objects.new(name, me)
     bpy.context.collection.objects.link(ob)
     _activate(ob)
-    sol = ob.modifiers.new("solid", "SOLIDIFY")
-    sol.thickness = 0.012 * H
-    bpy.ops.object.modifier_apply(modifier="solid")
+    import bmesh
+    bm = bmesh.new()
+    bm.from_mesh(me)
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    bm.to_mesh(me)
+    bm.free()
     for p in me.polygons:
         p.use_smooth = True
     me.materials.append(bk.material("m" + col, col, rough=0.9))
-    return [ob]
+    return ob
 
 
 # ---------------------------------------------------------------- Kopfteile
@@ -676,7 +756,7 @@ class Quad:
         self.kind = kind
         T = {
             #        Rumpflaenge, Beinlaenge, Rumpfdicke, Halslaenge, Halswinkel, Kopf
-            "horse": (1.00, 0.74, 0.150, 0.40, 50.0, 0.38),
+            "horse": (1.00, 0.74, 0.150, 0.42, 62.0, 0.34),
             "lion":  (0.92, 0.55, 0.165, 0.26, 40.0, 0.22),
             "wolf":  (0.86, 0.55, 0.120, 0.24, 28.0, 0.24),
             "heavy": (0.95, 0.48, 0.230, 0.18, 15.0, 0.26),
@@ -709,7 +789,9 @@ def quadruped(name, Q, mats, gait=0.12):
     n1 = (0, n0[1] - math.cos(a) * Q.neck * 0.5, n0[2] + math.sin(a) * Q.neck * 0.5)
     n2 = (0, n0[1] - math.cos(a) * Q.neck, n0[2] + math.sin(a) * Q.neck)
     v += [n1, n2]
-    r += [G * 0.62, G * 0.42]
+    # Hals kraeftig: am Ansatz fast so dick wie die Brust (Pferdehals).
+    r += [G * (0.78 if Q.kind == "horse" else 0.62),
+          G * (0.55 if Q.kind == "horse" else 0.42)]
     e += [(3, 4), (4, 5)]
     # Beine: vorn gestreckt mit Knie, hinten mit Sprunggelenk nach hinten.
     # Diagonalgang: links vorn und rechts hinten vor.
@@ -749,40 +831,73 @@ def quadruped(name, Q, mats, gait=0.12):
 
 
 def horse_head(Q, pts, col, dark):
-    """Pferdekopf: Schaedel -> Maul als Rohr, schraeg nach unten-vorn."""
+    """Pferdekopf mit Ganaschen, flacher Stirn, Nasenruecken und Maul.
+
+    Der erste Kopf war ein Rohr mit drei Punkten - im Spiel nicht vom
+    Hals zu unterscheiden (Nutzer: "Pferdekoepfe nachbessern"). Ein
+    Pferdekopf liest sich an drei Dingen: breite Backe oben hinten, langer
+    schmaler Nasenruecken, Maul mit Nuestern; dazu aufgestellte Ohren.
+    """
     G = Q.girth
     x, y, z = pts["neck"]
     hl = Q.head
-    a = math.radians(-50)
-    poll = (0, y - G * 0.05, z + G * 0.2)
-    muz = (0, poll[1] - math.cos(a) * hl, poll[2] + math.sin(a) * hl)
-    out = [tube("head", [poll, ((poll[0] + muz[0]) / 2, (poll[1] + muz[1]) / 2,
-                                (poll[2] + muz[2]) / 2), muz],
-                [hl * 0.34, hl * 0.27, hl * 0.21], col)]
-    out.append(ball(hl * 0.17, (0, muz[1] - hl * 0.03, muz[2] - hl * 0.02), dark,
-                    squash=(1.05, 1, 0.8), subdiv=1))
-    # Ohren, Augen nach der KOPFLAENGE bemessen, nicht nach der Rumpfdicke:
-    # beim schlanken Pferd waren sie sonst zwei Pixel gross.
+    a = math.radians(-58)
+    poll = (0, y - G * 0.02, z + G * 0.18)
+    ax = (0, -math.cos(a), math.sin(a))          # Kopfachse (nach vorn-unten)
+
+    def at(t, up=0.0):
+        return (0, poll[1] + ax[1] * hl * t, poll[2] + ax[2] * hl * t + up)
+
+    pv = [at(0.0), at(0.22), at(0.55), at(0.82), at(0.97)]
+    pr = [(hl * 0.15, hl * 0.17), (hl * 0.16, hl * 0.17), (hl * 0.12, hl * 0.13),
+          (hl * 0.12, hl * 0.13), (hl * 0.10, hl * 0.10)]
+    out = [skin("hhead", pv, chain(5), pr, col)]
+    # Ganasche: breite Backe unten hinten.
+    out.append(ball(hl * 0.19, (0, at(0.25)[1] + hl * 0.06, at(0.25)[2] - hl * 0.10),
+                    col, squash=(0.78, 1.0, 1.0)))
+    # Maul mit Nuestern und Unterlippe.
+    tip = at(0.95)
+    out.append(ball(hl * 0.12, (0, tip[1] - hl * 0.01, tip[2] - hl * 0.02), dark,
+                    squash=(1.0, 0.9, 0.9), subdiv=1))
     for sx in (-1, 1):
-        out.append(cone(hl * 0.09, 0.0, hl * 0.36,
-                        (sx * hl * 0.12, poll[1] + hl * 0.04, poll[2] + hl * 0.30),
-                        col, rot=(math.radians(-15), math.radians(sx * 12), 0),
+        out.append(ball(hl * 0.035, (sx * hl * 0.06, tip[1] - hl * 0.08,
+                                     tip[2] + hl * 0.01), "#1a1612", subdiv=1))
+        # Ohren: aufgestellt, nach vorn geneigt.
+        out.append(cone(hl * 0.07, 0.0, hl * 0.30,
+                        (sx * hl * 0.09, poll[1] + hl * 0.03, poll[2] + hl * 0.20),
+                        col, rot=(math.radians(-18), math.radians(sx * 10), 0),
                         verts=6))
-        out.append(ball(hl * 0.06, (sx * hl * 0.20, poll[1] - hl * 0.30,
-                                    poll[2] - hl * 0.10), "#1a1612", subdiv=1))
-    return out, dict(poll=poll, muzzle=muz)
+        e = at(0.22)
+        out.append(ball(hl * 0.045, (sx * hl * 0.15, e[1] - hl * 0.02, e[2] + hl * 0.05),
+                        "#1a1612", subdiv=1))
+    return out, dict(poll=poll, muzzle=tip)
+
+
+def mane_points(Q, pts, n=7):
+    """Punkte auf dem MAEHNENKAMM: entlang des Halses, nach hinten-oben
+    versetzt (senkrecht zur Halsrichtung). Vorher sassen die Buesche auf
+    der Linie Brust-Kopf plus festem Versatz - beim steilen Hals schwebten
+    sie als Kugeln neben dem Kopf."""
+    G = Q.girth
+    n0, n1 = pts["chest"], pts["neck"]
+    a = math.radians(Q.neck_ang)
+    perp = (0, math.sin(a), math.cos(a))
+    out = []
+    for k in range(n):
+        t = 0.15 + 0.85 * k / (n - 1)
+        rr = G * (0.70 - 0.25 * t)
+        out.append((0, n0[1] + (n1[1] - n0[1]) * t + perp[1] * rr,
+                    n0[2] + (n1[2] - n0[2]) * t + perp[2] * rr))
+    return out
 
 
 def mane_tail(Q, pts, col, tail_len=0.6, mane=True):
     G = Q.girth
     out = []
     if mane:
-        n0, n1 = pts["chest"], pts["neck"]
-        for k in range(5):
-            t = k / 4.0
-            p = (0, n0[1] + (n1[1] - n0[1]) * t + G * 0.30,
-                 n0[2] + (n1[2] - n0[2]) * t + G * 0.50)
-            out.append(lump(p, Q.head * 0.22, col, strength=0.35, squash=1.2, seed=k))
+        for k, p in enumerate(mane_points(Q, pts)):
+            ob = lump(p, Q.head * 0.19, col, strength=0.35, squash=1.3, seed=k)
+            out.append(ob)
     tx, ty, tz = pts["tail"]
     out.append(tube("tail", [(0, ty, tz), (0, ty + tail_len * 0.35, tz - tail_len * 0.1),
                              (0, ty + tail_len * 0.5, tz - tail_len * 0.5),
@@ -796,48 +911,67 @@ def membrane_wing(pts_root, sx, span, col, bone, lift=0.5, back=0.3,
     """Flughaut (Drache, Fledermaus): Arm mit gespreizten Fingern, dazwischen
     Haut.
 
-    NACH HINTEN GESCHWUNGEN, nicht seitlich hoch. Auf dem Brett sieht man
-    die Figuren im Profil (sie schauen zur Gegenseite); ein Fluegel, der
-    nur seitlich nach oben steht, ist von dort eine Kante - im ersten
-    Anlauf stand ueber jedem Drachen ein Brett. Geschwungen hat die Flaeche
-    eine Ausdehnung nach hinten, die man im Profil UND von oben sieht.
+    NACH HINTEN GESCHWUNGEN, nicht seitlich hoch (im Profil sonst eine
+    Kante). Seit It. 74b mit BOGENKANTE: zwischen zwei Fingern ist die Haut
+    zum Handgelenk hin eingezogen und durchgewoelbt. Als glatte Dreiecke
+    war es ein Brett ("Pappe"); die Bogenkante ist, woran man eine
+    Flughaut erkennt.
     """
+    import mathutils as mu
     x, y, z = pts_root
     s_ = span
-    elbow = (x + sx * 0.28 * s_, y + 0.12 * s_, z + 0.42 * s_ * lift)
-    wrist = (x + sx * 0.42 * s_, y + 0.32 * s_, z + 0.80 * s_ * lift)
-    out = [tube("warm", [(x, y, z), elbow, wrist],
-                [s_ * 0.045, s_ * 0.032, s_ * 0.022], bone)]
+    root = mu.Vector((x, y, z))
+    elbow = root + mu.Vector((sx * 0.28 * s_, 0.12 * s_, 0.42 * s_ * lift))
+    wrist = root + mu.Vector((sx * 0.42 * s_, 0.32 * s_, 0.80 * s_ * lift))
+    out = [tube("warm", [tuple(root), tuple(elbow), tuple(wrist)],
+                [s_ * 0.05, s_ * 0.036, s_ * 0.026], bone)]
+    out.append(cone(s_ * 0.022, 0.0, s_ * 0.09, tuple(wrist + mu.Vector((0, -0.02 * s_, 0.05 * s_))),
+                    "#e8dcc0", rot=(math.radians(-30), 0, 0), verts=6))
     tips = []
     for k in range(fingers):
         t = k / max(1, fingers - 1)
-        ln = s_ * (0.52 - 0.14 * t)
-        d = (sx * (0.35 - 0.25 * t), 0.35 + 0.35 * t, 0.25 - 0.95 * t)
-        n = math.sqrt(d[0] ** 2 + d[1] ** 2 + d[2] ** 2)
-        tip = (wrist[0] + d[0] / n * ln, wrist[1] + d[1] / n * ln,
-               wrist[2] + d[2] / n * ln)
+        ln = s_ * (0.56 - 0.14 * t)
+        d = mu.Vector((sx * (0.35 - 0.25 * t), 0.35 + 0.35 * t, 0.25 - 0.95 * t))
+        d.normalize()
+        knuck = wrist + d * ln * 0.5 + mu.Vector((0, 0, 0.03 * s_))
+        tip = wrist + d * ln
         tips.append(tip)
-        out.append(tube("finger", [wrist, tip], [s_ * 0.016, s_ * 0.005], bone))
+        out.append(tube("finger", [tuple(wrist), tuple(knuck), tuple(tip)],
+                        [s_ * 0.02, s_ * 0.013, s_ * 0.004], bone))
     if skin_on:
-        root_b = (x, y + back * s_ * 1.6, z - s_ * 0.04)
-        vs = [wrist, elbow, (x, y, z)] + tips + [root_b]
-        fs = []
-        n = len(tips)
-        for k in range(n - 1):
-            fs.append((0, 3 + k, 3 + k + 1))
-        fs.append((0, 3 + n - 1, 3 + n))
-        fs.append((0, 3 + n, 2, 1))
-        out.append(sheet("membrane", vs, fs, col, s_ * 0.012))
+        root_b = root + mu.Vector((0, back * s_ * 1.6, -s_ * 0.04))
+        edge = tips + [root_b]
+        n_up = mu.Vector((0, 0, 1))
+        vs, fs = [tuple(wrist)], []
+        for k in range(len(edge) - 1):
+            a_, b_ = edge[k], edge[k + 1]
+            mid = (a_ + b_) * 0.5
+            # Bogen: Kantenmitte zum Handgelenk gezogen, Flaeche gewoelbt.
+            scal = mid.lerp(wrist, 0.28)
+            bel = ((wrist + a_ + b_) / 3.0) - n_up * 0.05 * s_
+            i0 = len(vs)
+            vs += [tuple(a_), tuple(scal), tuple(bel)]
+            fs += [(0, i0, i0 + 2), (i0, i0 + 1, i0 + 2), (i0 + 2, i0 + 1, 0)]
+        # Armteil: Schulter, Ellbogen, Handgelenk, Rumpfansatz.
+        i0 = len(vs)
+        vs += [tuple(root), tuple(elbow), tuple(root_b)]
+        fs += [(0, i0 + 1, i0), (0, i0, i0 + 2)]
+        out.append(sheet("membrane", vs, fs, col, s_ * 0.010))
     return out
 
 
 def robe(name, H, col, hem=0.0, flare=1.0, lean=0.0):
     """Gewand als Glocke: Saum weit, oben schmal. Gibt (teil, schulterhoehe)."""
     z_sh = 0.80 * H
-    v = [(0, -lean * 0.2, hem + 0.02 * H), (0, -lean * 0.4, hem + 0.25 * H),
-         (0, -lean * 0.7, 0.55 * H), (0, -lean, z_sh), (0, -lean, z_sh + 0.05 * H)]
-    r = [0.12 * H * flare, 0.095 * H * flare, 0.075 * H, 0.072 * H, 0.03 * H]
-    return skin(name + "_robe", v, chain(len(v)), r, col), z_sh
+    # Drehkoerper mit Falten statt Skin-Sack (It. 74b): Saum weit und
+    # gewellt, Taille schmal, Schultern rund.
+    prof = [(hem + 0.0, 0.0), (hem + 0.005 * H, 0.17 * H * flare),
+            (hem + 0.10 * H, 0.155 * H * flare), (0.35 * H, 0.12 * H * flare),
+            (0.55 * H, 0.095 * H), (0.68 * H, 0.105 * H), (z_sh - 0.03 * H, 0.11 * H),
+            (z_sh + 0.02 * H, 0.085 * H), (z_sh + 0.06 * H, 0.035 * H),
+            (z_sh + 0.065 * H, 0.0)]
+    return lathe(name + "_robe", prof, col, folds=9, depth=0.10,
+                 lean=(0.0, -lean)), z_sh
 
 
 def tree_body(name, H, bark, big=False):
@@ -884,50 +1018,78 @@ def tree_body(name, H, bark, big=False):
                        face=(0, -trunk * 0.95, 0.60 * H))
 
 
+def _darker(hexstr, k):
+    h = hexstr.lstrip("#")
+    c = [int(h[i:i + 2], 16) for i in (0, 2, 4)]
+    return "#%02x%02x%02x" % tuple(max(0, min(255, int(v * k))) for v in c)
+
+
+def feather_blade(base, d, n, ln, w, col, thick):
+    """Eine Feder: lanzettfoermige Flaeche mit Kiel, in der Fluegelebene."""
+    import mathutils as mu
+    d = mu.Vector(d).normalized()
+    side = d.cross(mu.Vector(n)).normalized() * w
+    b = mu.Vector(base)
+    vs = [b, b + d * ln * 0.3 + side * 0.9, b + d * ln * 0.75 + side * 0.75,
+          b + d * ln, b + d * ln * 0.75 - side * 0.75, b + d * ln * 0.3 - side * 0.9]
+    # Leicht gewoelbt: Mitte nach oben.
+    vs[3] = vs[3] - mu.Vector(n) * ln * 0.06
+    fs = [(0, 1, 2), (0, 2, 3), (0, 3, 4), (0, 4, 5)]
+    return sheet("feather", [tuple(v) for v in vs], fs, col, thick)
+
+
 def feather_wing(root, sx, span, col, col2, lift=0.6, back=0.35,
                  spread=0.45):
-    """Federfluegel als FLACHE Schwinge mit gezackter Hinterkante.
+    """Federfluegel aus EINZELNEN FEDERN in drei Lagen (It. 74b).
 
-    Einzelne Federrohre (feather_wings) lasen sich im Pilot wie Finger;
-    eine Flaeche mit Federspitzen am Rand liest sich als Fluegel. Eine
-    zweite, kleinere Lage (Deckfedern) in der Zweitfarbe gibt Tiefe.
+    Die erste Fassung war eine Flaeche mit gezackter Kante - der Nutzer
+    nannte sie zu Recht Pappe. Ein Fluegel liest sich an seinen Federn:
+    lange Handschwingen an der Spitze, Armschwingen am Arm, kurze
+    Deckfedern obendrauf in der Zweitfarbe. Jede Feder ist eine eigene,
+    leicht gewoelbte Flaeche; die Lagen liegen versetzt uebereinander.
 
-    Die Vorderkante laeuft nach HINTEN-oben-aussen (siehe membrane_wing:
-    im Profil war ein seitlich gestellter Fluegel eine Kante).
+    Die Vorderkante laeuft nach HINTEN-oben-aussen: im Profil (so sieht
+    man die Figuren auf dem Brett) war ein seitlich gestellter Fluegel
+    eine Kante.
     """
+    import mathutils as mu
     x, y, z = root
-    out = []
-    for layer, (k, c, dz) in enumerate(((1.0, col, 0.0), (0.55, col2, 0.015 * span))):
-        s_ = span * k
-        lead = []
-        for t in (0.0, 0.35, 0.7, 1.0):
-            lead.append((x + sx * spread * s_ * t,
-                         y + 0.55 * s_ * t * t - 0.04 * s_ * math.sin(math.pi * t),
-                         z + dz + lift * s_ * t * (1.5 - 0.5 * t)))
-        tip = lead[-1]
-        rb = (x + sx * 0.03 * s_, y + back * s_ * 1.3, z + dz - 0.06 * s_)
-        trail = []
-        n = 9
-        for i in range(1, n):
-            t = i / n
-            px = tip[0] + (rb[0] - tip[0]) * t
-            py = tip[1] + (rb[1] - tip[1]) * t
-            pz = tip[2] + (rb[2] - tip[2]) * t
-            # Federspitzen: jede zweite Ecke nach hinten-unten gezogen.
-            o = 0.07 * s_ if i % 2 else 0.0
-            trail.append((px, py + o * 0.6, pz - o))
-        vs = lead + trail + [rb]
-        cx = sum(v[0] for v in vs) / len(vs)
-        cy = sum(v[1] for v in vs) / len(vs)
-        cz = sum(v[2] for v in vs) / len(vs)
-        vs.append((cx + sx * 0.02 * s_, cy, cz))
-        c_i = len(vs) - 1
-        fs = [(c_i, i, i + 1) for i in range(len(vs) - 2)]
-        fs.append((c_i, len(vs) - 2, 0))
-        out.append(sheet("wing", vs, fs, c, 0.012 * span))
-        if layer == 0:
-            out.append(tube("wbone", lead[:3], [0.035 * span, 0.03 * span,
-                                                0.018 * span], col))
+    s_ = span
+    sh = mu.Vector(root)
+    el = sh + mu.Vector((sx * spread * 0.40 * s_, 0.10 * s_, lift * 0.45 * s_))
+    wr = sh + mu.Vector((sx * spread * 0.75 * s_, 0.24 * s_, lift * 0.85 * s_))
+    tipv = sh + mu.Vector((sx * spread * 1.0 * s_, 0.50 * s_, lift * 1.0 * s_))
+    chord = mu.Vector((0, 1.0, -0.55)).normalized()   # nach hinten-unten
+    n = (wr - sh).cross(chord).normalized()
+    if n.z < 0:
+        n = -n
+    thick = 0.008 * s_
+    out = [tube("wbone", [tuple(sh), tuple(el), tuple(wr), tuple(lerp(wr, tipv, 0.5))],
+                [0.040 * s_, 0.034 * s_, 0.026 * s_, 0.016 * s_], col2)]
+    dark = _darker(col, 0.82)
+    # Handschwingen: vom Handgelenk zur Spitze, Richtung dreht von hinten
+    # nach aussen.
+    k_n = 7
+    for k in range(k_n):
+        t = k / (k_n - 1)
+        base = mu.Vector(lerp(wr, tipv, t * 0.8))
+        along = (tipv - wr).normalized()
+        d = chord.lerp(along, 0.25 + 0.65 * t)
+        out.append(feather_blade(tuple(base - n * 0.002 * k), d, n,
+                                 s_ * (0.42 + 0.12 * t), s_ * 0.075, dark, thick))
+    # Armschwingen: vom Ellbogen bis Handgelenk, nach hinten-unten.
+    for k in range(7):
+        t = k / 6
+        base = mu.Vector(lerp(sh, wr, 0.2 + 0.8 * t))
+        out.append(feather_blade(tuple(base + n * 0.003 * k), chord, n,
+                                 s_ * (0.34 + 0.06 * t), s_ * 0.08, col, thick))
+    # Deckfedern obenauf.
+    for k in range(9):
+        t = k / 8
+        base = mu.Vector(lerp(sh, tipv, 0.05 + 0.7 * t)) + n * 0.02 * s_
+        out.append(feather_blade(tuple(base), chord.lerp((tipv - sh).normalized(),
+                                                         0.3 * t), n,
+                                 s_ * (0.20 - 0.05 * t), s_ * 0.07, col2, thick))
     return out
 
 
