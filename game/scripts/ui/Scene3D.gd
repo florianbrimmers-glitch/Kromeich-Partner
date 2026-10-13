@@ -176,6 +176,15 @@ func _apply_surface(name: String, m: Mesh) -> void:
 		var mat := m.surface_get_material(i) as StandardMaterial3D
 		if mat == null:
 			continue
+		# NICHT AUF TEXTURIERTE MATERIALIEN. `uv1_triplanar` und `uv1_scale`
+		# gelten fuer die GANZE UV1-Abbildung, also auch fuer die Farbtextur:
+		# sie wuerde nach Weltlage statt nach ihren UVs abgetastet. Bei den
+		# einfarbigen eigenen Modellen fiel das nie auf - die ersten
+		# texturierten (CC0-Pilot, It. 71) kamen fast schwarz heraus, weil
+		# fast nur dunkle Stellen des Textur-Atlas getroffen wurden. Wer eine
+		# gemalte Textur hat, braucht das Rauschen ohnehin nicht.
+		if mat.albedo_texture != null:
+			continue
 		mat.detail_enabled = true
 		mat.detail_albedo = tex
 		mat.detail_blend_mode = BaseMaterial3D.BLEND_MODE_MUL

@@ -21,3 +21,8 @@ obj/
 __pycache__/
 *.pyc
 .pytest_cache/
+
+# Pilot (It. 71): heruntergeladene CC0-Pakete und daraus erzeugte Modelle.
+# Nicht eingecheckt, solange der Pilot nicht entschieden ist - sie liessen
+# sich jederzeit mit tools/pilot/ neu erzeugen.
+pilot_assets/
