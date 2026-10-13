@@ -243,39 +243,62 @@ func _test_field_places_everything() -> void:
 		# Android-Export unzuverlaessig.
 		"stacks": stacks, "obstacles": [{"pos": Vector2i(4, 4), "kind": 0}],
 		"move": [Vector2i(2, 2), Vector2i(3, 2)], "targets": [Vector2i(6, 2)]})
-	# Boden: das Brett SIND 64 Zellen, dazu kommt seit It. 69 der Rand, der
-	# den Rest des Bildes fuellt (vorher standen dort 55 Prozent schwarze
-	# Flaeche). Wie viele Randkacheln es sind, haengt vom Seitenverhaeltnis
-	# des Viewports ab - eine feste Zahl waere hier eine Kopie der
-	# Kamerarechnung. Geprueft wird deshalb, was wirklich gelten muss.
-	var gname: String = String(Field.GROUND_MODEL[0])
-	var gc: int = _count(gname)
-	_check(gc >= 64, "mindestens die 64 Brettzellen (%d, Modell %s)"
-		% [gc, gname])
-	_check(gc > 64, "das Brett hat einen Rand (%d Bodenkacheln)" % gc)
-	# DER RAND LAESST DIE BRETTFLAECHE AUS. Tut er das nicht, liegen zwei
-	# Kacheln aufeinander und streiten sich um die Tiefe - genau der
-	# Z-Fight, dessen dunkle Linien It. 69 beseitigt hat.
-	#
-	# Geprueft wird ueber die ANZAHL, nicht ueber die Positionen: headless
-	# liefert MultiMesh.get_instance_transform fuer JEDE Instanz den
-	# Ursprung (nachgemessen), genau wie get_instance_color seit It. 58
-	# schwarz liefert. Ein Positionsvergleich waere hier dauerhaft rot und
-	# wuerde nichts aussagen. Der Ausschnitt kommt aus apron_rect() - der
-	# Funktion, die auch die Ansicht benutzt.
-	var ar: Rect2i = _f.apron_rect(8, 8)
-	var ganz: int = ar.size.x * ar.size.y
-	# Brett (64) + Rand (Rest) = genau einmal jede Zelle des Ausschnitts.
-	# Ohne die Auslassung waeren es 64 mehr.
-	_check(gc == ganz,
-		"jede Zelle des Ausschnitts genau einmal belegt (%d von %d)"
-		% [gc, ganz])
+	# BODEN (seit It. 73): EINE durchgehende Flaeche mit dem Heroes-4-Shader
+	# statt 64 Kacheln plus Rand. Sie muss den ganzen Ausschnitt decken, den
+	# die Kamera zeigt - sonst waeren wieder Teile des Bildes schwarz (It. 69).
+	# Die Groesse kommt aus apron_rect(), derselben Rechnung wie in der Ansicht.
+	var gnode: MeshInstance3D = _f.ground_node()
+	_check(gnode != null, "es gibt eine Bodenflaeche")
+	if gnode != null:
+		var ar: Rect2i = _f.apron_rect(8, 8)
+		var gsize: Vector2 = (gnode.mesh as PlaneMesh).size
+		_check(gsize.x >= ar.size.x and gsize.y >= ar.size.y,
+			"Boden deckt den sichtbaren Ausschnitt (%s gegen %s)"
+			% [str(gsize), str(ar.size)])
+		var mat := gnode.material_override as ShaderMaterial
+		_check(mat != null and mat.get_shader_parameter("detail_a") != null,
+			"Boden hat Shader und Strukturkarte")
+	# Die alten Kacheln duerfen nicht mehr im Bild liegen - zwei Boeden
+	# uebereinander streiten sich um die Tiefe (Z-Fight, It. 62/69).
+	_check(_count("bt_grass") == 0, "keine Bodenkacheln mehr (%d)" % _count("bt_grass"))
+	# AUSSTATTUNG: Gruppen aus Felsen und Bueschen stehen da, aber NIE auf
+	# dem Brett - ausser Gras ist alles hoeher als ein Feld und saehe aus wie
+	# ein Hindernis, das die Kampflogik gar nicht kennt.
+	var props: Dictionary = _f._scatter_props(8, 8, 0, 3)
+	var n_props := 0
+	var on_board: Array = []
+	for name in props.keys():
+		for it in (props[name] as Array):
+			n_props += 1
+			var pos: Vector3 = (it as Dictionary)["pos"]
+			if String(name).begins_with("grass_"):
+				continue
+			if pos.x > -0.5 and pos.x < 7.5 and pos.z > -0.5 and pos.z < 7.5:
+				on_board.append("%s@%.1f,%.1f" % [name, pos.x, pos.z])
+	_check(n_props > 60, "das Feld ist ausgestattet (%d Teile)" % n_props)
+	_check(on_board.is_empty(), "nichts Hohes auf dem Brett (%s)" % str(on_board))
+	# Dieselbe Eingabe, dieselbe Ausstattung: sonst springen die Bueche bei
+	# jedem Neuzeichnen, und refresh laeuft waehrend Animationen staendig.
+	_f._props_key = ""
+	var again: Dictionary = _f._scatter_props(8, 8, 0, 3)
+	_check(str(again.keys()) == str(props.keys()) and
+		(again.get("grass_0", []) as Array).size() == (props.get("grass_0", []) as Array).size(),
+		"Ausstattung ist bei gleichem Seed gleich")
 	for s in stacks:
 		var t: String = String((s as Dictionary)["type"])
 		_check(_count(t) == 1, "%s steht einmal (%d)" % [t, _count(t)])
 	_check(_count("ob_stone") == 1, "ein Hindernis (%d)" % _count("ob_stone"))
-	# Ringe: drei Seiten-/Aktivringe plus zwei Laufziele plus ein Angriffsziel.
-	_check(_count("marker_ring") == 6, "sechs Ringe (%d)" % _count("marker_ring"))
+	# Seit It. 73: Ringe nur noch unter Einheiten, die Reichweite liegt als
+	# durchscheinende Felder (wie in Heroes 4 die einzige sichtbare Spur des
+	# Rasters). Drei Stapel -> drei Ringe; zwei Laufziele + ein Angriffsziel.
+	_check(_count("marker_ring") == 3, "drei Ringe (%d)" % _count("marker_ring"))
+	_check(_count("marker_cell") == 3, "drei Reichweitenfelder (%d)" % _count("marker_cell"))
+	# Die Figuren wachsen im Kampf um einen festen Betrag (FIGURE_GROW):
+	# kleine deutlich, grosse wenig, und groesser bleibt groesser.
+	var s_small: float = _f.figure_scale("men_spearman")
+	var s_big: float = _f.figure_scale("nec_bonedragon")
+	_check(s_small > s_big and s_big >= 1.0 and s_small <= 1.35 + 0.001,
+		"Vergroesserung faellt mit der Groesse (%.2f / %.2f)" % [s_small, s_big])
 
 	# Aufstellungsphase: die erlaubte Flaeche bekommt Ringe, und der
 	# Stapel, den man gerade umstellt, einen eigenen. Ohne das waere die
@@ -288,9 +311,10 @@ func _test_field_places_everything() -> void:
 	_f.refresh({"cols": 8, "rows": 8, "terrain": 0, "seed": 3,
 		"stacks": stacks, "obstacles": [], "move": [], "targets": [],
 		"zone": zone, "picked": Vector2i(1, 5)})
-	# 16 Zonenfelder plus drei Stapelringe.
-	_check(_count("marker_ring") == 19,
-		"Zonenflaeche und Stapel zusammen 19 Ringe (%d)" % _count("marker_ring"))
+	# 16 Zonenfelder als Flaechen, drei Stapelringe.
+	_check(_count("marker_cell") == 16,
+		"Zonenflaeche aus 16 Feldern (%d)" % _count("marker_cell"))
+	_check(_count("marker_ring") == 3, "und drei Stapelringe (%d)" % _count("marker_ring"))
 	# DIE FARBE DES RINGS WIRD HIER NICHT GEPRUEFT. `get_instance_color`
 	# liest headless nur Schwarz zurueck (der Dummy-Renderer haelt die
 	# Instanzdaten nicht vor) - ein Vergleich waere immer rot, und zwar
@@ -309,6 +333,8 @@ func _test_field_places_everything() -> void:
 	_check(left.is_empty(), "gefallene Stapel verschwinden (%s)" % str(left))
 	_check(_count("marker_ring") == 0, "und ihre Ringe mit ihnen (%d)"
 		% _count("marker_ring"))
+	_check(_count("marker_cell") == 0, "und keine Reichweite mehr (%d)"
+		% _count("marker_cell"))
 	_done.append("_test_field_places_everything")
 
 

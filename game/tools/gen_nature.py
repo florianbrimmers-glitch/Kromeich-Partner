@@ -1,8 +1,14 @@
 #!/usr/bin/env python3
-"""PILOT: stilisierte Natur, selbst gebaut (It. 72).
+"""Natur fuer das Schlachtfeld im Heroes-4-Stil (It. 73).
 
     /opt/blender/blender -b --factory-startup -noaudio \
-        --python game/tools/pilot/gen_nature_own.py -- game/pilot_assets/nature.glb
+        --python game/tools/gen_nature.py -- game/assets/models/nature.glb
+
+Entstanden als Pilot in It. 72 (tools/pilot/), vom Nutzer abgenommen
+("sieht sehr gut aus") und hier ins Spiel uebernommen. BattleField3D laedt
+nature.glb NACH creatures.glb - die beiden Hindernisse ob_stone und ob_bush
+aus dieser Datei ersetzen damit die alten Kloetze, ohne dass sich an der
+Hindernis-Zuordnung etwas aendert.
 
 WARUM SELBST GEBAUT: Der erste Anlauf nahm Poly-Haven-Modelle (CC0). Das
 sind Fotogrammetrie-Vorlagen fuer Filmbilder - ein Baum hat 1,6 Millionen
@@ -36,7 +42,7 @@ import bpy
 import mathutils
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, os.path.dirname(HERE))
+sys.path.insert(0, HERE)
 import blender_kit as bk  # noqa: E402
 
 SKIN_FATTEN = 1.45
@@ -372,6 +378,10 @@ def main():
     for i in range(2):
         build("grass_%d" % i, grass("g%d" % i, rng.uniform(0.24, 0.34), rng,
                                     ["#55832f", "#6a9638", "#4a7429"]))
+    # HINDERNISSE. Sie muessen in ihre Zelle passen (Grundflaeche unter
+    # 0.95) - sonst sieht man nicht, welches Feld gesperrt ist.
+    build("ob_stone", boulder("obs", 0.62, rng))
+    build("ob_bush", autumn_shrub("obb", 0.82, rng, AUTUMN))
     # Satz im Stil des Vorbilds (It. 72, zweite Runde).
     for i in range(3):
         build("shrub_autumn_%d" % i, autumn_shrub("sa%d" % i,
