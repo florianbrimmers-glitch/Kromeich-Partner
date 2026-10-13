@@ -26,18 +26,23 @@ uniform float detail = 0.85;
 // die gruene Wiese von Heroes 4 ist gemalt. "Nicht ganz so realistisch"
 // heisst: echte Kleinstruktur, gemalter Farbton. Gedeckt, nicht neon - der
 // erste Palettenversuch leuchtete unter ACES und Saettigung 1.22.
-uniform vec3 grass_dark : source_color = vec3(0.16, 0.27, 0.10);
-uniform vec3 grass_mid : source_color = vec3(0.27, 0.40, 0.15);
-uniform vec3 grass_light : source_color = vec3(0.40, 0.50, 0.22);
-uniform vec3 grass_dry : source_color = vec3(0.47, 0.45, 0.25);
-uniform vec3 dirt_col : source_color = vec3(0.40, 0.31, 0.21);
+// GEMESSEN am Heroes-4-Kampfbild (Quantile 10/50/90 % der Helligkeit):
+// #405731, #4e6b3a, #517d3b; trockene Stellen #73603e.
+uniform vec3 grass_dark : source_color = vec3(0.25, 0.34, 0.19);
+uniform vec3 grass_mid : source_color = vec3(0.31, 0.42, 0.23);
+uniform vec3 grass_light : source_color = vec3(0.34, 0.49, 0.23);
+uniform vec3 grass_dry : source_color = vec3(0.45, 0.40, 0.25);
+uniform vec3 dirt_col : source_color = vec3(0.47, 0.39, 0.25);
 
 // Wiederholungen je Welteinheit (eine Zelle = 1).
 uniform float tile_a = 0.33;
 uniform float tile_b = 0.21;
 uniform float tile_dirt = 0.28;
 uniform float patch_scale = 0.055;
-uniform float dirt_amount = 0.74;
+uniform float dirt_amount = 0.70;
+// Wolkenschatten: grosse weiche dunkle Partien, im Vorbild sehr praesent.
+uniform float cloud_scale = 0.022;
+uniform float cloud_dark = 0.30;
 
 varying vec3 wpos;
 
@@ -68,9 +73,13 @@ void fragment() {
 	grass = mix(grass, grass_dry, smoothstep(0.66, 0.80, n2) * 0.55);
 	grass *= mix(1.0, sg, detail);
 
-	// Erdstellen mit ausgefranstem Rand.
-	float d = smoothstep(dirt_amount, dirt_amount + 0.06, n1 + (n2 - 0.5) * 0.30);
-	vec3 col = mix(grass, dirt_col * mix(1.0, sd, detail), d);
+	// Trockene Stellen: im Vorbild weich auslaufend und durchsetzt mit Gras,
+	// keine harten Erdflecken. Breiter Uebergang und nie ganz deckend.
+	float d = smoothstep(dirt_amount, dirt_amount + 0.16, n1 + (n2 - 0.5) * 0.35);
+	vec3 col = mix(grass, dirt_col * mix(1.0, sd, detail), d * 0.85);
+	// Wolkenschatten ueber alles.
+	float cl = texture(noise, p * cloud_scale + vec2(0.71, 0.13)).r;
+	col *= 1.0 - cloud_dark * smoothstep(0.45, 0.75, cl);
 
 	ALBEDO = col;
 	ROUGHNESS = 0.96;

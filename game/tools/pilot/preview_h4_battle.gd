@@ -28,6 +28,9 @@ const SHADER := preload("res://tools/pilot/ground_h4.gdshader")
 const TEX := "res://pilot_assets/tex/%s.jpg"
 const NATURE := "res://pilot_assets/nature.glb"
 const CREATURES_CC0 := "res://pilot_assets/cc0.glb"
+# In Heroes 4 dominieren die Einheiten das Feld; unsere sind rund halb so
+# gross. Nur im Pilot vergroessert - die Spielregel (fit_to_tier) bleibt.
+const FIGURE_SCALE := 1.35
 
 const STACKS := [
 	{"pos": Vector2i(1, 2), "type": "men_spearman", "side": 0, "active": true},
@@ -133,67 +136,123 @@ func _props(f: Node3D) -> int:
 	rng.seed = 90210
 	var kinds: Array = protos.keys()
 	kinds.sort()
-	var big: Array = kinds.filter(func(k): return String(k).begins_with("tree"))
-	var mid: Array = kinds.filter(func(k): return String(k).begins_with("bush") or String(k).begins_with("rock"))
-	var small: Array = kinds.filter(func(k): return String(k).begins_with("flower") or String(k).begins_with("grass") or String(k).begins_with("fern"))
-	var placed := 0
-	# HINDERNISSE AUF DEM BRETT: wie in Heroes 4 stehen ein paar Felsen und
-	# Bueche als echte Hindernisse im Feld.
-	var obstacle_cells := {Vector2i(3, 1): "rock", Vector2i(4, 5): "bush",
-		Vector2i(4, 2): "rock"}
-	for z in range(-8, 16):
-		for x in range(-2, 10):
-			var cell := Vector2i(x, z)
-			var on_board: bool = x >= 0 and x < 8 and z >= 0 and z < 8
-			if on_board and occupied.has(cell):
+	# GRUPPEN WIE IM VORBILD (It. 72, zweite Runde). Heroes 4 hat keinen
+	# Waldrand ums Feld, sondern lockere Gruppen: ein heller Fels, zwei, drei
+	# rote Herbstbuesche, ein gruener Strauch, dazwischen Bodenpflanzen; hier
+	# und da ein kahles Baeumchen. Der erste Anlauf mit dichtem Laubwald
+	# rundherum sah nach Maerchenwald aus, nicht nach Heroes.
+	var of := func(prefix: String) -> Array:
+		return kinds.filter(func(k): return String(k).begins_with(prefix))
+	var autumn: Array = of.call("shrub_autumn")
+	var green: Array = of.call("shrub_green")
+	var rocks: Array = of.call("boulder")
+	var bare: Array = of.call("bare")
+	var plants: Array = of.call("plants")
+	var grass: Array = of.call("grass")
+	# Zaehler als Array: ein Lambda faengt eine lokale Zahl nur als KOPIE
+	# (Falle aus It. 23) - der erste Lauf meldete deshalb 0 Teile.
+	var placed := [0]
+	var put := func(pool: Array, pos: Vector3, sc: float) -> void:
+		if pool.is_empty():
+			return
+		var proto: MeshInstance3D = protos[pool[rng.randi() % pool.size()]]
+		var mi := MeshInstance3D.new()
+		mi.mesh = proto.mesh
+		mi.position = pos
+		mi.rotation.y = rng.randf() * TAU
+		mi.scale = Vector3(sc, sc, sc)
+		f.add_child(mi)
+		placed[0] += 1
+	# Gruppen-Mittelpunkte: ausserhalb des Bretts reichlich, auf dem Brett
+	# nur zwei als echte Hindernisse (Felder 3,1 und 4,5 bleiben frei von
+	# Einheiten).
+	var centers: Array = [Vector2(3.0, 1.0), Vector2(4.2, 5.2)]
+	for z in range(-8, 16, 3):
+		for x in range(-2, 11, 3):
+			var c := Vector2(x + rng.randf_range(-1.0, 1.0), z + rng.randf_range(-1.0, 1.0))
+			var on_board: bool = c.x > -0.6 and c.x < 7.6 and c.y > -0.6 and c.y < 7.6
+			if on_board:
 				continue
-			var pool: Array = []
-			var chance: float = 0.0
-			if obstacle_cells.has(cell):
-				pool = mid.filter(func(k): return String(k).begins_with(obstacle_cells[cell]))
-				chance = 1.0
-			elif on_board:
-				pool = small
-				chance = 0.35
-			elif z < 0:
-				# Hinter dem Brett: Waldrand. Hoch darf es hier sein - es
-				# ragt im Bild nach OBEN, vom Brett weg.
-				var r: float = rng.randf()
-				pool = big if r < 0.55 else (mid if r < 0.85 else small)
-				chance = 0.9
-			elif z < 12:
-				# DAVOR NUR NIEDRIGES. Bei 46 Grad verdeckt ein Baum von 3
-				# Zellen Hoehe h / tan(46) = 2.9 Reihen ueber sich - stuende er
-				# direkt unter dem Brett, laege seine Krone auf den Figuren.
-				# Die Regel aus It. 53, die der erste Anlauf wieder vergessen
-				# hatte: Reiter und Behemoth verschwanden unter dem Laub.
-				pool = mid if rng.randf() < 0.45 else small
-				chance = 0.7
-			else:
-				pool = big if rng.randf() < 0.6 else mid
-				chance = 0.9
-			if pool.is_empty() or rng.randf() > chance:
+			# Vor dem Brett nichts Hohes - h / tan(46) verdeckt die Figuren.
+			if c.y > 7.6 and c.y < 10.5 and rng.randf() < 0.5:
 				continue
-			var proto: MeshInstance3D = protos[pool[rng.randi() % pool.size()]]
-			var mi := MeshInstance3D.new()
-			mi.mesh = proto.mesh
-			var jitter: float = 0.0 if obstacle_cells.has(cell) else 0.35
-			mi.position = Vector3(float(x) + rng.randf_range(-jitter, jitter), 0.0,
-				float(z) + rng.randf_range(-jitter, jitter))
-			mi.rotation.y = rng.randf() * TAU
-			var sc: float = rng.randf_range(0.85, 1.2)
-			mi.scale = Vector3(sc, sc, sc)
-			f.add_child(mi)
-			placed += 1
+			centers.append(c)
+	for c in centers:
+		var in_front: bool = c.y > 7.6 and c.y < 10.5
+		if rng.randf() < 0.7:
+			put.call(rocks, Vector3(c.x, 0, c.y), rng.randf_range(0.8, 1.3))
+		var n_autumn: int = 0 if in_front else rng.randi_range(1, 3)
+		for k in range(n_autumn):
+			var a: float = rng.randf() * TAU
+			put.call(autumn, Vector3(c.x + cos(a) * 0.7, 0, c.y + sin(a) * 0.6),
+				rng.randf_range(0.85, 1.25))
+		if rng.randf() < 0.5 and not in_front:
+			var a2: float = rng.randf() * TAU
+			put.call(green, Vector3(c.x + cos(a2) * 0.6, 0, c.y + sin(a2) * 0.6),
+				rng.randf_range(0.8, 1.1))
+		for k in range(rng.randi_range(1, 3)):
+			put.call(plants, Vector3(c.x + rng.randf_range(-1, 1), 0,
+				c.y + rng.randf_range(-1, 1)), rng.randf_range(0.8, 1.2))
+	# Vereinzelte kahle Baeumchen, nur hinter dem Brett.
+	for k in range(4):
+		put.call(bare, Vector3(rng.randf_range(-1.5, 9.0), 0,
+			rng.randf_range(-6.0, -1.0)), rng.randf_range(0.9, 1.3))
+	# Grasbueschel ueberall, auch auf dem Brett - aber nicht unter Einheiten.
+	for k in range(70):
+		var gx: float = rng.randf_range(-2.0, 10.0)
+		var gz: float = rng.randf_range(-8.0, 15.0)
+		if occupied.has(Vector2i(roundi(gx), roundi(gz))):
+			continue
+		put.call(grass, Vector3(gx, 0, gz), rng.randf_range(0.8, 1.2))
 	scene.free()
-	return placed
+	return placed[0]
+
+
+# Weicheres, waermeres Licht als im Spiel - im Vorbild gibt es keine harten
+# Glanzflaechen ausser auf den Felsen, und die Farben sind gedeckt.
+# Figuren je Instanz um ihren Fusspunkt vergroessern. Die Instanzlage
+# bleibt, nur die Basis waechst - so bleibt jede Figur auf ihrem Feld.
+func _enlarge_figures(f: Node3D, k: float) -> void:
+	for s in STACKS:
+		var name: String = String(s["type"])
+		if not f._multi.has(name):
+			continue
+		var mm: MultiMesh = (f._multi[name] as MultiMeshInstance3D).multimesh
+		for i in range(mm.instance_count):
+			var t: Transform3D = mm.get_instance_transform(i)
+			t.basis = t.basis * Basis().scaled(Vector3(k, k, k))
+			mm.set_instance_transform(i, t)
+
+
+func _soften_light(f: Node3D) -> void:
+	for c in f.get_children():
+		if c is WorldEnvironment:
+			var env: Environment = (c as WorldEnvironment).environment
+			# GEMESSEN statt geschaetzt: der vorige Lauf lag im Median 30 %
+			# zu hell (v 0.55 statt 0.42) und zu gesaettigt (s 0.60 statt
+			# 0.46) - quer durch Boden, Fels und Busch, also eine Sache des
+			# Lichts, nicht einzelner Farben.
+			env.adjustment_enabled = true
+			env.adjustment_saturation = OS.get_environment("PILOT_SAT").to_float() if OS.get_environment("PILOT_SAT") != "" else 0.62
+			env.tonemap_exposure = OS.get_environment("PILOT_EXP").to_float() if OS.get_environment("PILOT_EXP") != "" else 0.80
+			env.ambient_light_color = Color(0.78, 0.76, 0.70)
+			env.ambient_light_energy = 0.42
+		elif c is DirectionalLight3D and (c as DirectionalLight3D).shadow_enabled:
+			var sun := c as DirectionalLight3D
+			sun.light_energy = 0.85
+			sun.light_color = Color(1.0, 0.94, 0.82)
+			sun.shadow_blur = 1.6
 
 
 func _init() -> void:
 	var f = Field.new()
 	var paths: Array = [Field.WORLD_PATH, Field.CREATURES_PATH]
-	if ResourceLoader.exists(CREATURES_CC0):
-		paths.append(CREATURES_CC0)
+	# Eigener Satz zuerst, CC0 darueber: der Goblin fehlt in den freien
+	# CC0-Paketen und kommt so aus dem selbst gebauten Satz statt als roter
+	# Klotz aus dem Spiel.
+	for extra in ["res://pilot_assets/own.glb", CREATURES_CC0]:
+		if ResourceLoader.exists(extra):
+			paths.append(extra)
 	f.model_paths = paths
 	root.add_child(f)
 	await process_frame
@@ -212,6 +271,8 @@ func _init() -> void:
 				or name.begins_with("deco_"):
 			(f._multi[k] as Node3D).visible = false
 	_ground(f)
+	_soften_light(f)
+	_enlarge_figures(f, FIGURE_SCALE)
 	_reach(f, reach)
 	var n: int = _props(f)
 	for i in range(5):

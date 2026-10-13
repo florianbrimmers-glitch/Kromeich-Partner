@@ -227,6 +227,113 @@ def grass(name, h, rng, greens):
 
 # Dunkler als es im Farbwaehler aussieht: von oben beschienen, unter ACES
 # und Saettigung 1.22 kamen die ersten Kronen fast weissgelb heraus.
+def autumn_shrub(name, h, rng, reds):
+    """Herbstbusch wie in Heroes 4: kurzer dunkler Stamm, darueber viele
+    KLEINE rot-rosa Laubbuschel. Ein grosser Ballen las sich als Kugel -
+    das Vorbild ist kleinteilig und luftig, man sieht zwischen den Buescheln
+    durch."""
+    parts = []
+    trunk_h = 0.35 * h
+    verts = [(0, 0, 0), (0.02, 0.0, trunk_h)]
+    edges = [(0, 1)]
+    radii = [0.035 * h, 0.022 * h]
+    for k in range(4):
+        a = k * math.pi / 2 + rng.uniform(-0.5, 0.5)
+        verts.append((math.cos(a) * 0.3 * h, math.sin(a) * 0.3 * h,
+                      trunk_h + rng.uniform(0.15, 0.35) * h))
+        edges.append((1, len(verts) - 1))
+        radii.append(0.010 * h)
+    parts.append(skin(name + "_t", verts, edges, radii, "#3b2a20"))
+    # Mehr und KLEINERE Buschel - grosse Ballen lasen sich als Watte, flach
+    # schattierte als Klotzstapel. Weich schattiert und dicht gepackt
+    # verschmelzen sie zu EINER unruhigen Krone, wie im Vorbild.
+    for k in range(rng.randint(34, 42)):
+        a = rng.uniform(0, 2 * math.pi)
+        d = (rng.random() ** 0.6) * 0.42 * h
+        z = rng.uniform(0.45, 0.95) * h - d * 0.45
+        parts.append(lump((math.cos(a) * d, math.sin(a) * d, z),
+                          rng.uniform(0.07, 0.11) * h, rng.choice(reds),
+                          strength=0.45, squash=0.8, seed=rng.randint(0, 999),
+                          subdiv=2, smooth=True))
+    return parts
+
+
+# Zweimal zu hell: #a9aaa6 und #8d8e8a kamen beide fast weiss heraus, weil
+# das Umgebungslicht die Schattenseiten auffuellt.
+def boulder(name, h, rng, greys=("#676964", "#5f615d", "#71736e")):
+    """Heller, kantiger Fels - im Vorbild das hellste Objekt im Bild, mit
+    deutlichen Facetten. Flach schattiert, wenig verformt, nach oben
+    zugespitzt statt rund."""
+    # Ikosaeder Stufe 1 las sich als Wuerfel/Edelstein. Stufe 2 plus
+    # Rauschen ergibt kantige, aber unregelmaessige Brocken.
+    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=2, radius=h * 0.6,
+                                          location=(0, 0, 0))
+    ob = bpy.context.active_object
+    ob.scale = (rng.uniform(1.0, 1.35), rng.uniform(0.8, 1.05),
+                rng.uniform(0.75, 1.0))
+    bpy.ops.object.transform_apply(scale=True)
+    me = ob.data
+    off = mathutils.Vector((rng.uniform(0, 80),) * 3)
+    for v in me.vertices:
+        n = mathutils.noise.noise(v.co * (2.4 / h) + off)
+        v.co += v.normal * n * h * 0.22
+        if v.co.z < -h * 0.15:
+            v.co.z = -h * 0.15
+    col = rng.choice(greys)
+    me.materials.append(bk.material("bould_" + col, col, rough=0.55))
+    for p in me.polygons:
+        p.use_smooth = False
+    bk._bake(ob)
+    zmin = min(v.co.z for v in me.vertices)
+    for v in me.vertices:
+        v.co.z -= zmin + 0.02 * h
+    return [ob]
+
+
+def bare_tree(name, h, rng):
+    """Kahles Baeumchen: Stamm mit drei, vier verzweigten Aesten."""
+    verts = [(0, 0, 0), (0.03 * h, 0, 0.45 * h)]
+    edges = [(0, 1)]
+    radii = [0.045 * h, 0.03 * h]
+    for k in range(rng.randint(3, 4)):
+        a = rng.uniform(0, 2 * math.pi)
+        mid = (math.cos(a) * 0.18 * h, math.sin(a) * 0.18 * h,
+               rng.uniform(0.65, 0.8) * h)
+        verts.append(mid)
+        edges.append((1, len(verts) - 1))
+        radii.append(0.016 * h)
+        i_mid = len(verts) - 1
+        for sgn in (-1, 1):
+            b = a + sgn * rng.uniform(0.3, 0.7)
+            verts.append((mid[0] + math.cos(b) * 0.16 * h,
+                          mid[1] + math.sin(b) * 0.16 * h,
+                          mid[2] + rng.uniform(0.12, 0.25) * h))
+            edges.append((i_mid, len(verts) - 1))
+            radii.append(0.006 * h)
+    return [skin(name, verts, edges, radii, "#4a3a2c", levels=1)]
+
+
+def ground_plants(name, rng, greens, reds):
+    """Flache Bodenpflanzen (im Vorbild unten links): kleine Rosetten."""
+    parts = []
+    for k in range(rng.randint(7, 10)):
+        a = rng.uniform(0, 2 * math.pi)
+        d = rng.uniform(0, 0.42)
+        col = rng.choice(reds) if rng.random() < 0.35 else rng.choice(greens)
+        parts.append(lump((math.cos(a) * d, math.sin(a) * d, 0.05),
+                          rng.uniform(0.06, 0.09), col, strength=0.6,
+                          squash=0.45, seed=rng.randint(0, 999), subdiv=1,
+                          smooth=False))
+    return parts
+
+
+# Abgelesen am Vorbild: Herbstlaub rot-rosa, nicht gesaettigt rot.
+# Erster Wurf (#c46a5c usw.) kam als Zuckerwatte-Rosa heraus. Am Vorbild
+# nachgemessen sind die Buesche rotbraun mit dunklen Tiefen.
+AUTUMN = ["#8f3f33", "#a14a3a", "#7d3a31", "#b05a44", "#6e3a2c"]
+SHRUB_GREEN = ["#5f9a2e", "#6aa834", "#558c2a"]
+
+
 LEAF = ["#3f6a24", "#4c7629", "#557f2f", "#3a6222"]
 LEAF_WARM = ["#66742a", "#717f2e", "#5b7026"]
 PINE = ["#2f5a2c", "#386633", "#2a5028"]
@@ -265,6 +372,22 @@ def main():
     for i in range(2):
         build("grass_%d" % i, grass("g%d" % i, rng.uniform(0.24, 0.34), rng,
                                     ["#55832f", "#6a9638", "#4a7429"]))
+    # Satz im Stil des Vorbilds (It. 72, zweite Runde).
+    for i in range(3):
+        build("shrub_autumn_%d" % i, autumn_shrub("sa%d" % i,
+                                                  rng.uniform(0.75, 1.05), rng,
+                                                  AUTUMN))
+    for i in range(2):
+        build("shrub_green_%d" % i, autumn_shrub("sg%d" % i,
+                                                 rng.uniform(0.55, 0.75), rng,
+                                                 SHRUB_GREEN))
+    for i in range(4):
+        build("boulder_%d" % i, boulder("bo%d" % i, rng.uniform(0.75, 1.05), rng))
+    for i in range(2):
+        build("bare_%d" % i, bare_tree("bt%d" % i, rng.uniform(0.9, 1.3), rng))
+    for i in range(2):
+        build("plants_%d" % i, ground_plants("gp%d" % i, rng, SHRUB_GREEN,
+                                             AUTUMN))
     print("NATUR:", ", ".join(made))
     os.makedirs(os.path.dirname(os.path.abspath(out)), exist_ok=True)
     bk.export(out)
