@@ -108,3 +108,35 @@ def test_project_label_falls_back_to_id():
     from weekly_report.models import ProjectInfo
 
     assert ProjectInfo(id=99).label() == "Projekt 99"
+
+
+def test_ohne_key_kein_api_header(monkeypatch):
+    """Cloud-Umgebung mit Network Secret: kein Key im Prozess, der Proxy setzt ihn.
+    Dann darf der Code keinen (leeren) X-API-KEY-Header selbst mitschicken."""
+    from weekly_report import config
+    for name in ("PROPSTACK_KEY_OBJEKTE", "PROPSTACK_KEY_TASKS", "PROPSTACK_API_KEY"):
+        monkeypatch.delenv(name, raising=False)
+    assert config.propstack_key_objekte() is None
+    assert config.propstack_key_tasks() is None
+
+    gesendet = {}
+
+    class Antwort:
+        status_code = 200
+        def json(self):
+            return {"data": []}
+
+    def fake_request(method, url, headers, params, timeout):
+        gesendet.update(headers)
+        return Antwort()
+
+    monkeypatch.setattr(propstack.httpx, "request", fake_request)
+    propstack._request("GET", "/units", key=config.propstack_key_objekte())
+    assert "X-API-KEY" not in gesendet
+
+
+def test_mit_key_wird_header_gesetzt(monkeypatch):
+    from weekly_report import config
+    monkeypatch.setenv("PROPSTACK_API_KEY", "abc")
+    monkeypatch.delenv("PROPSTACK_KEY_OBJEKTE", raising=False)
+    assert config.propstack_key_objekte() == "abc"
