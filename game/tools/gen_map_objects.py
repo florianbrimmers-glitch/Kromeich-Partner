@@ -428,6 +428,40 @@ def seer_hut():
     return o + "</svg>\n"
 
 
+# --- Fuenfte Welle (It. 82): Paesse ---------------------------------------
+
+KEY_FILL = {"rot": "#c0392b", "blau": "#2e6fd0"}
+
+
+def border_gate(col="rot"):
+    """Grenztor: zwei Steinpfeiler, Gitter in der Schluesselfarbe."""
+    c = KEY_FILL[col]
+    o = head("Grenztor (%s): offen mit dem Schluessel" % col) + shadow(22)
+    for x in (8, 44):
+        o += rect(x, 18, 12, 38, "#8a8494")
+        o += rect(x - 1, 14, 14, 6, "#6b665f", 1.5)
+    o += rect(20, 24, 24, 32, c, 1.5)
+    for x in (25, 32, 39):
+        o += line(x, 24, x, 56, "#2a1e14", 2.0)
+    o += line(20, 36, 44, 36, "#2a1e14", 2.0)
+    o += poly([(20, 24), (32, 12), (44, 24)], "#6b665f")
+    return o + "</svg>\n"
+
+
+def keymaster(col="rot"):
+    """Schluesselmeister: Zelt in der Schluesselfarbe, grosser Schluessel."""
+    c = KEY_FILL[col]
+    o = head("Schluesselmeister (%s): gibt den Schluessel" % col) + shadow(20)
+    o += poly([(8, 54), (30, 14), (52, 54)], c)
+    o += poly([(24, 54), (30, 36), (36, 54)], "#2a1e14", 1.2)
+    o += ('  <circle cx="48" cy="22" r="7" fill="none" stroke="#e6c247" '
+          'stroke-width="3"/>\n')
+    o += line(48, 29, 48, 50, "#e6c247", 3.0)
+    o += line(48, 42, 54, 42, "#e6c247", 3.0)
+    o += line(48, 48, 54, 48, "#e6c247", 3.0)
+    return o + "</svg>\n"
+
+
 OBJECTS = {
     "shrine_att": shrine_att,
     "shrine_def": shrine_def,
@@ -456,6 +490,12 @@ OBJECTS = {
     "dragon_hoard": dragon_hoard,
     "portal": portal,
     "seer_hut": seer_hut,
+    "border_gate": border_gate,
+    "keymaster": keymaster,
+    "border_gate_rot": lambda: border_gate("rot"),
+    "border_gate_blau": lambda: border_gate("blau"),
+    "keymaster_rot": lambda: keymaster("rot"),
+    "keymaster_blau": lambda: keymaster("blau"),
 }
 
 

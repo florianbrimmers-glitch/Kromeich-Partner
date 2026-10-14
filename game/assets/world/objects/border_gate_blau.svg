@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Grenztor (blau): offen mit dem Schluessel
+     Erzeugt von tools/gen_map_objects.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <ellipse cx="32" cy="57" rx="22" ry="5" fill="#000" opacity="0.40"/>
+  <rect x="8.0" y="18.0" width="12.0" height="38.0" rx="0" fill="#8a8494" stroke="#241c12" stroke-width="2.0"/>
+  <rect x="7.0" y="14.0" width="14.0" height="6.0" rx="0" fill="#6b665f" stroke="#241c12" stroke-width="1.5"/>
+  <rect x="44.0" y="18.0" width="12.0" height="38.0" rx="0" fill="#8a8494" stroke="#241c12" stroke-width="2.0"/>
+  <rect x="43.0" y="14.0" width="14.0" height="6.0" rx="0" fill="#6b665f" stroke="#241c12" stroke-width="1.5"/>
+  <rect x="20.0" y="24.0" width="24.0" height="32.0" rx="0" fill="#2e6fd0" stroke="#241c12" stroke-width="1.5"/>
+  <line x1="25.0" y1="24.0" x2="25.0" y2="56.0" stroke="#2a1e14" stroke-width="2.0" stroke-linecap="round"/>
+  <line x1="32.0" y1="24.0" x2="32.0" y2="56.0" stroke="#2a1e14" stroke-width="2.0" stroke-linecap="round"/>
+  <line x1="39.0" y1="24.0" x2="39.0" y2="56.0" stroke="#2a1e14" stroke-width="2.0" stroke-linecap="round"/>
+  <line x1="20.0" y1="36.0" x2="44.0" y2="36.0" stroke="#2a1e14" stroke-width="2.0" stroke-linecap="round"/>
+  <polygon points="20.0,24.0 32.0,12.0 44.0,24.0" fill="#6b665f" stroke="#241c12" stroke-width="2.0" stroke-linejoin="round"/>
+</svg>

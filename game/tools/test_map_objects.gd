@@ -21,8 +21,13 @@ extends SceneTree
 #   9. Vierte Welle (It. 80): Portale (paarweise, versetzen den Helden
 #      neben das Gegenstueck), Seherhuetten (Auftrag gegen Lohn) und ein
 #      Modell je Minenart
+#  10. Paesse (It. 82): Gebirgsriegel trennen die Zonen wirklich, jeder
+#      Riegel hat ein Grenztor und einen Passwaechter, das Tor ist ohne
+#      Schluessel zu (fuer die KI immer), der Schluesselmeister gibt ihn,
+#      alte Spielstaende laden ohne Riegel
 
 const Spl := preload("res://scripts/core/HeroSpells.gd")
+const Move := preload("res://scripts/core/Movement.gd")
 const MO := preload("res://scripts/core/MapObjects.gd")
 const Artifacts := preload("res://scripts/core/Artifacts.gd")
 
@@ -51,6 +56,7 @@ func _init() -> void:
 	await _test_wave2()
 	await _test_wave3()
 	await _test_wave4()
+	await _test_passes()
 
 	# Abschluss-Marken: die Soll-Liste kommt aus der Methodentabelle des
 	# Skripts selbst (It. 31, vorher eine Liste von Hand). Damit faellt
@@ -122,7 +128,10 @@ func _test_placement() -> void:
 		if not ResourceLoader.exists(pth):
 			no_sprite.append(String(sprites[kind2]))
 	_check(no_sprite.is_empty(), "Sprite je Bonus-Art (fehlen: %s)" % str(no_sprite))
-	_check(sprites.size() == plan.size(),
+	# Grenztor und Schluesselmeister setzt der Generator mit den Paessen,
+	# nicht der Zufallsplan (It. 82) - sie haben ein Sprite, aber keinen
+	# Plan-Eintrag.
+	_check(sprites.size() == plan.size() + 2,
 		"jede geplante Art hat einen Sprite-Eintrag (%d / %d)"
 		% [sprites.size(), plan.size()])
 
@@ -351,7 +360,7 @@ func _test_wave2() -> void:
 
 	# Lagerfeuer: Gold UND Ressource, danach weg.
 	var objs: Array = _wm.get("_objects")
-	var fire: Dictionary = {"pos": Vector2i(1, 1), "kind": MO.CAMPFIRE, "owner": -1, "guard": 0,
+	var fire: Dictionary = {"pos": _free_pos(0), "kind": MO.CAMPFIRE, "owner": -1, "guard": 0,
 		"gold": 300, "resource": "gems", "amount": 4}
 	objs.append(fire)
 	var g0: int = purse.get_amount("gold")
@@ -359,17 +368,17 @@ func _test_wave2() -> void:
 	var m: String = String(_wm.call("_visit_bonus_object", fire))
 	_check(purse.get_amount("gold") == g0 + 300 and purse.get_amount("gems") == gem0 + 4,
 		"Lagerfeuer gibt Gold und Edelsteine (%s)" % m)
-	_check(int(_wm.call("_object_at", Vector2i(1, 1))) < 0, "Lagerfeuer ist danach weg")
+	_check(int(_wm.call("_object_at", Vector2i(fire["pos"]))) < 0, "Lagerfeuer ist danach weg")
 
 	# Artefakt: anlegen, weg von der Karte.
 	(hero.artifacts as Array).clear()
 	var aid: String = Artifacts.pick(7)
-	var art: Dictionary = {"pos": Vector2i(1, 2), "kind": MO.ARTIFACT, "owner": -1, "guard": 0,
+	var art: Dictionary = {"pos": _free_pos(1), "kind": MO.ARTIFACT, "owner": -1, "guard": 0,
 		"gold": 0, "resource": aid}
 	objs.append(art)
 	m = String(_wm.call("_visit_bonus_object", art))
 	_check((hero.artifacts as Array).has(aid), "Artefakt angelegt (%s)" % m)
-	_check(int(_wm.call("_object_at", Vector2i(1, 2))) < 0, "Artefakt ist danach weg")
+	_check(int(_wm.call("_object_at", Vector2i(art["pos"]))) < 0, "Artefakt ist danach weg")
 
 	# Wassermuehle: Gold einmal pro Woche.
 	var mill: Dictionary = _obj(MO.WATERMILL, Vector2i(2, 2))
@@ -402,7 +411,7 @@ func _test_wave2() -> void:
 	_check(int(hero.mp) == mp0 + MO.OASIS_MP, "Oase: einmal +%d am Tag" % MO.OASIS_MP)
 
 	# Aussichtsturm: besetzt und deckt auf.
-	var look: Dictionary = {"pos": Vector2i(9, 20), "kind": MO.LOOKOUT, "owner": -1, "guard": 0,
+	var look: Dictionary = {"pos": _free_pos(2), "kind": MO.LOOKOUT, "owner": -1, "guard": 0,
 		"gold": 0}
 	objs.append(look)
 	var seen0: int = _seen_tiles()
@@ -458,12 +467,12 @@ func _test_wave2() -> void:
 	var heroes: Array = _wm.get("_heroes")
 	while heroes.size() > 1:
 		heroes.remove_at(heroes.size() - 1)
-	var pr: Dictionary = {"pos": Vector2i(5, 5), "kind": MO.PRISON, "owner": -1, "guard": 0, "gold": 0}
+	var pr: Dictionary = {"pos": _free_pos(3), "kind": MO.PRISON, "owner": -1, "guard": 0, "gold": 0}
 	objs.append(pr)
 	m = String(_wm.call("_visit_bonus_object", pr))
 	_check(heroes.size() == 2, "Gefaengnis: Held befreit (%s)" % m)
 	_check((heroes[1].army as Dictionary).size() > 0, "der Befreite hat Truppen")
-	_check(int(_wm.call("_object_at", Vector2i(5, 5))) < 0, "Gefaengnis ist danach leer")
+	_check(int(_wm.call("_object_at", Vector2i(pr["pos"]))) < 0, "Gefaengnis ist danach leer")
 
 	# Handelsposten: besser als der Markt.
 	var buy: Dictionary = _wm.get("MARKET_BUY")
@@ -653,3 +662,129 @@ func _test_wave4() -> void:
 	_check(seen_models.size() == mines_res.size() and not seen_models.has(""),
 		"Minen im 3D-Kontext mit Modell je Art (%s)" % str(seen_models.keys()))
 	_done.append("_test_wave4")
+
+
+func _test_passes() -> void:
+	print("")
+	print("== Paesse (It. 82) ==")
+	for sd in [2024, 42, 4711, 90210, 7]:
+		_wm.call("_start", sd, 1)
+		await process_frame
+		var map: Dictionary = _wm.get("_map")
+		var passes: Array = map.get("passes", [])
+		_check(passes.size() == 4, "Seed %d: vier Paesse (%d)" % [sd, passes.size()])
+		# Abriegelung: alle Pass-Felder gesperrt -> von oben kommt man nicht
+		# unter den ersten Riegel und nicht unter den zweiten.
+		var blocked: Dictionary = {}
+		for ps in passes:
+			for pt in (ps["tiles"] as Array):
+				blocked[Vector2i(pt)] = true
+		var tiles: Array = map["tiles"]
+		var w: int = int(_wm.get("MAP_WIDTH"))
+		var h: int = int(_wm.get("MAP_HEIGHT"))
+		var start := Vector2i(-1, -1)
+		for x in range(w):
+			if Move.is_passable(int(tiles[x])):
+				start = Vector2i(x, 0)
+				break
+		var seen: Dictionary = {start: true}
+		var q: Array = [start]
+		var max_y: int = 0
+		while not q.is_empty():
+			var c: Vector2i = q.pop_back()
+			max_y = maxi(max_y, c.y)
+			for d in [Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, 1), Vector2i(0, -1)]:
+				var n: Vector2i = c + (d as Vector2i)
+				if n.x < 0 or n.y < 0 or n.x >= w or n.y >= h or seen.has(n) or blocked.has(n):
+					continue
+				if not Move.is_passable(int(tiles[n.y * w + n.x])):
+					continue
+				seen[n] = true
+				q.append(n)
+		_check(max_y <= int(MO.RIDGE_ROWS[0]) + MO.RIDGE_JITTER + 1,
+			"Seed %d: ohne Pass kommt man nicht ueber den ersten Riegel (tiefste Reihe %d)" % [sd, max_y])
+		# Je Riegel ein Tor und ein Waechter.
+		var gates: int = 0
+		var guards: int = 0
+		for ps2 in passes:
+			var p0: Vector2i = (ps2["tiles"] as Array)[0]
+			if bool(ps2["gate"]):
+				var gi: int = int(_wm.call("_object_at", p0))
+				if gi >= 0 and int((_wm.get("_objects") as Array)[gi]["kind"]) == MO.BORDER_GATE:
+					gates += 1
+			else:
+				var mi: int = int(_wm.call("_monster_at", p0))
+				if mi >= 0 and int((_wm.get("_monsters") as Array)[mi]["strength"]) == MO.PASS_GUARD_STRENGTH:
+					guards += 1
+		_check(gates == 2 and guards == 2, "Seed %d: je Riegel Tor und Waechter (%d/%d)" % [sd, gates, guards])
+		var km: int = 0
+		for o in (_wm.get("_objects") as Array):
+			if int(o["kind"]) == MO.KEYMASTER:
+				km += 1
+		_check(km == 2, "Seed %d: zwei Schluesselmeister (%d)" % [sd, km])
+
+	# Tor ohne Schluessel zu, mit Schluessel offen, fuer die KI immer zu.
+	_wm.call("_start", 2024, 1)
+	await process_frame
+	var gate: Dictionary = {}
+	var km_obj: Dictionary = {}
+	for o2 in (_wm.get("_objects") as Array):
+		if int(o2["kind"]) == MO.BORDER_GATE and gate.is_empty():
+			gate = o2
+	for o3 in (_wm.get("_objects") as Array):
+		if int(o3["kind"]) == MO.KEYMASTER and String(o3["resource"]) == String(gate["resource"]):
+			km_obj = o3
+	var gp: Vector2i = gate["pos"]
+	# Den Helden direkt vor das Tor stellen.
+	var hero = _wm.get("_hero")
+	var map2: Dictionary = _wm.get("_map")
+	var entry := Vector2i(-1, -1)
+	for ps3 in (map2["passes"] as Array):
+		if Vector2i((ps3["tiles"] as Array)[0]) == gp:
+			entry = (ps3["entries"] as Array)[0]
+	hero.position = entry
+	hero.mp = 40
+	_wm.call("_recompute_costs")
+	_check(not (_wm.get("_costs") as Dictionary).has(gp), "Tor ohne Schluessel zu")
+	var m1: String = String(_wm.call("_visit_bonus_object", gate))
+	_check(m1.contains("verschlossen"), "und sagt, wer den Schluessel hat (%s)" % m1)
+	var m2: String = String(_wm.call("_visit_bonus_object", km_obj))
+	_check((_wm.get("_keys") as Array).has(String(gate["resource"])), "Schluesselmeister gibt den Schluessel (%s)" % m2)
+	_check(bool(_wm.call("_bonus_spent", km_obj)), "danach ist er erledigt")
+	_wm.call("_recompute_costs")
+	_check((_wm.get("_costs") as Dictionary).has(gp), "mit Schluessel ist das Tor offen")
+	var ai_costs: Dictionary = _wm.call("_dijkstra", entry, false)
+	_check(not ai_costs.has(gp), "fuer die KI bleibt es zu")
+
+	# Speichern: Schluessel und Riegel ueberleben, alter Stand ohne Riegel.
+	var st: Dictionary = _wm.call("_capture_state")
+	_wm.call("_restore_state", JSON.parse_string(JSON.stringify(st)))
+	await process_frame
+	_check((_wm.get("_keys") as Array).has(String(gate["resource"])), "Schluessel ueberlebt Speichern und Laden")
+	_check(((_wm.get("_map") as Dictionary).get("passes", []) as Array).size() == 4, "Riegel nach dem Laden wieder da")
+	var old: Dictionary = st.duplicate(true)
+	old.erase("ridges")
+	old.erase("keys")
+	_wm.call("_restore_state", JSON.parse_string(JSON.stringify(old)))
+	await process_frame
+	_check(((_wm.get("_map") as Dictionary).get("passes", []) as Array).is_empty(),
+		"alter Spielstand ohne 'ridges' laedt ohne Riegel")
+	_done.append("_test_passes")
+
+
+# Das n-te Feld ohne Objekt, Monster und Stadt - Testobjekte duerfen nicht
+# auf einem echten liegen (sonst nimmt _remove_object das falsche weg).
+func _free_pos(n: int) -> Vector2i:
+	var w: int = int(_wm.get("MAP_WIDTH"))
+	var h: int = int(_wm.get("MAP_HEIGHT"))
+	var found: int = 0
+	for y in range(h):
+		for x in range(w):
+			var p := Vector2i(x, y)
+			if int(_wm.call("_object_at", p)) >= 0 or int(_wm.call("_monster_at", p)) >= 0 \
+					or int(_wm.call("_city_at", p)) >= 0:
+				continue
+			if found == n:
+				return p
+			found += 1
+	return Vector2i(0, 0)

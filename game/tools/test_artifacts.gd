@@ -167,7 +167,9 @@ func _test_chests() -> void:
 	var wm = (load("res://scenes/WorldMap.tscn") as PackedScene).instantiate()
 	root.add_child(wm)
 	await process_frame
-	wm.call("_start", 4711, 1)
+	# Seed 4712 statt 4711: mit den Gebirgsriegeln (It. 82) liegt auf 4711
+	# keine Artefakt-Truhe mehr.
+	wm.call("_start", 4712, 1)
 	await process_frame
 
 	var kind: int = int(wm.get("OBJECT_TREASURE"))
@@ -209,7 +211,9 @@ func _test_take_and_swap() -> void:
 	var wm = (load("res://scenes/WorldMap.tscn") as PackedScene).instantiate()
 	root.add_child(wm)
 	await process_frame
-	wm.call("_start", 4711, 1)
+	# Seed 4712 statt 4711: mit den Gebirgsriegeln (It. 82) liegt auf 4711
+	# keine Artefakt-Truhe mehr.
+	wm.call("_start", 4712, 1)
 	await process_frame
 	var h = wm.get("_hero")
 	h.artifacts.clear()
@@ -321,7 +325,9 @@ func _test_pickup_by_tap() -> void:
 	var wm = (load("res://scenes/WorldMap.tscn") as PackedScene).instantiate()
 	root.add_child(wm)
 	await process_frame
-	wm.call("_start", 4711, 1)
+	# Seed 4712 statt 4711: mit den Gebirgsriegeln (It. 82) liegt auf 4711
+	# keine Artefakt-Truhe mehr.
+	wm.call("_start", 4712, 1)
 	await process_frame
 
 	# Eine Truhe mit Artefakt suchen und neben den Helden legen.
@@ -382,7 +388,9 @@ func _test_review_findings() -> void:
 	var wm = (load("res://scenes/WorldMap.tscn") as PackedScene).instantiate()
 	root.add_child(wm)
 	await process_frame
-	wm.call("_start", 4711, 1)
+	# Seed 4712 statt 4711: mit den Gebirgsriegeln (It. 82) liegt auf 4711
+	# keine Artefakt-Truhe mehr.
+	wm.call("_start", 4712, 1)
 	await process_frame
 	var kind: int = int(wm.get("OBJECT_TREASURE"))
 	var h = wm.get("_hero")
@@ -406,7 +414,9 @@ func _test_review_findings() -> void:
 	_check((wm.get("_objects") as Array).find(chest) < 0, "und die Truhe ist weg")
 
 	# 2) Volle Ausruestung: die Truhe BLEIBT liegen, bis entschieden ist.
-	wm.call("_start", 4711, 1)
+	# Seed 4712 statt 4711: mit den Gebirgsriegeln (It. 82) liegt auf 4711
+	# keine Artefakt-Truhe mehr.
+	wm.call("_start", 4712, 1)
 	h = wm.get("_hero")
 	purse = wm.get("_purse")
 	chest = {}

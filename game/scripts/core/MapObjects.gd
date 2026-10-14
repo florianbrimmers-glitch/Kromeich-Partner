@@ -40,9 +40,12 @@ const DRAGON_HOARD := 27   # Kreaturenbank: Drache, viel Gold + Artefakt
 # Vierte Welle (It. 80).
 const PORTAL := 28         # Teleporter, immer paarweise
 const SEER_HUT := 29       # Seherhuette: Auftrag "bring mir ..." gegen Lohn
+# Fuenfte Welle (It. 82): Paesse.
+const BORDER_GATE := 30    # Grenztor im Pass, offen nur mit dem Schluessel seiner Farbe
+const KEYMASTER := 31      # Zelt des Schluesselmeisters, gibt den Schluessel
 
 const FIRST := CAMPFIRE
-const LAST := SEER_HUT
+const LAST := KEYMASTER
 
 # Name, Sprite (assets/world/objects/<sprite>.svg), 3D-Modell (mapobj.glb)
 # und Anzahl auf der Karte.
@@ -67,7 +70,45 @@ const CATALOG := {
 	DRAGON_HOARD: {"name": "Drachenhort", "sprite": "dragon_hoard", "model": "obj_dragon_hoard", "count": 1},
 	PORTAL: {"name": "Portal", "sprite": "portal", "model": "obj_portal", "count": 4},
 	SEER_HUT: {"name": "Seherhuette", "sprite": "seer_hut", "model": "obj_seer_hut", "count": 2},
+	# Tore und Schluesselmeister setzt der Kartengenerator mit den Paessen,
+	# nicht der Zufallsplan - "count" ist hier die Zahl der Riegel.
+	BORDER_GATE: {"name": "Grenztor", "sprite": "border_gate", "model": "obj_gate_rot", "count": 2},
+	KEYMASTER: {"name": "Schluesselmeister", "sprite": "keymaster", "model": "obj_keymaster_rot", "count": 2},
 }
+
+# --- Gebirgsriegel und Paesse (It. 82) ---------------------------------
+#
+# Zwei Gebirgsriegel quer ueber die Karte teilen sie in drei Zonen. Jeder
+# Riegel ist zwei Felder dick und hat genau ZWEI Paesse: in einem steht
+# ein Grenztor (offen mit dem Schluessel seiner Farbe), im anderen ein
+# starker Passwaechter. Damit ist jede Zone erreichbar - kaempfend oder mit
+# Schluessel -, und das Tor ist kein Hindernis zum Drumherumlaufen.
+#
+# Die KI hat keine Schluessel: fuer sie sind Tore immer zu, sie geht ueber
+# den Waechter-Pass (Monster halten die KI-Wegsuche nicht auf).
+const RIDGE_ROWS := [8, 17]      # Grundreihe je Riegel (Karte 26 hoch)
+const RIDGE_JITTER := 1          # Riegel schlaengelt sich um +-1 Reihe
+const PASS_MIN_GAP := 5          # Mindestabstand der zwei Paesse eines Riegels
+const KEY_COLORS := ["rot", "blau"]
+const KEY_TINT := {"rot": Color(0.85, 0.25, 0.2), "blau": Color(0.25, 0.45, 0.9)}
+const PASS_GUARD_STRENGTH := 8
+const KEYMASTER_MIN_DIST := 3
+
+
+static func gate_model(color: String) -> String:
+	return "obj_gate_%s" % color
+
+
+static func keymaster_model(color: String) -> String:
+	return "obj_keymaster_%s" % color
+
+
+static func gate_sprite(color: String) -> String:
+	return "border_gate_%s" % color
+
+
+static func keymaster_sprite(color: String) -> String:
+	return "keymaster_%s" % color
 
 # Auftraege der Seherhuetten: was sie wollen, was sie geben. Die Auswahl
 # je Huette steht beim Platzieren fest (Feld `quest`).

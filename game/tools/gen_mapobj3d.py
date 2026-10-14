@@ -713,6 +713,51 @@ def mine_gems():
     return obj("obj_mine_gems", out)
 
 
+# --- Fuenfte Welle (It. 82): Paesse ---------------------------------------
+
+KEY_COL = {"rot": "#a8302a", "blau": "#2e5fb0"}
+
+
+def gate(col):
+    """Grenztor: zwei Rundtuerme, dazwischen ein Tor mit Gitter in der
+    Schluesselfarbe und Wimpeln - es steht quer im Pass."""
+    c = KEY_COL[col]
+    out = []
+    for sx in (-1, 1):
+        out += ck.round_tower(0.11, 0.48, "#9a9282", "#6b665f", sx * 0.27, 0, 0.0, crenel="std")
+    out.append(ck.block(0.44, 0.14, 0.12, "#8a8478", 0, 0, 0.30))
+    out += ck.crenels(0.44, 0.14, 0.42, "#6b665f", 0, 0, sides=("front", "back"))
+    out.append(ck.block(0.32, 0.06, 0.30, c, 0, -0.01, 0.0, bevel=0.0))
+    for k in range(5):
+        out.append(ck.cyl(0.008, 0.30, "#2a2a2e", -0.12 + k * 0.06, -0.045, 0.0, verts=6))
+    for z in (0.10, 0.20):
+        out.append(ck.block(0.32, 0.012, 0.012, "#2a2a2e", 0, -0.045, z, bevel=0.0))
+    for sx in (-1, 1):
+        out += ck.banner(sx * 0.27, 0, 0.56, 0.18, c, GOLD, w=0.08, h=0.10)
+    return obj("obj_gate_%s" % col, out)
+
+
+def keymaster(col):
+    """Schluesselmeister: Zelt in der Schluesselfarbe, Pfosten mit grossem
+    goldenem Schluessel, Truhe."""
+    c = KEY_COL[col]
+    out = [ck.cone_roof(0.24, 0.42, c, -0.04, 0.06, 0.0, verts=10),
+           ck.block(0.10, 0.02, 0.15, "#1a1612", -0.04, -0.17, 0.0, bevel=0.0)]
+    out.append(ck.cyl(0.02, 0.44, WOOD, 0.26, -0.10, 0.0, verts=8))
+    bpy.ops.mesh.primitive_torus_add(major_radius=0.06, minor_radius=0.015,
+                                     location=(0.26, -0.13, 0.46), rotation=(rad(90), 0, 0))
+    ring = bpy.context.active_object
+    bk._bake(ring)
+    ring.data.materials.append(bk.material("k" + GOLD, GOLD))
+    out.append(ring)
+    out.append(ck.block(0.025, 0.02, 0.16, GOLD, 0.26, -0.13, 0.25, bevel=0.0))
+    for z in (0.26, 0.30):
+        out.append(ck.block(0.05, 0.02, 0.02, GOLD, 0.29, -0.13, z, bevel=0.0))
+    out.append(ck.block(0.12, 0.08, 0.07, WOOD_DARK, 0.20, 0.16, 0.0))
+    out.append(ck.block(0.13, 0.09, 0.02, GOLD, 0.20, 0.16, 0.07, bevel=0.0))
+    return obj("obj_keymaster_%s" % col, out)
+
+
 def main():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     for f in (mine, treasure, pile, shrine_att, shrine_def, shrine_power, shrine_know,
@@ -721,6 +766,9 @@ def main():
               trading_post, dwelling, crypt, dwarf_treasury, dragon_hoard, portal, seer_hut,
               mine_wood, mine_ore, mine_mercury, mine_sulfur, mine_crystal, mine_gems):
         f()
+    for col in KEY_COL:
+        gate(col)
+        keymaster(col)
     try:
         out = sys.argv[sys.argv.index("--") + 1]
     except (ValueError, IndexError):

@@ -249,6 +249,11 @@ func _test_save_roundtrip() -> void:
 	# immer eine Nebel-Neuberechnung. Ohne sie vergleicht der
 	# Roundtrip-Check einen veralteten Nebel mit einem frisch gerechneten.
 	_wm.call("_recompute_fog_player")
+	# Ebenso die Sicht der KIs: seit den Gebirgsriegeln (It. 82) steht auf
+	# diesem Seed ein KI-Held so, dass er die neue Position sieht - das
+	# Laden rechnet sie neu, der Schnappschuss davor muss es auch.
+	for ei in range((_wm.get("_enemies") as Array).size()):
+		_wm.call("_recompute_fog_ai", ei)
 
 	var snap: Dictionary = _wm.call("_capture_state")
 	_check((snap.get("heroes", []) as Array).size() == 2,

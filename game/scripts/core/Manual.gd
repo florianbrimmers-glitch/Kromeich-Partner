@@ -58,6 +58,9 @@ static func sections(n: Dictionary) -> Array:
 			"heute kommt.",
 			"Wald, Sand und Sumpf kosten mehr als Wiese; Wasser und Berge",
 			"sind unpassierbar. Der Skill Wegfindung senkt den Aufschlag.",
+			"Zwei Gebirgsriegel teilen die Karte. Ueber jeden fuehren zwei",
+			"Paesse: einer mit Grenztor (den Schluessel gibt der",
+			"Schluesselmeister derselben Farbe), einer mit Passwaechter.",
 			"Zwei Finger ziehen: Karte verschieben.",
 		])],
 		["Kampf", "\n".join([

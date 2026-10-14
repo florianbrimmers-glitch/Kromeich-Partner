@@ -211,8 +211,13 @@ func _test_monsters(wm) -> void:
 	print("== Wandernde Monster: Kreatur und Kraft ==")
 	wm.call("_start", 2468, 1)
 	var monsters: Array = wm.get("_monsters")
-	_check(monsters.size() == int(wm.get("MONSTER_COUNT")),
-		"%d Monster platziert" % monsters.size())
+	# Dazu kommen die Passwaechter (It. 82), einer je Riegel.
+	var wandering: int = 0
+	for m0 in monsters:
+		if not bool((m0 as Dictionary).get("pass_guard", false)):
+			wandering += 1
+	_check(wandering == int(wm.get("MONSTER_COUNT")),
+		"%d Monster platziert (plus %d Passwaechter)" % [wandering, monsters.size() - wandering])
 
 	var pool: Array = wm.get("MONSTER_POOL")
 	# GOLD, nicht HP (It. 38): Trefferpunkte sind ueber die Tiers hinweg

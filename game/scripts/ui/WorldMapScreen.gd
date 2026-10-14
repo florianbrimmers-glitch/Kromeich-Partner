@@ -198,6 +198,9 @@ const OBJECT_DRAGON_HOARD := MapObj.DRAGON_HOARD
 # Vierte Welle (It. 80): Portale und Seherhuetten.
 const OBJECT_PORTAL := MapObj.PORTAL
 const OBJECT_SEER_HUT := MapObj.SEER_HUT
+# Fuenfte Welle (It. 82): Paesse mit Grenztor und Schluesselmeister.
+const OBJECT_BORDER_GATE := MapObj.BORDER_GATE
+const OBJECT_KEYMASTER := MapObj.KEYMASTER
 
 const MINE_COUNT := 6
 const TREASURE_COUNT := 4
@@ -270,6 +273,8 @@ const OBJECT_SPRITES := {
 	OBJECT_DRAGON_HOARD: "dragon_hoard",
 	OBJECT_PORTAL: "portal",
 	OBJECT_SEER_HUT: "seer_hut",
+	OBJECT_BORDER_GATE: "border_gate",
+	OBJECT_KEYMASTER: "keymaster",
 }
 const LEARNING_XP := 120
 const WINDMILL_MIN := 3
@@ -526,6 +531,12 @@ var _monsters: Array = []
 # "guard": int, "gold": int }. kind=OBJECT_MINE gibt Gold/Zug solange im
 # Besitz; kind=OBJECT_TREASURE gibt einmalig Gold und wird entfernt.
 var _objects: Array = []
+# Paesse (It. 82): Schluessel des Spielers (Farben), ob die Karte Riegel
+# hat (alte Spielstaende ohne Riegel laden ohne), und die reservierten
+# Pass-Felder, auf die nichts Zufaelliges gestellt wird.
+var _keys: Array = []
+var _ridges_enabled: bool = true
+var _pass_tiles: Dictionary = {}
 # Dauerhafte Kampf-Anzeige zwischen TopBar und MapArea. Wird NIE von
 # Tap-Status ueberschrieben - bleibt stehen, bis ein neuer Kampf passiert.
 var _combat_label: Label
@@ -656,9 +667,11 @@ func _ready() -> void:
 	_start(_seed)
 
 
-func _start(seed_value: int, requested_faction: int = -1) -> void:
+func _start(seed_value: int, requested_faction: int = -1, ridges: bool = true) -> void:
 	_trace("STEP 3: generiere seed=%d" % seed_value)
 	_seed = seed_value
+	_ridges_enabled = ridges
+	_keys = []
 	_game_won = false
 	_game_lost = false
 	_no_city_since = -1
@@ -795,6 +808,17 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 		if int(tiles[i]) == MapGen.TILE_GRASS and rng.next_int(0, 99) < 20:
 			tiles[i] = MapGen.TILE_FOREST
 
+	# Gebirgsriegel mit Paessen (It. 82) - NACH dem Gelaende, damit sie
+	# ueber Wasser, Wald und Sumpf hinweggehen und wirklich abriegeln.
+	_trace("STEP 3e2: Gebirgsriegel und Paesse")
+	_pass_tiles.clear()
+	var passes: Array = []
+	if _ridges_enabled:
+		passes = _carve_ridges(tiles, seed_value)
+		for ps in passes:
+			for pt in ((ps["tiles"] as Array) + (ps["entries"] as Array)):
+				_pass_tiles[Vector2i(pt)] = true
+
 	_trace("STEP 3f: find_spawn")
 	var spawn := Vector2i(int(MAP_WIDTH / 2), int(MAP_HEIGHT / 2))
 	var found := false
@@ -819,6 +843,7 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 		"height": MAP_HEIGHT,
 		"tiles": tiles,
 		"hero_spawn": spawn,
+		"passes": passes,
 	}
 	_trace("STEP 4: MapGen fertig, spawn %s" % str(spawn))
 	_heroes = [Hero.new(spawn, BASE_MAX_MP)]
@@ -853,6 +878,8 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 		if int(tiles[cy * MAP_WIDTH + cx]) != 0:  # 0 = GRASS
 			continue
 		var candidate := Vector2i(cx, cy)
+		if _pass_tiles.has(candidate):
+			continue
 		var too_close := false
 		for existing in _cities:
 			var ep: Vector2i = existing["pos"]
@@ -933,6 +960,11 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 					var d: int = abs(cp.x - tpv.x) + abs(cp.y - tpv.y)
 					if min_d < 0 or d < min_d:
 						min_d = d
+				# Mit Gebirgsriegeln (It. 82) startet die KI moeglichst NICHT
+				# in der Zone des Spielers - wie in Heroes hat jeder seine
+				# Startzone, und der Weg zum Nachbarn fuehrt durch einen Pass.
+				if not passes.is_empty() and _zone_of(cp) != _zone_of(spawn):
+					min_d += 100
 				if min_d > best_min_d:
 					best_min_d = min_d
 					best_idx = i
@@ -974,6 +1006,8 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 		if tt != 0 and tt != 1:  # 0 GRASS, 1 FOREST
 			continue
 		var mpos := Vector2i(mx, my)
+		if _pass_tiles.has(mpos):
+			continue
 		if abs(mpos.x - spawn.x) + abs(mpos.y - spawn.y) < MONSTER_MIN_DIST:
 			continue
 		var blocked := false
@@ -1026,6 +1060,8 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 		if ot != 0 and ot != 1:
 			continue
 		var opos := Vector2i(ox, oy)
+		if _pass_tiles.has(opos):
+			continue
 		if abs(opos.x - spawn.x) + abs(opos.y - spawn.y) < OBJECT_MIN_DIST:
 			continue
 		var oblocked: bool = false
@@ -1130,6 +1166,9 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 			placed["guard_army"] = ((MapObj.BANKS[kind] as Dictionary)["army"] as Dictionary).duplicate()
 			placed["guard_unit"] = String(((placed["guard_army"] as Dictionary).keys())[0])
 
+	# Tore, Passwaechter und Schluesselmeister (It. 82).
+	_place_pass_content(passes, seed_value)
+
 	_turn_number = 0
 	_init_fog_arrays()
 	_recompute_fog_player()
@@ -1146,6 +1185,122 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 	# ins Protokoll, nicht vor den Spieler (It. 50).
 	print("[WorldMap] Seed %d  Reach %d  Tile %.1f" % [_seed, _costs.size(), _tile_size])
 	_set_status("Tag %d" % _day_num())
+
+
+# --- Gebirgsriegel und Paesse (It. 82) ------------------------------------
+#
+# Zwei Riegel quer ueber die Karte, je zwei Felder dick, die sich um eine
+# Reihe schlaengeln. Ein Sprung um EINE Reihe laesst bei orthogonaler
+# Bewegung keine Luecke (die Ecke liegt nur diagonal frei). Je Riegel zwei
+# Paesse: einer bekommt ein Grenztor, der andere einen Passwaechter.
+#
+# EIGENER Wuerfel: der Haupt-Zufall fuer Staedte, Monster und Objekte
+# behaelt dieselbe Folge wie ohne Riegel.
+func _carve_ridges(tiles: Array, seed_value: int) -> Array:
+	var rr := DeterministicRng.new(seed_value * 31 + 7)
+	var passes: Array = []
+	for ri in range(MapObj.RIDGE_ROWS.size()):
+		var base: int = int(MapObj.RIDGE_ROWS[ri])
+		var rows: Array = []
+		var r: int = base
+		for x in range(MAP_WIDTH):
+			r = clampi(r + rr.next_int(-1, 1), base - MapObj.RIDGE_JITTER,
+				base + MapObj.RIDGE_JITTER)
+			rows.append(r)
+			for dy in range(2):
+				tiles[(r + dy) * MAP_WIDTH + x] = MapGen.TILE_MOUNTAIN
+		# Zwei Paesse mit Abstand, nicht am Rand.
+		var x1: int = rr.next_int(2, MAP_WIDTH - 3)
+		var x2: int = x1
+		var tries: int = 0
+		while absi(x2 - x1) < MapObj.PASS_MIN_GAP and tries < 100:
+			tries += 1
+			x2 = rr.next_int(2, MAP_WIDTH - 3)
+		var gate_first: bool = rr.next_int(0, 1) == 0
+		for pi in range(2):
+			var px: int = x1 if pi == 0 else x2
+			var pr: int = int(rows[px])
+			var ptiles: Array = [Vector2i(px, pr), Vector2i(px, pr + 1)]
+			var entries: Array = [Vector2i(px, pr - 1), Vector2i(px, pr + 2)]
+			# Pass und Zugang begehbar machen - auch wenn dort vorher Wasser
+			# oder ein Gebirgshaufen lag.
+			for pt in ptiles + entries:
+				var pv: Vector2i = pt
+				if pv.y >= 0 and pv.y < MAP_HEIGHT:
+					tiles[pv.y * MAP_WIDTH + pv.x] = MapGen.TILE_GRASS
+			passes.append({
+				"ridge": ri,
+				"tiles": ptiles,
+				"entries": entries,
+				"gate": (pi == 0) == gate_first,
+				"color": String(MapObj.KEY_COLORS[ri % MapObj.KEY_COLORS.size()]),
+			})
+	return passes
+
+
+# Tor bzw. Passwaechter in jeden Pass, dazu je Farbe ein Schluesselmeister
+# irgendwo auf der Karte (Gras/Wald, nicht auf einem Pass, Abstand zu allem).
+func _place_pass_content(passes: Array, seed_value: int) -> void:
+	if passes.is_empty():
+		return
+	var rr := DeterministicRng.new(seed_value * 53 + 11)
+	var tiles: Array = _map["tiles"]
+	var colors: Array = []
+	for ps in passes:
+		var p: Vector2i = (ps["tiles"] as Array)[0]
+		var col: String = String(ps["color"])
+		if bool(ps["gate"]):
+			_objects.append({"pos": p, "kind": OBJECT_BORDER_GATE, "owner": OWNER_NEUTRAL,
+				"guard": 0, "guard_unit": "", "gold": 0, "resource": col, "amount": 0})
+			colors.append(col)
+		else:
+			_monsters.append({"pos": p, "strength": MapObj.PASS_GUARD_STRENGTH,
+				"unit": _pick_monster_unit(MapObj.PASS_GUARD_STRENGTH, rr.next_int(0, 1 << 20)),
+				"pass_guard": true})
+	for col2 in colors:
+		for _try in range(600):
+			var q := Vector2i(rr.next_int(0, MAP_WIDTH - 1), rr.next_int(0, MAP_HEIGHT - 1))
+			var tt: int = int(tiles[q.y * MAP_WIDTH + q.x])
+			if tt != MapGen.TILE_GRASS and tt != MapGen.TILE_FOREST:
+				continue
+			if _pass_tiles.has(q) or _city_at(q) >= 0 or _monster_at(q) >= 0:
+				continue
+			var near: bool = false
+			for o in _objects:
+				var op: Vector2i = o["pos"]
+				if absi(op.x - q.x) + absi(op.y - q.y) < 2:
+					near = true
+					break
+			for c in _cities:
+				var cp: Vector2i = c["pos"]
+				if absi(cp.x - q.x) + absi(cp.y - q.y) < MapObj.KEYMASTER_MIN_DIST:
+					near = true
+					break
+			if near:
+				continue
+			_objects.append({"pos": q, "kind": OBJECT_KEYMASTER, "owner": OWNER_NEUTRAL,
+				"guard": 0, "guard_unit": "", "gold": 0, "resource": col2, "amount": 0})
+			break
+
+
+# Zone eines Feldes: 0 oberhalb des ersten Riegels, 1 dazwischen, 2 unten.
+# Naeherung ueber die Grundreihe - der Riegel schlaengelt sich um eine
+# Reihe, und auf ihm selbst steht nichts, also genuegt das fuer Staedte.
+func _zone_of(p: Vector2i) -> int:
+	var z: int = 0
+	for base in MapObj.RIDGE_ROWS:
+		if p.y > int(base):
+			z += 1
+	return z
+
+
+# Feld -> Farbe aller Grenztore.
+func _gate_map() -> Dictionary:
+	var out: Dictionary = {}
+	for o in _objects:
+		if int(o["kind"]) == OBJECT_BORDER_GATE:
+			out[Vector2i(o["pos"])] = String(o.get("resource", ""))
+	return out
 
 
 func _recompute_costs() -> void:
@@ -1336,6 +1491,10 @@ func _dijkstra(start: Vector2i, monsters_block: bool,
 	var tiles: Array = _map["tiles"]
 	var costs: Dictionary = {}
 	costs[start] = 0
+	# Grenztore (It. 82): fuer den Spieler offen mit dem passenden
+	# Schluessel, fuer die KI (monsters_block = false) immer zu - sie hat
+	# keine Schluessel und nimmt den Waechter-Pass.
+	var gates: Dictionary = _gate_map()
 	# 4 Richtungen als feste Vector2i-Variablen (statt Array-Literal
 	# im for-Loop), damit GDScript keine Variant-Konvertierung braucht.
 	var dir_e := Vector2i(1, 0)
@@ -1372,6 +1531,9 @@ func _dijkstra(start: Vector2i, monsters_block: bool,
 			var ny: int = cur.y + d.y
 			if nx < 0 or nx >= MAP_WIDTH or ny < 0 or ny >= MAP_HEIGHT:
 				continue
+			if not gates.is_empty() and gates.has(Vector2i(nx, ny)):
+				if not monsters_block or not _keys.has(String(gates[Vector2i(nx, ny)])):
+					continue
 			var t: int = int(tiles[ny * MAP_WIDTH + nx])
 			# Kosten aus dem preload-Modul Movement: Cross-File-Aufrufe
 			# ueber class_name (MapGen.terrain_cost) koennen im
@@ -1791,6 +1953,13 @@ func _draw_map() -> void:
 		elif okind == OBJECT_PILE:
 			obj_sprite = "objects/pile.svg"
 			obj_tint = RESOURCE_COLORS.get(String(obj.get("resource", "gold")), Color.WHITE)
+		elif okind == OBJECT_BORDER_GATE or okind == OBJECT_KEYMASTER:
+			# Je Schluesselfarbe ein eigenes Bild (It. 82).
+			var kc: String = String(obj.get("resource", "rot"))
+			obj_sprite = "objects/%s.svg" % (MapObj.gate_sprite(kc)
+				if okind == OBJECT_BORDER_GATE else MapObj.keymaster_sprite(kc))
+			if _bonus_spent(obj):
+				obj_tint = Color(0.55, 0.55, 0.58)
 		elif OBJECT_SPRITES.has(okind):
 			obj_sprite = "objects/%s.svg" % String(OBJECT_SPRITES[okind])
 			# Verbrauchte Bonus-Objekte bleiben stehen, aber blass - der
@@ -4248,6 +4417,8 @@ const MAP3D_OBJECT_MODEL := {
 	OBJECT_DRAGON_HOARD: "obj_dragon_hoard",
 	OBJECT_PORTAL: "obj_portal",
 	OBJECT_SEER_HUT: "obj_seer_hut",
+	OBJECT_BORDER_GATE: "obj_gate_rot",
+	OBJECT_KEYMASTER: "obj_keymaster_rot",
 }
 
 # DIE WACHZAHLEN AN EINER STELLE.
@@ -4373,6 +4544,10 @@ func _map3d_ctx() -> Dictionary:
 		# Eigenes Modell je Minenart (It. 80).
 		if int(od["kind"]) == OBJECT_MINE:
 			oentry["model"] = MapObj.mine_model(String(od.get("resource", "gold")))
+		elif int(od["kind"]) == OBJECT_BORDER_GATE:
+			oentry["model"] = MapObj.gate_model(String(od.get("resource", "rot")))
+		elif int(od["kind"]) == OBJECT_KEYMASTER:
+			oentry["model"] = MapObj.keymaster_model(String(od.get("resource", "rot")))
 		objects_out.append(oentry)
 	var monsters_out: Array = []
 	var eff_gold: int = _player_gold_power()
@@ -4627,6 +4802,12 @@ func _bonus_spent(obj: Dictionary) -> bool:
 		return _hero != null and _hero.morale_bonus > 0
 	if kind == OBJECT_TRADING_POST:
 		return false
+	# Ein Tor ist nie "verbraucht" (es bleibt Durchgang), der
+	# Schluesselmeister, sobald der Spieler den Schluessel hat.
+	if kind == OBJECT_BORDER_GATE:
+		return false
+	if kind == OBJECT_KEYMASTER:
+		return _keys.has(String(obj.get("resource", "")))
 	if kind == OBJECT_DWELLING:
 		return int(obj.get("guard", 0)) <= 0 and _dwelling_pool_now(obj) <= 0
 	return bool(obj.get("used", false))
@@ -4871,6 +5052,22 @@ func _visit_adventure_object(obj: Dictionary, h: Hero) -> String:
 			return "Behausung (%s): diese Woche niemand mehr da." % UnitType.name_of(uid)
 		_show_dwelling(obj, h)
 		return "Behausung: %d %s bereit" % [avail, UnitType.name_of(uid)]
+
+	if kind == OBJECT_KEYMASTER:
+		var kcol: String = String(obj.get("resource", ""))
+		if _keys.has(kcol):
+			return "Schluesselmeister: den %sen Schluessel hast du schon." % kcol
+		_keys.append(kcol)
+		Sound.play("recruit")
+		_recompute_costs()
+		_request_redraw()
+		return "Schluesselmeister: %ser Schluessel - das %se Grenztor ist offen" % [kcol.capitalize(), kcol]
+
+	if kind == OBJECT_BORDER_GATE:
+		var gcol: String = String(obj.get("resource", ""))
+		if _keys.has(gcol):
+			return "Grenztor: der %se Schluessel oeffnet es." % gcol
+		return "Grenztor: verschlossen - den Schluessel hat der %se Schluesselmeister." % gcol
 
 	if kind == OBJECT_PORTAL:
 		var partner: Vector2i = _portal_partner(obj)
@@ -5952,6 +6149,18 @@ func _run_enemy_turn_for(idx: int) -> bool:
 				best_step = step_cost
 		if best_step < 0:
 			break
+		# Passwaechter (It. 82): die KI laeuft NICHT kampflos hindurch.
+		# Ist sie stark genug, kaempft sie ihn frei (Auto-Abrechnung wie
+		# bei Objekt-Wachen, mit Verlusten), sonst bleibt sie davor stehen.
+		# Ohne das war der Waechter-Pass fuer die KI offen und fuer den
+		# Spieler zu - die KI kam aus allen Zonen ungehindert zu ihm.
+		var mg: int = _monster_at(best_next)
+		if mg >= 0 and bool((_monsters[mg] as Dictionary).get("pass_guard", false)):
+			var gcount: int = _monster_count(_monsters[mg])
+			if eh.total_count() * 100 < gcount * (100 + AI_RAID_SAFETY_PCT):
+				break
+			eh.apply_proportional_losses(gcount)
+			_monsters.remove_at(mg)
 		# Spieler-Held auf dem naechsten Schritt: Pflicht-Kampf via
 		# Taktik-Overlay. Der Aufruf oeffnet ein modales Overlay, das der
 		# Spieler selbst ausspielt. Wir suspendieren die KI-Phase bis
@@ -6490,6 +6699,11 @@ func _capture_state() -> Dictionary:
 		"ai_seen_by_player": seen_out,
 		"fog_player": _fog_player.duplicate(),
 		"rng_state": _rng.get_state_string(),
+		# Paesse (It. 82). Fehlt "ridges", ist es ein Spielstand von vor
+		# den Riegeln - der wird OHNE Riegel neu gebaut, sonst stuenden
+		# Staedte und Helden ploetzlich im Gebirge.
+		"ridges": _ridges_enabled,
+		"keys": _keys.duplicate(),
 	}
 
 
@@ -6500,7 +6714,10 @@ func _restore_state(d: Dictionary) -> bool:
 	if d.is_empty() or not d.has("seed") or not d.has("heroes"):
 		return false
 	# 1) Welt deterministisch neu bauen - danach stimmen Karte/UI/Arrays.
-	_start(int(d["seed"]))
+	_start(int(d["seed"]), -1, bool(d.get("ridges", false)))
+	_keys = []
+	for kc in (d.get("keys", []) as Array):
+		_keys.append(String(kc))
 	# 2) Zustand ueberschreiben.
 	_turn_number = int(d.get("turn_number", 0))
 	_no_city_since = int(d.get("no_city_since", -1))

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Schluesselmeister (rot): gibt den Schluessel
+     Erzeugt von tools/gen_map_objects.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <ellipse cx="32" cy="57" rx="20" ry="5" fill="#000" opacity="0.40"/>
+  <polygon points="8.0,54.0 30.0,14.0 52.0,54.0" fill="#c0392b" stroke="#241c12" stroke-width="2.0" stroke-linejoin="round"/>
+  <polygon points="24.0,54.0 30.0,36.0 36.0,54.0" fill="#2a1e14" stroke="#241c12" stroke-width="1.2" stroke-linejoin="round"/>
+  <circle cx="48" cy="22" r="7" fill="none" stroke="#e6c247" stroke-width="3"/>
+  <line x1="48.0" y1="29.0" x2="48.0" y2="50.0" stroke="#e6c247" stroke-width="3.0" stroke-linecap="round"/>
+  <line x1="48.0" y1="42.0" x2="54.0" y2="42.0" stroke="#e6c247" stroke-width="3.0" stroke-linecap="round"/>
+  <line x1="48.0" y1="48.0" x2="54.0" y2="48.0" stroke="#e6c247" stroke-width="3.0" stroke-linecap="round"/>
+</svg>
