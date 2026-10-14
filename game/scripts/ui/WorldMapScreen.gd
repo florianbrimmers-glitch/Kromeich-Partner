@@ -29,6 +29,8 @@ const UnitArt := preload("res://scripts/core/UnitArt.gd")
 # Anleitung (It. 46). ManualPanel preloadet KEINEN Screen, sonst gaebe es
 # hier einen Preload-Kreis.
 const Artifacts := preload("res://scripts/core/Artifacts.gd")
+# Abenteuer-Objekte, zweite Welle (It. 78): Katalog und reine Regeln.
+const MapObj := preload("res://scripts/core/MapObjects.gd")
 const Manual := preload("res://scripts/core/Manual.gd")
 const ManualPanel := preload("res://scripts/ui/ManualPanel.gd")
 # NUR fuer die Gitter-Zahlen der Anleitung.
@@ -173,6 +175,21 @@ const OBJECT_SHRINE_KNOW := 6     # Garten          -> +1 Wissen
 const OBJECT_WELL := 7            # Brunnen         -> Mana voll, 1x/Tag
 const OBJECT_LEARNING := 8        # Lehrmeister     -> XP, einmalig
 const OBJECT_WINDMILL := 9        # Windmuehle      -> Ressource, 1x/Woche
+# Zweite Welle (It. 78), Katalog und Regeln in core/MapObjects.gd.
+const OBJECT_CAMPFIRE := MapObj.CAMPFIRE
+const OBJECT_ARTIFACT := MapObj.ARTIFACT
+const OBJECT_WATERMILL := MapObj.WATERMILL
+const OBJECT_STABLES := MapObj.STABLES
+const OBJECT_OASIS := MapObj.OASIS
+const OBJECT_LOOKOUT := MapObj.LOOKOUT
+const OBJECT_ARENA := MapObj.ARENA
+const OBJECT_FOUNTAIN := MapObj.FOUNTAIN
+const OBJECT_TEMPLE := MapObj.TEMPLE
+const OBJECT_TREE := MapObj.TREE
+const OBJECT_WITCH_HUT := MapObj.WITCH_HUT
+const OBJECT_MAGIC_SHRINE := MapObj.MAGIC_SHRINE
+const OBJECT_PRISON := MapObj.PRISON
+const OBJECT_TRADING_POST := MapObj.TRADING_POST
 
 const MINE_COUNT := 6
 const TREASURE_COUNT := 4
@@ -188,6 +205,20 @@ const BONUS_PLAN := {
 	OBJECT_WELL: 2,
 	OBJECT_LEARNING: 2,
 	OBJECT_WINDMILL: 2,
+	OBJECT_CAMPFIRE: 3,
+	OBJECT_ARTIFACT: 3,
+	OBJECT_WATERMILL: 1,
+	OBJECT_STABLES: 1,
+	OBJECT_OASIS: 1,
+	OBJECT_LOOKOUT: 1,
+	OBJECT_ARENA: 1,
+	OBJECT_FOUNTAIN: 1,
+	OBJECT_TEMPLE: 1,
+	OBJECT_TREE: 1,
+	OBJECT_WITCH_HUT: 1,
+	OBJECT_MAGIC_SHRINE: 1,
+	OBJECT_PRISON: 1,
+	OBJECT_TRADING_POST: 1,
 }
 # Einmalige Stat-Schreine: Art -> (Primaerwert, Anzeigename).
 const SHRINE_STATS := {
@@ -205,6 +236,20 @@ const OBJECT_SPRITES := {
 	OBJECT_WELL: "well",
 	OBJECT_LEARNING: "learning",
 	OBJECT_WINDMILL: "windmill",
+	OBJECT_CAMPFIRE: "campfire",
+	OBJECT_ARTIFACT: "artifact",
+	OBJECT_WATERMILL: "watermill",
+	OBJECT_STABLES: "stables",
+	OBJECT_OASIS: "oasis",
+	OBJECT_LOOKOUT: "lookout",
+	OBJECT_ARENA: "arena",
+	OBJECT_FOUNTAIN: "fountain",
+	OBJECT_TEMPLE: "temple",
+	OBJECT_TREE: "tree",
+	OBJECT_WITCH_HUT: "witch_hut",
+	OBJECT_MAGIC_SHRINE: "magic_shrine",
+	OBJECT_PRISON: "prison",
+	OBJECT_TRADING_POST: "trading_post",
 }
 const LEARNING_XP := 120
 const WINDMILL_MIN := 3
@@ -941,7 +986,8 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 		for _i in range(int(BONUS_PLAN[bk])):
 			kind_plan.append(int(bk))
 	var o_target: int = kind_plan.size()
-	while _objects.size() < o_target and o_attempts < 800:
+	# 44 Objekte auf 18x26 Feldern: mehr Versuche als die 800 fuer 26.
+	while _objects.size() < o_target and o_attempts < 4000:
 		o_attempts += 1
 		var ox: int = rng.next_int(0, MAP_WIDTH - 1)
 		var oy: int = rng.next_int(0, MAP_HEIGHT - 1)
@@ -976,6 +1022,7 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 		var resource: String = "gold"
 		var gold_amt: int = MINE_GOLD_PER_TURN
 		var guard_amt: int = rng.next_int(OBJECT_GUARD_MIN, OBJECT_GUARD_MAX)
+		var extra_amt: int = 0
 		if kind == OBJECT_MINE:
 			resource = String(MINE_KINDS[idx % MINE_KINDS.size()])
 			if resource == "rare":
@@ -983,6 +1030,17 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 			gold_amt = int(MINE_YIELD.get(resource, 1))
 		elif kind == OBJECT_TREASURE:
 			gold_amt = rng.next_int(TREASURE_GOLD_MIN, TREASURE_GOLD_MAX)
+		elif kind == OBJECT_CAMPFIRE:
+			# Beute gleich festlegen und mitspeichern (wie guard_unit).
+			var loot: Dictionary = MapObj.campfire_loot(rng.next_int(0, 1 << 20))
+			gold_amt = int(loot["gold"])
+			resource = String(loot["resource"])
+			extra_amt = int(loot["amount"])
+			guard_amt = 0
+		elif kind == OBJECT_ARTIFACT:
+			gold_amt = 0
+			resource = Artifacts.pick(rng.next_int(0, 1 << 20))
+			guard_amt = rng.next_int(MapObj.ARTIFACT_GUARD_MIN, MapObj.ARTIFACT_GUARD_MAX)
 		elif kind >= OBJECT_SHRINE_ATT:
 			# Bonus-Objekte: unbewacht, kein Gold-Ertrag. Was sie geben,
 			# entscheidet _visit_bonus_object beim Betreten.
@@ -1010,6 +1068,8 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 				rng.next_int(0, 1 << 20)) if guard_amt > 0 else "",
 			"gold": gold_amt,
 			"resource": resource,
+			# Lagerfeuer (It. 78): Menge der Ressource neben dem Gold.
+			"amount": extra_amt,
 		})
 
 	_turn_number = 0
@@ -1097,7 +1157,7 @@ func _recompute_fog_player() -> void:
 			_fog_mark(arr, Vector2i(city["pos"]), CITY_SIGHT)
 	for obj in _objects:
 		if int(obj.get("owner", OWNER_NEUTRAL)) == OWNER_HERO:
-			_fog_mark(arr, Vector2i(obj["pos"]), OBJECT_SIGHT)
+			_fog_mark(arr, Vector2i(obj["pos"]), _object_sight(obj))
 	for i in range(_enemies.size()):
 		var eh: Hero = _enemies[i]["hero"] as Hero
 		if eh == null:
@@ -1128,7 +1188,7 @@ func _recompute_fog_ai(idx: int) -> void:
 			_fog_mark(arr, Vector2i(city["pos"]), CITY_SIGHT)
 	for obj in _objects:
 		if int(obj.get("owner", OWNER_NEUTRAL)) == oid:
-			_fog_mark(arr, Vector2i(obj["pos"]), OBJECT_SIGHT)
+			_fog_mark(arr, Vector2i(obj["pos"]), _object_sight(obj))
 	if _hero != null:
 		if _fog_get(arr, _hero.position) == FOG_VISIBLE:
 			e["player_last_seen_pos"] = _hero.position
@@ -2907,6 +2967,11 @@ func _open_battle(opp_name: String, opp_army: int, allow_flee: bool, terrain_id:
 		# fuenf Callbacks daran zu denken.
 		if result.has("mana_left"):
 			_hero.mana = clampi(int(result["mana_left"]), 0, _hero_max_mana())
+		# Gluecksbrunnen und Tempel (It. 78) gelten bis zum naechsten
+		# Kampf - dieser war es, wenn der Held mitgekaempft hat.
+		if hero_fought and fighting_hero != null:
+			fighting_hero.luck_bonus = 0
+			fighting_hero.morale_bonus = 0
 		# Flucht und Kapitulation an EINEM Ort (It. 42): Held versetzen,
 		# Armee bzw. Gold verrechnen. Der Callback laeuft danach TROTZDEM -
 		# er muss die KI-Phase fortsetzen, sonst friert sie ein (die Falle
@@ -2950,7 +3015,8 @@ func _open_battle(opp_name: String, opp_army: int, allow_flee: bool, terrain_id:
 			"player_bonus": bonus,
 			"player_att": bonus + int(_hero.att),
 			"player_def": bonus + int(_hero.def),
-			"player_morale_bonus": Skills.morale_bonus(_hero.skills),
+			# Tempel (It. 78) gilt bis zu DIESEM Kampf, siehe unten.
+			"player_morale_bonus": Skills.morale_bonus(_hero.skills) + int(_hero.morale_bonus),
 			"player_archery_pct": Skills.archery_pct(_hero.skills),
 			"player_offense_pct": Skills.offense_pct(_hero.skills),
 			"player_armorer_pct": Skills.armorer_pct(_hero.skills),
@@ -2959,9 +3025,8 @@ func _open_battle(opp_name: String, opp_army: int, allow_flee: bool, terrain_id:
 			"player_tactics": Skills.tactics_cols(_hero.skills),
 			"player_mana": int(_hero.mana),
 			"player_spell_power": int(_hero.spell_power),
-			"player_spells": Spells.known(
-				Spells.schools_for_faction(_player_faction),
-				Skills.wisdom_tier(_hero.skills)),
+			# Dazu die Zauber aus dem Schrein der Magie (It. 78).
+			"player_spells": _known_spells_of(_hero),
 			"enemy_name": opp_name,
 			"enemy_stacks": e_stacks,
 			# Flucht/Kapitulation nur mit einer eigenen Stadt als Ziel
@@ -2974,7 +3039,7 @@ func _open_battle(opp_name: String, opp_army: int, allow_flee: bool, terrain_id:
 			"surrender_cost": _surrender_cost_of(_hero),
 			"seed": _seed,
 			"terrain_id": terrain_id,
-			"player_luck": _player_luck(),
+			"player_luck": mini(LUCK_MAX, _player_luck() + int(_hero.luck_bonus)),
 			"siege": bool(siege_ctx.get("siege", false)),
 			"tower_dmg": int(siege_ctx.get("tower_dmg", 0)),
 		})
@@ -3284,6 +3349,12 @@ func _on_object_result(result: Dictionary, obj_pos: Vector2i, target: Vector2i,
 		_objects.remove_at(obj_idx)
 		_set_combat("Gefunden: %d %s, %s"
 			% [pamt, Wallet.display_name(pres), _losses_text(cas)])
+	elif okind >= OBJECT_SHRINE_ATT:
+		# Bewachte Abenteuer-Objekte (It. 78: Artefakt am Boden). Wieder
+		# der Held, der gekaempft hat.
+		var vmsg: String = _visit_bonus_object(obj, fh)
+		if vmsg != "":
+			_set_combat("%s, %s" % [vmsg, _losses_text(cas)])
 	_finish_move_to(target, cost)
 
 
@@ -3973,7 +4044,8 @@ func _swap_artifact(drop_id: String) -> void:
 	# Jetzt erst die Truhe von der Karte nehmen.
 	if _art_chest_pos.x >= 0:
 		var ci: int = _object_at(_art_chest_pos)
-		if ci >= 0 and int(_objects[ci]["kind"]) == OBJECT_TREASURE:
+		if ci >= 0 and (int(_objects[ci]["kind"]) == OBJECT_TREASURE
+				or int(_objects[ci]["kind"]) == OBJECT_ARTIFACT):
 			_objects.remove_at(ci)
 	_art_found = ""
 	_art_hero = null
@@ -4049,6 +4121,20 @@ const MAP3D_OBJECT_MODEL := {
 	OBJECT_WELL: "obj_well",
 	OBJECT_LEARNING: "obj_learning",
 	OBJECT_WINDMILL: "obj_windmill",
+	OBJECT_CAMPFIRE: "obj_campfire",
+	OBJECT_ARTIFACT: "obj_artifact",
+	OBJECT_WATERMILL: "obj_watermill",
+	OBJECT_STABLES: "obj_stables",
+	OBJECT_OASIS: "obj_oasis",
+	OBJECT_LOOKOUT: "obj_lookout",
+	OBJECT_ARENA: "obj_arena",
+	OBJECT_FOUNTAIN: "obj_fountain",
+	OBJECT_TEMPLE: "obj_temple",
+	OBJECT_TREE: "obj_tree",
+	OBJECT_WITCH_HUT: "obj_witch_hut",
+	OBJECT_MAGIC_SHRINE: "obj_magic_shrine",
+	OBJECT_PRISON: "obj_prison",
+	OBJECT_TRADING_POST: "obj_trading_post",
 }
 
 # DIE WACHZAHLEN AN EINER STELLE.
@@ -4356,6 +4442,9 @@ func _recalc_max_mp_of(h: Hero) -> void:
 		+ LEVEL_BONUS_MP * max(0, h.level - 1)
 	var pct: int = Skills.move_pct(h.skills)
 	h.max_mp = base_mp + int(round(float(base_mp) * float(pct) / 100.0))
+	# Stallungen (It. 78): bis zum Ende der Woche, in der sie besucht wurden.
+	if h.stable_week >= 0 and h.stable_week == GameCalendar.week_total(_turn_number):
+		h.max_mp += MapObj.STABLES_MP
 
 
 
@@ -4406,15 +4495,28 @@ func _apply_necromancy(killed_hp: int) -> String:
 # Brunnen und Windmuehle nur fuer heute bzw. diese Woche.
 func _bonus_spent(obj: Dictionary) -> bool:
 	var kind: int = int(obj["kind"])
-	if kind == OBJECT_WELL:
+	if kind == OBJECT_WELL or kind == OBJECT_OASIS:
 		return int(obj.get("used_turn", -1)) == _turn_number
-	if kind == OBJECT_WINDMILL:
+	if kind == OBJECT_WINDMILL or kind == OBJECT_WATERMILL:
 		return int(obj.get("used_week", -1)) == GameCalendar.week_total(_turn_number)
+	# Je Held statt je Objekt: Staelle, Brunnen des Gluecks, Tempel und
+	# der Handelsposten sind nie "leer" - es zaehlt, ob DER AKTIVE Held
+	# gerade etwas davon hat.
+	if kind == OBJECT_STABLES:
+		return _hero != null and _hero.stable_week == GameCalendar.week_total(_turn_number)
+	if kind == OBJECT_FOUNTAIN:
+		return _hero != null and _hero.luck_bonus > 0
+	if kind == OBJECT_TEMPLE:
+		return _hero != null and _hero.morale_bonus > 0
+	if kind == OBJECT_TRADING_POST:
+		return false
 	return bool(obj.get("used", false))
 
 
-func _visit_bonus_object(obj: Dictionary) -> String:
+func _visit_bonus_object(obj: Dictionary, who: Hero = null) -> String:
 	var kind: int = int(obj["kind"])
+	if MapObj.is_new_kind(kind):
+		return _visit_adventure_object(obj, who if who != null else _hero)
 
 	if SHRINE_STATS.has(kind):
 		var spec: Array = SHRINE_STATS[kind] as Array
@@ -4473,6 +4575,362 @@ func _visit_bonus_object(obj: Dictionary) -> String:
 		return "Windmuehle: +%d %s" % [amt, Wallet.display_name(res)]
 
 	return ""
+
+
+# --- Abenteuer-Objekte, zweite Welle (It. 78) ------------------------------
+# Katalog und reine Regeln stehen in core/MapObjects.gd; hier wird auf Held,
+# Kasse und Nebel angewendet. Rueckgabe wie bei _visit_bonus_object: die
+# Meldung fuer den Spieler, "" gibt es nicht (jede Art meldet sich).
+#
+# `h` ist der Held, der das Objekt betritt - im Wachkampf-Callback der
+# Kaempfer, nicht `_hero` (M13a-Regel).
+func _visit_adventure_object(obj: Dictionary, h: Hero) -> String:
+	var kind: int = int(obj["kind"])
+	var label: String = MapObj.name_of(kind)
+	var p: Vector2i = obj.get("pos", Vector2i.ZERO)
+	var oh: int = _mix_hash(p.x * 7919 + p.y * 104729 + _seed * 31 + kind * 13)
+	if h == null:
+		return "%s: kein Held." % label
+	var week: int = GameCalendar.week_total(_turn_number)
+
+	if kind == OBJECT_CAMPFIRE:
+		var gold: int = int(obj.get("gold", 0))
+		var res: String = String(obj.get("resource", "wood"))
+		var amt: int = int(obj.get("amount", 0))
+		_purse.add("gold", gold)
+		if amt > 0:
+			_purse.add(res, amt)
+		_remove_object(obj)
+		Sound.play("coin")
+		_update_labels()
+		return "Lagerfeuer: +%d Gold, +%d %s" % [gold, amt, Wallet.display_name(res)]
+
+	if kind == OBJECT_ARTIFACT:
+		var art: String = String(obj.get("resource", ""))
+		if not Artifacts.exists(art):
+			art = Artifacts.pick(oh)
+		if h.artifacts.has(art):
+			# Doppelt traegt man nicht - dann gibt es den Gegenwert in Gold,
+			# dieselbe Regel wie bei der Truhe.
+			_purse.add("gold", TREASURE_GOLD_MIN)
+			_remove_object(obj)
+			Sound.play("coin")
+			_update_labels()
+			return "%s traegst du schon - %d Gold" % [Artifacts.name_of(art), TREASURE_GOLD_MIN]
+		if h.equip(art):
+			_remove_object(obj)
+			_after_artifact_change(h)
+			Sound.play("recruit")
+			return "Artefakt: %s (%s)" % [Artifacts.name_of(art), Artifacts.summary(art)]
+		# Voll: Tausch-Panel, das Artefakt bleibt liegen (Wache ist weg).
+		obj["guard"] = 0
+		_show_artifact_swap(art, h, p)
+		return "Artefakt: %s - Ausruestung ist voll" % Artifacts.name_of(art)
+
+	if kind == OBJECT_WATERMILL:
+		if int(obj.get("used_week", -1)) == week:
+			return "Wassermuehle: diese Woche schon geleert."
+		obj["used_week"] = week
+		_purse.add("gold", MapObj.WATERMILL_GOLD)
+		_update_labels()
+		return "Wassermuehle: +%d Gold" % MapObj.WATERMILL_GOLD
+
+	if kind == OBJECT_STABLES:
+		if h.stable_week == week:
+			return "Stallungen: schon besucht - Bonus gilt bis Wochenende."
+		h.stable_week = week
+		h.mp += MapObj.STABLES_MP
+		_recalc_max_mp_of(h)
+		_update_labels()
+		return "Stallungen: +%d Bewegung bis Wochenende" % Move.tiles_of(MapObj.STABLES_MP)
+
+	if kind == OBJECT_OASIS:
+		if int(obj.get("used_turn", -1)) == _turn_number:
+			return "Oase: heute schon getrunken."
+		obj["used_turn"] = _turn_number
+		h.mp += MapObj.OASIS_MP
+		_update_labels()
+		return "Oase: +%d Felder Bewegung" % Move.tiles_of(MapObj.OASIS_MP)
+
+	if kind == OBJECT_LOOKOUT:
+		if int(obj.get("owner", OWNER_NEUTRAL)) == OWNER_HERO:
+			return "Aussichtsturm: schon besetzt."
+		# Besetzt wie eine Mine: der Turm sieht ab jetzt dauerhaft weit
+		# (_object_sight), auch wenn kein Held mehr dort steht.
+		obj["owner"] = OWNER_HERO
+		obj["used"] = true
+		_recompute_fog_player()
+		return "Aussichtsturm: Umgebung aufgedeckt"
+
+	if kind == OBJECT_ARENA:
+		if bool(obj.get("used", false)):
+			return "Arena: schon trainiert."
+		_show_object_choice("Arena", "Trainiere im Kampf - waehle einen Wert:", [
+			["Angriff +%d" % MapObj.ARENA_BONUS, func() -> void: _arena_pick(obj, h, "attack")],
+			["Verteidigung +%d" % MapObj.ARENA_BONUS, func() -> void: _arena_pick(obj, h, "defense")],
+		])
+		return "Arena: waehle Angriff oder Verteidigung"
+
+	if kind == OBJECT_FOUNTAIN:
+		if h.luck_bonus > 0:
+			return "Gluecksbrunnen: das Glueck ist schon mit dir."
+		h.luck_bonus = MapObj.FOUNTAIN_LUCK
+		return "Gluecksbrunnen: Glueck +%d bis zum naechsten Kampf" % MapObj.FOUNTAIN_LUCK
+
+	if kind == OBJECT_TEMPLE:
+		if h.morale_bonus > 0:
+			return "Tempel: die Truppen sind schon gesegnet."
+		h.morale_bonus = MapObj.TEMPLE_MORALE
+		return "Tempel: Moral +%d bis zum naechsten Kampf" % MapObj.TEMPLE_MORALE
+
+	if kind == OBJECT_TREE:
+		if bool(obj.get("used", false)):
+			return "Baum des Wissens: schon besucht."
+		if h.level >= LEVEL_THRESHOLDS.size():
+			return "Baum des Wissens: hoechste Stufe erreicht."
+		obj["used"] = true
+		var need: int = int(LEVEL_THRESHOLDS[h.level]) - int(h.xp)
+		h.xp += maxi(0, need)
+		var leveled: bool = _check_level_up() if h == _hero else false
+		_update_labels()
+		return "Baum des Wissens: Stufe %d erreicht!" % int(h.level) if leveled \
+			else "Baum des Wissens: +%d Erfahrung" % maxi(0, need)
+
+	if kind == OBJECT_WITCH_HUT:
+		if bool(obj.get("used", false)):
+			return "Hexenhuette: schon besucht."
+		var sid: String = MapObj.witch_skill(Skills, h.skills, oh)
+		if sid == "":
+			return "Hexenhuette: du weisst schon alles, was sie lehrt."
+		obj["used"] = true
+		var tier: int = h.raise_skill(sid, Skills.MAX_TIER)
+		_recalc_max_mp_of(h)
+		_update_labels()
+		return "Hexenhuette: %s gelernt (Stufe %d)" % [Skills.display_name(sid), tier]
+
+	if kind == OBJECT_MAGIC_SHRINE:
+		if bool(obj.get("used", false)):
+			return "Schrein der Magie: schon besucht."
+		var spell: String = MapObj.shrine_spell(Spells, _known_spells_of(h), oh)
+		if spell == "":
+			return "Schrein der Magie: du kennst jeden Zauber, den er lehrt."
+		obj["used"] = true
+		h.extra_spells.append(spell)
+		return "Schrein der Magie: Zauber %s gelernt" % Spells.display_name(spell)
+
+	if kind == OBJECT_PRISON:
+		if _heroes.size() >= MAX_HEROES:
+			return "Gefaengnis: kein Platz - hoechstens %d Helden." % MAX_HEROES
+		var spot: Vector2i = _free_spot_near(p)
+		var freed := Hero.new(spot, BASE_MAX_MP)
+		freed.add_units(UnitType.starter_id_for_faction(_player_faction), MapObj.PRISON_UNITS)
+		freed.att = MapObj.PRISON_STATS
+		freed.def = MapObj.PRISON_STATS
+		freed.mana = Spells.max_mana(int(freed.knowledge))
+		_heroes.append(freed)
+		_recalc_max_mp()
+		freed.mp = 0
+		_remove_object(obj)
+		_recompute_fog_player()
+		_recompute_costs()
+		_update_labels()
+		Sound.play("recruit")
+		return "Gefaengnis: Held befreit (%d von %d)" % [_heroes.size(), MAX_HEROES]
+
+	if kind == OBJECT_TRADING_POST:
+		_show_trading_post()
+		return "Handelsposten: bessere Kurse als auf dem Markt"
+
+	return "%s" % label
+
+
+# Objekt von der Karte nehmen - ueber die Position, weil der Index sich
+# zwischen Kampf und Callback verschieben kann.
+func _remove_object(obj: Dictionary) -> void:
+	var i: int = _object_at(Vector2i(obj.get("pos", Vector2i(-1, -1))))
+	if i >= 0:
+		_objects.remove_at(i)
+
+
+# Freies, begehbares Nachbarfeld fuer einen befreiten Helden - nicht das
+# Gefaengnis selbst, dort steht gleich der Befreier.
+func _free_spot_near(p: Vector2i) -> Vector2i:
+	var tiles: Array = _map["tiles"]
+	for d in [Vector2i(0, 1), Vector2i(1, 0), Vector2i(-1, 0), Vector2i(0, -1),
+			Vector2i(1, 1), Vector2i(-1, 1), Vector2i(1, -1), Vector2i(-1, -1)]:
+		var q: Vector2i = p + (d as Vector2i)
+		if q.x < 0 or q.y < 0 or q.x >= MAP_WIDTH or q.y >= MAP_HEIGHT:
+			continue
+		if not Move.is_passable(int(tiles[q.y * MAP_WIDTH + q.x])):
+			continue
+		if _hero_index_at(q) >= 0 or _object_at(q) >= 0 or _monster_at(q) >= 0 \
+				or _city_at(q) >= 0:
+			continue
+		return q
+	return p
+
+
+# Alle Kampfzauber eines Helden: Fraktions-Schulen bis zur Weisheits-
+# Stufe, dazu, was er an Schreinen gelernt hat.
+func _known_spells_of(h: Hero) -> Array:
+	var out: Array = Spells.known(Spells.schools_for_faction(_player_faction),
+		Skills.wisdom_tier(h.skills if h != null else {}))
+	if h != null:
+		for sp in h.extra_spells:
+			if not out.has(String(sp)):
+				out.append(String(sp))
+	return out
+
+
+# Wie weit ein besetztes Objekt sieht: Aussichtstuerme weit, alles andere
+# wie bisher.
+func _object_sight(obj: Dictionary) -> int:
+	if int(obj.get("kind", -1)) == OBJECT_LOOKOUT:
+		return MapObj.LOOKOUT_SIGHT
+	return OBJECT_SIGHT
+
+
+func _arena_pick(obj: Dictionary, h: Hero, stat: String) -> void:
+	_hide_object_choice()
+	if h == null or bool(obj.get("used", false)):
+		return
+	obj["used"] = true
+	h.add_primary(stat, MapObj.ARENA_BONUS)
+	_update_labels()
+	_request_redraw()
+	Sound.play("recruit")
+	_set_combat("Arena: %s +%d" % [Skills.PRIMARY_NAMES.get(stat, stat), MapObj.ARENA_BONUS])
+
+
+# Handelsposten: dieselben Waren wie der Markt, bessere Kurse.
+func _show_trading_post() -> void:
+	var rows: Array = []
+	for rid in MARKET_BUY.keys():
+		var r: String = String(rid)
+		rows.append(["Kauf 1 %s  -%d Gold" % [Wallet.display_name(r),
+			MapObj.trade_buy_price(int(MARKET_BUY[r]))],
+			func() -> void: _trading_post_trade(r, true)])
+		rows.append(["Verkauf 1 %s  +%d Gold" % [Wallet.display_name(r),
+			MapObj.trade_sell_price(int(MARKET_SELL[r]))],
+			func() -> void: _trading_post_trade(r, false)])
+	_show_object_choice("Handelsposten", _purse_line(), rows, true)
+
+
+func _purse_line() -> String:
+	var parts: Array = []
+	for rid in ["gold", "wood", "ore", "mercury", "sulfur", "crystal", "gems"]:
+		parts.append("%s %d" % [Wallet.display_name(String(rid)), _purse.get_amount(String(rid))])
+	return "  ".join(parts)
+
+
+func _trading_post_trade(res: String, buy: bool) -> bool:
+	var ok: bool = false
+	if buy:
+		var price: int = MapObj.trade_buy_price(int(MARKET_BUY.get(res, 0)))
+		if _purse.pay({"gold": price}):
+			_purse.add(res, 1)
+			ok = true
+			_set_status("Gekauft: 1 %s fuer %d G" % [Wallet.display_name(res), price])
+		else:
+			_set_status("Zu wenig Gold (%d G noetig)" % price)
+	else:
+		var gain: int = MapObj.trade_sell_price(int(MARKET_SELL.get(res, 0)))
+		if _purse.get_amount(res) >= 1:
+			_purse.add(res, -1)
+			_purse.add("gold", gain)
+			ok = true
+			_set_status("Verkauft: 1 %s fuer %d G" % [Wallet.display_name(res), gain])
+		else:
+			_set_status("Kein %s zum Verkaufen" % Wallet.display_name(res))
+	_update_labels()
+	if _choice_panel != null and _choice_panel.visible:
+		var sub := _choice_panel.get_node_or_null("VB/Sub") as Label
+		if sub != null:
+			sub.text = _purse_line()
+	return ok
+
+
+# --- Auswahl-Panel fuer Objekte (Arena, Handelsposten) ---------------------
+# Eine Liste von Knoepfen [Text, Callable]. `keep_open` laesst es nach
+# einem Klick stehen (Handel: mehrmals tauschen), sonst schliesst die
+# Aktion es selbst.
+var _choice_panel: Panel = null
+
+
+func _show_object_choice(title: String, sub: String, options: Array,
+		keep_open: bool = false) -> void:
+	if _choice_panel == null:
+		_build_choice_panel()
+	var vb := _choice_panel.get_node("VB") as VBoxContainer
+	for child in vb.get_children():
+		vb.remove_child(child)
+		child.queue_free()
+	var t := Label.new()
+	t.text = title
+	t.add_theme_font_size_override("font_size", 44)
+	t.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(t)
+	var s := Label.new()
+	s.name = "Sub"
+	s.text = sub
+	s.add_theme_font_size_override("font_size", 24)
+	s.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	s.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	vb.add_child(s)
+	var grid := GridContainer.new()
+	grid.columns = 2 if options.size() > 4 else 1
+	grid.add_theme_constant_override("h_separation", 16)
+	grid.add_theme_constant_override("v_separation", 14)
+	grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	vb.add_child(grid)
+	for opt in options:
+		var o: Array = opt as Array
+		var b := Button.new()
+		b.text = String(o[0])
+		b.add_theme_font_size_override("font_size", 26)
+		b.custom_minimum_size = Vector2(0, 96 if options.size() > 4 else 140)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		var cb: Callable = o[1]
+		b.pressed.connect(func() -> void: cb.call())
+		grid.add_child(b)
+	if keep_open or options.size() > 2:
+		var close := Button.new()
+		close.text = "Fertig"
+		close.add_theme_font_size_override("font_size", 28)
+		close.custom_minimum_size = Vector2(0, 96)
+		close.pressed.connect(_hide_object_choice)
+		vb.add_child(close)
+	_choice_panel.visible = true
+
+
+func _hide_object_choice() -> void:
+	if _choice_panel != null:
+		_choice_panel.visible = false
+
+
+func _build_choice_panel() -> void:
+	var panel := Panel.new()
+	panel.visible = false
+	panel.anchor_right = 1.0
+	panel.anchor_bottom = 1.0
+	add_child(panel)
+	var bg := ColorRect.new()
+	bg.color = Color(0.05, 0.06, 0.09, 0.94)
+	bg.anchor_right = 1.0
+	bg.anchor_bottom = 1.0
+	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(bg)
+	var vb := VBoxContainer.new()
+	vb.name = "VB"
+	vb.anchor_right = 1.0
+	vb.anchor_bottom = 1.0
+	vb.offset_left = 40
+	vb.offset_right = -40
+	vb.offset_top = 200
+	vb.offset_bottom = -200
+	vb.add_theme_constant_override("separation", 24)
+	panel.add_child(vb)
+	_choice_panel = panel
 
 
 # Mana-Maximum aus Wissen (M8). Nicht gespeichert, immer abgeleitet -
@@ -5005,6 +5463,12 @@ func _run_enemy_turn_for(idx: int) -> bool:
 		var okind: int = int(obj["kind"])
 		if okind == OBJECT_MINE and int(obj.get("owner", OWNER_NEUTRAL)) == oid:
 			continue
+		# Die KI holt nur, was sie auch verrechnen kann: Minen und
+		# Einsammel-Objekte. Bonus-Gebaeude hat sie frueher als "Schatz"
+		# behandelt und dabei von der Karte geloescht (It. 78).
+		if okind != OBJECT_MINE and okind != OBJECT_TREASURE and okind != OBJECT_PILE \
+				and not MapObj.is_pickup(okind):
+			continue
 		var op: Vector2i = obj["pos"]
 		if _fog_get(fog_e, op) == FOG_HIDDEN:
 			continue
@@ -5322,6 +5786,10 @@ func _run_enemy_turn_for(idx: int) -> bool:
 				eh.apply_proportional_losses(g2)
 			var tres: String = String(obj2.get("resource", "gold"))
 			var ai_art: String = _chest_artifact(obj2)
+			if int(obj2["kind"]) == OBJECT_ARTIFACT:
+				ai_art = tres
+			elif int(obj2["kind"]) == OBJECT_CAMPFIRE:
+				eh.wallet.add(tres, int(obj2.get("amount", 0)))
 			if ai_art != "" and not eh.artifacts.has(ai_art):
 				# Dieselbe Truhe gibt der KI dasselbe wie dem Spieler (It.
 				# 52): das Artefakt, nicht dessen Gold. Vorher nahm die KI
@@ -5780,6 +6248,11 @@ func _restore_state(d: Dictionary) -> bool:
 		o["owner"] = int(o.get("owner", -1))
 		o["guard"] = int(o.get("guard", 0))
 		o["gold"] = int(o.get("gold", 0))
+		# JSON kennt nur Kommazahlen - ganzzahlige Felder zurueck auf int,
+		# sonst ist der Zustand nach dem Laden nicht mehr derselbe.
+		for ik in ["amount", "used_turn", "used_week"]:
+			if o.has(ik):
+				o[ik] = int(o[ik])
 		_objects.append(o)
 	_monsters.clear()
 	for md in d.get("monsters", []):

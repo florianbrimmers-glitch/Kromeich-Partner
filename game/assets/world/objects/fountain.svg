@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Gluecksbrunnen: Glueck
+     Erzeugt von tools/gen_map_objects.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <ellipse cx="32" cy="57" rx="18" ry="5" fill="#000" opacity="0.40"/>
+  <ellipse cx="32.0" cy="46.0" rx="18.0" ry="7.0" fill="#b3aa98" stroke="#241c12" stroke-width="2.0"/>
+  <ellipse cx="32.0" cy="44.0" rx="13.0" ry="4.0" fill="#4a8ab0" stroke="#241c12" stroke-width="1.5"/>
+  <rect x="29.0" y="26.0" width="6.0" height="18.0" rx="0" fill="#b3aa98" stroke="#241c12" stroke-width="1.5"/>
+  <path d="M 32 26 Q 22 14 18 30 M 32 26 Q 42 14 46 30" fill="none" stroke="#8ad0f0" stroke-width="3"/>
+  <path d="M 32 6 l 3 6 6 1 -4.5 4.5 1 6 -5.5 -3 -5.5 3 1 -6 -4.5 -4.5 6 -1 Z" fill="#7ad04a" stroke="#241c12" stroke-width="1.2"/>
+</svg>

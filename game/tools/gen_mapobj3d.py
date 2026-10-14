@@ -4,7 +4,7 @@
     /opt/blender/blender -b --factory-startup -noaudio \
         --python tools/gen_mapobj3d.py -- game/assets/models/mapobj.glb
 
-Die zehn Objekte (Mine, Truhe, Haufen, vier Schreine, Brunnen,
+Die zehn ersten Objekte (Mine, Truhe, Haufen, vier Schreine, Brunnen,
 Lehrmeister, Windmuehle) waren in world.glb (gen_models.py, It. 53) ein
 paar gestapelte Quader. Neben der neuen Karte mit Waeldern, Seen und Burgen
 stachen sie als Klotzwerk heraus. Gebaut wird mit dem Architektur-Baukasten
@@ -221,10 +221,294 @@ def windmill():
     return obj("obj_windmill", out)
 
 
+# --- Zweite Welle (It. 78) ------------------------------------------------
+
+def campfire():
+    """Lagerfeuer: Steinring, Flammen, Kessel, Saecke und Kiste mit Gold."""
+    out = []
+    for k in range(9):
+        a = 2 * math.pi * k / 9
+        out.append(fg.lump((math.cos(a) * 0.11, math.sin(a) * 0.11, 0.02), 0.035,
+                           "#7a7468", strength=0.3, seed=40 + k, subdiv=1))
+    for k in range(3):
+        a = rad(60 * k)
+        out.append(fg.tube("log", [(math.cos(a) * 0.09, math.sin(a) * 0.09, 0.02),
+                                   (-math.cos(a) * 0.09, -math.sin(a) * 0.09, 0.05)],
+                           [0.018, 0.018], WOOD_DARK))
+    out.append(bk.cone(0.07, 0.18, (0, 0, 0.12), "#ff8a2a", verts=7))
+    out.append(bk.cone(0.04, 0.12, (0.01, -0.01, 0.15), "#ffd35a", verts=6))
+    # Dreibein mit Kessel
+    for k in range(3):
+        a = rad(90 + 120 * k)
+        out.append(fg.tube("tri", [(math.cos(a) * 0.15, math.sin(a) * 0.15, 0.0), (0, 0, 0.32)],
+                           [0.008, 0.008], WOOD))
+    out.append(fg.ball(0.05, (0, 0, 0.22), "#2a2a2e", squash=(1, 1, 0.8), subdiv=1))
+    out.append(ck.block(0.13, 0.10, 0.09, WOOD, 0.24, 0.10, 0.0))
+    for k in range(5):
+        out.append(ck.cyl(0.025, 0.01, GOLD, 0.21 + (k % 3) * 0.03, 0.08 + (k // 3) * 0.04, 0.09,
+                          verts=8))
+    for k, (x, y) in enumerate(((-0.24, 0.10), (-0.20, 0.20))):
+        out.append(fg.ball(0.06, (x, y, 0.05), "#b09a6a", squash=(1, 0.9, 0.9), subdiv=1))
+    return obj("obj_campfire", out)
+
+
+def artifact():
+    """Artefakt am Boden: Steinsockel, schwebende Kugel, Lichtsplitter."""
+    out = [ck.cyl(0.13, 0.05, STONE_DARK, 0, 0, 0.0, verts=8),
+           ck.cyl(0.08, 0.14, STONE, 0, 0, 0.05, r_top=0.06, verts=8),
+           ck.cyl(0.10, 0.03, STONE_DARK, 0, 0, 0.19, verts=8),
+           fg.ball(0.08, (0, 0, 0.33), "#9a6ad8", subdiv=2)]
+    for k in range(4):
+        a = rad(45 + 90 * k)
+        out.append(bk.cone(0.025, 0.09, (math.cos(a) * 0.13, math.sin(a) * 0.13, 0.36),
+                           "#ffe6a6", verts=4))
+    for k in range(5):
+        a = k * 1.3
+        out.append(fg.lump((math.cos(a) * 0.22, math.sin(a) * 0.2, 0.01), 0.04,
+                           "#6a6458", strength=0.3, seed=60 + k, subdiv=1))
+    return obj("obj_artifact", out)
+
+
+def watermill():
+    """Wassermuehle: Fachwerkhaus, grosses Rad vorn am Bach."""
+    out = [ck.block(0.36, 0.24, 0.26, "#d6cbb2", 0.06, 0.12, 0.0)]
+    out += ck.timber(0.36, 0.24, 0.26, WOOD_DARK, 0.06, 0.12, 0.0)
+    out += ck.gable_roof(0.36, 0.24, 0.26, 0.16, "#8a3a2e", "#5a2a20", 0.06, 0.12,
+                         along="x", over=0.04, rows=2)
+    out += ck.window(0.14, 0.0, 0.12, 0.05, 0.06, WOOD_DARK, GLOW)
+    # Rad zur Kamera (Achse entlang y), damit man es als Rad erkennt.
+    cx, cy, cz = -0.10, -0.06, 0.16
+    bpy.ops.mesh.primitive_torus_add(major_radius=0.15, minor_radius=0.014,
+                                     location=(cx, cy, cz), rotation=(rad(90), 0, 0))
+    ring = bpy.context.active_object
+    bk._bake(ring)
+    ring.data.materials.append(bk.material("k" + WOOD, WOOD))
+    out.append(ring)
+    for k in range(8):
+        a = 2 * math.pi * k / 8
+        out.append(fg.tube("spoke", [(cx, cy, cz), (cx + math.cos(a) * 0.15, cy, cz + math.sin(a) * 0.15)],
+                           [0.008, 0.008], WOOD_DARK))
+        out.append(bk.box((0.012, 0.06, 0.05), (cx + math.cos(a) * 0.16, cy, cz + math.sin(a) * 0.16),
+                          WOOD_DARK, 0.0, rot=(0, -a, 0)))
+    out.append(fg.ball(0.025, (cx, cy - 0.01, cz), WOOD_DARK, subdiv=1))
+    out.append(bk.box((0.40, 0.07, 0.005), (0.0, -0.10, 0.004), "#3e6e94", 0.0))
+    return obj("obj_watermill", out)
+
+def stables():
+    """Stallungen: langes Holzhaus, Boxen, Koppelzaun, Heuballen."""
+    out = [ck.block(0.56, 0.24, 0.20, WOOD, 0, 0.10, 0.0)]
+    out += ck.gable_roof(0.56, 0.24, 0.20, 0.13, "#7a5a34", WOOD_DARK, 0, 0.10,
+                         along="x", over=0.04, rows=3)
+    for k in range(3):
+        out.append(ck.block(0.10, 0.02, 0.13, "#2a1e14", -0.18 + k * 0.18, -0.02, 0.0,
+                            bevel=0.0))
+        out.append(ck.block(0.10, 0.025, 0.02, WOOD_DARK, -0.18 + k * 0.18, -0.03, 0.06,
+                            bevel=0.0))
+    out += ck.fence(-0.30, 0.30, -0.30, 0.09, WOOD_DARK, n=7)
+    for k, (x, y) in enumerate(((0.33, -0.12), (0.36, 0.02))):
+        out.append(ck.cyl(0.06, 0.09, "#d8c070", x, y, 0.0, verts=10))
+    # Hufeisen-Schild ueber dem Tor
+    bpy.ops.mesh.primitive_torus_add(major_radius=0.04, minor_radius=0.008,
+                                     location=(0, -0.025, 0.26), rotation=(rad(90), 0, 0))
+    hs = bpy.context.active_object
+    bk._bake(hs)
+    hs.data.materials.append(bk.material("k#c8d2db", "#c8d2db"))
+    out.append(hs)
+    return obj("obj_stables", out)
+
+
+def oasis():
+    """Oase: Sandfleck, Wasserloch, zwei Palmen, Felsen."""
+    out = [ck.cyl(0.34, 0.012, "#d6c08a", 0, 0, 0.0, verts=20),
+           ck.cyl(0.17, 0.016, "#3e7ea4", -0.03, -0.02, 0.0, verts=20)]
+    for k, (x, y, h, lean) in enumerate(((0.15, 0.13, 0.48, 0.06), (-0.18, 0.15, 0.40, -0.05))):
+        top = (x + lean, y, h)
+        out.append(fg.tube("palm", [(x, y, 0.0), (x + lean * 0.4, y, h * 0.5), top],
+                           [0.025, 0.02, 0.015], "#7a5a30"))
+        for j in range(6):
+            a = 2 * math.pi * j / 6 + k
+            tip = (top[0] + math.cos(a) * 0.15, top[1] + math.sin(a) * 0.15, h - 0.08)
+            mid = (top[0] + math.cos(a) * 0.08, top[1] + math.sin(a) * 0.08, h + 0.02)
+            out.append(fg.tube("frond", [top, mid, tip], [0.022, 0.018, 0.004], "#3f7a2a"))
+    for k in range(3):
+        out.append(fg.lump((0.10 - k * 0.12, -0.24, 0.02), 0.05, "#a89070", strength=0.3,
+                           seed=70 + k, subdiv=1))
+    return obj("obj_oasis", out)
+
+
+def lookout():
+    """Aussichtsturm: hohes Holzgeruest, Plattform, Dach, Fahne."""
+    out = []
+    pts = ((-0.12, -0.12), (0.12, -0.12), (0.12, 0.12), (-0.12, 0.12))
+    for (x, y) in pts:
+        out.append(fg.tube("leg", [(x * 1.4, y * 1.4, 0.0), (x * 0.8, y * 0.8, 0.62)],
+                           [0.02, 0.016], WOOD))
+    for z in (0.18, 0.40):
+        f = 1.4 - (z / 0.62) * 0.6
+        out.append(ck.block(0.24 * f + 0.03, 0.24 * f + 0.03, 0.02, WOOD_DARK, 0, 0, z,
+                            bevel=0.0))
+    out.append(ck.block(0.26, 0.26, 0.03, WOOD_DARK, 0, 0, 0.62, bevel=0.0))
+    for (x, y) in pts:
+        out.append(ck.block(0.02, 0.02, 0.18, WOOD, x * 0.95, y * 0.95, 0.65, bevel=0.0))
+    out.append(ck.cone_roof(0.20, 0.14, "#7a3a2e", 0, 0, 0.83, verts=4))
+    out += ck.banner(0, 0, 0.97, 0.12, RED, GOLD, w=0.08, h=0.06)
+    return obj("obj_lookout", out)
+
+
+def arena():
+    """Arena: Rund aus Steinboegen, Sandplatz, zwei Banner."""
+    out = [ck.cyl(0.40, 0.03, STONE_DARK, 0, 0, 0.0, verts=24),
+           ck.cyl(0.30, 0.035, "#c9b47a", 0, 0, 0.0, verts=24)]
+    n = 14
+    for k in range(n):
+        a = 2 * math.pi * k / n
+        if math.sin(a) < -0.6:
+            continue        # vorne offen, damit man hineinsieht
+        x, y = math.cos(a) * 0.35, math.sin(a) * 0.33
+        out.append(ck.block(0.05, 0.06, 0.24, STONE, x, y, 0.0, rot_z=a))
+        a2 = a + math.pi / n
+        out.append(ck.block(0.12, 0.07, 0.04, STONE_DARK, math.cos(a2) * 0.35,
+                            math.sin(a2) * 0.33, 0.24, rot_z=a2 + math.pi / 2))
+    for sx in (-1, 1):
+        out += ck.banner(sx * 0.22, -0.26, 0.0, 0.40, RED if sx < 0 else ROOF, GOLD,
+                         w=0.08, h=0.12)
+    out.append(fg.tube("sword", [(0.0, 0.0, 0.03), (0.0, 0.0, 0.22)], [0.012, 0.004], "#c9d2db"))
+    out.append(ck.block(0.08, 0.02, 0.015, GOLD, 0, 0, 0.08, bevel=0.0))
+    return obj("obj_arena", out)
+
+
+def fountain():
+    """Gluecksbrunnen: Becken, Mittelsaeule, Schale, gruener Glueckskristall."""
+    out = [ck.cyl(0.26, 0.08, STONE, 0, 0, 0.0, verts=20),
+           ck.cyl(0.22, 0.02, "#4a8ab0", 0, 0, 0.07, verts=20),
+           ck.cyl(0.04, 0.24, STONE, 0, 0, 0.08, verts=10),
+           ck.cyl(0.11, 0.03, STONE, 0, 0, 0.28, r_top=0.13, verts=14),
+           ck.cyl(0.10, 0.01, "#6ab0d8", 0, 0, 0.305, verts=14)]
+    out.append(bk.cone(0.045, 0.12, (0, 0, 0.40), "#5ad05a", verts=4))
+    out.append(bk.cone(0.045, 0.06, (0, 0, 0.33), "#5ad05a", verts=4, rot=(rad(180), 0, 0)))
+    for k in range(4):
+        a = rad(45 + 90 * k)
+        out.append(fg.tube("jet", [(math.cos(a) * 0.05, math.sin(a) * 0.05, 0.30),
+                                   (math.cos(a) * 0.13, math.sin(a) * 0.13, 0.34),
+                                   (math.cos(a) * 0.19, math.sin(a) * 0.19, 0.09)],
+                           [0.008, 0.008, 0.006], "#9ad8f0"))
+    return obj("obj_fountain", out)
+
+
+def temple():
+    """Tempel: runder Saeulentempel (Tholos) mit goldener Kuppel auf Stufen."""
+    out = [ck.cyl(0.30, 0.04, STONE_DARK, 0, 0, 0.0, verts=24),
+           ck.cyl(0.26, 0.04, STONE, 0, 0, 0.04, verts=24),
+           ck.cyl(0.14, 0.24, "#e6dcc4", 0, 0, 0.08, verts=16)]
+    for k in range(10):
+        a = 2 * math.pi * k / 10
+        out.append(ck.cyl(0.022, 0.28, "#f0e8d4", math.cos(a) * 0.22, math.sin(a) * 0.22, 0.08,
+                          verts=8))
+    out.append(ck.cyl(0.25, 0.04, "#cfc7b0", 0, 0, 0.36, verts=24))
+    out.append(ck.dome(0.22, GOLD, 0, 0, 0.40))
+    out.append(ck.cyl(0.01, 0.10, GOLD, 0, 0, 0.55, verts=6))
+    out.append(fg.ball(0.025, (0, 0, 0.66), "#fff0b0", subdiv=1))
+    out += ck.door(0, -0.14, 0.08, 0.07, 0.14, STONE_DARK, "#5a3a20")
+    return obj("obj_temple", out)
+
+def tree():
+    """Baum des Wissens: knorriger Riesenbaum, Wurzeln, leuchtende Fruechte."""
+    out = [fg.tube("trunk", [(0, 0.04, 0.0), (0.02, 0.04, 0.25), (-0.01, 0.04, 0.42)],
+                   [0.10, 0.07, 0.06], "#6b5330")]
+    for k in range(5):
+        a = 2 * math.pi * k / 5 + 0.3
+        out.append(fg.tube("root", [(0, 0.04, 0.05),
+                                    (math.cos(a) * 0.20, 0.04 + math.sin(a) * 0.18, 0.0)],
+                           [0.04, 0.015], "#6b5330"))
+    for k, (x, y, z) in enumerate(((0.16, 0.04, 0.42), (-0.16, 0.06, 0.40), (0.0, 0.04, 0.56))):
+        out.append(fg.tube("bough", [(0, 0.04, 0.38), (x, y, z)], [0.04, 0.02], "#6b5330"))
+    out += ck.leaves(0.0, 0.04, 0.52, 0.22, ("#2f5a24", "#3f7030", "#4a7a34"), n=6, seed=5)
+    for k in range(7):
+        a = k * 2.1
+        out.append(fg.ball(0.025, (math.cos(a) * 0.22, 0.04 + math.sin(a) * 0.12 - 0.06,
+                                   0.44 + (k % 3) * 0.07), "#ffd86a", subdiv=1))
+    return obj("obj_tree", out)
+
+
+def witch_hut():
+    """Hexenhuette: schiefe Huette auf Stelzen, Krummdach, Kessel, Totenkopf."""
+    out = []
+    for (x, y) in ((-0.14, -0.08), (0.14, -0.08), (-0.14, 0.18), (0.14, 0.18)):
+        out.append(fg.tube("stilt", [(x, y, 0.0), (x * 0.9, y, 0.14)], [0.018, 0.015], WOOD_DARK))
+    out.append(ck.block(0.34, 0.30, 0.20, "#6b5a3a", 0, 0.05, 0.14, taper=0.9, rot_z=rad(4)))
+    out.append(ck.cone_roof(0.26, 0.34, "#3e4a2a", 0.02, 0.05, 0.34, verts=7))
+    out.append(fg.tube("tip", [(0.02, 0.05, 0.66), (0.10, 0.02, 0.74)], [0.03, 0.005], "#3e4a2a"))
+    out += ck.window(0.0, -0.105, 0.22, 0.06, 0.06, WOOD_DARK, "#a0e070")
+    for k in range(3):
+        out.append(ck.block(0.10, 0.03, 0.012, WOOD, 0, -0.14 - k * 0.04, 0.10 - k * 0.04,
+                            bevel=0.0))
+    out.append(fg.ball(0.07, (0.24, -0.20, 0.06), "#2a2a2e", squash=(1, 1, 0.8), subdiv=1))
+    out.append(ck.cyl(0.055, 0.01, "#7ad04a", 0.24, -0.20, 0.10, verts=10))
+    out += ck.skull(-0.24, -0.20, 0.05, 0.05, "#e6dcc4")
+    return obj("obj_witch_hut", out)
+
+
+def magic_shrine():
+    """Schrein der Magie: Obelisk mit Leuchtrunen in einem Steinkreis."""
+    out = [ck.cyl(0.16, 0.05, "#5e5868", 0, 0, 0.0, verts=8),
+           ck.block(0.12, 0.12, 0.46, "#7a7490", 0, 0, 0.05, taper=0.55),
+           bk.cone(0.05, 0.10, (0, 0, 0.56), "#9a94b0", verts=4)]
+    for z in (0.18, 0.30, 0.42):
+        out.append(ck.block(0.05, 0.01, 0.05, "#8ad0ff", 0, -0.055 + (z - 0.18) * 0.04, z,
+                            bevel=0.0))
+    out.append(fg.ball(0.035, (0, 0, 0.64), "#8ad0ff", subdiv=1))
+    for k in range(6):
+        a = 2 * math.pi * k / 6 + 0.25
+        out.append(ck.block(0.06, 0.04, 0.12 + (k % 2) * 0.05, "#8a8496",
+                            math.cos(a) * 0.30, math.sin(a) * 0.28, 0.0, rot_z=a))
+    return obj("obj_magic_shrine", out)
+
+
+def prison():
+    """Gefaengnis: gedrungener Kerker mit Zinnen, Gittertor, Ketten."""
+    out = [ck.block(0.48, 0.36, 0.30, "#6b665f", 0, 0.05, 0.0),
+           ck.block(0.50, 0.38, 0.04, "#5a5650", 0, 0.05, 0.30)]
+    out += ck.crenels(0.50, 0.38, 0.34, "#5a5650", 0, 0.05)
+    out += ck.door(0, -0.13, 0.0, 0.12, 0.17, "#5a5650", "#1a1612")
+    for k in range(4):
+        out.append(ck.cyl(0.006, 0.17, "#9aa0a8", -0.045 + k * 0.03, -0.14, 0.0, verts=6))
+    for sx in (-1, 1):
+        out += ck.window(sx * 0.15, -0.13, 0.18, 0.05, 0.06, "#5a5650", "#1a1612")
+    for sx in (-1, 1):
+        out += ck.round_tower(0.08, 0.40, "#6b665f", "#5a5650", sx * 0.24, -0.10, 0.0,
+                              crenel="std")
+    return obj("obj_prison", out)
+
+
+def trading_post():
+    """Handelsposten: Marktstand mit Streifendach, Faesser, Kisten, Waage."""
+    out = [ck.block(0.44, 0.18, 0.13, WOOD, 0, -0.02, 0.0)]
+    for (x, y) in ((-0.21, -0.10), (0.21, -0.10), (-0.21, 0.16), (0.21, 0.16)):
+        out.append(ck.cyl(0.015, 0.32, WOOD_DARK, x, y, 0.0, verts=6))
+    out += ck.gable_roof(0.48, 0.32, 0.32, 0.09, RED, "#e6dcc4", 0, 0.03, along="x",
+                         over=0.03, rows=3, row_col="#e6dcc4")
+    for k, (x, y) in enumerate(((0.30, 0.12), (0.33, -0.02))):
+        out.append(ck.cyl(0.055, 0.12, "#7a5a34", x, y, 0.0, verts=12))
+        out.append(ck.cyl(0.058, 0.01, "#4a4a4e", x, y, 0.09, verts=12))
+    out.append(ck.block(0.10, 0.10, 0.08, WOOD_DARK, -0.31, 0.06, 0.0))
+    out.append(ck.block(0.08, 0.08, 0.07, WOOD, -0.30, 0.06, 0.08))
+    out.append(ck.cyl(0.006, 0.08, GOLD, 0, -0.04, 0.13, verts=6))
+    out.append(ck.block(0.14, 0.01, 0.01, GOLD, 0, -0.04, 0.21, bevel=0.0))
+    for sx in (-1, 1):
+        out.append(ck.cyl(0.03, 0.01, GOLD, sx * 0.07, -0.04, 0.17, verts=10))
+    for k in range(4):
+        out.append(fg.ball(0.025, (-0.12 + k * 0.03, -0.05, 0.15), ("#c96a3a", "#7ab04a",
+                                                                    "#d8b44a", "#8a3a8a")[k],
+                           subdiv=1))
+    return obj("obj_trading_post", out)
+
+
 def main():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     for f in (mine, treasure, pile, shrine_att, shrine_def, shrine_power, shrine_know,
-              well, learning, windmill):
+              well, learning, windmill, campfire, artifact, watermill, stables, oasis,
+              lookout, arena, fountain, temple, tree, witch_hut, magic_shrine, prison,
+              trading_post):
         f()
     try:
         out = sys.argv[sys.argv.index("--") + 1]

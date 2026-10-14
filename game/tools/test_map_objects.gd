@@ -12,8 +12,14 @@ extends SceneTree
 #   4. Lehrmeister: XP einmalig, kann eine Stufe ausloesen
 #   5. Windmuehle: Ressource einmal pro Woche, deterministisch
 #   6. Save: der Verbraucht-Zustand ueberlebt einen Round-Trip
+#   7. Zweite Welle (It. 78): Lagerfeuer, Artefakt, Wassermuehle,
+#      Stallungen, Oase, Aussichtsturm, Arena, Gluecksbrunnen, Tempel,
+#      Baum des Wissens, Hexenhuette, Schrein der Magie, Gefaengnis,
+#      Handelsposten - je Wirkung, Wiederholungsregel und Save
 
 const Spl := preload("res://scripts/core/HeroSpells.gd")
+const MO := preload("res://scripts/core/MapObjects.gd")
+const Artifacts := preload("res://scripts/core/Artifacts.gd")
 
 var _fails: int = 0
 var _wm = null
@@ -37,6 +43,7 @@ func _init() -> void:
 	_test_learning()
 	_test_windmill()
 	await _test_save()
+	await _test_wave2()
 
 	# Abschluss-Marken: die Soll-Liste kommt aus der Methodentabelle des
 	# Skripts selbst (It. 31, vorher eine Liste von Hand). Damit faellt
@@ -94,7 +101,8 @@ func _test_placement() -> void:
 	var guarded: Array = []
 	for o2 in objs:
 		var od: Dictionary = o2 as Dictionary
-		if int(od["kind"]) >= int(_wm.get("OBJECT_SHRINE_ATT")) and int(od.get("guard", 0)) > 0:
+		if int(od["kind"]) >= int(_wm.get("OBJECT_SHRINE_ATT")) and int(od.get("guard", 0)) > 0 \
+				and not MO.is_guarded(int(od["kind"])):
 			guarded.append(str(int(od["kind"])))
 	_check(guarded.is_empty(), "Bonus-Objekte sind unbewacht (%s)" % str(guarded))
 
@@ -310,3 +318,176 @@ func _test_save() -> void:
 			break
 	_check(found, "'used' ueberlebt Speichern und Laden (reine Feld-Ergaenzung)")
 	_done.append("_test_save")
+
+
+func _test_wave2() -> void:
+	print("")
+	print("== Zweite Welle (It. 78) ==")
+	var hero = _wm.get("_hero")
+	var purse: Wallet = _purse()
+	_wm.call("_hide_object_choice")
+
+	# Jede neue Art steht im Katalog mit Sprite und Modell.
+	for k in MO.CATALOG.keys():
+		_check(MO.sprite_of(int(k)) != "" and MO.model_of(int(k)).begins_with("obj_"),
+			"%s: Sprite und Modell im Katalog" % MO.name_of(int(k)))
+
+	# Bewachte Artefakte liegen mit Wache und gueltigem Artefakt auf der Karte.
+	var arts: int = 0
+	for o in (_wm.get("_objects") as Array):
+		var od: Dictionary = o as Dictionary
+		if int(od["kind"]) == MO.ARTIFACT:
+			arts += 1
+			_check(int(od.get("guard", 0)) > 0, "Artefakt am Boden ist bewacht")
+			_check(Artifacts.exists(String(od.get("resource", ""))), "und liegt mit gueltigem Artefakt")
+	_check(arts == int(MO.CATALOG[MO.ARTIFACT]["count"]), "alle Artefakte platziert (%d)" % arts)
+
+	# Lagerfeuer: Gold UND Ressource, danach weg.
+	var objs: Array = _wm.get("_objects")
+	var fire: Dictionary = {"pos": Vector2i(1, 1), "kind": MO.CAMPFIRE, "owner": -1, "guard": 0,
+		"gold": 300, "resource": "gems", "amount": 4}
+	objs.append(fire)
+	var g0: int = purse.get_amount("gold")
+	var gem0: int = purse.get_amount("gems")
+	var m: String = String(_wm.call("_visit_bonus_object", fire))
+	_check(purse.get_amount("gold") == g0 + 300 and purse.get_amount("gems") == gem0 + 4,
+		"Lagerfeuer gibt Gold und Edelsteine (%s)" % m)
+	_check(int(_wm.call("_object_at", Vector2i(1, 1))) < 0, "Lagerfeuer ist danach weg")
+
+	# Artefakt: anlegen, weg von der Karte.
+	(hero.artifacts as Array).clear()
+	var aid: String = Artifacts.pick(7)
+	var art: Dictionary = {"pos": Vector2i(1, 2), "kind": MO.ARTIFACT, "owner": -1, "guard": 0,
+		"gold": 0, "resource": aid}
+	objs.append(art)
+	m = String(_wm.call("_visit_bonus_object", art))
+	_check((hero.artifacts as Array).has(aid), "Artefakt angelegt (%s)" % m)
+	_check(int(_wm.call("_object_at", Vector2i(1, 2))) < 0, "Artefakt ist danach weg")
+
+	# Wassermuehle: Gold einmal pro Woche.
+	var mill: Dictionary = _obj(MO.WATERMILL, Vector2i(2, 2))
+	g0 = purse.get_amount("gold")
+	_wm.call("_visit_bonus_object", mill)
+	_check(purse.get_amount("gold") == g0 + MO.WATERMILL_GOLD, "Wassermuehle: Gold")
+	m = String(_wm.call("_visit_bonus_object", mill))
+	_check(purse.get_amount("gold") == g0 + MO.WATERMILL_GOLD and m.contains("schon"),
+		"Wassermuehle: einmal pro Woche (%s)" % m)
+
+	# Stallungen: Bewegung sofort und mehr max_mp bis Wochenende.
+	_wm.call("_recalc_max_mp_of", hero)
+	var mp0: int = int(hero.mp)
+	var max0: int = int(hero.max_mp)
+	var st: Dictionary = _obj(MO.STABLES, Vector2i(2, 3))
+	_wm.call("_visit_bonus_object", st)
+	_check(int(hero.mp) == mp0 + MO.STABLES_MP and int(hero.max_mp) == max0 + MO.STABLES_MP,
+		"Stallungen: +%d Bewegung und Maximum (%d -> %d)" % [MO.STABLES_MP, max0, int(hero.max_mp)])
+	m = String(_wm.call("_visit_bonus_object", st))
+	_check(m.contains("schon") and bool(_wm.call("_bonus_spent", st)), "Stallungen: einmal pro Woche")
+	_wm.set("_turn_number", int(_wm.get("_turn_number")) + 7)
+	_wm.call("_recalc_max_mp_of", hero)
+	_check(int(hero.max_mp) == max0, "Stallungen: naechste Woche wieder normal")
+
+	# Oase: Bewegung, einmal pro Tag.
+	var oa: Dictionary = _obj(MO.OASIS, Vector2i(2, 4))
+	mp0 = int(hero.mp)
+	_wm.call("_visit_bonus_object", oa)
+	_wm.call("_visit_bonus_object", oa)
+	_check(int(hero.mp) == mp0 + MO.OASIS_MP, "Oase: einmal +%d am Tag" % MO.OASIS_MP)
+
+	# Aussichtsturm: besetzt und deckt auf.
+	var look: Dictionary = {"pos": Vector2i(9, 20), "kind": MO.LOOKOUT, "owner": -1, "guard": 0,
+		"gold": 0}
+	objs.append(look)
+	var seen0: int = _seen_tiles()
+	m = String(_wm.call("_visit_bonus_object", look))
+	_check(int(look["owner"]) == int(_wm.get("OWNER_HERO")),
+		"Aussichtsturm: besetzt (%s)" % m)
+	_check(_seen_tiles() > seen0, "Aussichtsturm deckt auf (%d -> %d)" % [seen0, _seen_tiles()])
+	_wm.call("_remove_object", look)
+
+	# Arena: Wahl, +2 auf den gewaehlten Wert, einmalig.
+	var ar: Dictionary = _obj(MO.ARENA, Vector2i(3, 3))
+	m = String(_wm.call("_visit_bonus_object", ar))
+	_check(m.contains("waehle"), "Arena fragt nach (%s)" % m)
+	var def0: int = int(hero.def)
+	_wm.call("_arena_pick", ar, hero, "defense")
+	_check(int(hero.def) == def0 + MO.ARENA_BONUS, "Arena: Verteidigung +%d" % MO.ARENA_BONUS)
+	_wm.call("_arena_pick", ar, hero, "defense")
+	_check(int(hero.def) == def0 + MO.ARENA_BONUS, "Arena: einmalig")
+	_wm.call("_hide_object_choice")
+
+	# Gluecksbrunnen und Tempel: Bonus bis zum naechsten Kampf.
+	hero.luck_bonus = 0
+	hero.morale_bonus = 0
+	_wm.call("_visit_bonus_object", _obj(MO.FOUNTAIN, Vector2i(3, 4)))
+	_wm.call("_visit_bonus_object", _obj(MO.TEMPLE, Vector2i(3, 5)))
+	_check(int(hero.luck_bonus) == MO.FOUNTAIN_LUCK and int(hero.morale_bonus) == MO.TEMPLE_MORALE,
+		"Gluecksbrunnen und Tempel setzen Glueck/Moral")
+
+	# Baum des Wissens: genau eine Stufe.
+	var lvl0: int = int(hero.level)
+	var thresholds: Array = _wm.get("LEVEL_THRESHOLDS")
+	if lvl0 < thresholds.size():
+		m = String(_wm.call("_visit_bonus_object", _obj(MO.TREE, Vector2i(4, 5))))
+		_check(int(hero.level) == lvl0 + 1, "Baum des Wissens: eine Stufe (%s)" % m)
+
+	# Hexenhuette: eine Faehigkeit mehr (oder eine Stufe hoeher).
+	var tiers0: int = 0
+	for k2 in (hero.skills as Dictionary).keys():
+		tiers0 += int(hero.skills[k2])
+	m = String(_wm.call("_visit_bonus_object", _obj(MO.WITCH_HUT, Vector2i(4, 6))))
+	var tiers1: int = 0
+	for k3 in (hero.skills as Dictionary).keys():
+		tiers1 += int(hero.skills[k3])
+	_check(tiers1 == tiers0 + 1, "Hexenhuette lehrt (%s)" % m)
+
+	# Schrein der Magie: ein Zauber, den der Held vorher nicht kannte.
+	var known0: Array = _wm.call("_known_spells_of", hero)
+	m = String(_wm.call("_visit_bonus_object", _obj(MO.MAGIC_SHRINE, Vector2i(4, 7))))
+	var known1: Array = _wm.call("_known_spells_of", hero)
+	_check(known1.size() == known0.size() + 1, "Schrein der Magie: neuer Zauber (%s)" % m)
+
+	# Gefaengnis: ein Held mehr - oder Hinweis, wenn kein Platz ist.
+	var heroes: Array = _wm.get("_heroes")
+	while heroes.size() > 1:
+		heroes.remove_at(heroes.size() - 1)
+	var pr: Dictionary = {"pos": Vector2i(5, 5), "kind": MO.PRISON, "owner": -1, "guard": 0, "gold": 0}
+	objs.append(pr)
+	m = String(_wm.call("_visit_bonus_object", pr))
+	_check(heroes.size() == 2, "Gefaengnis: Held befreit (%s)" % m)
+	_check((heroes[1].army as Dictionary).size() > 0, "der Befreite hat Truppen")
+	_check(int(_wm.call("_object_at", Vector2i(5, 5))) < 0, "Gefaengnis ist danach leer")
+
+	# Handelsposten: besser als der Markt.
+	var buy: Dictionary = _wm.get("MARKET_BUY")
+	purse.add("gold", 5000)
+	g0 = purse.get_amount("gold")
+	_wm.call("_trading_post_trade", "ore", true)
+	_check(g0 - purse.get_amount("gold") < int(buy["ore"]), "Handelsposten kauft billiger als der Markt")
+	_wm.call("_hide_object_choice")
+
+	# Die KI loescht keine Bonus-Gebaeude mehr von der Karte.
+	var ai_ok: bool = true
+	var src: String = (load("res://scripts/ui/WorldMapScreen.gd") as Script).source_code
+	ai_ok = src.contains("MapObj.is_pickup(okind)")
+	_check(ai_ok, "KI-Zielwahl beschraenkt auf Minen und Einsammel-Objekte")
+
+	# Save: die neuen Heldenfelder ueberleben einen Round-Trip.
+	hero.extra_spells = ["fireball"]
+	hero.stable_week = 3
+	hero.luck_bonus = 1
+	var state: Dictionary = _wm.call("_capture_state")
+	_wm.call("_restore_state", state)
+	await process_frame
+	var h2 = _wm.get("_hero")
+	_check((h2.extra_spells as Array).has("fireball") and int(h2.stable_week) == 3
+		and int(h2.luck_bonus) == 1, "neue Heldenfelder ueberleben Speichern und Laden")
+	_done.append("_test_wave2")
+
+
+func _seen_tiles() -> int:
+	var n: int = 0
+	for f in (_wm.get("_fog_player") as Array):
+		if int(f) != 0:
+			n += 1
+	return n

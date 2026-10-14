@@ -22,6 +22,7 @@ ZIELGROESSE: 64 px auf der Weltkarte (Kachelgroesse), gezeichnet mit
 zaehlt nur die Silhouette - jedes Motiv braucht eine eigene Grundform,
 sonst sehen sie alle wie kleine Haeuser aus.
 """
+import math
 import os
 
 T = 64
@@ -177,6 +178,179 @@ def windmill():
     return o + "</svg>\n"
 
 
+# --- Zweite Welle (It. 78) ------------------------------------------------
+
+def campfire():
+    """Lagerfeuer mit Kesseln - Silhouette: Flamme ueber Steinring."""
+    o = head("Lagerfeuer: Gold und Ressourcen") + shadow(18)
+    o += ell(32, 50, 15, 5, "#6b665f")
+    for x in (20, 44):
+        o += line(x, 52, 32, 40, "#5c4326", 4.0)
+    o += poly([(24, 48), (28, 30), (32, 38), (36, 22), (40, 48)], "#e8782c", 1.5)
+    o += poly([(28, 48), (31, 36), (34, 42), (36, 48)], "#ffd35a", 0)
+    o += rect(44, 42, 10, 10, "#c9a24a", 1.5, 2)
+    return o + "</svg>\n"
+
+
+def artifact():
+    """Artefakt auf Sockel - Silhouette: leuchtende Kugel."""
+    o = head("Artefakt am Boden") + shadow(15)
+    o += rect(22, 44, 20, 10, "#7d776e", 2.0, 2)
+    o += ell(32, 32, 12, 12, "#8a6ab0")
+    o += ell(28, 28, 4, 4, "#e6d8ff", 0)
+    for a, b in ((32, 12), (14, 32), (50, 32)):
+        o += line(32, 32, a, b, "#ffe6a6", 1.5)
+    return o + "</svg>\n"
+
+
+def watermill():
+    """Muehle mit grossem Rad - Silhouette: Kreis neben Haus."""
+    o = head("Wassermuehle: Gold pro Woche") + shadow(20)
+    o += rect(26, 26, 26, 28, "#b8a47c")
+    o += poly([(23, 28), (39, 12), (55, 28)], "#7a3a2c")
+    o += ('  <circle cx="20" cy="40" r="13" fill="none" stroke="#5c4326" '
+          'stroke-width="4"/>\n')
+    for k in range(4):
+        a = k * math.pi / 4
+        o += line(20 - 12 * math.cos(a), 40 - 12 * math.sin(a),
+                  20 + 12 * math.cos(a), 40 + 12 * math.sin(a), "#6b5330", 2.0)
+    o += '  <path d="M 4 56 Q 20 50 36 56" fill="none" stroke="#4a8ab0" stroke-width="3"/>\n'
+    return o + "</svg>\n"
+
+
+def stables():
+    """Langer Stall mit Hufeisen - Silhouette: flaches Langhaus."""
+    o = head("Stallungen: Bewegung bis Wochenende") + shadow(22)
+    o += rect(8, 32, 48, 22, "#8a5a34")
+    o += poly([(5, 34), (16, 20), (48, 20), (59, 34)], "#6b4a2a")
+    for x in (14, 28, 42):
+        o += rect(x, 40, 8, 14, "#3a2a18", 1.5)
+    o += ('  <path d="M 26 14 a 6 6 0 1 1 12 0 l -3 0 a 3 3 0 1 0 -6 0 Z" '
+          'fill="#c8d2dc" stroke="%s" stroke-width="1.5"/>\n' % LINE)
+    return o + "</svg>\n"
+
+
+def oasis():
+    """Wasserloch mit Palme - Silhouette: Wedel ueber Teich."""
+    o = head("Oase: Bewegung") + shadow(20)
+    o += ell(32, 48, 20, 7, "#d6c08a")
+    o += ell(32, 48, 14, 4.5, "#4a8ab0", 1.5)
+    o += line(40, 48, 34, 16, "#7a5a30", 4.0)
+    for dx, dy in ((-14, 4), (14, 6), (-10, -6), (10, -6), (0, -10)):
+        o += line(34, 16, 34 + dx, 16 + dy, "#3f7a2a", 4.0)
+    return o + "</svg>\n"
+
+
+def lookout():
+    """Hoher Holzturm - Silhouette: schmales Hochformat mit Plattform."""
+    o = head("Aussichtsturm: weite Sicht") + shadow(14)
+    for x1, x2 in ((22, 28), (42, 36)):
+        o += line(x1, 56, x2, 18, "#6b5330", 3.5)
+    o += line(24, 44, 40, 30, "#5c4326", 2.0)
+    o += line(40, 44, 24, 30, "#5c4326", 2.0)
+    o += rect(20, 12, 24, 8, "#8a5a34", 2.0)
+    o += poly([(18, 12), (32, 2), (46, 12)], "#7a3a2c")
+    return o + "</svg>\n"
+
+
+def arena():
+    """Rund-Arena - Silhouette: Oval mit Boegen."""
+    o = head("Arena: Angriff oder Verteidigung") + shadow(23)
+    o += ell(32, 42, 24, 13, "#b3aa98")
+    o += ell(32, 40, 16, 7, "#c9b47a", 1.5)
+    for x in (12, 22, 32, 42, 52):
+        o += rect(x - 2.5, 44, 5, 7, "#3a2a18", 1.0)
+    o += line(26, 30, 38, 42, "#c8d2dc", 3.0)
+    o += line(38, 30, 26, 42, "#c8d2dc", 3.0)
+    return o + "</svg>\n"
+
+
+def fountain():
+    """Brunnenschale mit Fontaene - Silhouette: Tropfen ueber Schale."""
+    o = head("Gluecksbrunnen: Glueck") + shadow(18)
+    o += ell(32, 46, 18, 7, "#b3aa98")
+    o += ell(32, 44, 13, 4, "#4a8ab0", 1.5)
+    o += rect(29, 26, 6, 18, "#b3aa98", 1.5)
+    o += '  <path d="M 32 26 Q 22 14 18 30 M 32 26 Q 42 14 46 30" fill="none" stroke="#8ad0f0" stroke-width="3"/>\n'
+    o += ('  <path d="M 32 6 l 3 6 6 1 -4.5 4.5 1 6 -5.5 -3 -5.5 3 1 -6 -4.5 -4.5 6 -1 Z" '
+          'fill="#7ad04a" stroke="%s" stroke-width="1.2"/>\n' % LINE)
+    return o + "</svg>\n"
+
+
+def temple():
+    """Tempel mit Saeulen und Giebel - Silhouette: Dreieck auf Saeulen."""
+    o = head("Tempel: Moral") + shadow(22)
+    o += rect(10, 48, 44, 6, "#9a9182")
+    for x in (15, 25, 35, 45):
+        o += rect(x, 28, 4, 20, "#e6dcc4", 1.5)
+    o += rect(10, 24, 44, 5, "#cfc7b0", 1.5)
+    o += poly([(8, 24), (32, 10), (56, 24)], "#cfc7b0")
+    o += ell(32, 18, 3, 3, "#e6c247", 1.0)
+    return o + "</svg>\n"
+
+
+def tree():
+    """Uralter Baum - Silhouette: breite Krone, dicker Stamm."""
+    o = head("Baum des Wissens: eine Stufe") + shadow(22)
+    o += poly([(26, 56), (28, 34), (36, 34), (38, 56)], "#6b5330")
+    o += ell(20, 28, 13, 11, "#2c5223")
+    o += ell(44, 28, 13, 11, "#2c5223")
+    o += ell(32, 18, 18, 13, "#417a31")
+    for x, y in ((24, 16), (38, 22), (30, 28), (44, 14)):
+        o += ell(x, y, 2.5, 2.5, "#ffe08a", 0.8)
+    return o + "</svg>\n"
+
+
+def witch_hut():
+    """Krumme Huette auf Stelzen - Silhouette: schiefes Spitzdach."""
+    o = head("Hexenhuette: eine Faehigkeit") + shadow(18)
+    for x in (20, 44):
+        o += line(x, 56, x, 42, "#5c4326", 3.0)
+    o += poly([(16, 42), (18, 28), (46, 26), (48, 42)], "#6b5a3a")
+    o += poly([(12, 30), (36, 6), (52, 28)], "#3e4a2a")
+    o += rect(28, 32, 7, 8, "#ffcf7a", 1.2)
+    o += ell(40, 8, 3, 3, "#8a6ab0", 1.0)
+    return o + "</svg>\n"
+
+
+def magic_shrine():
+    """Obelisk mit Rune - Silhouette: spitze Saeule."""
+    o = head("Schrein der Magie: ein Zauber") + shadow(16)
+    o += rect(18, 48, 28, 7, "#5e5868")
+    o += poly([(24, 48), (27, 12), (32, 6), (37, 12), (40, 48)], "#7a7490")
+    o += poly([(24, 48), (27, 12), (32, 6), (32, 48)], "#9a94b0", 0)
+    o += ('  <path d="M 32 18 L 32 38 M 26 24 L 38 32 M 38 24 L 26 32" '
+          'stroke="#8ad0ff" stroke-width="2.5" fill="none"/>\n')
+    return o + "</svg>\n"
+
+
+def prison():
+    """Kerker mit Gitter - Silhouette: Block mit Gitterfenster."""
+    o = head("Gefaengnis: Held befreien") + shadow(20)
+    o += rect(12, 22, 40, 32, "#6b665f")
+    for k in range(4):
+        o += rect(11 + k * 11, 15, 8, 8, "#5a5650", 1.5)
+    o += rect(22, 30, 20, 16, "#1a1612", 1.5)
+    for x in (26, 32, 38):
+        o += line(x, 30, x, 46, "#9aa0a8", 2.5)
+    return o + "</svg>\n"
+
+
+def trading_post():
+    """Marktstand mit Waage - Silhouette: Zeltdach ueber Tresen."""
+    o = head("Handelsposten: Ressourcen tauschen") + shadow(21)
+    o += rect(12, 38, 40, 16, "#8a5a34")
+    for x in (14, 48):
+        o += rect(x - 1.5, 20, 3, 18, "#5c4326", 1.0)
+    o += poly([(8, 22), (32, 10), (56, 22)], "#c93a2c")
+    o += poly([(8, 22), (20, 16), (20, 22)], "#e6dcc4", 0)
+    o += poly([(32, 22), (44, 16), (44, 22)], "#e6dcc4", 0)
+    o += line(22, 30, 42, 30, "#c9a24a", 2.0)
+    o += ell(22, 34, 4, 2, "#c9a24a", 1.2)
+    o += ell(42, 34, 4, 2, "#c9a24a", 1.2)
+    return o + "</svg>\n"
+
+
 OBJECTS = {
     "shrine_att": shrine_att,
     "shrine_def": shrine_def,
@@ -185,6 +359,20 @@ OBJECTS = {
     "well": well,
     "learning": learning,
     "windmill": windmill,
+    "campfire": campfire,
+    "artifact": artifact,
+    "watermill": watermill,
+    "stables": stables,
+    "oasis": oasis,
+    "lookout": lookout,
+    "arena": arena,
+    "fountain": fountain,
+    "temple": temple,
+    "tree": tree,
+    "witch_hut": witch_hut,
+    "magic_shrine": magic_shrine,
+    "prison": prison,
+    "trading_post": trading_post,
 }
 
 

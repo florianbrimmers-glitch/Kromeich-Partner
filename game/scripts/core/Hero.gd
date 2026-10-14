@@ -121,6 +121,16 @@ var skills: Dictionary = {}
 # deshalb NICHT gespeichert - nur der aktuelle Stand.
 var mana: int = 0
 
+# Abenteuer-Objekte (It. 78). Alle tolerant gespeichert, kein
+# SAVE_VERSION-Bump.
+# Gluecksbrunnen/Tempel: gelten bis zum naechsten Kampf, dann 0.
+var luck_bonus: int = 0
+var morale_bonus: int = 0
+# Stallungen: Woche (GameCalendar.week_total), in der der Bonus gilt.
+var stable_week: int = -1
+# Schrein der Magie: Zauber zusaetzlich zu denen der Fraktions-Schulen.
+var extra_spells: Array = []
+
 
 func skill_tier(skill_id: String) -> int:
 	return int(skills.get(skill_id, 0))
@@ -256,6 +266,10 @@ func to_dict() -> Dictionary:
 		"artifacts": artifacts.duplicate(),
 		"skills": skills.duplicate(),
 		"mana": mana,
+		"luck_bonus": luck_bonus,
+		"morale_bonus": morale_bonus,
+		"stable_week": stable_week,
+		"extra_spells": extra_spells.duplicate(),
 	}
 
 static func from_dict(d: Dictionary) -> Hero:
@@ -290,4 +304,10 @@ static func from_dict(d: Dictionary) -> Hero:
 	h.knowledge = int(d.get("knowledge", 0))
 	h.skills = SaveCodec.int_dict(d.get("skills", {}))
 	h.mana = int(d.get("mana", 0))
+	h.luck_bonus = int(d.get("luck_bonus", 0))
+	h.morale_bonus = int(d.get("morale_bonus", 0))
+	h.stable_week = int(d.get("stable_week", -1))
+	for sp in (d.get("extra_spells", []) as Array):
+		if not h.extra_spells.has(String(sp)):
+			h.extra_spells.append(String(sp))
 	return h

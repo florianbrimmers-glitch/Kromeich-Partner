@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Tempel: Moral
+     Erzeugt von tools/gen_map_objects.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <ellipse cx="32" cy="57" rx="22" ry="5" fill="#000" opacity="0.40"/>
+  <rect x="10.0" y="48.0" width="44.0" height="6.0" rx="0" fill="#9a9182" stroke="#241c12" stroke-width="2.0"/>
+  <rect x="15.0" y="28.0" width="4.0" height="20.0" rx="0" fill="#e6dcc4" stroke="#241c12" stroke-width="1.5"/>
+  <rect x="25.0" y="28.0" width="4.0" height="20.0" rx="0" fill="#e6dcc4" stroke="#241c12" stroke-width="1.5"/>
+  <rect x="35.0" y="28.0" width="4.0" height="20.0" rx="0" fill="#e6dcc4" stroke="#241c12" stroke-width="1.5"/>
+  <rect x="45.0" y="28.0" width="4.0" height="20.0" rx="0" fill="#e6dcc4" stroke="#241c12" stroke-width="1.5"/>
+  <rect x="10.0" y="24.0" width="44.0" height="5.0" rx="0" fill="#cfc7b0" stroke="#241c12" stroke-width="1.5"/>
+  <polygon points="8.0,24.0 32.0,10.0 56.0,24.0" fill="#cfc7b0" stroke="#241c12" stroke-width="2.0" stroke-linejoin="round"/>
+  <ellipse cx="32.0" cy="18.0" rx="3.0" ry="3.0" fill="#e6c247" stroke="#241c12" stroke-width="1.0"/>
+</svg>
