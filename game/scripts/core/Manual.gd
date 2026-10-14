@@ -102,7 +102,10 @@ static func sections(n: Dictionary) -> Array:
 			"die naechste eigene Stadt.",
 		])],
 		["Niederlage", "\n".join([
-			"Verloren ist erst, wenn dein LETZTER Held gefallen ist.",
+			"Faellt dein letzter Held, zieht er sich mit kleiner Truppe in",
+			"die naechste eigene Stadt zurueck. Verloren ist erst, wenn",
+			"dabei keine Stadt mehr bleibt.",
+			"In der ersten Woche greift dich die KI nicht an.",
 			"Verlierst du alle Staedte, laeuft eine Frist von %s Tagen -" % _v(n, "grace_days"),
 			"erobere in der Zeit eine Stadt, geht es weiter.",
 		])],

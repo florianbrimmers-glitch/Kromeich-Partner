@@ -378,6 +378,17 @@ const FOG_ROT_TURNS := 4
 const AI_THREAT_RADIUS := 5
 const AI_HUNT_SAFETY_PCT := 10
 const AI_RAID_SAFETY_PCT := 10
+# KI etwas zurueckgedreht (It. 81). Seit die KI keine Bonus-Gebaeude mehr
+# abklappert (It. 78), ist sie deutlich zielstrebiger; gemessen ueber acht
+# Seeds verlor der Test-Spieler drei Partien, zwei davon in Zug 8 und 11.
+# AI_GRACE_DAYS: in der ersten Woche greift die KI weder den Spieler-Helden
+#   noch Spieler-Staedte an - Zeit zum Aufbauen wie in Heroes.
+# AI_PLAYER_HUNT_PCT: Vorsprung, den die KI fuer die Jagd auf den
+#   SPIELER braucht (gegen andere KIs bleibt es AI_HUNT_SAFETY_PCT).
+# AI_PLAYER_RAID_PCT: dasselbe fuer bewachte Spieler-Staedte.
+const AI_GRACE_DAYS := 7
+const AI_PLAYER_HUNT_PCT := 50
+const AI_PLAYER_RAID_PCT := 30
 
 # Fraktionen. Bewusst generische Namen (nicht HoMM3-IP), passt zur
 # Plan-Phase 1 ("Waldvolk"/"Menschen"/"Totenreich"/"Orks").
@@ -3244,6 +3255,45 @@ func _ensure_hero_in_view() -> void:
 # Vorher endete hier IMMER das Spiel. Mit mehreren Helden waere das die
 # Regel "verliere einen Helden, verliere alles" gewesen - dann waere ein
 # zweiter Held nur ein Risiko und kein Gewinn.
+# Den letzten Helden in die naechste eigene Stadt zurueckholen. Stufe,
+# Faehigkeiten und Artefakte bleiben, die Armee ist weg bis auf eine
+# Starttruppe aus der Fraktion der Stadt. false = keine eigene Stadt.
+func _rescue_last_hero(idx: int) -> bool:
+	if idx < 0 or idx >= _heroes.size():
+		return false
+	var h: Hero = _heroes[idx] as Hero
+	if h == null:
+		return false
+	var best: int = -1
+	var best_d: int = 1 << 30
+	for i in range(_cities.size()):
+		if int(_cities[i]["owner"]) != OWNER_HERO:
+			continue
+		var cp: Vector2i = _cities[i]["pos"]
+		var d: int = absi(cp.x - h.position.x) + absi(cp.y - h.position.y)
+		if d < best_d:
+			best_d = d
+			best = i
+	if best < 0:
+		return false
+	var city: Dictionary = _cities[best]
+	h.position = Vector2i(city["pos"])
+	h.army = {}
+	h.add_units(UnitType.starter_id_for_faction(int(city.get("faction", _player_faction))),
+		HERO_HIRE_UNITS)
+	h.mp = 0
+	h.luck_bonus = 0
+	h.morale_bonus = 0
+	_active_hero = idx
+	Sound.play("defeat")
+	_set_combat("Held geschlagen - Rueckzug nach %s mit kleiner Truppe" % FACTION_NAMES[int(city.get("faction", 1))])
+	_recompute_fog_player()
+	_recompute_costs()
+	_update_labels()
+	_request_redraw()
+	return true
+
+
 func _on_battle_defeat(fallen_idx: int = -1) -> void:
 	var idx: int = fallen_idx if fallen_idx >= 0 else _active_hero
 	var fallen_name: String = "Held"
@@ -3257,6 +3307,11 @@ func _on_battle_defeat(fallen_idx: int = -1) -> void:
 	# liefen sofort in Nil-Zugriffe. Das Spiel ist dann ohnehin vorbei -
 	# es gibt keinen Grund, dafuer einen Weltzustand zu erfinden, den es
 	# nie gab.
+	# Wie in Heroes (It. 81): solange eine eigene Stadt steht, ist der
+	# letzte Held nicht das Spielende - er zieht sich mit einer kleinen
+	# Truppe in die naechste Stadt zurueck. Verloren ist erst ohne Stadt.
+	if _heroes.size() <= 1 and _rescue_last_hero(idx):
+		return
 	if _heroes.size() <= 1:
 		_game_lost = true
 		SaveLib.delete_autosave()
@@ -5659,8 +5714,12 @@ func _run_enemy_turn_for(idx: int) -> bool:
 	# nie, weil target_cost immer 0 bleibt. Armee ist der einzige Wert,
 	# der Kaempfe entscheidet (KI hat keinen Kampfkraft-Bonus).
 	var army: int = eh.total_count()
+	var grace: bool = _turn_number < AI_GRACE_DAYS
 	for i in range(_cities.size()):
 		if int(_cities[i]["owner"]) == oid:
+			continue
+		var vs_player: bool = int(_cities[i]["owner"]) == OWNER_HERO
+		if vs_player and grace:
 			continue
 		var cp: Vector2i = _cities[i]["pos"]
 		if _fog_get(fog_e, cp) == FOG_HIDDEN:
@@ -5671,7 +5730,8 @@ func _run_enemy_turn_for(idx: int) -> bool:
 		# Safety-Margin: KI greift nicht mit knapper Armee an, sondern
 		# braucht AI_RAID_SAFETY_PCT Prozent mehr. Verhindert 1:1-Pyrrhus-
 		# Eroberungen, bei denen die KI nach Sieg handlungsunfaehig ist.
-		if garrison_c > 0 and army * 100 < garrison_c * (100 + AI_RAID_SAFETY_PCT):
+		var raid_pct: int = AI_PLAYER_RAID_PCT if vs_player else AI_RAID_SAFETY_PCT
+		if garrison_c > 0 and army * 100 < garrison_c * (100 + raid_pct):
 			continue
 		var c: int = int(ecosts[cp])
 		if target_cost < 0 or c < target_cost:
@@ -5711,8 +5771,10 @@ func _run_enemy_turn_for(idx: int) -> bool:
 	# Filter joggt die KI stur auf jeden gesehenen Helden zu, egal wie
 	# stark der ist - und verliert alles in einem Kampf.
 	var hunt_candidates: Array = []
-	if _hero != null and pls_pos.x >= 0 and (_turn_number - pls_turn) < FOG_ROT_TURNS:
-		hunt_candidates.append({"pos": pls_pos, "strength": _hero.total_count()})
+	if _hero != null and pls_pos.x >= 0 and (_turn_number - pls_turn) < FOG_ROT_TURNS \
+			and not grace:
+		hunt_candidates.append({"pos": pls_pos, "strength": _hero.total_count(),
+			"pct": AI_PLAYER_HUNT_PCT})
 	var rs_hunt: Dictionary = e.get("rivals_seen", {})
 	for rid_key in rs_hunt.keys():
 		var entry: Dictionary = rs_hunt[rid_key]
@@ -5733,7 +5795,7 @@ func _run_enemy_turn_for(idx: int) -> bool:
 		var hstr: int = int(hc_entry["strength"])
 		if not ecosts.has(hp):
 			continue
-		if army * 100 < hstr * (100 + AI_HUNT_SAFETY_PCT):
+		if army * 100 < hstr * (100 + int(hc_entry.get("pct", AI_HUNT_SAFETY_PCT))):
 			continue
 		var hc: int = int(ecosts[hp])
 		if target_cost < 0 or hc <= target_cost:

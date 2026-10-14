@@ -385,6 +385,20 @@ func _test_defeat_keeps_playing() -> void:
 	# Liste stehen - siehe die Begruendung in _on_battle_defeat: der ganze
 	# Screen darf sich darauf verlassen, dass `_hero` nie null ist, und ein
 	# Weltzustand ohne Helden hat vor M13b nie existiert.
+	# Seit It. 81 wie in Heroes: mit eigener Stadt zieht er sich dorthin
+	# zurueck, mit kleiner Truppe.
+	_wm.call("_on_battle_defeat")
+	_check(not bool(_wm.get("_game_lost")), "mit eigener Stadt: kein Spielende")
+	var last = (_wm.get("_heroes") as Array)[0]
+	var at_city: int = int(_wm.call("_city_at", last.position))
+	_check(at_city >= 0 and int((_wm.get("_cities") as Array)[at_city]["owner"])
+		== int(_wm.get("OWNER_HERO")), "Held steht in einer eigenen Stadt")
+	_check(int(last.total_count()) == int(_wm.get("HERO_HIRE_UNITS")),
+		"mit kleiner Starttruppe (%d)" % int(last.total_count()))
+	# Ohne Stadt: JETZT ist Schluss.
+	for c in (_wm.get("_cities") as Array):
+		if int(c["owner"]) == int(_wm.get("OWNER_HERO")):
+			c["owner"] = int(_wm.get("OWNER_NEUTRAL"))
 	_wm.call("_on_battle_defeat")
 	_check(bool(_wm.get("_game_lost")), "das Spiel ist verloren")
 	_check((_wm.get("_heroes") as Array).size() == 1,
