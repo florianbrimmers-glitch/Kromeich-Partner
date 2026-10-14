@@ -16,6 +16,8 @@ extends SceneTree
 #      Stallungen, Oase, Aussichtsturm, Arena, Gluecksbrunnen, Tempel,
 #      Baum des Wissens, Hexenhuette, Schrein der Magie, Gefaengnis,
 #      Handelsposten - je Wirkung, Wiederholungsregel und Save
+#   8. Dritte Welle (It. 79): Behausungen (Wache, Anwerben, Zuwachs je
+#      Woche, Deckel) und Kreaturenbanken (feste Wache, Beute, einmalig)
 
 const Spl := preload("res://scripts/core/HeroSpells.gd")
 const MO := preload("res://scripts/core/MapObjects.gd")
@@ -44,6 +46,7 @@ func _init() -> void:
 	_test_windmill()
 	await _test_save()
 	await _test_wave2()
+	await _test_wave3()
 
 	# Abschluss-Marken: die Soll-Liste kommt aus der Methodentabelle des
 	# Skripts selbst (It. 31, vorher eine Liste von Hand). Damit faellt
@@ -491,3 +494,93 @@ func _seen_tiles() -> int:
 		if int(f) != 0:
 			n += 1
 	return n
+
+
+func _test_wave3() -> void:
+	print("")
+	print("== Dritte Welle (It. 79) ==")
+	_wm.call("_start", 2024, 1)
+	await process_frame
+	var hero = _wm.get("_hero")
+	var purse: Wallet = _purse()
+	var objs: Array = _wm.get("_objects")
+
+	# Platzierung: Behausungen mit Kreatur, Vorrat und Wache aus derselben
+	# Kreatur; Banken mit fester Armee.
+	var dw: Array = []
+	var banks: Array = []
+	for o in objs:
+		var od: Dictionary = o as Dictionary
+		if int(od["kind"]) == MO.DWELLING:
+			dw.append(od)
+		elif MO.is_bank(int(od["kind"])):
+			banks.append(od)
+	_check(dw.size() == 3, "drei Behausungen auf der Karte (%d)" % dw.size())
+	for d in dw:
+		var uid: String = String(d.get("resource", ""))
+		_check(UnitType.tier_of(uid) >= 1 and UnitType.tier_of(uid) <= MO.DWELLING_MAX_TIER,
+			"Behausung mit Kreatur Stufe 1-4 (%s)" % uid)
+		_check(String(d.get("guard_unit", "")) == uid and int(d.get("guard", 0)) > 0,
+			"und von ihr bewacht")
+	_check(banks.size() == 3, "drei Kreaturenbanken (%d)" % banks.size())
+	for b in banks:
+		var army: Dictionary = _wm.call("_object_guard_army", b)
+		_check(str(army) == str(MO.BANKS[int(b["kind"])]["army"]),
+			"%s: feste Wache %s" % [MO.name_of(int(b["kind"])), str(army)])
+
+	# Behausung: anwerben, Vorrat sinkt, Zuwachs naechste Woche, Deckel.
+	var d0: Dictionary = dw[0]
+	d0["guard"] = 0
+	var uid0: String = String(d0["resource"])
+	var growth: int = UnitType.growth_of(uid0)
+	purse.add("gold", 100000)
+	for rid in ["wood", "ore", "mercury", "sulfur", "crystal", "gems"]:
+		purse.add(String(rid), 100)
+	(hero.army as Dictionary).clear()
+	hero.add_units(uid0, 1)
+	var msg: String = String(_wm.call("_visit_bonus_object", d0))
+	_check(int(d0["owner"]) == int(_wm.get("OWNER_HERO")), "Behausung gehoert danach dem Spieler (%s)" % msg)
+	var avail: int = int(_wm.call("_dwelling_pool_now", d0))
+	_check(avail == growth, "Vorrat = Wochenzuwachs (%d)" % avail)
+	var got: int = int(_wm.call("_dwelling_recruit", d0, hero, 999))
+	_check(got == growth and int(hero.count_of(uid0)) == 1 + growth,
+		"alle angeworben (%d %s)" % [got, uid0])
+	_check(int(_wm.call("_dwelling_pool_now", d0)) == 0 and bool(_wm.call("_bonus_spent", d0)),
+		"danach leer")
+	_wm.set("_turn_number", int(_wm.get("_turn_number")) + 7)
+	_check(int(_wm.call("_dwelling_pool_now", d0)) == growth, "naechste Woche waechst nach")
+	_wm.set("_turn_number", int(_wm.get("_turn_number")) + 7 * 10)
+	_check(int(_wm.call("_dwelling_pool_now", d0)) == growth * MO.DWELLING_CAP_WEEKS,
+		"Vorrat gedeckelt bei %d Wochen" % MO.DWELLING_CAP_WEEKS)
+	_wm.call("_hide_object_choice")
+
+	# Bank: Beute einmal, danach "schon gepluendert".
+	var b0: Dictionary = banks[0]
+	var g0: int = purse.get_amount("gold")
+	msg = String(_wm.call("_visit_bonus_object", b0))
+	_check(purse.get_amount("gold") >= g0 + int(MO.BANKS[int(b0["kind"])]["gold"]),
+		"Bank gibt Gold (%s)" % msg)
+	var g1: int = purse.get_amount("gold")
+	msg = String(_wm.call("_visit_bonus_object", b0))
+	_check(purse.get_amount("gold") == g1 and msg.contains("schon"), "Bank nur einmal (%s)" % msg)
+
+	# Save: Vorrat und feste Wache ueberleben einen Round-Trip als ints.
+	var state: Dictionary = _wm.call("_capture_state")
+	var js: String = JSON.stringify(state)
+	_wm.call("_restore_state", JSON.parse_string(js))
+	await process_frame
+	var again: String = JSON.stringify(_wm.call("_capture_state"))
+	_check(again == js, "capture -> laden -> capture gleich (%d vs %d Zeichen)" % [again.length(), js.length()])
+	var b_after: Dictionary = {}
+	for o2 in (_wm.get("_objects") as Array):
+		if MO.is_bank(int((o2 as Dictionary)["kind"])) and not bool(o2.get("used", false)):
+			b_after = o2
+			break
+	if not b_after.is_empty():
+		var ga: Dictionary = b_after["guard_army"]
+		var all_int: bool = true
+		for k in ga.keys():
+			if typeof(ga[k]) != TYPE_INT:
+				all_int = false
+		_check(all_int, "Bank-Wache nach dem Laden wieder ganzzahlig")
+	_done.append("_test_wave3")

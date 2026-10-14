@@ -421,6 +421,9 @@ func _move_and_fight(wm, seed_value: int, turn: int) -> void:
 			continue
 		if ok == int(wm.get("OBJECT_TRADING_POST")):
 			continue
+		# Eigene Behausung (It. 79): der Test-Spieler wirbt dort nicht an.
+		if ok == int(wm.get("OBJECT_DWELLING")) and int(obj.get("guard", 0)) <= 0:
+			continue
 		if ok == int(wm.get("OBJECT_PRISON")) \
 				and (wm.get("_heroes") as Array).size() >= int(wm.get("MAX_HEROES")):
 			continue

@@ -503,12 +503,85 @@ def trading_post():
     return obj("obj_trading_post", out)
 
 
+# --- Dritte Welle (It. 79) ------------------------------------------------
+
+def dwelling():
+    """Behausung: Rundhuette aus Stein und Holz, Strohkegel, Banner, Pferch."""
+    out = [ck.cyl(0.20, 0.20, "#a89878", 0, 0.06, 0.0, verts=14),
+           ck.cone_roof(0.25, 0.26, "#b89a5a", 0, 0.06, 0.20, verts=14)]
+    out += ck.door(0, -0.14, 0.0, 0.08, 0.12, STONE_DARK, WOOD_DARK)
+    out += ck.window(0.10, -0.12, 0.10, 0.04, 0.04, WOOD_DARK, GLOW)
+    out += ck.banner(-0.24, -0.12, 0.0, 0.42, RED, GOLD, w=0.10, h=0.13)
+    out += ck.fence(0.10, 0.34, -0.26, 0.07, WOOD_DARK, n=5)
+    out += ck.fence(-0.34, -0.10, -0.26, 0.07, WOOD_DARK, n=5)
+    for k in range(3):
+        out.append(ck.cyl(0.04, 0.05, "#d8c070", 0.28, 0.06 + k * 0.08, 0.0, verts=8))
+    return obj("obj_dwelling", out)
+
+
+def crypt():
+    """Krypta: Gruft mit Spitzdach, schwarzem Tor, Grabsteinen und Totenkopf."""
+    out = [ck.block(0.40, 0.34, 0.26, "#6a6672", 0, 0.08, 0.0),
+           ck.block(0.44, 0.38, 0.03, "#4e4a56", 0, 0.08, 0.26)]
+    out += ck.gable_roof(0.44, 0.38, 0.29, 0.16, "#3e3a46", "#2a2630", 0, 0.08, along="y",
+                         over=0.02, rows=0)
+    out += ck.door(0, -0.09, 0.0, 0.11, 0.17, "#4e4a56", "#141018")
+    out += ck.skull(0, -0.10, 0.22, 0.03, "#e6dcc4")
+    for k, (x, y, h) in enumerate(((-0.30, -0.18, 0.12), (0.30, -0.16, 0.10), (-0.32, 0.18, 0.11),
+                                   (0.31, 0.20, 0.13))):
+        out.append(ck.block(0.07, 0.03, h, "#8a8494", x, y, 0.0, bevel=0.01))
+    out.append(fg.tube("cross", [(0, 0.08, 0.45), (0, 0.08, 0.58)], [0.012, 0.012], "#9aa0a8"))
+    out.append(fg.tube("crossb", [(-0.04, 0.08, 0.54), (0.04, 0.08, 0.54)], [0.01, 0.01], "#9aa0a8"))
+    for k in range(4):
+        out.append(fg.lump((-0.2 + k * 0.13, -0.30, 0.0), 0.04, "#3a4a2a", strength=0.3,
+                           seed=90 + k, subdiv=1))
+    return obj("obj_crypt", out)
+
+
+def dwarf_treasury():
+    """Zwergenschatz: Felshuegel mit Steintor, Goldbalken und Muenzhaufen."""
+    out = []
+    for k, (x, y, r) in enumerate(((0.0, 0.14, 0.32), (-0.24, 0.18, 0.22), (0.25, 0.16, 0.22))):
+        out.append(fg.lump((x, y, 0.06), r, "#7a7468", strength=0.25, squash=0.8, seed=110 + k))
+    out.append(ck.block(0.26, 0.08, 0.28, "#9a9282", 0, -0.12, 0.0))
+    out.append(ck.block(0.16, 0.06, 0.20, "#1a1612", 0, -0.15, 0.0, bevel=0.0))
+    out.append(ck.block(0.30, 0.09, 0.05, GOLD, 0, -0.12, 0.28))
+    for k in range(3):
+        out.append(ck.block(0.03, 0.01, 0.03, "#ffd86a", -0.07 + k * 0.07, -0.17, 0.29, bevel=0.0))
+    for sx in (-1, 1):
+        out.append(fg.ball(0.06, (sx * 0.22, -0.24, 0.02), GOLD, squash=(1, 1, 0.5), subdiv=1))
+        out.append(ck.block(0.08, 0.04, 0.03, "#ffd86a", sx * 0.20, -0.32, 0.0, bevel=0.0))
+    return obj("obj_dwarf_treasury", out)
+
+
+def dragon_hoard():
+    """Drachenhort: dunkle Hoehle, Goldberg, Knochen, Drachenschaedel."""
+    out = []
+    for k, (x, y, r) in enumerate(((0.0, 0.16, 0.33), (-0.22, 0.10, 0.21), (0.23, 0.12, 0.21))):
+        out.append(fg.lump((x, y, 0.08), r, "#5a5048", strength=0.3, squash=0.85, seed=130 + k))
+    out.append(fg.ball(0.17, (0, -0.10, 0.02), "#1a1612", squash=(1.0, 0.5, 0.9), subdiv=2))
+    out.append(fg.ball(0.16, (0, -0.24, 0.0), GOLD, squash=(1.2, 0.8, 0.35), subdiv=2))
+    for k in range(6):
+        a = k * 1.1
+        out.append(ck.cyl(0.025, 0.01, "#ffd86a", math.cos(a) * 0.20, -0.26 + math.sin(a) * 0.08,
+                          0.03, verts=8))
+    out += ck.skull(0.24, -0.26, 0.04, 0.05, "#e6dcc4")
+    out += ck.horns(0.24, -0.26, 0.07, 0.05, "#e6dcc4")
+    for k in range(2):
+        out.append(fg.tube("bone", [(-0.30 + k * 0.06, -0.30, 0.01), (-0.18 + k * 0.04, -0.22, 0.01)],
+                           [0.012, 0.012], "#e6dcc4"))
+    # Fluegelspitze ueber dem Huegel: der Drache schlaeft drinnen.
+    out.append(bk.cone(0.05, 0.22, (0.12, 0.22, 0.48), "#8a2f26", verts=4, rot=(0, rad(25), 0)))
+    out.append(bk.cone(0.04, 0.16, (0.02, 0.24, 0.46), "#8a2f26", verts=4, rot=(0, rad(-15), 0)))
+    return obj("obj_dragon_hoard", out)
+
+
 def main():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     for f in (mine, treasure, pile, shrine_att, shrine_def, shrine_power, shrine_know,
               well, learning, windmill, campfire, artifact, watermill, stables, oasis,
               lookout, arena, fountain, temple, tree, witch_hut, magic_shrine, prison,
-              trading_post):
+              trading_post, dwelling, crypt, dwarf_treasury, dragon_hoard):
         f()
     try:
         out = sys.argv[sys.argv.index("--") + 1]

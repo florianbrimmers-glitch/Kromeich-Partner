@@ -351,6 +351,58 @@ def trading_post():
     return o + "</svg>\n"
 
 
+# --- Dritte Welle (It. 79) ------------------------------------------------
+
+def dwelling():
+    """Behausung: Rundhuette mit Banner - Silhouette: Kuppel mit Fahne."""
+    o = head("Behausung: Kreaturen anwerben") + shadow(20)
+    o += rect(14, 34, 36, 20, "#8a6a44")
+    o += ('  <path d="M 10 36 Q 32 6 54 36 Z" fill="#6b4a2a" stroke="%s" '
+          'stroke-width="2"/>\n' % LINE)
+    o += rect(27, 40, 10, 14, "#2a1e14", 1.5)
+    o += line(48, 34, 48, 8, "#5c4326", 2.5)
+    o += poly([(48, 8), (60, 12), (48, 17)], "#c93a2c", 1.2)
+    return o + "</svg>\n"
+
+
+def crypt():
+    """Krypta: Gruft mit Spitzbogen und Grabsteinen."""
+    o = head("Krypta: Kreaturenbank") + shadow(21)
+    o += rect(16, 26, 32, 28, "#5e5a66")
+    o += poly([(13, 28), (32, 12), (51, 28)], "#4a4652")
+    o += ('  <path d="M 26 54 L 26 40 Q 32 32 38 40 L 38 54 Z" fill="#141018" '
+          'stroke="%s" stroke-width="1.5"/>\n' % LINE)
+    for x in (8, 54):
+        o += rect(x - 3, 44, 6, 10, "#7d776e", 1.2, 2)
+    o += line(32, 12, 32, 4, "#9aa0a8", 2.0)
+    o += line(28, 7, 36, 7, "#9aa0a8", 2.0)
+    return o + "</svg>\n"
+
+
+def dwarf_treasury():
+    """Zwergenschatz: Felstor mit Rune und Goldhaufen."""
+    o = head("Zwergenschatz: Kreaturenbank") + shadow(22)
+    o += ('  <path d="M 6 54 Q 10 18 32 12 Q 54 18 58 54 Z" fill="#7a7468" '
+          'stroke="%s" stroke-width="2"/>\n' % LINE)
+    o += rect(22, 30, 20, 24, "#3a2a18", 1.5)
+    o += rect(20, 27, 24, 5, "#c9a24a", 1.5)
+    o += ell(14, 52, 7, 3, "#e6c247", 1.2)
+    o += ell(50, 52, 7, 3, "#e6c247", 1.2)
+    return o + "</svg>\n"
+
+
+def dragon_hoard():
+    """Drachenhort: Hoehle, Goldberg, Fluegelspitze darueber."""
+    o = head("Drachenhort: Kreaturenbank") + shadow(23)
+    o += ('  <path d="M 4 54 Q 8 22 30 16 Q 56 18 60 54 Z" fill="#5a5048" '
+          'stroke="%s" stroke-width="2"/>\n' % LINE)
+    o += ('  <path d="M 18 54 Q 32 32 46 54 Z" fill="#1a1612" stroke="%s" '
+          'stroke-width="1.5"/>\n' % LINE)
+    o += ell(32, 52, 12, 4, "#e6c247", 1.2)
+    o += poly([(30, 18), (44, 4), (42, 14), (52, 8), (46, 20)], "#8a2f26", 1.5)
+    return o + "</svg>\n"
+
+
 OBJECTS = {
     "shrine_att": shrine_att,
     "shrine_def": shrine_def,
@@ -373,6 +425,10 @@ OBJECTS = {
     "magic_shrine": magic_shrine,
     "prison": prison,
     "trading_post": trading_post,
+    "dwelling": dwelling,
+    "crypt": crypt,
+    "dwarf_treasury": dwarf_treasury,
+    "dragon_hoard": dragon_hoard,
 }
 
 

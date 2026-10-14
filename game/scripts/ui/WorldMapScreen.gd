@@ -190,6 +190,11 @@ const OBJECT_WITCH_HUT := MapObj.WITCH_HUT
 const OBJECT_MAGIC_SHRINE := MapObj.MAGIC_SHRINE
 const OBJECT_PRISON := MapObj.PRISON
 const OBJECT_TRADING_POST := MapObj.TRADING_POST
+# Dritte Welle (It. 79): Behausungen und Kreaturenbanken.
+const OBJECT_DWELLING := MapObj.DWELLING
+const OBJECT_CRYPT := MapObj.CRYPT
+const OBJECT_DWARF_TREASURY := MapObj.DWARF_TREASURY
+const OBJECT_DRAGON_HOARD := MapObj.DRAGON_HOARD
 
 const MINE_COUNT := 6
 const TREASURE_COUNT := 4
@@ -219,6 +224,10 @@ const BONUS_PLAN := {
 	OBJECT_MAGIC_SHRINE: 1,
 	OBJECT_PRISON: 1,
 	OBJECT_TRADING_POST: 1,
+	OBJECT_DWELLING: 3,
+	OBJECT_CRYPT: 1,
+	OBJECT_DWARF_TREASURY: 1,
+	OBJECT_DRAGON_HOARD: 1,
 }
 # Einmalige Stat-Schreine: Art -> (Primaerwert, Anzeigename).
 const SHRINE_STATS := {
@@ -250,6 +259,10 @@ const OBJECT_SPRITES := {
 	OBJECT_MAGIC_SHRINE: "magic_shrine",
 	OBJECT_PRISON: "prison",
 	OBJECT_TRADING_POST: "trading_post",
+	OBJECT_DWELLING: "dwelling",
+	OBJECT_CRYPT: "crypt",
+	OBJECT_DWARF_TREASURY: "dwarf_treasury",
+	OBJECT_DRAGON_HOARD: "dragon_hoard",
 }
 const LEARNING_XP := 120
 const WINDMILL_MIN := 3
@@ -1041,6 +1054,15 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 			gold_amt = 0
 			resource = Artifacts.pick(rng.next_int(0, 1 << 20))
 			guard_amt = rng.next_int(MapObj.ARTIFACT_GUARD_MIN, MapObj.ARTIFACT_GUARD_MAX)
+		elif kind == OBJECT_DWELLING:
+			# Die Kreatur wohnt dort UND bewacht es (wie in Heroes). In
+			# `resource` steht die Kreatur, in `pool` der Vorrat.
+			gold_amt = 0
+			resource = MapObj.dwelling_unit(UnitType, rng.next_int(0, 1 << 20))
+			guard_amt = MapObj.DWELLING_GUARD
+		elif MapObj.is_bank(kind):
+			gold_amt = int((MapObj.BANKS[kind] as Dictionary)["gold"])
+			guard_amt = MapObj.bank_guard_count(kind)
 		elif kind >= OBJECT_SHRINE_ATT:
 			# Bonus-Objekte: unbewacht, kein Gold-Ertrag. Was sie geben,
 			# entscheidet _visit_bonus_object beim Betreten.
@@ -1071,6 +1093,15 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 			# Lagerfeuer (It. 78): Menge der Ressource neben dem Gold.
 			"amount": extra_amt,
 		})
+		var placed: Dictionary = _objects[_objects.size() - 1]
+		if kind == OBJECT_DWELLING:
+			placed["guard_unit"] = resource
+			placed["pool"] = UnitType.growth_of(resource)
+			placed["pool_week"] = GameCalendar.week_total(0)
+		elif MapObj.is_bank(kind):
+			# Feste Wache statt Staerke-Formel (It. 79).
+			placed["guard_army"] = ((MapObj.BANKS[kind] as Dictionary)["army"] as Dictionary).duplicate()
+			placed["guard_unit"] = String(((placed["guard_army"] as Dictionary).keys())[0])
 
 	_turn_number = 0
 	_init_fog_arrays()
@@ -2911,6 +2942,9 @@ func _object_guard_army(obj: Dictionary) -> Dictionary:
 	var g: int = int(obj.get("guard", 0))
 	if g <= 0:
 		return {}
+	# Kreaturenbanken (It. 79) haben eine feste Armee.
+	if obj.has("guard_army"):
+		return SaveCodec.int_dict(obj["guard_army"])
 	var fake: Dictionary = {
 		"pos": obj.get("pos", Vector2i.ZERO),
 		"strength": g,
@@ -4135,6 +4169,10 @@ const MAP3D_OBJECT_MODEL := {
 	OBJECT_MAGIC_SHRINE: "obj_magic_shrine",
 	OBJECT_PRISON: "obj_prison",
 	OBJECT_TRADING_POST: "obj_trading_post",
+	OBJECT_DWELLING: "obj_dwelling",
+	OBJECT_CRYPT: "obj_crypt",
+	OBJECT_DWARF_TREASURY: "obj_dwarf_treasury",
+	OBJECT_DRAGON_HOARD: "obj_dragon_hoard",
 }
 
 # DIE WACHZAHLEN AN EINER STELLE.
@@ -4510,6 +4548,8 @@ func _bonus_spent(obj: Dictionary) -> bool:
 		return _hero != null and _hero.morale_bonus > 0
 	if kind == OBJECT_TRADING_POST:
 		return false
+	if kind == OBJECT_DWELLING:
+		return int(obj.get("guard", 0)) <= 0 and _dwelling_pool_now(obj) <= 0
 	return bool(obj.get("used", false))
 
 
@@ -4741,7 +4781,102 @@ func _visit_adventure_object(obj: Dictionary, h: Hero) -> String:
 		_show_trading_post()
 		return "Handelsposten: bessere Kurse als auf dem Markt"
 
+	if kind == OBJECT_DWELLING:
+		if int(obj.get("owner", OWNER_NEUTRAL)) != OWNER_HERO:
+			# Besetzt wie eine Mine - sie sieht ab jetzt ihre Umgebung.
+			obj["owner"] = OWNER_HERO
+			_recompute_fog_player()
+		var uid: String = String(obj.get("resource", ""))
+		var avail: int = _dwelling_pool_now(obj)
+		if avail <= 0:
+			return "Behausung (%s): diese Woche niemand mehr da." % UnitType.name_of(uid)
+		_show_dwelling(obj, h)
+		return "Behausung: %d %s bereit" % [avail, UnitType.name_of(uid)]
+
+	if MapObj.is_bank(kind):
+		if bool(obj.get("used", false)):
+			return "%s: schon gepluendert." % label
+		var spec: Dictionary = MapObj.BANKS[kind] as Dictionary
+		obj["used"] = true
+		obj["guard"] = 0
+		var gold_b: int = int(spec["gold"])
+		_purse.add("gold", gold_b)
+		var parts: Array = ["%d Gold" % gold_b]
+		var res_b: Dictionary = spec["res"] as Dictionary
+		for rid in res_b.keys():
+			_purse.add(String(rid), int(res_b[rid]))
+			parts.append("%d %s" % [int(res_b[rid]), Wallet.display_name(String(rid))])
+		if bool(spec["artifact"]):
+			var art_b: String = Artifacts.pick(oh)
+			if art_b != "" and not h.artifacts.has(art_b) and h.equip(art_b):
+				_after_artifact_change(h)
+				parts.append(Artifacts.name_of(art_b))
+			else:
+				# Kein Platz oder schon getragen: der Gegenwert in Gold.
+				_purse.add("gold", TREASURE_GOLD_MAX)
+				parts.append("%d Gold statt Artefakt" % TREASURE_GOLD_MAX)
+		Sound.play("coin")
+		_update_labels()
+		return "%s gepluendert: %s" % [label, ", ".join(parts)]
+
 	return "%s" % label
+
+
+# Vorrat einer Behausung JETZT (mit dem Zuwachs seit dem letzten Besuch).
+func _dwelling_pool_now(obj: Dictionary) -> int:
+	var uid: String = String(obj.get("resource", ""))
+	return MapObj.dwelling_pool(obj, UnitType.growth_of(uid),
+		GameCalendar.week_total(_turn_number))
+
+
+# Anwerben in einer Behausung: eins oder alle, die man bezahlen kann.
+func _show_dwelling(obj: Dictionary, h: Hero) -> void:
+	var uid: String = String(obj.get("resource", ""))
+	var cost: Dictionary = UnitType.cost_dict_of(uid)
+	var avail: int = _dwelling_pool_now(obj)
+	_show_object_choice("Behausung: %s" % UnitType.name_of(uid),
+		"%d bereit, je %s" % [avail, Wallet.cost_text(cost)], [
+			["1 anwerben", func() -> void: _dwelling_recruit(obj, h, 1)],
+			["alle anwerben", func() -> void: _dwelling_recruit(obj, h, 999)],
+		], true)
+
+
+# Rueckgabe: wie viele angeworben wurden.
+func _dwelling_recruit(obj: Dictionary, h: Hero, want: int) -> int:
+	if h == null:
+		return 0
+	var uid: String = String(obj.get("resource", ""))
+	var week: int = GameCalendar.week_total(_turn_number)
+	var avail: int = _dwelling_pool_now(obj)
+	var price: int = maxi(1, UnitType.cost_of(uid))
+	var cost: Dictionary = UnitType.cost_dict_of(uid)
+	var n: int = mini(want, avail)
+	n = mini(n, _purse.get_amount("gold") / price)
+	for rid in cost.keys():
+		if String(rid) != "gold" and int(cost[rid]) > 0:
+			n = mini(n, _purse.get_amount(String(rid)) / int(cost[rid]))
+	if not h.can_add_unit(uid):
+		_set_status("Kein freier Platz in der Armee fuer %s" % UnitType.name_of(uid))
+		return 0
+	if n <= 0:
+		_set_status("Zu teuer oder niemand mehr da")
+		return 0
+	var total: Dictionary = {}
+	for rid in cost.keys():
+		total[rid] = int(cost[rid]) * n
+	_purse.pay(total)
+	h.add_units(uid, n)
+	# Den Zuwachs bis heute festschreiben, dann abziehen.
+	obj["pool"] = avail - n
+	obj["pool_week"] = week
+	_update_labels()
+	Sound.play("recruit")
+	_set_combat("Angeworben: %d %s" % [n, UnitType.name_of(uid)])
+	if _choice_panel != null and _choice_panel.visible:
+		var sub := _choice_panel.get_node_or_null("VB/Sub") as Label
+		if sub != null:
+			sub.text = "%d bereit, je %s" % [_dwelling_pool_now(obj), Wallet.cost_text(cost)]
+	return n
 
 
 # Objekt von der Karte nehmen - ueber die Position, weil der Index sich
@@ -6250,9 +6385,11 @@ func _restore_state(d: Dictionary) -> bool:
 		o["gold"] = int(o.get("gold", 0))
 		# JSON kennt nur Kommazahlen - ganzzahlige Felder zurueck auf int,
 		# sonst ist der Zustand nach dem Laden nicht mehr derselbe.
-		for ik in ["amount", "used_turn", "used_week"]:
+		for ik in ["amount", "used_turn", "used_week", "pool", "pool_week"]:
 			if o.has(ik):
 				o[ik] = int(o[ik])
+		if o.has("guard_army"):
+			o["guard_army"] = SaveCodec.int_dict(o["guard_army"])
 		_objects.append(o)
 	_monsters.clear()
 	for md in d.get("monsters", []):

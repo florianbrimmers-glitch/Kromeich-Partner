@@ -32,9 +32,14 @@ const WITCH_HUT := 20      # lehrt eine Faehigkeit, einmalig
 const MAGIC_SHRINE := 21   # lehrt einen Zauber, einmalig
 const PRISON := 22         # befreit einen Helden, verschwindet
 const TRADING_POST := 23   # Tausch zu besseren Kursen als der Markt
+# Dritte Welle (It. 79): Behausungen und Kreaturenbanken.
+const DWELLING := 24       # bewacht; danach Kreaturen anwerben, Zuwachs je Woche
+const CRYPT := 25          # Kreaturenbank: Untote, Gold + Artefakt
+const DWARF_TREASURY := 26 # Kreaturenbank: Zwerge, Gold + Edelsteine
+const DRAGON_HOARD := 27   # Kreaturenbank: Drache, viel Gold + Artefakt
 
 const FIRST := CAMPFIRE
-const LAST := TRADING_POST
+const LAST := DRAGON_HOARD
 
 # Name, Sprite (assets/world/objects/<sprite>.svg), 3D-Modell (mapobj.glb)
 # und Anzahl auf der Karte.
@@ -53,7 +58,32 @@ const CATALOG := {
 	MAGIC_SHRINE: {"name": "Schrein der Magie", "sprite": "magic_shrine", "model": "obj_magic_shrine", "count": 1},
 	PRISON: {"name": "Gefaengnis", "sprite": "prison", "model": "obj_prison", "count": 1},
 	TRADING_POST: {"name": "Handelsposten", "sprite": "trading_post", "model": "obj_trading_post", "count": 1},
+	DWELLING: {"name": "Behausung", "sprite": "dwelling", "model": "obj_dwelling", "count": 3},
+	CRYPT: {"name": "Krypta", "sprite": "crypt", "model": "obj_crypt", "count": 1},
+	DWARF_TREASURY: {"name": "Zwergenschatz", "sprite": "dwarf_treasury", "model": "obj_dwarf_treasury", "count": 1},
+	DRAGON_HOARD: {"name": "Drachenhort", "sprite": "dragon_hoard", "model": "obj_dragon_hoard", "count": 1},
 }
+
+# Kreaturenbanken: feste Wache (Armee, kein Staerke-Wert) und Beute. Die
+# Wachen sind bewusst Mittel- bis Spaetspiel - gruen faerbt die Karte sie
+# erst mit einer gewachsenen Armee.
+const BANKS := {
+	CRYPT: {"army": {"nec_skeleton": 10, "nec_zombie": 6, "nec_wight": 3},
+		"gold": 1500, "res": {}, "artifact": true},
+	DWARF_TREASURY: {"army": {"elf_dwarf": 16},
+		"gold": 2000, "res": {"crystal": 4, "gems": 4}, "artifact": false},
+	DRAGON_HOARD: {"army": {"elf_goldwyrm": 1, "ork_roc": 2},
+		"gold": 5000, "res": {"gems": 6}, "artifact": true},
+}
+
+# Behausungen: welche Kreaturen dort wohnen koennen - Stufe 1 bis 4 aller
+# Fraktionen, wie die Aussen-Behausungen in Heroes.
+const DWELLING_MAX_TIER := 4
+# Der Vorrat waechst je Woche um den Zuwachs der Kreatur, hoechstens bis
+# zum Vierfachen - wer vier Wochen nicht kommt, verliert nichts, wer zehn
+# nicht kommt, schon.
+const DWELLING_CAP_WEEKS := 4
+const DWELLING_GUARD := 3
 
 # Zahlen der Wirkungen.
 const CAMPFIRE_GOLD_MIN := 200
@@ -113,7 +143,42 @@ static func is_pickup(kind: int) -> bool:
 # Steht eine Wache davor? Nur Artefakte - alles andere ist wie die
 # Schreine frei zugaenglich.
 static func is_guarded(kind: int) -> bool:
-	return kind == ARTIFACT
+	return kind == ARTIFACT or kind == DWELLING or BANKS.has(kind)
+
+
+static func is_bank(kind: int) -> bool:
+	return BANKS.has(kind)
+
+
+# Gesamtzahl der Bank-Wache (fuer Erfahrung und die Zahl auf der Karte).
+static func bank_guard_count(kind: int) -> int:
+	var n: int = 0
+	var army: Dictionary = (BANKS.get(kind, {}) as Dictionary).get("army", {}) as Dictionary
+	for k in army.keys():
+		n += int(army[k])
+	return n
+
+
+# Kreatur einer Behausung, deterministisch aus einem Hash.
+static func dwelling_unit(unit_lib, h: int) -> String:
+	var pool: Array = []
+	for uid in unit_lib.all_ids():
+		var t: int = int(unit_lib.tier_of(String(uid)))
+		if t >= 1 and t <= DWELLING_MAX_TIER:
+			pool.append(String(uid))
+	pool.sort()
+	if pool.is_empty():
+		return "men_spearman"
+	return String(pool[absi(h) % pool.size()])
+
+
+# Vorrat einer Behausung in Woche `week`: der gespeicherte Stand plus der
+# Zuwachs der Wochen seitdem, gedeckelt. Wird beim Besuch ausgerechnet,
+# damit es keinen Wochen-Haken braucht.
+static func dwelling_pool(obj: Dictionary, growth: int, week: int) -> int:
+	var base: int = int(obj.get("pool", 0))
+	var since: int = maxi(0, week - int(obj.get("pool_week", week)))
+	return mini(base + growth * since, growth * DWELLING_CAP_WEEKS)
 
 
 # Beute eines Lagerfeuers, deterministisch aus einem Hash.
