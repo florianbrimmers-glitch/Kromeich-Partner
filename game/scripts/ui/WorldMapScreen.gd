@@ -195,6 +195,9 @@ const OBJECT_DWELLING := MapObj.DWELLING
 const OBJECT_CRYPT := MapObj.CRYPT
 const OBJECT_DWARF_TREASURY := MapObj.DWARF_TREASURY
 const OBJECT_DRAGON_HOARD := MapObj.DRAGON_HOARD
+# Vierte Welle (It. 80): Portale und Seherhuetten.
+const OBJECT_PORTAL := MapObj.PORTAL
+const OBJECT_SEER_HUT := MapObj.SEER_HUT
 
 const MINE_COUNT := 6
 const TREASURE_COUNT := 4
@@ -228,6 +231,8 @@ const BONUS_PLAN := {
 	OBJECT_CRYPT: 1,
 	OBJECT_DWARF_TREASURY: 1,
 	OBJECT_DRAGON_HOARD: 1,
+	OBJECT_PORTAL: 4,
+	OBJECT_SEER_HUT: 2,
 }
 # Einmalige Stat-Schreine: Art -> (Primaerwert, Anzeigename).
 const SHRINE_STATS := {
@@ -263,6 +268,8 @@ const OBJECT_SPRITES := {
 	OBJECT_CRYPT: "crypt",
 	OBJECT_DWARF_TREASURY: "dwarf_treasury",
 	OBJECT_DRAGON_HOARD: "dragon_hoard",
+	OBJECT_PORTAL: "portal",
+	OBJECT_SEER_HUT: "seer_hut",
 }
 const LEARNING_XP := 120
 const WINDMILL_MIN := 3
@@ -1098,6 +1105,15 @@ func _start(seed_value: int, requested_faction: int = -1) -> void:
 			placed["guard_unit"] = resource
 			placed["pool"] = UnitType.growth_of(resource)
 			placed["pool_week"] = GameCalendar.week_total(0)
+		elif kind == OBJECT_PORTAL:
+			# Paare in Platzierungsreihenfolge: 0+1, 2+3, ...
+			var n_portals: int = 0
+			for eo2 in _objects:
+				if int(eo2["kind"]) == OBJECT_PORTAL:
+					n_portals += 1
+			placed["pair"] = (n_portals - 1) / 2
+		elif kind == OBJECT_SEER_HUT:
+			placed["quest"] = rng.next_int(0, MapObj.SEER_QUESTS.size() - 1)
 		elif MapObj.is_bank(kind):
 			# Feste Wache statt Staerke-Formel (It. 79).
 			placed["guard_army"] = ((MapObj.BANKS[kind] as Dictionary)["army"] as Dictionary).duplicate()
@@ -2528,6 +2544,7 @@ func _handle_tap(pos: Vector2) -> void:
 
 	_hero.mp -= cost
 	_hero.position = target
+	_apply_teleport()
 	var claimed := false
 	if target_city_idx >= 0 and int(_cities[target_city_idx]["owner"]) != OWNER_HERO:
 		_cities[target_city_idx]["owner"] = OWNER_HERO
@@ -3195,6 +3212,7 @@ func _count_casualties(result: Dictionary) -> int:
 func _finish_move_to(target: Vector2i, cost: int) -> void:
 	_hero.mp -= cost
 	_hero.position = target
+	_apply_teleport()
 	_recompute_fog_player()
 	_recompute_costs()
 	_ensure_hero_in_view()
@@ -4173,6 +4191,8 @@ const MAP3D_OBJECT_MODEL := {
 	OBJECT_CRYPT: "obj_crypt",
 	OBJECT_DWARF_TREASURY: "obj_dwarf_treasury",
 	OBJECT_DRAGON_HOARD: "obj_dragon_hoard",
+	OBJECT_PORTAL: "obj_portal",
+	OBJECT_SEER_HUT: "obj_seer_hut",
 }
 
 # DIE WACHZAHLEN AN EINER STELLE.
@@ -4294,7 +4314,11 @@ func _map3d_ctx() -> Dictionary:
 	var objects_out: Array = []
 	for o in _objects:
 		var od: Dictionary = o as Dictionary
-		objects_out.append({"pos": Vector2i(od["pos"]), "kind": int(od["kind"])})
+		var oentry: Dictionary = {"pos": Vector2i(od["pos"]), "kind": int(od["kind"])}
+		# Eigenes Modell je Minenart (It. 80).
+		if int(od["kind"]) == OBJECT_MINE:
+			oentry["model"] = MapObj.mine_model(String(od.get("resource", "gold")))
+		objects_out.append(oentry)
 	var monsters_out: Array = []
 	var eff_gold: int = _player_gold_power()
 	for m in _monsters:
@@ -4793,6 +4817,42 @@ func _visit_adventure_object(obj: Dictionary, h: Hero) -> String:
 		_show_dwelling(obj, h)
 		return "Behausung: %d %s bereit" % [avail, UnitType.name_of(uid)]
 
+	if kind == OBJECT_PORTAL:
+		var partner: Vector2i = _portal_partner(obj)
+		if partner.x < 0:
+			return "Portal: das Gegenstueck schweigt."
+		# Erst NACH dem Schritt aufs Portal versetzen (_apply_teleport).
+		_pending_teleport = partner
+		return "Portal: Reise nach (%d,%d)" % [partner.x, partner.y]
+
+	if kind == OBJECT_SEER_HUT:
+		if bool(obj.get("used", false)):
+			return "Seherhuette: der Seher hat dir schon gedankt."
+		var q: Dictionary = MapObj.seer_quest(int(obj.get("quest", 0)))
+		var want: Dictionary = q["want"] as Dictionary
+		if not _purse.can_afford(want):
+			var wl: Array = []
+			for wk in want.keys():
+				wl.append("%d %s" % [int(want[wk]), Wallet.display_name(String(wk))])
+			return "Seherhuette: \"Bring mir %s.\"" % " und ".join(wl)
+		_purse.pay(want)
+		obj["used"] = true
+		var rew: Array = []
+		if int(q["gold"]) > 0:
+			_purse.add("gold", int(q["gold"]))
+			rew.append("%d Gold" % int(q["gold"]))
+		if bool(q["artifact"]):
+			var art_q: String = Artifacts.pick(oh)
+			if art_q != "" and not h.artifacts.has(art_q) and h.equip(art_q):
+				_after_artifact_change(h)
+				rew.append(Artifacts.name_of(art_q))
+			else:
+				_purse.add("gold", TREASURE_GOLD_MAX)
+				rew.append("%d Gold" % TREASURE_GOLD_MAX)
+		Sound.play("recruit")
+		_update_labels()
+		return "Seherhuette: Auftrag erfuellt - %s" % ", ".join(rew)
+
 	if MapObj.is_bank(kind):
 		if bool(obj.get("used", false)):
 			return "%s: schon gepluendert." % label
@@ -4820,6 +4880,32 @@ func _visit_adventure_object(obj: Dictionary, h: Hero) -> String:
 		return "%s gepluendert: %s" % [label, ", ".join(parts)]
 
 	return "%s" % label
+
+
+# Portal-Gegenstueck: dasselbe Paar, anderes Feld. (-1,-1) = keins.
+func _portal_partner(obj: Dictionary) -> Vector2i:
+	var pair: int = int(obj.get("pair", -1))
+	var here: Vector2i = obj.get("pos", Vector2i(-1, -1))
+	for o in _objects:
+		var od: Dictionary = o as Dictionary
+		if int(od["kind"]) == OBJECT_PORTAL and int(od.get("pair", -2)) == pair \
+				and Vector2i(od["pos"]) != here:
+			return Vector2i(od["pos"])
+	return Vector2i(-1, -1)
+
+
+# Ein Portal versetzt den Helden erst, NACHDEM er draufgetreten ist - sonst
+# setzte der Zug ihn gleich wieder aufs Portal. Neben das Gegenstueck,
+# damit er nicht sofort zurueckreist, wenn er weiterlaeuft.
+var _pending_teleport := Vector2i(-1, -1)
+
+
+func _apply_teleport() -> void:
+	if _pending_teleport.x < 0 or _hero == null:
+		return
+	var dest: Vector2i = _free_spot_near(_pending_teleport)
+	_pending_teleport = Vector2i(-1, -1)
+	_hero.position = dest
 
 
 # Vorrat einer Behausung JETZT (mit dem Zuwachs seit dem letzten Besuch).
@@ -6385,7 +6471,7 @@ func _restore_state(d: Dictionary) -> bool:
 		o["gold"] = int(o.get("gold", 0))
 		# JSON kennt nur Kommazahlen - ganzzahlige Felder zurueck auf int,
 		# sonst ist der Zustand nach dem Laden nicht mehr derselbe.
-		for ik in ["amount", "used_turn", "used_week", "pool", "pool_week"]:
+		for ik in ["amount", "used_turn", "used_week", "pool", "pool_week", "pair", "quest"]:
 			if o.has(ik):
 				o[ik] = int(o[ik])
 		if o.has("guard_army"):

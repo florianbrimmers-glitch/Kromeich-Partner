@@ -21,6 +21,7 @@ extends SceneTree
 # steht, sonst hinlaufen, sonst warten) - sie soll den Kampf ZU ENDE
 # bringen, nicht gut spielen.
 
+const MO := preload("res://scripts/core/MapObjects.gd")
 const DEBUG_BATTLES := false
 const MAX_TURNS := 40
 const MAX_BATTLE_STEPS := 400
@@ -421,6 +422,14 @@ func _move_and_fight(wm, seed_value: int, turn: int) -> void:
 			continue
 		if ok == int(wm.get("OBJECT_TRADING_POST")):
 			continue
+		# Portale fuehren den Test-Spieler nur im Kreis, und Seherhuetten
+		# lohnen erst, wenn die Ware in der Kasse liegt (It. 80).
+		if ok == int(wm.get("OBJECT_PORTAL")):
+			continue
+		if ok == int(wm.get("OBJECT_SEER_HUT")) and not bool(obj.get("used", false)):
+			var qd: Dictionary = MO.seer_quest(int(obj.get("quest", 0)))
+			if not (wm.get("_purse") as Wallet).can_afford(qd["want"] as Dictionary):
+				continue
 		# Eigene Behausung (It. 79): der Test-Spieler wirbt dort nicht an.
 		if ok == int(wm.get("OBJECT_DWELLING")) and int(obj.get("guard", 0)) <= 0:
 			continue

@@ -75,6 +75,9 @@ func _test_models_present() -> void:
 	var want: Array = []
 	for v in WMS.MAP3D_OBJECT_MODEL.values():
 		want.append(String(v))
+	# Ein Modell je Minenart (It. 80).
+	for mv in WMS.MapObj.MINE_MODELS.values():
+		want.append(String(mv))
 	for f in UnitArt.FACTION_DIRS:
 		want.append(Map3D.CITY_MODEL % String(f))
 	want.append_array([Map3D.HERO_MODEL, Map3D.RING_MODEL, Map3D.DISC_MODEL])
@@ -166,6 +169,8 @@ func _test_footprints_fit_tile() -> void:
 			over.append("%s (%.2f)" % [model, wmax])
 	for v in WMS.MAP3D_OBJECT_MODEL.values():
 		check.call(String(v), 0.0, Map3D.TILE)
+	for mv in WMS.MapObj.MINE_MODELS.values():
+		check.call(String(mv), 0.0, Map3D.TILE)
 	for f in UnitArt.FACTION_DIRS:
 		# Die Stadt darf etwas ueberstehen - eine Burg, die in ihr Feld
 		# passt, ist ein Haus.

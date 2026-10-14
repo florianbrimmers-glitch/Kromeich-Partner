@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Seherhuette: Auftrag
+     Erzeugt von tools/gen_map_objects.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <ellipse cx="32" cy="57" rx="18" ry="5" fill="#000" opacity="0.40"/>
+  <polygon points="10.0,54.0 32.0,10.0 54.0,54.0" fill="#6a4a8a" stroke="#241c12" stroke-width="2.0" stroke-linejoin="round"/>
+  <polygon points="10.0,54.0 32.0,10.0 32.0,54.0" fill="#8a6aaa" stroke="#241c12" stroke-width="0.0" stroke-linejoin="round"/>
+  <ellipse cx="32.0" cy="34.0" rx="9.0" ry="6.0" fill="#f2ece0" stroke="#241c12" stroke-width="1.5"/>
+  <ellipse cx="32.0" cy="34.0" rx="3.5" ry="3.5" fill="#2a3a6a" stroke="#241c12" stroke-width="1.0"/>
+  <rect x="28.0" y="46.0" width="8.0" height="8.0" rx="0" fill="#2a1e14" stroke="#241c12" stroke-width="1.2"/>
+</svg>

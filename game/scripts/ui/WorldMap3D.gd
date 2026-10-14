@@ -470,6 +470,11 @@ func _place_things(ctx: Dictionary, fog: Array, w: int, per_model: Dictionary) -
 	for o in (ctx.get("objects", []) as Array):
 		var od: Dictionary = o as Dictionary
 		var model: String = String(omap.get(int(od.get("kind", -1)), ""))
+		# Einzelnes Objekt mit eigenem Modell (Minenart, It. 80) - nur, wenn
+		# es das Modell gibt; sonst das der Art.
+		var own: String = String(od.get("model", ""))
+		if own != "" and _meshes.has(own):
+			model = own
 		if model != "":
 			add.call(model, Vector2i(od["pos"]), 0.0, "", Color.WHITE)
 	for m in (ctx.get("monsters", []) as Array):

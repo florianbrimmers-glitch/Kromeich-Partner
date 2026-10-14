@@ -403,6 +403,31 @@ def dragon_hoard():
     return o + "</svg>\n"
 
 
+# --- Vierte Welle (It. 80) ------------------------------------------------
+
+def portal():
+    """Portal: Steinbogen mit leuchtendem Wirbel."""
+    o = head("Portal: Reise zum Gegenstueck") + shadow(18)
+    o += ('  <path d="M 14 56 L 14 26 Q 32 2 50 26 L 50 56 L 42 56 L 42 28 '
+          'Q 32 14 22 28 L 22 56 Z" fill="#8a8494" stroke="%s" stroke-width="2"/>\n' % LINE)
+    o += ('  <path d="M 22 56 L 22 28 Q 32 14 42 28 L 42 56 Z" fill="#6ac8f0" '
+          'stroke="%s" stroke-width="1.5"/>\n' % LINE)
+    o += ('  <path d="M 32 44 m -6 0 a 6 6 0 1 0 12 0 a 4 4 0 1 0 -8 0" fill="none" '
+          'stroke="#e6f6ff" stroke-width="2"/>\n')
+    return o + "</svg>\n"
+
+
+def seer_hut():
+    """Seherhuette: Zelt mit Auge - Silhouette: Kegel mit Kreis."""
+    o = head("Seherhuette: Auftrag") + shadow(18)
+    o += poly([(10, 54), (32, 10), (54, 54)], "#6a4a8a")
+    o += poly([(10, 54), (32, 10), (32, 54)], "#8a6aaa", 0)
+    o += ell(32, 34, 9, 6, "#f2ece0", 1.5)
+    o += ell(32, 34, 3.5, 3.5, "#2a3a6a", 1.0)
+    o += rect(28, 46, 8, 8, "#2a1e14", 1.2)
+    return o + "</svg>\n"
+
+
 OBJECTS = {
     "shrine_att": shrine_att,
     "shrine_def": shrine_def,
@@ -429,6 +454,8 @@ OBJECTS = {
     "crypt": crypt,
     "dwarf_treasury": dwarf_treasury,
     "dragon_hoard": dragon_hoard,
+    "portal": portal,
+    "seer_hut": seer_hut,
 }
 
 

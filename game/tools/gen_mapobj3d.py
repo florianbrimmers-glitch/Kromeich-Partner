@@ -576,12 +576,150 @@ def dragon_hoard():
     return obj("obj_dragon_hoard", out)
 
 
+# --- Vierte Welle (It. 80) ------------------------------------------------
+
+def portal():
+    """Portal: Steinbogen auf Stufen, darin ein leuchtender Wirbel."""
+    out = [ck.cyl(0.30, 0.04, STONE_DARK, 0, 0, 0.0, verts=10),
+           ck.cyl(0.26, 0.03, STONE, 0, 0, 0.04, verts=10)]
+    for sx in (-1, 1):
+        out.append(ck.block(0.08, 0.10, 0.36, "#8a8494", sx * 0.17, 0, 0.07))
+    pts = [(math.cos(rad(a)) * 0.17, 0.0, 0.43 + math.sin(rad(a)) * 0.13) for a in range(0, 181, 20)]
+    out.append(fg.tube("arch", pts, [0.05] * len(pts), "#8a8494"))
+    bpy.ops.mesh.primitive_cylinder_add(vertices=24, radius=0.13, depth=0.02,
+                                        location=(0, 0, 0.30), rotation=(rad(90), 0, 0))
+    disc = bpy.context.active_object
+    disc.scale = (1.0, 1.55, 1.0)
+    bk._bake(disc)
+    disc.data.materials.append(bk.material("k#6ac8f0", "#6ac8f0"))
+    out.append(disc)
+    for k in range(3):
+        bpy.ops.mesh.primitive_torus_add(major_radius=0.04 + k * 0.03, minor_radius=0.006,
+                                         location=(0, -0.015, 0.30), rotation=(rad(90), 0, 0))
+        ring = bpy.context.active_object
+        bk._bake(ring)
+        ring.data.materials.append(bk.material("k#e6f6ff", "#e6f6ff"))
+        out.append(ring)
+    out.append(fg.ball(0.03, (0, 0, 0.60), "#6ac8f0", subdiv=1))
+    return obj("obj_portal", out)
+
+
+def seer_hut():
+    """Seherhuette: spitzes Fellzelt, Totem mit Auge, Raeucherschale."""
+    out = [ck.cone_roof(0.24, 0.50, "#6a4a8a", 0, 0.06, 0.0, verts=8),
+           ck.block(0.10, 0.02, 0.15, "#1a1612", 0, -0.15, 0.0, bevel=0.0)]
+    for k in range(4):
+        a = rad(45 + 90 * k)
+        out.append(fg.tube("pole", [(math.cos(a) * 0.05, 0.06 + math.sin(a) * 0.05, 0.44),
+                                    (math.cos(a) * 0.09, 0.06 + math.sin(a) * 0.09, 0.60)],
+                           [0.01, 0.008], WOOD_DARK))
+    out.append(ck.cyl(0.03, 0.40, WOOD, 0.26, -0.12, 0.0, verts=8))
+    out.append(fg.ball(0.05, (0.26, -0.15, 0.36), "#f2ece0", squash=(1, 0.5, 0.7), subdiv=1))
+    out.append(fg.ball(0.022, (0.26, -0.18, 0.36), "#2a3a6a", subdiv=1))
+    out.append(ck.cyl(0.06, 0.04, "#7a5a34", -0.24, -0.16, 0.0, verts=10))
+    out.append(bk.cone(0.03, 0.10, (-0.24, -0.16, 0.09), "#c9a0ff", verts=6))
+    return obj("obj_seer_hut", out)
+
+
+def _mine_hill(seed, col="#7a7468"):
+    out = []
+    for k, (x, y, r) in enumerate(((0.0, 0.14, 0.30), (-0.22, 0.16, 0.20), (0.22, 0.14, 0.20))):
+        out.append(fg.lump((x, y, 0.06), r, col, strength=0.25, squash=0.85, seed=seed + k))
+    return out
+
+
+def mine_wood():
+    """Saegewerk: Holzhalle, Saegeblatt, Stammstapel."""
+    out = [ck.block(0.40, 0.26, 0.20, WOOD, 0, 0.10, 0.0)]
+    out += ck.gable_roof(0.40, 0.26, 0.20, 0.12, "#5a3a20", WOOD_DARK, 0, 0.10, along="x",
+                         over=0.03, rows=2)
+    bpy.ops.mesh.primitive_cylinder_add(vertices=20, radius=0.09, depth=0.01,
+                                        location=(-0.06, -0.06, 0.12), rotation=(rad(90), 0, 0))
+    saw = bpy.context.active_object
+    bk._bake(saw)
+    saw.data.materials.append(bk.material("k#c8d2db", "#c8d2db"))
+    out.append(saw)
+    for k in range(5):
+        out.append(fg.tube("log", [(0.10, -0.12 - (k % 3) * 0.05, 0.03 + (k // 3) * 0.05),
+                                   (0.34, -0.12 - (k % 3) * 0.05, 0.03 + (k // 3) * 0.05)],
+                           [0.025, 0.025], "#8a6a40"))
+    return obj("obj_mine_wood", out)
+
+
+def mine_ore():
+    """Erzgrube: Fels, Foerderturm, Lore mit grauem Erz."""
+    out = _mine_hill(150)
+    for sx in (-1, 1):
+        out.append(fg.tube("leg", [(sx * 0.10, -0.16, 0.0), (sx * 0.04, -0.16, 0.36)],
+                           [0.015, 0.012], WOOD))
+    out.append(ck.block(0.14, 0.04, 0.03, WOOD_DARK, 0, -0.16, 0.34, bevel=0.0))
+    out.append(ck.cyl(0.04, 0.02, "#4a4a4e", 0, -0.18, 0.33, verts=10))
+    out.append(ck.block(0.14, 0.10, 0.07, WOOD_DARK, 0.20, -0.30, 0.02))
+    for k in range(4):
+        out.append(fg.ball(0.03, (0.17 + k * 0.025, -0.30, 0.10), "#6a6e76", subdiv=1))
+    return obj("obj_mine_ore", out)
+
+
+def mine_mercury():
+    """Alchemistenlabor: Steinhaus mit Kuppel, Kolben, Rauch."""
+    out = [ck.block(0.30, 0.26, 0.24, STONE, 0, 0.08, 0.0),
+           ck.dome(0.14, "#5a7a8a", 0, 0.08, 0.24)]
+    out += ck.door(0, -0.05, 0.0, 0.07, 0.12, STONE_DARK, WOOD_DARK)
+    out.append(ck.cyl(0.03, 0.18, STONE_DARK, 0.10, 0.14, 0.24, verts=8))
+    for k in range(3):
+        out.append(fg.ball(0.04 + k * 0.01, (0.11 + k * 0.02, 0.15, 0.46 + k * 0.07), "#d8e0e6",
+                           subdiv=1))
+    for k, c in enumerate(("#c0d0e0", "#9ae0c0", "#e0a0d0")):
+        out.append(fg.ball(0.04, (-0.24 + k * 0.08, -0.22, 0.04), c, subdiv=1))
+        out.append(ck.cyl(0.01, 0.05, c, -0.24 + k * 0.08, -0.22, 0.07, verts=6))
+    return obj("obj_mine_mercury", out)
+
+
+def mine_sulfur():
+    """Schwefelgrube: gelbe Duenen, dampfender Spalt."""
+    out = _mine_hill(170, "#b8a040")
+    out.append(fg.ball(0.10, (0, -0.16, 0.0), "#3a3018", squash=(1.2, 0.6, 0.3), subdiv=1))
+    for k in range(3):
+        out.append(fg.ball(0.05 + k * 0.015, (0.02 * k, -0.18, 0.10 + k * 0.08), "#e8e0b0",
+                           subdiv=1))
+    for k in range(4):
+        out.append(fg.lump((-0.26 + k * 0.17, -0.30, 0.01), 0.04, "#e6d040", strength=0.3,
+                           seed=180 + k, subdiv=1))
+    return obj("obj_mine_sulfur", out)
+
+
+def mine_crystal():
+    """Kristallhoehle: Felshuegel, aus dem blaue Kristalle wachsen."""
+    out = _mine_hill(190, "#6a6a78")
+    out.append(ck.block(0.16, 0.06, 0.18, "#1a1612", 0, -0.13, 0.0, bevel=0.0))
+    for k, (x, y, h, tilt) in enumerate(((-0.18, -0.16, 0.26, -15), (0.20, -0.14, 0.22, 18),
+                                         (0.0, 0.10, 0.34, 0), (-0.08, -0.26, 0.14, -25),
+                                         (0.12, -0.28, 0.12, 25))):
+        out.append(bk.cone(0.05, h, (x, y, h * 0.5), "#7ad0f0", verts=5, rot=(0, rad(tilt), 0)))
+    return obj("obj_mine_crystal", out)
+
+
+def mine_gems():
+    """Edelsteinteich: kleiner Teich, bunte Steine am Ufer, Felsen."""
+    out = [ck.cyl(0.30, 0.012, "#7a7468", 0, 0, 0.0, verts=18),
+           ck.cyl(0.22, 0.016, "#3e7ea4", 0, 0.02, 0.0, verts=18)]
+    for k, c in enumerate(("#d84a8a", "#4ad08a", "#8a6ad8", "#e6c247", "#d84a4a", "#4aa0e0")):
+        a = 2 * math.pi * k / 6 + 0.3
+        out.append(bk.cone(0.035, 0.07, (math.cos(a) * 0.27, math.sin(a) * 0.25, 0.035), c,
+                           verts=5))
+    for k in range(3):
+        out.append(fg.lump((-0.24 + k * 0.24, 0.30, 0.03), 0.06, "#8a8478", strength=0.3,
+                           seed=200 + k, subdiv=1))
+    return obj("obj_mine_gems", out)
+
+
 def main():
     bpy.ops.wm.read_factory_settings(use_empty=True)
     for f in (mine, treasure, pile, shrine_att, shrine_def, shrine_power, shrine_know,
               well, learning, windmill, campfire, artifact, watermill, stables, oasis,
               lookout, arena, fountain, temple, tree, witch_hut, magic_shrine, prison,
-              trading_post, dwelling, crypt, dwarf_treasury, dragon_hoard):
+              trading_post, dwelling, crypt, dwarf_treasury, dragon_hoard, portal, seer_hut,
+              mine_wood, mine_ore, mine_mercury, mine_sulfur, mine_crystal, mine_gems):
         f()
     try:
         out = sys.argv[sys.argv.index("--") + 1]

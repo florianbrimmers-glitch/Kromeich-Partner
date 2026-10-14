@@ -18,6 +18,9 @@ extends SceneTree
 #      Handelsposten - je Wirkung, Wiederholungsregel und Save
 #   8. Dritte Welle (It. 79): Behausungen (Wache, Anwerben, Zuwachs je
 #      Woche, Deckel) und Kreaturenbanken (feste Wache, Beute, einmalig)
+#   9. Vierte Welle (It. 80): Portale (paarweise, versetzen den Helden
+#      neben das Gegenstueck), Seherhuetten (Auftrag gegen Lohn) und ein
+#      Modell je Minenart
 
 const Spl := preload("res://scripts/core/HeroSpells.gd")
 const MO := preload("res://scripts/core/MapObjects.gd")
@@ -47,6 +50,7 @@ func _init() -> void:
 	await _test_save()
 	await _test_wave2()
 	await _test_wave3()
+	await _test_wave4()
 
 	# Abschluss-Marken: die Soll-Liste kommt aus der Methodentabelle des
 	# Skripts selbst (It. 31, vorher eine Liste von Hand). Damit faellt
@@ -584,3 +588,68 @@ func _test_wave3() -> void:
 				all_int = false
 		_check(all_int, "Bank-Wache nach dem Laden wieder ganzzahlig")
 	_done.append("_test_wave3")
+
+
+func _test_wave4() -> void:
+	print("")
+	print("== Vierte Welle (It. 80) ==")
+	_wm.call("_start", 2024, 1)
+	await process_frame
+	var hero = _wm.get("_hero")
+	var purse: Wallet = _purse()
+	var objs: Array = _wm.get("_objects")
+
+	# Portale: zwei Paare, jedes Portal hat genau ein Gegenstueck.
+	var portals: Array = []
+	for o in objs:
+		if int((o as Dictionary)["kind"]) == MO.PORTAL:
+			portals.append(o)
+	_check(portals.size() == 4, "vier Portale (%d)" % portals.size())
+	for pt in portals:
+		var partner: Vector2i = _wm.call("_portal_partner", pt)
+		_check(partner.x >= 0 and partner != Vector2i(pt["pos"]), "Portal %s -> %s" % [str(pt["pos"]), str(partner)])
+
+	# Durchs Portal: der Held landet NEBEN dem Gegenstueck.
+	var p0: Dictionary = portals[0]
+	var dest: Vector2i = _wm.call("_portal_partner", p0)
+	_wm.call("_visit_bonus_object", p0)
+	hero.position = Vector2i(p0["pos"])
+	_wm.call("_apply_teleport")
+	var d: Vector2i = hero.position
+	_check(absi(d.x - dest.x) <= 1 and absi(d.y - dest.y) <= 1 and d != Vector2i(p0["pos"]),
+		"Held steht neben dem Gegenstueck (%s bei %s)" % [str(d), str(dest)])
+
+	# Seherhuette: ohne Ware nur der Auftrag, mit Ware Lohn, dann fertig.
+	var seer: Dictionary = {}
+	for o2 in objs:
+		if int((o2 as Dictionary)["kind"]) == MO.SEER_HUT:
+			seer = o2
+			break
+	_check(not seer.is_empty(), "Seherhuette auf der Karte")
+	if not seer.is_empty():
+		var q: Dictionary = MO.seer_quest(int(seer.get("quest", 0)))
+		for rid in Wallet.RESOURCE_IDS:
+			purse.add(String(rid), -purse.get_amount(String(rid)))
+		var m1: String = String(_wm.call("_visit_bonus_object", seer))
+		_check(m1.contains("Bring mir") and not bool(seer.get("used", false)),
+			"ohne Ware nur der Auftrag (%s)" % m1)
+		for rid2 in (q["want"] as Dictionary).keys():
+			purse.add(String(rid2), int(q["want"][rid2]))
+		var m2: String = String(_wm.call("_visit_bonus_object", seer))
+		_check(bool(seer.get("used", false)) and m2.contains("erfuellt"), "mit Ware erfuellt (%s)" % m2)
+		var m3: String = String(_wm.call("_visit_bonus_object", seer))
+		_check(m3.contains("schon"), "danach fertig (%s)" % m3)
+
+	# Minen: jede Art hat ihr eigenes Modell im 3D-Kontext.
+	var ctx: Dictionary = _wm.call("_map3d_ctx")
+	var seen_models: Dictionary = {}
+	for oc in (ctx["objects"] as Array):
+		if int(oc["kind"]) == int(_wm.get("OBJECT_MINE")):
+			seen_models[String(oc.get("model", ""))] = true
+	var mines_res: Dictionary = {}
+	for o3 in objs:
+		if int(o3["kind"]) == int(_wm.get("OBJECT_MINE")):
+			mines_res[String(o3.get("resource", ""))] = true
+	_check(seen_models.size() == mines_res.size() and not seen_models.has(""),
+		"Minen im 3D-Kontext mit Modell je Art (%s)" % str(seen_models.keys()))
+	_done.append("_test_wave4")

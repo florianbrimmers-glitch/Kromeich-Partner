@@ -37,9 +37,12 @@ const DWELLING := 24       # bewacht; danach Kreaturen anwerben, Zuwachs je Woch
 const CRYPT := 25          # Kreaturenbank: Untote, Gold + Artefakt
 const DWARF_TREASURY := 26 # Kreaturenbank: Zwerge, Gold + Edelsteine
 const DRAGON_HOARD := 27   # Kreaturenbank: Drache, viel Gold + Artefakt
+# Vierte Welle (It. 80).
+const PORTAL := 28         # Teleporter, immer paarweise
+const SEER_HUT := 29       # Seherhuette: Auftrag "bring mir ..." gegen Lohn
 
 const FIRST := CAMPFIRE
-const LAST := DRAGON_HOARD
+const LAST := SEER_HUT
 
 # Name, Sprite (assets/world/objects/<sprite>.svg), 3D-Modell (mapobj.glb)
 # und Anzahl auf der Karte.
@@ -62,6 +65,30 @@ const CATALOG := {
 	CRYPT: {"name": "Krypta", "sprite": "crypt", "model": "obj_crypt", "count": 1},
 	DWARF_TREASURY: {"name": "Zwergenschatz", "sprite": "dwarf_treasury", "model": "obj_dwarf_treasury", "count": 1},
 	DRAGON_HOARD: {"name": "Drachenhort", "sprite": "dragon_hoard", "model": "obj_dragon_hoard", "count": 1},
+	PORTAL: {"name": "Portal", "sprite": "portal", "model": "obj_portal", "count": 4},
+	SEER_HUT: {"name": "Seherhuette", "sprite": "seer_hut", "model": "obj_seer_hut", "count": 2},
+}
+
+# Auftraege der Seherhuetten: was sie wollen, was sie geben. Die Auswahl
+# je Huette steht beim Platzieren fest (Feld `quest`).
+const SEER_QUESTS := [
+	{"want": {"ore": 10}, "gold": 1500, "artifact": false},
+	{"want": {"wood": 10}, "gold": 1500, "artifact": false},
+	{"want": {"gems": 5}, "gold": 0, "artifact": true},
+	{"want": {"crystal": 5}, "gold": 0, "artifact": true},
+	{"want": {"mercury": 4, "sulfur": 4}, "gold": 2500, "artifact": false},
+	{"want": {"gold": 3000}, "gold": 0, "artifact": true},
+]
+
+# Ein Modell je Minenart (It. 80) - vorher war jede Mine derselbe Stollen.
+const MINE_MODELS := {
+	"gold": "obj_mine",
+	"wood": "obj_mine_wood",
+	"ore": "obj_mine_ore",
+	"mercury": "obj_mine_mercury",
+	"sulfur": "obj_mine_sulfur",
+	"crystal": "obj_mine_crystal",
+	"gems": "obj_mine_gems",
 }
 
 # Kreaturenbanken: feste Wache (Armee, kein Staerke-Wert) und Beute. Die
@@ -223,3 +250,11 @@ static func trade_buy_price(market_price: int) -> int:
 
 static func trade_sell_price(market_price: int) -> int:
 	return maxi(1, market_price * TRADE_SELL_PCT / 100)
+
+
+static func seer_quest(i: int) -> Dictionary:
+	return SEER_QUESTS[clampi(i, 0, SEER_QUESTS.size() - 1)] as Dictionary
+
+
+static func mine_model(resource: String) -> String:
+	return String(MINE_MODELS.get(resource, "obj_mine"))
