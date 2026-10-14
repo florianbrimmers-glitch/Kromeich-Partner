@@ -76,9 +76,16 @@ const GDPR = ["keine Angabe", "ignoriert", "zugestimmt", "widerrufen"];
 
 // ---------- Kontakte ----------
 
+/** Betreuer: Detail liefert broker_id, die Suchliste laut Doku nur broker_ids. */
+function contactBrokerId(raw: Raw): unknown {
+	if (raw.broker_id !== undefined && raw.broker_id !== null) return raw.broker_id;
+	return Array.isArray(raw.broker_ids) && raw.broker_ids.length ? raw.broker_ids[0] : undefined;
+}
+
 export function mapContactSummary(raw: Raw) {
 	return compact({
-		...pick(raw, ["id", "name", "company", "is_company", "email", "broker_id", "client_status_id", "client_source_id"]),
+		...pick(raw, ["id", "name", "company", "is_company", "email", "client_status_id", "client_source_id"]),
+		broker_id: contactBrokerId(raw),
 		phone: scalar(raw.phone) ?? scalar(raw.home_cell) ?? scalar(raw.office_cell) ?? scalar(raw.office_phone) ?? scalar(raw.home_phone),
 		tags: groupNames(raw.groups),
 		last_contact_at: raw.last_contact_at,

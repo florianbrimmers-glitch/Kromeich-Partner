@@ -24,6 +24,17 @@ import {
 	searchObjectsInput,
 	type ToolOutput,
 } from "./read-tools";
+import {
+	createContact,
+	createContactInput,
+	createObject,
+	createObjectInput,
+	TEST_TAG,
+	updateContact,
+	updateContactInput,
+	updateObject,
+	updateObjectInput,
+} from "./write-tools";
 import { type ZodRawShape, z } from "zod";
 
 export interface ToolContext {
@@ -155,5 +166,56 @@ export function registerReadTools(server: McpServer, ctx: ToolContext): void {
 		"Auswertungen: zählt Kontakte, Objekte oder Deals gruppiert nach einer Dimension, mit den Filtern der Such-Tools (Merkmale nur mit ODER, ohne city/zip_prefix). Deals nach Phase liefern zusätzlich Summe Preis und gewichteten Wert.",
 		aggregateInput,
 		aggregate,
+	);
+}
+
+export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
+	const register = <S extends ZodRawShape>(
+		name: string,
+		description: string,
+		shape: S,
+		destructive: boolean,
+		fn: (deps: { client: PropstackClient; db: D1Database | undefined; user: Props }, input: z.infer<z.ZodObject<S>>) => Promise<ToolOutput>,
+	) => {
+		server.registerTool(
+			name,
+			{
+				annotations: { destructiveHint: destructive, idempotentHint: false, openWorldHint: false, readOnlyHint: false },
+				description,
+				inputSchema: shape,
+			},
+			(async (input: z.infer<z.ZodObject<S>>) =>
+				runTool(ctx, name, input, (client) => fn({ client, db: ctx.env.AUDIT_DB, user: ctx.props() }, input))) as never,
+		);
+	};
+
+	const rules = `Betreuer wird immer der angemeldete Nutzer. Testdaten immer mit test=true anlegen (Merkmal ${TEST_TAG}). Es gibt keine Lösch-Funktion.`;
+	register(
+		"create_contact",
+		`Kontakt (Person) in Propstack anlegen. Vorher automatische Dublettenprüfung: gleiche E-Mail blockiert immer, ohne persönliche E-Mail blockieren gleiche Mobilnummer oder gleicher Name + Firma; allgemeine Adressen (info@ …) und gleiche Festnetznummern erzeugen nur Warnungen. Bei Dublette nichts anlegen, sondern den Nutzer fragen und ggf. update_contact nutzen. ${rules}`,
+		createContactInput,
+		false,
+		createContact,
+	);
+	register(
+		"update_contact",
+		"Vorhandenen Kontakt ändern: Kontaktdaten, Adresse, Merkmale hinzufügen/entfernen (taggen), Notiz ergänzen (wird angehängt, nie ersetzt), Custom-Felder. Nur geänderte Werte werden geschrieben, der vorherige Stand wird gesichert.",
+		updateContactInput,
+		true,
+		updateContact,
+	);
+	register(
+		"create_object",
+		`Objekt (Einheit) in Propstack anlegen. Vorher Dublettenprüfung über Adresse bzw. Geokoordinaten + Vermarktungsart + Einheit (blockiert); gleiche Adresse mit anderer Vermarktungsart oder Einheit ist nur ein Hinweis. ${rules}`,
+		createObjectInput,
+		false,
+		createObject,
+	);
+	register(
+		"update_object",
+		"Vorhandenes Objekt ändern: Eckdaten, Status, Preise, Flächen, Texte, Custom-Felder. Nur geänderte Werte werden geschrieben, der vorherige Stand wird gesichert. Bei Adress-/Einheiten-/Vermarktungsänderung erneute Dublettenprüfung.",
+		updateObjectInput,
+		true,
+		updateObject,
 	);
 }

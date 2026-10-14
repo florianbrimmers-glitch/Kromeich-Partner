@@ -7,12 +7,13 @@ import { recheckOnRefresh, type Props } from "./auth/session";
 import { ACCESS_TOKEN_TTL_SECONDS } from "./config";
 import { GoogleHandler } from "./google-handler";
 import { PropstackClient } from "./propstack-client";
-import { registerReadTools, runTool, type ToolContext } from "./tools/register";
+import { registerReadTools, registerWriteTools, runTool, type ToolContext } from "./tools/register";
+import { purgeOldWriteLog } from "./write-log";
 
 export class PropstackMCP extends McpAgent<Env, Record<string, never>, Props> {
 	server = new McpServer({
 		name: "Propstack MCP – Kromeich",
-		version: "0.2.0",
+		version: "0.3.0",
 	});
 
 	async init() {
@@ -33,6 +34,7 @@ export class PropstackMCP extends McpAgent<Env, Record<string, never>, Props> {
 		);
 
 		registerReadTools(this.server, ctx);
+		registerWriteTools(this.server, ctx);
 	}
 }
 
@@ -65,10 +67,12 @@ const provider = new OAuthProvider({
 
 export default {
 	fetch: (request: Request, env: Env, ctx: ExecutionContext) => provider.fetch(request, env, ctx),
-	// Täglich: Audit-Einträge älter als 12 Monate löschen.
+	// Täglich: Audit- und Write-Log-Einträge älter als 12 Monate löschen.
 	scheduled: async (_controller: ScheduledController, env: Env, ctx: ExecutionContext) => {
 		ctx.waitUntil(
-			purgeOldAuditEntries(env.AUDIT_DB).then((deleted) => console.log(`Audit-Log: ${deleted} alte Einträge gelöscht`)),
+			Promise.all([purgeOldAuditEntries(env.AUDIT_DB), purgeOldWriteLog(env.AUDIT_DB)]).then(([audit, writes]) =>
+				console.log(`Löschfrist: ${audit} Audit- und ${writes} Write-Log-Einträge entfernt`),
+			),
 		);
 	},
 } satisfies ExportedHandler<Env>;

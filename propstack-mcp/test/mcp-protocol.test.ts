@@ -3,7 +3,7 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { describe, expect, it } from "vitest";
 import type { PropstackClient } from "../src/propstack-client";
-import { registerReadTools } from "../src/tools/register";
+import { registerReadTools, registerWriteTools } from "../src/tools/register";
 
 // Ende-zu-Ende über das echte MCP-Protokoll (In-Memory): Tool-Liste, JSON-Schemas,
 // Eingabevalidierung und Ergebnisformat – so wie Claude die Tools sieht.
@@ -77,5 +77,28 @@ describe("MCP-Protokoll", () => {
 		const text = (result.content as { text: string }[])[0].text;
 		expect(JSON.parse(text)).toEqual({ id: 5, name: "Anna" });
 		expect(audits[0][3]).toBe("get_contact");
+	});
+
+	it("Schreib-Tools: genau vier, nicht readOnly, Updates als überschreibend markiert, kein Löschen", async () => {
+		const server = new McpServer({ name: "test", version: "0" });
+		const ctx = { env: {} as Env, props: () => ({ brokerId: 1, email: "t@kromeichpartner.de", name: "T" }) };
+		registerReadTools(server, ctx);
+		registerWriteTools(server, ctx);
+		const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+		await server.connect(serverTransport);
+		const client = new Client({ name: "claude-test", version: "0" });
+		await client.connect(clientTransport);
+		const { tools } = await client.listTools();
+		const writes = tools.filter((t) => t.annotations?.readOnlyHint === false);
+		expect(writes.map((t) => [t.name, t.annotations?.destructiveHint])).toEqual([
+			["create_contact", false],
+			["update_contact", true],
+			["create_object", false],
+			["update_object", true],
+		]);
+		expect(tools.some((t) => /delete|remove_contact|remove_object|destroy|purge/i.test(t.name))).toBe(false);
+		const create = tools.find((t) => t.name === "create_contact")!;
+		expect(create.inputSchema.required).toEqual(["last_name"]);
+		expect(create.description).toMatch(/MCP-TEST/);
 	});
 });

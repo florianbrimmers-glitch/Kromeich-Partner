@@ -6,7 +6,8 @@ Basis ist die Cloudflare-Vorlage [`remote-mcp-google-oauth`](https://github.com/
 Live unter `https://propstack-mcp.kromeichpartner.workers.dev/mcp`, als Organisations-Connector in Claude eingetragen.
 
 - **Phase 1 (abgenommen 09.10.2026):** Login über Google, Propstack-Nutzer-Abgleich, `whoami`.
-- **Phase 2:** Lese-Tools und Audit-Log in D1. Kein Tool schreibt nach Propstack.
+- **Phase 2 (abgenommen 14.10.2026):** Lese-Tools und Audit-Log in D1.
+- **Phase 3:** Kontakte und Objekte anlegen und ändern, mit Dublettenprüfung, Snapshot und Gegenlesen. Keine Lösch-Tools.
 
 ## Tools (Phase 2)
 
@@ -33,6 +34,37 @@ Grundsätze:
 - **Pipeline-Werte:** Deals ohne Phase dieser Pipeline (z. B. unqualifiziert) werden als `outside_stages` gemeldet. Hat kein Deal einen Preis, gibt es keine Summen statt „0 €“. Die Gewichtung nutzt die in Propstack hinterlegte Phasen-Wahrscheinlichkeit. Eine Phase „Absage“ sollte dort 0 % haben.
 
 Bewusste Lücken: Ein einzelner Deal per ID und die Kontakt-Status-Liste sind nur in der V2-Doku vorhanden. Deals werden daher über `search_deals` abgerufen, Kontakte lassen sich nicht nach Status gruppieren.
+
+## Schreib-Tools (Phase 3)
+
+| Tool | Zweck |
+|---|---|
+| `create_contact` | Kontakt (Person) anlegen |
+| `update_contact` | Kontakt ändern, Merkmale hinzufügen/entfernen (taggen), Notiz **anhängen** |
+| `create_object` | Objekt (Einheit) anlegen |
+| `update_object` | Objekt ändern (Eckdaten, Status, Preise, Flächen, Texte, Custom-Felder) |
+
+**Ablauf jedes Writes:**
+1. Eingaben prüfen. Custom-Felder werden gegen `list_fields` validiert (Name, Typ, Auswahlwerte), sonst verwirft Propstack sie still.
+2. Dublettenprüfung (siehe unten). Bei Treffer wird nichts geschrieben, Claude bekommt den vorhandenen Datensatz.
+3. **Write-Log mit Snapshot** in D1 (`write_log`): Nutzer, Anfrage, bei Updates die vorherigen Werte der geänderten Felder. **Fail-closed:** Kann der Eintrag nicht geschrieben werden, wird nichts nach Propstack geschrieben.
+4. Schreiben. Bei 429 gibt es einen Retry. Bei 5xx/Timeout gibt es **keinen** Retry, die Meldung lautet „Status unklar, bitte prüfen“.
+5. **Gegenlesen:** Der Datensatz wird neu geladen und jedes angefragte Feld verglichen. Was Propstack nicht übernommen hat, steht als `not_applied` im Ergebnis und im Write-Log (`done_with_gaps`).
+
+**Regeln (Entscheidungen Florian):**
+- Betreuer ist **immer** der angemeldete Nutzer. Propstack zeigt als Ersteller/Bearbeiter den API-Key-Inhaber. Wer es wirklich war, steht im Write-Log und in der Herkunftsnotiz („Angelegt über Claude (Propstack MCP) von …“).
+- Kontakt-Dubletten: gleiche **persönliche E-Mail** blockiert immer. Ein Override ist dort nicht möglich, weil Propstack Kontakte per E-Mail zusammenführt und sonst den vorhandenen überschreiben würde. Ohne persönliche E-Mail blockieren gleiche **Mobilnummer** und **Name + Firma**. **Festnetz**, gleicher Name ohne Firma und **generische Adressen** (info@, vertrieb@ …) erzeugen nur Warnungen. **Systemadressen** (noreply …) werden als „vermutlich kein echter Kontakt“ gemeldet.
+- Objekt-Dubletten: Adresse (Straße/Nr./PLZ normalisiert) **oder** Geokoordinaten ≤ 30 m **plus** Vermarktungsart **plus** Einheit blockieren. Gleiche Adresse mit anderer Vermarktungsart oder Einheit ist nur ein Hinweis.
+- **Override** (`allow_duplicate_reason`): nur mit Begründung (≥ 15 Zeichen). Die Begründung wird im Write-Log protokolliert.
+- **Testdaten:** `test: true` setzt das Merkmal `MCP-TEST`. Fehlt es, legt der Connector es einmalig an. Löschen kann nur Florian manuell.
+- Notizen werden bei Updates nur ergänzt (mit Datum und Nutzer), nie ersetzt.
+- Nicht enthalten: Firmenkontakte (brauchen Propstack-V2), Deals anlegen/ändern, Löschen.
+
+Write-Log auswerten:
+
+```sql
+SELECT ts, user_email, tool, entity, entity_id, status, not_applied, override_reason FROM write_log ORDER BY id DESC LIMIT 20;
+```
 
 ## Audit-Log (D1)
 
@@ -79,7 +111,7 @@ npm run type-check
 
 ### 2. Propstack-API-Key
 
-Propstack → **Verwaltung → API-Schlüssel**. Ein V1-Key, laut Spezifikation **ohne Löschrechte**. Ab Phase 2 braucht er **Leserechte** auf: Nutzer, Kontakte (inkl. Quellen), Objekte (inkl. Status), Projekte, Deals, Deal-Pipelines, Merkmale und Custom-Felder. Fehlt ein Recht, meldet das Tool „Zugriff verweigert (401/403)“.
+Propstack → **Verwaltung → API-Schlüssel**. Ein V1-Key, laut Spezifikation **ohne Löschrechte**. Ab Phase 2 braucht er **Leserechte** auf: Nutzer, Kontakte (inkl. Quellen), Objekte (inkl. Status), Projekte, Deals, Deal-Pipelines, Merkmale und Custom-Felder. Ab Phase 3 zusätzlich **Anlegen und Bearbeiten** von Kontakten und Objekten sowie **Anlegen** von Merkmalen (nur für `MCP-TEST`). **Keine Löschrechte.** Fehlt ein Recht, meldet das Tool „Zugriff verweigert (401/403)“.
 
 ### 3. Cloudflare: Login und KV
 
