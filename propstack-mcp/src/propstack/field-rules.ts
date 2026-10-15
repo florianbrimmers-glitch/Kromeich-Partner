@@ -112,6 +112,8 @@ export async function validateCustomFields(
 				// Bewusst KEINE Umwandlung von Text: "7,25" kürzt Propstack auf 7, "6.417" ist mehrdeutig.
 				if (typeof value !== "number" || !Number.isFinite(value)) {
 					fail(`eine nackte Zahl ohne Einheit und Tausenderpunkt, Dezimalpunkt (z. B. 10.5)${def.unit ? ` – Einheit ${def.unit}` : ""}`);
+				} else if (def.unit === "sqm" && value === 0) {
+					fail("eine Fläche > 0 – 0 m² wird nie eingetragen (Feld leer lassen oder null)");
 				} else if (def.unit === "sqm" && looksLikeThousandsDot(value)) {
 					fail(`m² als ganze Zahl – ${value} sieht nach Tausenderpunkt aus (gemeint ${Math.round(value * 1000)}?)`);
 				} else {
@@ -174,27 +176,40 @@ function formatSqm(value: number): string {
 	return `${value.toLocaleString("de-DE", { maximumFractionDigits: 2 })} m²`;
 }
 
+export type RentState = "available" | "rented" | "unknown";
+
 /**
  * Custom-Feld-Werte, die aus Standardfeldern folgen. Explizit übergebene Custom-Felder haben Vorrang.
- * `available`: Fläche ist frei (nicht vermietet) → auch die *_verfugbar-Felder setzen.
+ * rent = available: *_verfugbar = Fläche. rent = rented: *_verfugbar (Text) = „X m² (vermietet)“.
+ * flags: zusätzlich status_logistik und aktiv passend setzen (beim Anlegen bzw. wenn rented geändert wird).
+ * Ablauf laut Team-Prozess: vermietete Einheit → status_logistik Inaktiv, aktiv Inaktiv, Fläche „(vermietet)“.
  */
 export function mirroredCustomFields(
 	fields: Raw,
 	defs: Map<string, FieldDef>,
 	explicit: Raw | undefined,
-	options: { available: boolean; priceOnInquiry: boolean },
+	options: { rent: RentState; flags: boolean; priceOnInquiry: boolean },
 ): Raw {
 	const out: Raw = {};
-	const put = (key: string, value: number) => {
-		const def = defs.get(key);
-		if (!def || (explicit && key in explicit) || BLOCKED_OBJECT_FIELDS[key]) return;
-		out[key] = def.type === "Number" ? value : formatSqm(value);
+	const free = (key: string) => defs.has(key) && !(explicit && key in explicit) && !BLOCKED_OBJECT_FIELDS[key];
+	const put = (key: string, value: number, suffix = "") => {
+		if (!free(key)) return;
+		const def = defs.get(key)!;
+		if (def.type === "Number") {
+			if (!suffix) out[key] = value;
+		} else out[key] = `${formatSqm(value)}${suffix}`;
 	};
 	for (const [field, targets] of Object.entries(AREA_MIRRORS)) {
 		const value = fields[field];
 		if (typeof value !== "number") continue;
 		for (const key of targets.always) put(key, value);
-		if (options.available) for (const key of targets.available) put(key, value);
+		if (options.rent === "available") for (const key of targets.available) put(key, value);
+		if (options.rent === "rented") for (const key of targets.available) put(key, value, " (vermietet)");
+	}
+	if (options.flags && options.rent !== "unknown") {
+		const active = options.rent === "available";
+		if (free("status_logistik")) out.status_logistik = active ? "Aktiv" : "Inaktiv";
+		if (free("aktiv")) out.aktiv = [active ? "Aktiv" : "Inaktiv"];
 	}
 	if (options.priceOnInquiry && defs.get("preisangabe")?.type === "String" && !(explicit && "preisangabe" in explicit)) {
 		out.preisangabe = "auf Anfrage";

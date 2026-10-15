@@ -446,6 +446,8 @@ export const SOLO_OBJECT_FIELDS = [
 ] as const;
 
 const num = z.number().nonnegative().optional();
+/** Flächen nie 0 m² (Team-Regel). */
+const area = z.number().positive().optional();
 const EXPOSE_VISIBLE = "EXPOSÉ-SICHTBAR: keine Konditionen, Eigentümer, Kundennamen oder offenen Punkte – die gehören in bemerkung_append";
 
 const objectFieldsShape = {
@@ -464,16 +466,21 @@ const objectFieldsShape = {
 		.describe("Objekt-Status (list_reference kind=object_statuses): 163672 Akquise, 163673 Vorbereitung, 163674 Vermarktung, 163675 Reserviert, 163676 Abgeschlossen. Einen Status „vermietet“ gibt es nicht – dafür rented"),
 	price: num.describe("Kaufpreis – nur bei BUY. Mietpreise nie öffentlich: custom_fields intern_mietpreis_hallenflache / _buro / _mezzanine"),
 	price_on_inquiry: z.boolean().optional().describe("Preis auf Anfrage. Bei RENT automatisch true, sofern nicht anders angegeben"),
-	industrial_area: num.describe("Hallenfläche m²"),
-	total_floor_space: num.describe("Gesamtfläche m²"),
-	usable_floor_space: num.describe("Nutzfläche m² (bei Hallen: Bürofläche)"),
-	plot_area: num.describe("Grundstücksfläche m²"),
+	industrial_area: area.describe("Hallenfläche m²"),
+	total_floor_space: area.describe("Gesamtfläche m² = Halle + Mezzanine, OHNE Büro (Regel seit 13.08.2026)"),
+	usable_floor_space: area.describe("Nutzfläche m² (bei Hallen: Bürofläche)"),
+	plot_area: area.describe("Grundstücksfläche m²"),
 	hall_height: num.describe("Hallenhöhe in m UKB"),
 	floor_load: num.describe("Bodentragkraft in kg/m² – Propstack hängt kg/m² selbst an (5 t/m² = 5000)"),
 	construction_year: z.number().int().min(1800).max(2100).optional(),
 	free_from: optionalText(100).describe("Verfügbar ab (Text), z. B. „auf Anfrage“ oder „01.03.2027“"),
 	hide_address: z.boolean().optional().describe("Adresse im Exposé ausblenden"),
-	rented: z.boolean().optional().describe("Vermietet ja/nein – unabhängig vom Status"),
+	rented: z
+		.boolean()
+		.optional()
+		.describe(
+			"Vermietet ja/nein. true setzt automatisch free_from „vermietet“, status_logistik/aktiv Inaktiv und die verfügbaren Flächen auf „X m² (vermietet)“. Den Status (163676 Abgeschlossen) separat über status_id setzen",
+		),
 	courtage: optionalText(200).describe("Provisionstext fürs Exposé – nur der Provisionstext, keine Arbeitsvermerke"),
 	courtage_note: optionalText(2000).describe("Provisionshinweis, z. B. die Staffel"),
 	description_note: optionalText(10000).describe(`Objektbeschreibung. ${EXPOSE_VISIBLE}`),
@@ -610,9 +617,11 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	const overrideReason = checkOverride(dedupe, input.allow_duplicate_reason);
 
 	const defs = await loadFieldDefs(client, "for_properties");
+	if (fields.rented === true && fields.free_from === undefined) fields.free_from = "vermietet";
 	const mirrored = mirroredCustomFields(fields, defs, input.custom_fields, {
-		available: fields.rented !== true,
+		flags: true,
 		priceOnInquiry: fields.price_on_inquiry === true,
+		rent: fields.rented === true ? "rented" : "available",
 	});
 	const custom = await validateCustomFields(client, "for_properties", { ...mirrored, ...input.custom_fields }, defs);
 	const bemerkung = [originNote(user, now, "Angelegt"), input.bemerkung_append].filter(Boolean).join("\n");
@@ -725,14 +734,31 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 
 	// Flächen spiegeln; *_verfugbar nur, solange das Objekt nicht vermietet ist
 	const defs = await loadFieldDefs(client, "for_properties");
-	const rentedNow = fields.rented ?? scalar(currentValue("rented"));
+	const rentedNow = requested.rented ?? scalar(currentValue("rented"));
+	const rentChanged = "rented" in fields;
+	if (rentChanged && fields.rented === true && requested.free_from === undefined) {
+		const actual = unitValue(current, "free_from");
+		if (actual === UNVERIFIABLE || !same("vermietet", actual)) {
+			fields.free_from = "vermietet";
+			before.free_from = actual === UNVERIFIABLE ? "nicht lesbar" : (scalar(actual) ?? null);
+		}
+	}
 	// Aus den angefragten (nicht nur geänderten) Flächen – so werden auch Altobjekte nachgezogen,
-	// deren Custom-Varianten fehlen. Bereits richtige Werte nicht erneut schreiben.
+	// deren Custom-Varianten fehlen. Bei Vermietungswechsel auch die vorhandenen Flächen für
+	// „X m² (vermietet)“ heranziehen. Bereits richtige Werte nicht erneut schreiben.
+	const areaSource: Raw = { ...requested };
+	if (rentChanged) {
+		for (const key of ["industrial_area", "usable_floor_space", "total_floor_space"]) {
+			const actual = scalar(currentValue(key));
+			if (areaSource[key] === undefined && typeof actual === "number" && actual > 0) areaSource[key] = actual;
+		}
+	}
 	const mirrored = Object.fromEntries(
 		Object.entries(
-			mirroredCustomFields(requested, defs, input.custom_fields, {
-				available: rentedNow === false,
+			mirroredCustomFields(areaSource, defs, input.custom_fields, {
+				flags: rentChanged,
 				priceOnInquiry: requested.price_on_inquiry === true,
+				rent: rentedNow === true ? "rented" : rentedNow === false ? "available" : "unknown",
 			}),
 		).filter(([key, value]) => {
 			const actual = unitCustomValue(current, key);

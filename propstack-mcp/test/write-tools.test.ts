@@ -166,6 +166,7 @@ function fakeClient(impl: Record<string, (...args: unknown[]) => unknown>) {
 						{ field_type: "Number", name: "gebaudeflache_gesamt", unit: "sqm" },
 						{ field_type: "Number", name: "gebaudeflache_verfugbar", unit: "sqm" },
 						{ field_type: "String", name: "preisangabe" },
+						{ field_type: "String", name: "status_logistik" },
 						{ field_type: "String", name: "bemerkung" },
 						{ custom_options: [{ id: 1, name: "Ja" }, { id: 2, name: "Nein" }], field_type: "Dropdown", name: "spekulative_entwicklung" },
 						{ custom_options: [{ id: 7, name: "Aktiv" }, { id: 8, name: "Inaktiv" }], field_type: "Multiselect", name: "aktiv" },
@@ -458,12 +459,29 @@ describe("create_object / update_object", () => {
 		expect((out.result as { not_applied?: string[] }).not_applied).toBeUndefined();
 	});
 
-	it("vermietet: verfügbare Fläche wird nicht gespiegelt", async () => {
+	it("vermietet anlegen: Fläche „(vermietet)“, free_from, status_logistik/aktiv Inaktiv (Team-Prozess)", async () => {
 		const unit = fakeUnit();
 		const { client } = fakeClient(unit.impl);
-		await createObject({ client, db: fakeDb().db, now: NOW, sleep, user: USER }, { ...input, industrial_area: 5000, rented: true });
-		expect(unit.posted().partial_custom_fields).toMatchObject({ lagerflache: 5000, lagerflache_gesamt: 5000 });
-		expect(unit.posted().partial_custom_fields).not.toHaveProperty("lagerflache_verfugbar");
+		await createObject({ client, db: fakeDb().db, now: NOW, sleep, user: USER }, { ...input, industrial_area: 3475, rented: true });
+		expect(unit.posted()).toMatchObject({ free_from: "vermietet" });
+		expect(unit.posted().partial_custom_fields).toMatchObject({
+			aktiv: [8],
+			lagerflache: 3475,
+			lagerflache_gesamt: 3475,
+			lagerflache_verfugbar: "3.475 m² (vermietet)",
+			status_logistik: "Inaktiv",
+		});
+		// Number-Feld bekommt keinen „(vermietet)“-Text und keine 0
+		expect(unit.posted().partial_custom_fields).not.toHaveProperty("gebaudeflache_verfugbar");
+	});
+
+	it("verfügbar anlegen: status_logistik/aktiv Aktiv; 0 m² wird abgewiesen", async () => {
+		const unit = fakeUnit();
+		const { client } = fakeClient(unit.impl);
+		const deps = { client, db: fakeDb().db, now: NOW, sleep, user: USER };
+		await createObject(deps, { ...input, industrial_area: 1000 });
+		expect(unit.posted().partial_custom_fields).toMatchObject({ aktiv: [7], lagerflache_verfugbar: "1.000 m²", status_logistik: "Aktiv" });
+		await expect(createObject(deps, { ...input, custom_fields: { lagerflache: 0 } })).rejects.toThrow(/0 m²/);
 	});
 
 	it("meldet Felder, die trotz Einzel-PUT nicht haften, und Fehler einzelner PUTs", async () => {
@@ -520,7 +538,7 @@ describe("create_object / update_object", () => {
 
 	it("update_object: Status und rented einzeln, Bemerkung angehängt, Snapshot vorher", async () => {
 		const unit = fakeUnit();
-		Object.assign(unit.stored, { broker_id: 347158, marketing_type: "RENT", property_status_id: 163674, title: "SCHLE99" });
+		Object.assign(unit.stored, { broker_id: 347158, industrial_area: 5000, marketing_type: "RENT", property_status_id: 163674, title: "SCHLE99" });
 		Object.assign(unit.custom, { bemerkung: "Alte Bemerkung" });
 		const { client } = fakeClient(unit.impl);
 		const { db, rows } = fakeDb();
@@ -529,13 +547,24 @@ describe("create_object / update_object", () => {
 			{ bemerkung_append: "Eigentümer will 6 €/m²", id: 900, rented: true, status_id: 163676, title: "SCHLE99" },
 		);
 		expect(unit.puts).toEqual([
-			{ partial_custom_fields: { bemerkung: expect.stringMatching(/^Alte Bemerkung\n\nErgänzt über Claude .* am 2026-10-14\.\nEigentümer will 6 €\/m²$/) } },
+			{
+				free_from: "vermietet",
+				partial_custom_fields: {
+					aktiv: [8],
+					bemerkung: expect.stringMatching(/^Alte Bemerkung\n\nErgänzt über Claude .* am 2026-10-14\.\nEigentümer will 6 €\/m²$/),
+					lagerflache: 5000,
+					lagerflache_gesamt: 5000,
+					lagerflache_verfugbar: "5.000 m² (vermietet)",
+					status_logistik: "Inaktiv",
+				},
+			},
 			{ rented: true },
 			{ property_status_id: 163676 },
 		]);
-		expect(out.result).toMatchObject({ changed: ["rented", "status_id", "bemerkung (angehängt)"], updated: true });
+		expect(out.result).toMatchObject({ updated: true });
+		expect((out.result as { changed: string[] }).changed).toEqual(expect.arrayContaining(["rented", "status_id", "free_from", "bemerkung (angehängt)", "custom_fields.lagerflache_verfugbar"]));
 		expect((out.result as { not_applied?: string[] }).not_applied).toBeUndefined();
-		expect(JSON.parse(rows[0][7] as string)).toEqual({ custom_fields: { bemerkung: "Alte Bemerkung" }, rented: null, status_id: 163674 });
+		expect(JSON.parse(rows[0][7] as string)).toMatchObject({ custom_fields: { bemerkung: "Alte Bemerkung" }, free_from: "nicht lesbar", rented: null, status_id: 163674 });
 	});
 
 	it("update_object: zieht fehlende Flächen-Varianten auch bei unveränderter Standardfläche nach", async () => {
