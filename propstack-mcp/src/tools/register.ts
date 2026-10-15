@@ -35,6 +35,7 @@ import {
 	updateObject,
 	updateObjectInput,
 } from "./write-tools";
+import { imageUploadUrl, imageUploadUrlInput } from "../image-upload";
 import { addImages, addImagesInput, createProject, createProjectInput, setProjectOwner, setProjectOwnerInput } from "./project-tools";
 import { type ZodRawShape, z } from "zod";
 
@@ -176,7 +177,10 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
 		description: string,
 		shape: S,
 		destructive: boolean,
-		fn: (deps: { client: PropstackClient; db: D1Database | undefined; user: Props }, input: z.infer<z.ZodObject<S>>) => Promise<ToolOutput>,
+		fn: (
+			deps: { client: PropstackClient; db: D1Database | undefined; user: Props; kv: KVNamespace | undefined },
+			input: z.infer<z.ZodObject<S>>,
+		) => Promise<ToolOutput>,
 	) => {
 		server.registerTool(
 			name,
@@ -187,7 +191,7 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
 				inputSchema: z.strictObject(shape),
 			},
 			(async (input: z.infer<z.ZodObject<S>>) =>
-				runTool(ctx, name, input, (client) => fn({ client, db: ctx.env.AUDIT_DB, user: ctx.props() }, input))) as never,
+				runTool(ctx, name, input, (client) => fn({ client, db: ctx.env.AUDIT_DB, kv: ctx.env.OAUTH_KV, user: ctx.props() }, input))) as never,
 		);
 	};
 
@@ -243,5 +247,12 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
 		addImagesInput,
 		false,
 		addImages,
+	);
+	register(
+		"image_upload_url",
+		"Bilder als DATEI hochladen (Claude Code / Cowork): liefert eine Einmal-Upload-Adresse für ein Objekt oder Projekt (15 min gültig, an dich und dieses Ziel gebunden). Danach die Dateien selbst per curl hochladen: curl -sS -F \"image[photo]=@bild1.jpg\" -F \"image[photo]=@bild2.jpg\" \"<upload_url>\" – Reihenfolge = Reihenfolge in Propstack, das erste Bild wird Titelbild. Die curl-Antwort enthält die Bild-IDs; dem Nutzer melden. JPEG/PNG/WebP, max. 15 MB je Bild. Für Bilder, die nur als URL vorliegen: add_images.",
+		imageUploadUrlInput,
+		false,
+		imageUploadUrl,
 	);
 }

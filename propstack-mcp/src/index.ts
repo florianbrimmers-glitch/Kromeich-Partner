@@ -6,6 +6,7 @@ import { purgeOldAuditEntries } from "./audit";
 import { recheckOnRefresh, type Props } from "./auth/session";
 import { ACCESS_TOKEN_TTL_SECONDS } from "./config";
 import { GoogleHandler } from "./google-handler";
+import { handleImageUpload } from "./image-upload";
 import { PropstackClient } from "./propstack-client";
 import { registerReadTools, registerWriteTools, runTool, type ToolContext } from "./tools/register";
 import { purgeOldWriteLog } from "./write-log";
@@ -13,7 +14,7 @@ import { purgeOldWriteLog } from "./write-log";
 export class PropstackMCP extends McpAgent<Env, Record<string, never>, Props> {
 	server = new McpServer({
 		name: "Propstack MCP – Kromeich",
-		version: "0.4.1",
+		version: "0.5.0",
 	});
 
 	async init() {
@@ -66,7 +67,11 @@ const provider = new OAuthProvider({
 });
 
 export default {
-	fetch: (request: Request, env: Env, ctx: ExecutionContext) => provider.fetch(request, env, ctx),
+	fetch: (request: Request, env: Env, ctx: ExecutionContext) => {
+		// Bild-Upload per Einmal-Adresse aus image_upload_url – das Token in der URL ist die Berechtigung.
+		if (new URL(request.url).pathname.startsWith("/upload/images/")) return handleImageUpload(request, env);
+		return provider.fetch(request, env, ctx);
+	},
 	// Täglich: Audit- und Write-Log-Einträge älter als 12 Monate löschen.
 	scheduled: async (_controller: ScheduledController, env: Env, ctx: ExecutionContext) => {
 		ctx.waitUntil(
