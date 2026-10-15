@@ -88,7 +88,9 @@ export const createProjectInput = {
 		.array(z.string().trim().min(1).max(500))
 		.max(20)
 		.optional()
-		.describe("Offene Punkte, abgeleitete/unsichere Werte – landen in der Prüfaufgabe (Projekte haben kein internes Notizfeld)"),
+		.describe(
+			"Offene Punkte, abgeleitete/unsichere Werte – landen in der Prüfaufgabe (Projekte haben kein internes Notizfeld). Dieselben Punkte beim Anlegen der Einheit(en) zusätzlich per bemerkung_append vermerken, sonst sieht sie niemand an der Einheit",
+		),
 	test: z.boolean().optional().describe(`Testdatensatz: Name beginnt mit ${TEST_TAG}, Prüfaufgabe geht an dich statt an Lena. Für alle Tests Pflicht.`),
 	allow_duplicate_reason: optionalText(500).describe("Nur wenn ein Projekt an derselben Adresse existiert und es nachweislich ein anderes ist: Begründung"),
 };
@@ -182,11 +184,12 @@ export async function createProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 
 	const ownerResult = owner ? await linkOwner(client, projectId, owner.id) : undefined;
 	if (ownerResult?.error) writeErrors.push(`Eigentümer: ${ownerResult.error}`);
+	const ownerGap = ownerResult && ownerResult.linked !== true && !ownerResult.error ? [`owner ${ownerResult.linked === false ? "nicht gefunden" : "nicht prüfbar"}`] : [];
 	await finishWrite(deps.db, logId, {
 		entityId: projectId,
 		error: writeErrors.length ? writeErrors.join(" | ") : undefined,
-		notApplied: [...missing, ...unverified.map((f) => `${f} (nicht prüfbar)`)],
-		status: missing.length || writeErrors.length ? "done_with_gaps" : "done",
+		notApplied: [...missing, ...ownerGap, ...unverified.map((f) => `${f} (nicht prüfbar)`)],
+		status: missing.length || writeErrors.length || ownerGap.length ? "done_with_gaps" : "done",
 	});
 
 	const review = await createReviewTask(client, deps.db, {
@@ -250,13 +253,16 @@ export async function linkOwner(
 		} else return { error: message, linked: false };
 	}
 	try {
-		for (let page = 1; page <= RELATIONSHIP_PAGES; page++) {
+		// Neue Verknüpfungen stehen vermutlich hinten → Gesamtzahl holen und von der letzten Seite rückwärts lesen
+		const first = await client.listRelationships({ page: 1, per: RELATIONSHIP_PAGE_SIZE });
+		const isHit = (r: Raw) =>
+			Number(scalar(r.project_id)) === projectId && Number(scalar(r.client_id ?? r.related_client_id)) === contactId;
+		if (first.rows.some(isHit)) return { already, linked: true };
+		const lastPage = first.total !== null ? Math.ceil(first.total / RELATIONSHIP_PAGE_SIZE) : 1;
+		if (lastPage <= 1 && first.rows.length < RELATIONSHIP_PAGE_SIZE) return { already, linked: false };
+		for (let page = lastPage; page > Math.max(1, lastPage - RELATIONSHIP_PAGES); page--) {
 			const result = await client.listRelationships({ page, per: RELATIONSHIP_PAGE_SIZE });
-			const hit = result.rows.some(
-				(r) => Number(scalar(r.project_id)) === projectId && Number(scalar(r.client_id ?? r.related_client_id)) === contactId,
-			);
-			if (hit) return { already, linked: true };
-			if (result.rows.length < RELATIONSHIP_PAGE_SIZE) return { already, linked: false };
+			if (result.rows.some(isHit)) return { already, linked: true };
 		}
 	} catch {
 		// Liste nicht lesbar → nicht prüfbar
@@ -319,12 +325,20 @@ export const addImagesInput = {
 		.describe("Öffentliche Bild-URLs (https). Reihenfolge = Reihenfolge in Propstack; das erste Bild eines Objekts wird Titelbild – bestes Außenfoto zuerst"),
 };
 
+const USER_AGENT = "KromeichPropstackMCP/1.0 (+https://kromeichpartner.de)";
+
 /** Vorab prüfen, ob die URL ein erreichbares Bild ist – Propstack legt sonst ggf. leere Bildobjekte an, die nur in der UI löschbar sind. */
 export async function checkImageUrl(url: string, fetchFn: typeof fetch = fetch): Promise<string | null> {
 	try {
-		let response = await fetchFn(url, { method: "HEAD", redirect: "follow", signal: AbortSignal.timeout(8000) });
+		// Ohne User-Agent blocken manche Hoster (z. B. Wikimedia) mit 403
+		let response = await fetchFn(url, { headers: { "User-Agent": USER_AGENT }, method: "HEAD", redirect: "follow", signal: AbortSignal.timeout(8000) });
 		if (response.status === 405 || response.status === 403) {
-			response = await fetchFn(url, { headers: { Range: "bytes=0-0" }, method: "GET", redirect: "follow", signal: AbortSignal.timeout(8000) });
+			response = await fetchFn(url, {
+				headers: { Range: "bytes=0-0", "User-Agent": USER_AGENT },
+				method: "GET",
+				redirect: "follow",
+				signal: AbortSignal.timeout(8000),
+			});
 		}
 		if (!response.ok && response.status !== 206) return `nicht erreichbar (HTTP ${response.status})`;
 		const type = response.headers.get("content-type") ?? "";

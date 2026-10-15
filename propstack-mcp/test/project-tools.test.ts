@@ -141,6 +141,24 @@ describe("set_project_owner", () => {
 		await expect(setProjectOwner({ client, db: fakeDb().db, user: USER }, { contact_id: 120978, project_id: 1 })).rejects.toThrow(/eigenen Shop/);
 	});
 
+	it("findet neue Verknüpfung auf der letzten Seite der Relationship-Liste", async () => {
+		const pages: unknown[] = [];
+		const { client } = fakeClient({
+			getProject: () => ({ id: 1, name: "P" }),
+			listRelationships: (q) => {
+				const p = (q as { page: number }).page;
+				pages.push(p);
+				const rows = Array.from({ length: p === 12 ? 30 : 100 }, (_, i) => ({ client_id: 9, id: i, project_id: 9 }));
+				if (p === 12) rows.push({ client_id: 2, id: 999, project_id: 1 });
+				return { rows, total: 1131 };
+			},
+			updateProject: () => ({}),
+		});
+		const out = await setProjectOwner({ client, db: fakeDb().db, user: USER }, { contact_id: 2, project_id: 1 });
+		expect(out.result).toMatchObject({ linked: true });
+		expect(pages).toEqual([1, 12]);
+	});
+
 	it("bereits verknüpft zählt als erfolgreich", async () => {
 		const { client } = fakeClient({
 			getProject: () => ({ id: 1, name: "P" }),
@@ -187,10 +205,11 @@ describe("add_images", () => {
 		await expect(addImages({ client, db: fakeDb().db, fetchFn, user: USER }, { urls: ["https://x.de/ok.jpg"] })).rejects.toThrow(/Genau eins/);
 	});
 
-	it("checkImageUrl fällt bei 405 auf GET zurück", async () => {
+	it("checkImageUrl schickt User-Agent und fällt bei 405 auf GET zurück", async () => {
 		const methods: string[] = [];
 		const f = (async (_u: string, init: RequestInit) => {
 			methods.push(String(init.method));
+			expect((init.headers as Record<string, string>)["User-Agent"]).toMatch(/KromeichPropstackMCP/);
 			return init.method === "HEAD" ? new Response(null, { status: 405 }) : new Response(null, { headers: { "content-type": "image/png" }, status: 206 });
 		}) as unknown as typeof fetch;
 		expect(await checkImageUrl("https://x.de/a.png", f)).toBeNull();
