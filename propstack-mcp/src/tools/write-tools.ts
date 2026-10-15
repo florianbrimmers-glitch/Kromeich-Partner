@@ -37,6 +37,7 @@ export interface WriteDeps {
 	user: Props;
 	now?: () => Date;
 	sleep?: (ms: number) => Promise<void>;
+	kv?: KVNamespace;
 }
 
 const optionalText = (max: number) => z.string().trim().min(1).max(max).optional();

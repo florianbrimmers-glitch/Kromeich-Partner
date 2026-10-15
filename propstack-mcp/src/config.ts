@@ -21,3 +21,9 @@ export const DEAL_MAX_PAGES = 40;
 
 /** Objekt-Status „Vermarktung“ – nur dann gilt eine Einheit als aktiv (status_logistik/aktiv). */
 export const STATUS_MARKETING = 163674;
+
+// Bild-Upload per Einmal-Adresse (image_upload_url): öffentliche Basis-URL des Workers und Grenzen.
+export const PUBLIC_BASE_URL = "https://propstack-mcp.kromeichpartner.workers.dev";
+export const IMAGE_UPLOAD_TTL_SECONDS = 15 * 60;
+export const IMAGE_UPLOAD_MAX_FILES = 20;
+export const IMAGE_UPLOAD_MAX_BYTES = 15 * 1024 * 1024;

@@ -89,8 +89,13 @@ Bewusste Lücken: Ein einzelner Deal per ID und die Kontakt-Status-Liste sind nu
   - `is_reminder: true`, fällig am nächsten Werktag 9:00, Text in ASCII;
   - Inhalt: Link, Ersteller, Lücken (`not_applied`/`not_verifiable`), Fehler, Hinweise, offene Punkte.
   - Schlägt sie fehl, bleibt der Datensatz angelegt; im Ergebnis steht `review_task.error`.
+- **Bilder als Datei** (`image_upload_url`, für Claude Code und Cowork):
+  - Das Tool liefert eine Einmal-Adresse `…/upload/images/<token>`: 15 Minuten gültig, an Nutzer und genau ein Objekt/Projekt gebunden, Token mit 256 Bit, liegt in KV.
+  - Die Sitzung lädt per `curl -F "image[photo]=@bild.jpg" <adresse>` hoch. Der Worker reicht die Dateien per Multipart (`image[photo]`) an Propstack weiter, mit Write-Log (`tool = image_upload`) und Audit.
+  - Erlaubt sind JPEG, PNG und WebP, erkannt an den Datei-Bytes. Max. 15 MB je Bild, max. 20 Bilder je Adresse.
+  - Ist eine Datei ungültig, wird nichts hochgeladen. Der Propstack-Key verlässt den Server nicht.
 - **API-Key:** Der Key „MCP-Server“ braucht in Propstack zusätzlich Schreibrechte für Projekte, Relationships, Bilder und Aufgaben.
-- **Nicht enthalten:** Dokumente (PDF), `update_project`, Post in #objekte, Löschen.
+- **Nicht enthalten:** Dokumente (PDF), `update_project`, Post in #objekte, Löschen. Im reinen claude.ai-Chat ohne Code-Ausführung gibt es keinen Datei-Upload, dort nur `add_images` per URL.
 
 Write-Log auswerten:
 

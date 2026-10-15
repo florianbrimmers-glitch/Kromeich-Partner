@@ -230,6 +230,20 @@ export class PropstackClient {
 		return this.send("POST", "/images", { image });
 	}
 
+	/**
+	 * POST /v1/images als Multipart mit Datei. Feldname MUSS image[photo] sein –
+	 * image[file] erzeugt ein leeres Bildobjekt, das nur in der UI löschbar ist (Skill/Notion).
+	 */
+	async uploadImage(imageableType: "Property" | "Project", imageableId: number, photo: Blob, filename: string): Promise<unknown> {
+		return this.sendMultipart("/images", () => {
+			const form = new FormData();
+			form.append("image[imageable_type]", imageableType);
+			form.append("image[imageable_id]", String(imageableId));
+			form.append("image[photo]", photo, filename);
+			return form;
+		});
+	}
+
 	/** POST /v1/tasks (Wrapper task) – Prüfaufgaben. */
 	async createTask(task: Record<string, unknown>): Promise<unknown> {
 		return this.send("POST", "/tasks", { task });
@@ -268,6 +282,42 @@ export class PropstackClient {
 			if (!response.ok) {
 				const detail = response.status === 400 || response.status === 422 ? await validationDetail(response) : "";
 				const unclear = response.status >= 500 ? " Status der Änderung unklar – bitte in Propstack prüfen." : "";
+				throw new PropstackError(`${describeStatus(response.status)}${detail}${unclear}`, response.status);
+			}
+			const text = await response.text();
+			try {
+				return text ? JSON.parse(text) : {};
+			} catch {
+				return {};
+			}
+		}
+	}
+
+	/** Multipart-POST; das Formular wird je Versuch neu gebaut (Body ist nach dem Senden verbraucht). */
+	private async sendMultipart(path: string, buildForm: () => FormData): Promise<unknown> {
+		for (let attempt = 0; ; attempt++) {
+			this.countRequest();
+			let response: Response;
+			try {
+				response = await this.fetchFn(`${this.baseUrl}${path}`, {
+					body: buildForm(),
+					headers: { Accept: "application/json", "X-API-KEY": this.apiKey },
+					method: "POST",
+					signal: AbortSignal.timeout(Math.max(this.timeoutMs, 60_000)),
+				});
+			} catch (error) {
+				throw new PropstackError(
+					`Propstack nicht erreichbar (${(error as Error).message}). Status unklar – bitte in Propstack prüfen, bevor erneut hochgeladen wird.`,
+					0,
+				);
+			}
+			if (response.status === 429 && attempt < this.maxRetries) {
+				await this.sleep(retryDelayMs(attempt, response.headers.get("retry-after")));
+				continue;
+			}
+			if (!response.ok) {
+				const detail = response.status === 400 || response.status === 422 ? await validationDetail(response) : "";
+				const unclear = response.status >= 500 ? " Status unklar – bitte in Propstack prüfen." : "";
 				throw new PropstackError(`${describeStatus(response.status)}${detail}${unclear}`, response.status);
 			}
 			const text = await response.text();
