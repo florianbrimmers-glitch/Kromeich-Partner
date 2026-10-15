@@ -8,8 +8,8 @@ import {
 	isMobile,
 	objectDuplicates,
 } from "../propstack/dedupe";
-import { STATUS_MARKETING } from "../config";
-import { type CustomOption, loadFieldDefs, mirroredCustomFields, validateCustomFields } from "../propstack/field-rules";
+import { ACTIVE_STATUSES } from "../config";
+import { PUBLIC_PRICE_HINT, type CustomOption, loadFieldDefs, mirroredCustomFields, validateCustomFields } from "../propstack/field-rules";
 import { scalar } from "../propstack/mappers";
 import { readUnit, UNVERIFIABLE, type UnitState, unitCustomValue, unitValue } from "../propstack/unit-state";
 import { CRM_BASE, createReviewTask } from "../review-task";
@@ -432,7 +432,8 @@ export async function updateContact(deps: WriteDeps, input: z.infer<z.ZodObject<
 // Regeln aus dem Notion-Feld-Mapping (Korrekturen) und dem Skill propstack-expose-workflow:
 // - Einige Felder verwirft Propstack im POST und in Multi-Feld-PUTs still → einzeln per PUT.
 // - object_type leitet Propstack aus rs_type ab → nicht anbieten.
-// - Mietpreise nie öffentlich (price/base_rent) → intern_mietpreis_* + price_on_inquiry.
+// - Öffentliche Preise (price, base_rent, mietpreis_*) nur mit public_price_confirmed (Nutzer hat es
+//   ausdrücklich angesagt bzw. auf Nachfrage bestätigt); interne Preise (intern_*) immer. Sonst price_on_inquiry.
 // - Interne Notizen in das Custom-Feld bemerkung; Beschreibungstexte sind exposé-sichtbar.
 // - lat/lng haften unzuverlässig → nur für die Dublettenprüfung, nicht schreiben.
 
@@ -467,8 +468,13 @@ const objectFieldsShape = {
 	status_id: id
 		.optional()
 		.describe("Objekt-Status (list_reference kind=object_statuses): 163672 Akquise, 163673 Vorbereitung, 163674 Vermarktung, 163675 Reserviert, 163676 Abgeschlossen. Einen Status „vermietet“ gibt es nicht – dafür rented"),
-	price: num.describe("Kaufpreis – nur bei BUY. Mietpreise nie öffentlich: custom_fields intern_mietpreis_hallenflache / _buro / _mezzanine"),
-	price_on_inquiry: z.boolean().optional().describe("Preis auf Anfrage. Bei RENT automatisch true, sofern nicht anders angegeben"),
+	price: num.describe("Öffentlicher Kaufpreis (nur BUY) – NUR mit public_price_confirmed. Ohne Ansage: weglassen, Objekt bekommt „Preis auf Anfrage“"),
+	base_rent: num.describe("Öffentliche Kaltmiete (nur RENT) – NUR mit public_price_confirmed. Interne Mietpreise immer in custom_fields intern_mietpreis_*"),
+	public_price_confirmed: z
+		.literal(true)
+		.optional()
+		.describe("Nur setzen, wenn der Nutzer einen ÖFFENTLICHEN Preis ausdrücklich angesagt oder auf Nachfrage bestätigt hat. Sonst vorher fragen. Wird protokolliert"),
+	price_on_inquiry: z.boolean().optional().describe("Preis auf Anfrage. Beim Anlegen automatisch true, außer ein öffentlicher Preis wird gesetzt"),
 	industrial_area: area.describe("Hallenfläche m²"),
 	total_floor_space: area.describe("Gesamtfläche m² = Halle + Mezzanine, OHNE Büro (Regel seit 13.08.2026)"),
 	usable_floor_space: area.describe("Nutzfläche m² (bei Hallen: Bürofläche)"),
@@ -497,13 +503,13 @@ const objectFieldsShape = {
 		.record(z.string(), z.unknown())
 		.optional()
 		.describe(
-			"Custom-Felder {schlüssel: wert}, Schlüssel über list_fields entity=objects. Zahlen als nackte Zahl mit Dezimalpunkt (10.5, nie \"10,5\" oder \"6.417 m²\"), Auswahlfelder per Name oder Option-ID, null leert. Gesperrt: provisionspflichtig, mezzanineflache, mietpreis_*, bemerkung",
+			"Custom-Felder {schlüssel: wert}, Schlüssel über list_fields entity=objects. Zahlen als nackte Zahl mit Dezimalpunkt (10.5, nie \"10,5\" oder \"6.417 m²\"), Auswahlfelder per Name oder Option-ID, null leert. Gesperrt: provisionspflichtig, mezzanineflache, bemerkung. mietpreis_* sind öffentlich → nur mit public_price_confirmed",
 		),
 };
 
 const OBJECT_KEYS = [
 	"title", "marketing_type", "rs_type", "rs_category", "unit_id", "street", "house_number", "zip_code", "city", "project_id",
-	"price", "price_on_inquiry", "industrial_area", "total_floor_space", "usable_floor_space", "plot_area", "hall_height", "floor_load",
+	"price", "base_rent", "price_on_inquiry", "industrial_area", "total_floor_space", "usable_floor_space", "plot_area", "hall_height", "floor_load",
 	"construction_year", "free_from", "hide_address", "rented", "courtage", "courtage_note",
 	"description_note", "location_note", "furnishing_note", "other_note",
 ] as const;
@@ -561,13 +567,14 @@ function verifyObject(state: UnitState, fields: Raw, customExpect: Raw): { missi
 	return { missing, unverified };
 }
 
-function rejectPublicRent(marketingType: unknown, fields: Raw): void {
-	if (fields.price !== undefined && marketingType !== "BUY") {
-		throw new PropstackError(
-			"price ist der öffentliche Kaufpreis und nur bei BUY erlaubt. Mietpreise nie öffentlich: custom_fields intern_mietpreis_hallenflache / intern_mietpreis_buro / intern_mietpreis_mezzanine, dazu price_on_inquiry: true.",
-			400,
-		);
-	}
+/** Öffentliche Preise nur mit ausdrücklicher Bestätigung; Kaufpreis nur BUY, Kaltmiete nur RENT. */
+function checkPublicPrice(marketingType: unknown, fields: Raw, confirmed: boolean): boolean {
+	const publishing = fields.price !== undefined || fields.base_rent !== undefined;
+	if (!publishing) return false;
+	if (!confirmed) throw new PropstackError(`price/base_rent sind öffentliche Preise. ${PUBLIC_PRICE_HINT}`, 400);
+	if (fields.price !== undefined && marketingType !== "BUY") throw new PropstackError("price ist der Kaufpreis – nur bei BUY. Für Miete base_rent.", 400);
+	if (fields.base_rent !== undefined && marketingType !== "RENT") throw new PropstackError("base_rent ist die Kaltmiete – nur bei RENT. Für Kauf price.", 400);
+	return true;
 }
 
 function groupIdsOfUnit(state: UnitState): number[] {
@@ -606,8 +613,8 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	const now = deps.now?.() ?? new Date();
 
 	const fields = objectPayload(input);
-	rejectPublicRent(input.marketing_type, fields);
-	if (input.marketing_type === "RENT" && fields.price_on_inquiry === undefined) fields.price_on_inquiry = true;
+	const publishing = checkPublicPrice(input.marketing_type, fields, input.public_price_confirmed === true);
+	if (fields.price_on_inquiry === undefined) fields.price_on_inquiry = !publishing;
 	fields.broker_id = user.brokerId;
 
 	const dedupe = objectDuplicates(input, await objectCandidates(client, input.zip_code));
@@ -623,7 +630,7 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	if (fields.rented === true && fields.free_from === undefined) fields.free_from = "vermietet";
 	const mirrored = mirroredCustomFields(fields, defs, input.custom_fields, {
 		flags: true,
-		marketable: fields.property_status_id === STATUS_MARKETING,
+		marketable: ACTIVE_STATUSES.includes(Number(fields.property_status_id)),
 		priceOnInquiry: fields.price_on_inquiry === true,
 		rent: fields.rented === true ? "rented" : "available",
 	});
@@ -631,7 +638,9 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	if (input.test && defs.get("kein_automatischer_exposeversand")?.type === "Boolean" && !(input.custom_fields && "kein_automatischer_exposeversand" in input.custom_fields)) {
 		mirrored.kein_automatischer_exposeversand = true;
 	}
-	const custom = await validateCustomFields(client, "for_properties", { ...mirrored, ...input.custom_fields }, defs);
+	const custom = await validateCustomFields(client, "for_properties", { ...mirrored, ...input.custom_fields }, defs, {
+		publicPriceConfirmed: input.public_price_confirmed === true,
+	});
 	const bemerkung = [originNote(user, now, "Angelegt"), input.bemerkung_append].filter(Boolean).join("\n");
 	const customSend: Raw = { ...(custom?.send ?? {}), bemerkung };
 	const customExpect: Raw = { ...(custom?.expect ?? {}), bemerkung };
@@ -731,7 +740,9 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	};
 
 	const requested = objectPayload(input);
-	rejectPublicRent(requested.marketing_type ?? scalar(currentValue("marketing_type")), requested);
+	if (checkPublicPrice(requested.marketing_type ?? scalar(currentValue("marketing_type")), requested, input.public_price_confirmed === true) && requested.price_on_inquiry === undefined) {
+		requested.price_on_inquiry = false;
+	}
 
 	// Nur echte Änderungen schreiben; nicht lesbare Felder werden vorsichtshalber geschrieben
 	const fields: Raw = {};
@@ -788,7 +799,7 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 		Object.entries(
 			mirroredCustomFields(areaSource, defs, input.custom_fields, {
 				flags: rentChanged || "property_status_id" in fields,
-				marketable: Number(requested.property_status_id ?? currentValue("property_status_id")) === STATUS_MARKETING,
+				marketable: ACTIVE_STATUSES.includes(Number(requested.property_status_id ?? currentValue("property_status_id"))),
 				priceOnInquiry: requested.price_on_inquiry === true,
 				rent: rentedNow === true ? "rented" : rentedNow === false ? "available" : "unknown",
 			}),
@@ -797,7 +808,9 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 			return actual === UNVERIFIABLE || !same(value, actual);
 		}),
 	);
-	const custom = await validateCustomFields(client, "for_properties", { ...mirrored, ...input.custom_fields }, defs);
+	const custom = await validateCustomFields(client, "for_properties", { ...mirrored, ...input.custom_fields }, defs, {
+		publicPriceConfirmed: input.public_price_confirmed === true,
+	});
 	const customSend: Raw = { ...(custom?.send ?? {}) };
 	const customExpect: Raw = { ...(custom?.expect ?? {}) };
 	const customBefore: Raw = {};

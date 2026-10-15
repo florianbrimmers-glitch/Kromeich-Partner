@@ -19,8 +19,8 @@ export const AGGREGATE_MAX_GROUPS = 40;
 export const DEAL_PAGE_SIZE = 200;
 export const DEAL_MAX_PAGES = 40;
 
-/** Objekt-Status „Vermarktung“ – nur dann gilt eine Einheit als aktiv (status_logistik/aktiv). */
-export const STATUS_MARKETING = 163674;
+/** Objekt-Status, bei denen eine Einheit als aktiv gilt (status_logistik/aktiv): Vermarktung, Reserviert (Entscheidung Florian). */
+export const ACTIVE_STATUSES = [163674, 163675];
 
 // Bild-Upload per Einmal-Adresse (image_upload_url): öffentliche Basis-URL des Workers und Grenzen.
 export const PUBLIC_BASE_URL = "https://propstack-mcp.kromeichpartner.workers.dev";
