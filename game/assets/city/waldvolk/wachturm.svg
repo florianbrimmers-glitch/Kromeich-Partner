@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Erzeugt von tools/gen_city_buildings.py - nicht von Hand editieren.
+     Bodenraute-Mitte bei y=288 (CityScreen SPRITE_GROUND_FRAC 0.56). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<polygon points="167.0,294.0 256.0,249.5 345.0,294.0 256.0,338.5" fill="#000000" opacity="0.30"/>
+<path d="M 172.0 92.0 L 172.0 288.0 A 84.0 42.0 0 0 0 340.0 288.0 L 340.0 92.0 Z" fill="#a8874f" stroke="#1f2a14" stroke-width="2"/>
+<path d="M 266.1 92.0 L 266.1 288.0 A 84.0 42.0 0 0 0 340.0 288.0 L 340.0 92.0 Z" fill="#7b6034" opacity="0.55"/>
+<ellipse cx="256.0" cy="92.0" rx="84.0" ry="42.0" fill="#3b7130" stroke="#1f2a14" stroke-width="2"/>
+<rect x="244.0" y="126.0" width="24.0" height="32.0" rx="10.8" fill="#ffe89a" stroke="#1f2a14" stroke-width="2"/>
+<rect x="244.0" y="180.0" width="24.0" height="32.0" rx="10.8" fill="#ffe89a" stroke="#1f2a14" stroke-width="2"/>
+<line x1="250.0" y1="60.0" x2="250.0" y2="154.0" stroke="#1f2a14" stroke-width="5"/>
+<polygon points="250.0,60.0 304.0,76.0 250.0,94.0" fill="#c8a24a" stroke="#1f2a14" stroke-width="2.0" stroke-linejoin="round"/>
+<ellipse cx="182.0" cy="297.0" rx="26.0" ry="17.2" fill="#356328"/>
+<ellipse cx="160.0" cy="302.0" rx="19.0" ry="12.5" fill="#356328"/>
+<ellipse cx="196.0" cy="303.0" rx="16.0" ry="10.6" fill="#356328"/>
+<ellipse cx="178.0" cy="294.0" rx="26.0" ry="17.2" fill="#6fa74b"/>
+<ellipse cx="156.0" cy="299.0" rx="19.0" ry="12.5" fill="#6fa74b"/>
+<ellipse cx="192.0" cy="300.0" rx="16.0" ry="10.6" fill="#6fa74b"/>
+<path d="M 178.0 280.0 Q 192.0 236.0 182.0 198.0" fill="none" stroke="#356328" stroke-width="5" stroke-linecap="round"/>
+<ellipse cx="186.0" cy="260.0" rx="13" ry="8" fill="#6fa74b"/>
+<ellipse cx="188.0" cy="234.0" rx="13" ry="8" fill="#6fa74b"/>
+<ellipse cx="190.0" cy="208.0" rx="13" ry="8" fill="#6fa74b"/>
+<ellipse cx="338.0" cy="297.0" rx="26.0" ry="17.2" fill="#356328"/>
+<ellipse cx="360.0" cy="302.0" rx="19.0" ry="12.5" fill="#356328"/>
+<ellipse cx="324.0" cy="303.0" rx="16.0" ry="10.6" fill="#356328"/>
+<ellipse cx="334.0" cy="294.0" rx="26.0" ry="17.2" fill="#6fa74b"/>
+<ellipse cx="356.0" cy="299.0" rx="19.0" ry="12.5" fill="#6fa74b"/>
+<ellipse cx="320.0" cy="300.0" rx="16.0" ry="10.6" fill="#6fa74b"/>
+<path d="M 334.0 280.0 Q 320.0 236.0 330.0 198.0" fill="none" stroke="#356328" stroke-width="5" stroke-linecap="round"/>
+<ellipse cx="326.0" cy="260.0" rx="13" ry="8" fill="#6fa74b"/>
+<ellipse cx="324.0" cy="234.0" rx="13" ry="8" fill="#6fa74b"/>
+<ellipse cx="322.0" cy="208.0" rx="13" ry="8" fill="#6fa74b"/>
+</svg>

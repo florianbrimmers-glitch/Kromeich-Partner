@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hexenhuette: eine Faehigkeit
+     Erzeugt von tools/gen_map_objects.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <ellipse cx="32" cy="57" rx="18" ry="5" fill="#000" opacity="0.40"/>
+  <line x1="20.0" y1="56.0" x2="20.0" y2="42.0" stroke="#5c4326" stroke-width="3.0" stroke-linecap="round"/>
+  <line x1="44.0" y1="56.0" x2="44.0" y2="42.0" stroke="#5c4326" stroke-width="3.0" stroke-linecap="round"/>
+  <polygon points="16.0,42.0 18.0,28.0 46.0,26.0 48.0,42.0" fill="#6b5a3a" stroke="#241c12" stroke-width="2.0" stroke-linejoin="round"/>
+  <polygon points="12.0,30.0 36.0,6.0 52.0,28.0" fill="#3e4a2a" stroke="#241c12" stroke-width="2.0" stroke-linejoin="round"/>
+  <rect x="28.0" y="32.0" width="7.0" height="8.0" rx="0" fill="#ffcf7a" stroke="#241c12" stroke-width="1.2"/>
+  <ellipse cx="40.0" cy="8.0" rx="3.0" ry="3.0" fill="#8a6ab0" stroke="#241c12" stroke-width="1.0"/>
+</svg>

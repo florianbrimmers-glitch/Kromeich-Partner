@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Held-Icon: Ritter mit Schwert und Schild auf goldenem Sockel.
+     Sockel ist der "Avatar-Disc", der den Held klar vom Hintergrund hebt. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- Boden-Schatten -->
+  <ellipse cx="32" cy="58" rx="20" ry="4" fill="#000" opacity="0.45"/>
+  <!-- Goldener Sockel-Disc -->
+  <ellipse cx="32" cy="54" rx="22" ry="8" fill="#e6c247" stroke="#7a5a18" stroke-width="2"/>
+  <ellipse cx="32" cy="52" rx="20" ry="6" fill="#f4dc7c"/>
+  <!-- Beine -->
+  <rect x="26" y="40" width="5" height="14" fill="#3a4a5e"/>
+  <rect x="33" y="40" width="5" height="14" fill="#3a4a5e"/>
+  <!-- Stiefel -->
+  <ellipse cx="28.5" cy="53" rx="3.5" ry="2" fill="#1a1408"/>
+  <ellipse cx="35.5" cy="53" rx="3.5" ry="2" fill="#1a1408"/>
+  <!-- Koerper / Ruestung -->
+  <polygon points="22,40 42,40 44,24 20,24" fill="#7a8898" stroke="#2a3242" stroke-width="1"/>
+  <!-- Schulterplatten -->
+  <ellipse cx="22" cy="25" rx="4" ry="3.5" fill="#a8b8c4" stroke="#2a3242" stroke-width="0.8"/>
+  <ellipse cx="42" cy="25" rx="4" ry="3.5" fill="#a8b8c4" stroke="#2a3242" stroke-width="0.8"/>
+  <!-- Wappenrock (rot mit Goldsaum) -->
+  <polygon points="26,28 38,28 36,38 28,38" fill="#c93a2c"/>
+  <line x1="32" y1="28" x2="32" y2="38" stroke="#e6c247" stroke-width="0.8"/>
+  <!-- Kopf mit Helm -->
+  <ellipse cx="32" cy="18" rx="6.5" ry="7" fill="#a8b8c4" stroke="#2a3242" stroke-width="1"/>
+  <!-- Helm-Visier -->
+  <rect x="28" y="17" width="8" height="2" fill="#1a1408"/>
+  <!-- Helmkamm / Federbusch -->
+  <polygon points="32,12 36,4 38,12" fill="#c93a2c" stroke="#7a1410" stroke-width="0.5"/>
+  <!-- Schwert in rechter Hand, hoch erhoben -->
+  <polygon points="44,32 48,30 50,2 46,4" fill="#dde4ec" stroke="#5a6878" stroke-width="0.8"/>
+  <rect x="44" y="32" width="6" height="3" fill="#7a5a18"/>
+  <rect x="45" y="34" width="4" height="6" fill="#5a3a18"/>
+  <!-- Schild in linker Hand -->
+  <path d="M 18 28 Q 12 28 12 34 L 12 38 Q 12 44 18 44 L 18 44 Q 24 44 24 38 L 24 32 Q 24 28 18 28 Z"
+        fill="#7a3a2c" stroke="#3a1410" stroke-width="1"/>
+  <line x1="18" y1="30" x2="18" y2="42" stroke="#e6c247" stroke-width="0.8"/>
+  <line x1="14" y1="36" x2="22" y2="36" stroke="#e6c247" stroke-width="0.8"/>
+</svg>

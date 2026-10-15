@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Stallungen: Bewegung bis Wochenende
+     Erzeugt von tools/gen_map_objects.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <ellipse cx="32" cy="57" rx="22" ry="5" fill="#000" opacity="0.40"/>
+  <rect x="8.0" y="32.0" width="48.0" height="22.0" rx="0" fill="#8a5a34" stroke="#241c12" stroke-width="2.0"/>
+  <polygon points="5.0,34.0 16.0,20.0 48.0,20.0 59.0,34.0" fill="#6b4a2a" stroke="#241c12" stroke-width="2.0" stroke-linejoin="round"/>
+  <rect x="14.0" y="40.0" width="8.0" height="14.0" rx="0" fill="#3a2a18" stroke="#241c12" stroke-width="1.5"/>
+  <rect x="28.0" y="40.0" width="8.0" height="14.0" rx="0" fill="#3a2a18" stroke="#241c12" stroke-width="1.5"/>
+  <rect x="42.0" y="40.0" width="8.0" height="14.0" rx="0" fill="#3a2a18" stroke="#241c12" stroke-width="1.5"/>
+  <path d="M 26 14 a 6 6 0 1 1 12 0 l -3 0 a 3 3 0 1 0 -6 0 Z" fill="#c8d2dc" stroke="#241c12" stroke-width="1.5"/>
+</svg>

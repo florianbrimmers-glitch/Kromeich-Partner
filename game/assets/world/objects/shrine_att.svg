@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Soeldnerlager: +1 Angriff
+     Erzeugt von tools/gen_map_objects.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <ellipse cx="32" cy="57" rx="19" ry="5" fill="#000" opacity="0.40"/>
+  <polygon points="8.0,54.0 32.0,16.0 56.0,54.0" fill="#8a5a34" stroke="#241c12" stroke-width="2.0" stroke-linejoin="round"/>
+  <polygon points="8.0,54.0 32.0,16.0 32.0,54.0" fill="#a87a4c" stroke="#241c12" stroke-width="0.0" stroke-linejoin="round"/>
+  <polygon points="27.0,54.0 32.0,34.0 37.0,54.0" fill="#3a2a18" stroke="#241c12" stroke-width="1.5" stroke-linejoin="round"/>
+  <line x1="16.0" y1="50.0" x2="34.0" y2="22.0" stroke="#c8d2dc" stroke-width="3.5" stroke-linecap="round"/>
+  <line x1="48.0" y1="50.0" x2="30.0" y2="22.0" stroke="#c8d2dc" stroke-width="3.5" stroke-linecap="round"/>
+  <line x1="28.0" y1="30.0" x2="40.0" y2="30.0" stroke="#7a5a18" stroke-width="3.0" stroke-linecap="round"/>
+  <polygon points="30,12 34,12 32,20" fill="#c93a2c"/>
+</svg>

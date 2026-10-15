@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Kampf-Vordergrund forest (unter dem Gitter)
+     Erzeugt von tools/gen_battle_art.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 540 130" width="540" height="130">
+  <defs><linearGradient id="fg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#22381f"/><stop offset="1" stop-color="#152414"/></linearGradient></defs>
+  <rect width="540" height="130" fill="url(#fg)"/>
+  <rect x="0" y="0" width="540" height="6" fill="#152414" opacity="0.6"/>
+  <ellipse cx="281" cy="105" rx="32" ry="26" fill="#152414"/>
+  <ellipse cx="372" cy="107" rx="24" ry="19" fill="#152414"/>
+  <ellipse cx="467" cy="107" rx="24" ry="19" fill="#152414"/>
+  <ellipse cx="81" cy="107" rx="25" ry="20" fill="#152414"/>
+  <ellipse cx="40" cy="105" rx="32" ry="26" fill="#152414"/>
+  <ellipse cx="253" cy="107" rx="22" ry="18" fill="#152414"/>
+  <ellipse cx="68" cy="106" rx="30" ry="24" fill="#152414"/>
+  <ellipse cx="39" cy="104" rx="38" ry="30" fill="#152414"/>
+  <ellipse cx="38" cy="104" rx="38" ry="31" fill="#152414"/>
+  <ellipse cx="349" cy="105" rx="32" ry="25" fill="#152414"/>
+  <ellipse cx="21" cy="105" rx="33" ry="27" fill="#152414"/>
+  <g stroke="#22381f" stroke-width="3" stroke-linecap="round">
+    <line x1="96" y1="94" x2="96" y2="75"/>
+    <line x1="101" y1="94" x2="101" y2="76"/>
+    <line x1="106" y1="94" x2="110" y2="74"/>
+  </g>
+  <g stroke="#22381f" stroke-width="3" stroke-linecap="round">
+    <line x1="441" y1="94" x2="440" y2="73"/>
+    <line x1="446" y1="94" x2="441" y2="76"/>
+    <line x1="451" y1="94" x2="451" y2="72"/>
+  </g>
+  <g stroke="#22381f" stroke-width="3" stroke-linecap="round">
+    <line x1="243" y1="94" x2="240" y2="68"/>
+    <line x1="248" y1="94" x2="249" y2="76"/>
+    <line x1="253" y1="94" x2="250" y2="72"/>
+  </g>
+  <g stroke="#22381f" stroke-width="3" stroke-linecap="round">
+    <line x1="149" y1="94" x2="152" y2="64"/>
+    <line x1="154" y1="94" x2="153" y2="69"/>
+    <line x1="159" y1="94" x2="159" y2="75"/>
+  </g>
+  <g stroke="#22381f" stroke-width="3" stroke-linecap="round">
+    <line x1="478" y1="94" x2="479" y2="72"/>
+    <line x1="483" y1="94" x2="480" y2="75"/>
+    <line x1="488" y1="94" x2="489" y2="70"/>
+  </g>
+  <g stroke="#22381f" stroke-width="3" stroke-linecap="round">
+    <line x1="98" y1="94" x2="95" y2="74"/>
+    <line x1="103" y1="94" x2="107" y2="64"/>
+    <line x1="108" y1="94" x2="110" y2="64"/>
+  </g>
+</svg>

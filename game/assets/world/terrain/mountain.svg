@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Terrain-Tile Berg. Felsen-Block mit Schattenseite. Geroell vorne. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="m_base" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#7a6e5e"/>
+      <stop offset="1" stop-color="#4a4032"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" fill="url(#m_base)"/>
+  <!-- Felshintergrund -->
+  <polygon points="6,54 18,30 30,40 38,22 50,46 58,38 60,54" fill="#8a7e6e"/>
+  <!-- Hauptgipfel -->
+  <polygon points="20,52 36,16 52,52" fill="#a8988a" stroke="#3a3024" stroke-width="1.2"/>
+  <!-- Schattenseite -->
+  <polygon points="36,16 52,52 36,52" fill="#6a5e50"/>
+  <!-- Schnee/Highlight -->
+  <polygon points="36,16 42,30 30,30" fill="#dde4ec" opacity="0.85"/>
+  <!-- Geroell unten -->
+  <circle cx="10" cy="58" r="3"  fill="#6a5e50"/>
+  <circle cx="16" cy="60" r="2"  fill="#7a6e5e"/>
+  <circle cx="54" cy="58" r="2.5" fill="#6a5e50"/>
+  <circle cx="58" cy="60" r="2"  fill="#7a6e5e"/>
+</svg>

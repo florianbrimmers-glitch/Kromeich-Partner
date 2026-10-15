@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Kampfboden swamp, Variante 5
+     Erzeugt von tools/gen_battle_art.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <rect width="64" height="64" fill="#333b29"/>
+  <ellipse cx="53.2" cy="11.3" rx="27.4" ry="17.7" fill="#414a33" opacity="0.25"/>
+  <ellipse cx="53.6" cy="33.2" rx="13.2" ry="5.3" fill="#414a33" opacity="0.28"/>
+  <ellipse cx="27.3" cy="32.0" rx="10.0" ry="4.7" fill="#414a33" opacity="0.17"/>
+  <circle cx="14.9" cy="35.6" r="2.8" fill="none" stroke="#4d5840" stroke-width="1.6" opacity="0.55"/>
+  <circle cx="35.9" cy="10.0" r="3.0" fill="none" stroke="#4d5840" stroke-width="1.6" opacity="0.55"/>
+</svg>

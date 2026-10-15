@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Kampf-Token Schwarzritter (nec_blackknight), Stufe 6.
+     Generiert von tools/gen_unit_sprites.py - nicht per Hand editieren,
+     sondern den Generator anpassen und neu laufen lassen. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <ellipse cx="64.0" cy="117.0" rx="36.4" ry="7" fill="#000" opacity="0.42"/>
+  <ellipse cx="64.0" cy="66" rx="42" ry="48" fill="#a167cf" opacity="0.18"/>
+  <g transform="translate(64.0,114.0) scale(0.98) translate(-64.0,-114.0)">
+  <polygon points="45.5,80.0 54.5,80.0 54.5,110.0 57.5,114.0 42.5,114.0" fill="#8b887b" stroke="#242320" stroke-width="2.5" stroke-linejoin="round"/>
+  <polygon points="73.5,80.0 82.5,80.0 82.5,110.0 85.5,114.0 70.5,114.0" fill="#8b887b" stroke="#242320" stroke-width="2.5" stroke-linejoin="round"/>
+  <polygon points="39.0,52.0 89.0,52.0 79.0,82.0 49.0,82.0" fill="#b8b4a3" stroke="#242320" stroke-width="2.5" stroke-linejoin="round"/>
+  <polygon points="52.8,56.0 75.2,56.0 71.5,74.0 56.5,74.0" fill="#ebe7da" stroke="#242320" stroke-width="1.8" stroke-linejoin="round"/>
+  <ellipse cx="64.0" cy="34.0" rx="18.0" ry="18.9" fill="#9aa4ae" stroke="#242320" stroke-width="2.5"/>
+  <path d="M 49.6 30.4 q -16.2 -5.4 -19.8 -25.2" fill="none" stroke="#242320" stroke-width="4.0" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M 78.4 30.4 q 16.2 -5.4 19.8 -25.2" fill="none" stroke="#242320" stroke-width="4.0" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M 53.2 35.0 L 74.8 35.0" fill="none" stroke="#242320" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <polygon points="88.0,74.0 100.0,71.0 104.0,12.0 91.0,15.0" fill="#9aa4ae" stroke="#242320" stroke-width="2.5" stroke-linejoin="round"/>
+  <polygon points="82.0,72.0 108.0,68.0 109.0,78.0 83.0,82.0" fill="#a167cf" stroke="#242320" stroke-width="2.0" stroke-linejoin="round"/>
+  <path d="M 90 80 L 95 96" fill="none" stroke="#7a5a34" stroke-width="5.0" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <circle cx="41.5" cy="122.0" r="2.6" fill="#ebe7da" opacity="0.75"/>
+  <circle cx="50.5" cy="122.0" r="2.6" fill="#ebe7da" opacity="0.75"/>
+  <circle cx="59.5" cy="122.0" r="2.6" fill="#ebe7da" opacity="0.75"/>
+  <circle cx="68.5" cy="122.0" r="2.6" fill="#ebe7da" opacity="0.75"/>
+  <circle cx="77.5" cy="122.0" r="2.6" fill="#ebe7da" opacity="0.75"/>
+  <circle cx="86.5" cy="122.0" r="2.6" fill="#ebe7da" opacity="0.75"/>
+</svg>

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Gelaende forest, Variante 5 von 6
+     Erzeugt von tools/gen_world_tiles.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <rect width="64" height="64" fill="#244719"/>
+  <ellipse cx="35.0" cy="14.5" rx="7.6" ry="3.2" fill="#24461a" opacity="0.47"/>
+  <ellipse cx="40.9" cy="17.0" rx="10.7" ry="9.2" fill="#14260f" opacity="0.7"/>
+  <ellipse cx="39.3" cy="15.2" rx="10.7" ry="9.2" fill="#24471b"/>
+  <ellipse cx="36.1" cy="11.8" rx="4.5" ry="3.6" fill="#3d6b2a" opacity="0.8"/>
+  <ellipse cx="41.3" cy="50.7" rx="11.9" ry="10.3" fill="#14260f" opacity="0.7"/>
+  <ellipse cx="39.7" cy="48.9" rx="11.9" ry="10.3" fill="#24471b"/>
+  <ellipse cx="36.1" cy="45.1" rx="5.0" ry="4.1" fill="#3d6b2a" opacity="0.8"/>
+  <ellipse cx="17.8" cy="50.8" rx="12.0" ry="10.3" fill="#14260f" opacity="0.7"/>
+  <ellipse cx="16.2" cy="49.0" rx="12.0" ry="10.3" fill="#24471b"/>
+  <ellipse cx="12.6" cy="45.1" rx="5.1" ry="4.1" fill="#3d6b2a" opacity="0.8"/>
+  <ellipse cx="21.5" cy="50.5" rx="11.6" ry="10.0" fill="#14260f" opacity="0.7"/>
+  <ellipse cx="19.9" cy="48.7" rx="11.6" ry="10.0" fill="#24471b"/>
+  <ellipse cx="16.4" cy="45.0" rx="4.9" ry="4.0" fill="#3d6b2a" opacity="0.8"/>
+</svg>

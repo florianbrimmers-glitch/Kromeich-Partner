@@ -1,0 +1,351 @@
+extends SceneTree
+
+# Headless-Smoke-Test fuer CityScreen (die View-Logik, nicht das Rendering).
+#
+#   godot --headless --path game/ --script tools/test_city_screen.gd
+#
+# Prueft: Layout laedt, Hotspots werden berechnet, Tap auf gebautes
+# Militaergebaeude -> recruit_requested, Tap auf ungebautes -> build_requested.
+# _draw selbst laeuft headless nicht, daher wird _plots wie im echten Frame
+# manuell aus _compute_plots gefuellt.
+
+# Geraetegroesse fuer die Geometrie-Messung (Portrait, wie im Export).
+const DEVICE_W := 1080
+const DEVICE_H := 1920
+
+var _got_recruit: String = ""
+var _got_build: String = ""
+var _got_plaza: String = ""
+var _done: Array = []
+
+
+func _init() -> void:
+	var ok: bool = true
+
+	var cs := CityScreen.new()
+	root.add_child(cs)
+	# WICHTIG: _ready laeuft in einem headless SceneTree-Skript NICHT
+	# synchron beim add_child, sondern erst im naechsten Frame. Ohne dieses
+	# await gab es hier gar kein HUD - _build_hud war nie gelaufen, und die
+	# Suite war trotzdem gruen, weil open() das Layout selbst nachlaedt
+	# (gefunden beim Anwerbe-Knopf in M13b).
+	await process_frame
+	# _ready setzt anchor_right/bottom auf 1.0 - der Screen deckt damit das
+	# ganze Fenster, und das ist headless die Fenstergroesse des
+	# Test-Rechners, nicht die des Handys. Fuer eine Messung in
+	# GERAETEGROESSE muss die Verankerung geloest und die Groesse gesetzt
+	# werden, sonst landen die rechts verankerten Knoepfe bei x=2760.
+	cs.set_anchors_preset(Control.PRESET_TOP_LEFT)
+	cs.size = Vector2(DEVICE_W, DEVICE_H)
+	await process_frame
+
+	cs.recruit_requested.connect(func(uid: String) -> void: _got_recruit = uid)
+	cs.build_requested.connect(func(bid: String) -> void: _got_build = bid)
+	cs.plaza_tapped.connect(func(stats: String) -> void: _got_plaza = stats)
+
+	# Kosten als Dictionaries wie in den echten BUILDINGS (int-Kosten
+	# lassen _plot_subline/_plot_sub_color am Typ-Check scheitern).
+	var buildings: Array = [
+		{"id": "kaserne",  "name": "Kaserne",  "cost": {"gold": 500}, "effect": "x"},
+		{"id": "spaeher",  "name": "Spaeher",  "cost": {"gold": 300}, "effect": "x"},
+		{"id": "markt",    "name": "Markt",    "cost": {"gold": 800}, "effect": "x"},
+		{"id": "schmiede", "name": "Schmiede", "cost": {"gold": 700}, "effect": "x", "requires": "kaserne"},
+		{"id": "reiterei", "name": "Reiterei", "cost": {"gold": 1000}, "effect": "x", "requires": "schmiede"},
+		{"id": "wachturm", "name": "Wachturm", "cost": {"gold": 400}, "effect": "x"},
+		{"id": "kapelle",  "name": "Kapelle",  "cost": {"gold": 500}, "effect": "x"},
+		{"id": "zitadelle", "name": "Zitadelle", "cost": {"gold": 2500}, "effect": "x", "requires": ["reiterei", "mauer"]},
+	]
+	var hero := Hero.new(Vector2i(0, 0))
+	hero.gold = 1000
+	var city: Dictionary = {
+		"faction": 1, "pos": Vector2i(0, 0),
+		"buildings": ["kaserne"], "pools": {"men_spearman": 3},
+	}
+	var ctx: Dictionary = {
+		"city": city, "hero": hero, "buildings": buildings,
+		"faction_names": ["Waldvolk", "Menschen", "Totenreich", "Orks"],
+		"faction_colors": [Color.GREEN, Color.GOLD, Color.PURPLE, Color.RED],
+		"calendar": "T1 W1 M1 J1", "hero_here": true,
+	}
+	cs.open(ctx)
+
+	# 1) Layout geladen?
+	# Layout enthaelt alle Gebaeude-Hotspots inkl. mauer+zitadelle -> 9.
+	ok = _check(cs._layout.size() == 9, "Layout hat 9 Eintraege (ist %d)" % cs._layout.size()) and ok
+
+	# 2) Hotspots berechnet?
+	var plots: Array = cs._compute_plots(cs._stage_rect())
+	cs._plots = plots
+	ok = _check(plots.size() == 8, "8 Hotspots berechnet (ist %d)" % plots.size()) and ok
+
+	# 3) Tap auf gebaute Kaserne -> Rekrut-Panel mit T1+T2 der Menschen,
+	#    Zeilen-Button emittiert recruit_requested.
+	var kaserne: Dictionary = _find(plots, "kaserne")
+	ok = _check(not kaserne.is_empty(), "Kaserne-Plot existiert") and ok
+	if not kaserne.is_empty():
+		cs._handle_tap(kaserne["center"])
+		ok = _check(cs._recruit_panel != null and cs._recruit_panel.visible,
+			"Tap Kaserne oeffnet Rekrut-Panel") and ok
+		ok = _check(cs._recruit_buttons.size() == 2
+			and cs._recruit_buttons.has("men_spearman")
+			and cs._recruit_buttons.has("men_archer"),
+			"Panel zeigt 2 Einheiten (Speertraeger+Armbruster)") and ok
+		if cs._recruit_buttons.has("men_spearman"):
+			(cs._recruit_buttons["men_spearman"] as Button).pressed.emit()
+			ok = _check(_got_recruit == "men_spearman",
+				"Panel-Button -> recruit 'men_spearman' (war '%s')" % _got_recruit) and ok
+		if cs._recruit_panel != null:
+			cs._recruit_panel.visible = false
+
+	# 3b) Zitadelle: ungebaut -> build_requested; Subline nennt BEIDE
+	#     fehlenden Voraussetzungen (requires darf Array sein).
+	var zit: Dictionary = _find(plots, "zitadelle")
+	ok = _check(not zit.is_empty(), "Zitadelle-Plot existiert") and ok
+	if not zit.is_empty():
+		cs._handle_tap(zit["center"])
+		ok = _check(_got_build == "zitadelle",
+			"Tap Zitadelle -> build 'zitadelle' (war '%s')" % _got_build) and ok
+	var zit_sub: String = cs._plot_subline(buildings[7], false, 1)
+	ok = _check(zit_sub.contains("Reiterei") and zit_sub.contains("Mauer"),
+		"Zitadelle-Subline nennt Reiterei+Mauer (war '%s')" % zit_sub) and ok
+
+	# 4) Tap auf ungebauten Markt -> build "markt"
+	var markt: Dictionary = _find(plots, "markt")
+	if not markt.is_empty():
+		cs._handle_tap(markt["center"])
+		ok = _check(_got_build == "markt",
+			"Tap Markt -> build 'markt' (war '%s')" % _got_build) and ok
+
+	# 5) Treffer-Test ausserhalb aller Rauten -> nichts
+	_got_build = ""
+	_got_recruit = ""
+	cs._handle_tap(Vector2(5, 5))
+	ok = _check(_got_build == "" and _got_recruit == "",
+		"Tap ins Leere loest nichts aus") and ok
+
+	# 6) Plaza-Tap: emittiert plaza_tapped mit Stadt-Statistik.
+	#    Die Lage kommt seit It. 33 aus data/city_layout.json ("plaza") -
+	#    dieselbe Quelle, aus der tools/gen_city_bg.py den Platz ZEICHNET.
+	#    Der Test fragt den Screen danach, statt eine Konstante zu spiegeln.
+	var stage := cs._stage_rect()
+	var pdef: Dictionary = cs._plaza_def()
+	ok = _check(not pdef.is_empty() and pdef.has("x") and pdef.has("rx"),
+		"Platz-Definition kommt aus dem Layout (%s)" % str(pdef)) and ok
+	var plaza_pos := stage.position + Vector2(
+		float(pdef["x"]) * stage.size.x,
+		float(pdef["y"]) * stage.size.y)
+	_got_build = ""
+	_got_recruit = ""
+	_got_plaza = ""
+	cs._handle_tap(plaza_pos)
+	ok = _check(_got_build == "" and _got_recruit == "",
+		"Plaza-Tap loest weder build noch recruit aus") and ok
+	ok = _check(_got_plaza.contains("Menschen") and _got_plaza.contains("gebaut"),
+		"Plaza-Tap emittiert Stadt-Statistik (war '%s')" % _got_plaza) and ok
+
+	# 6b) Der Platz darf unter keinem Bauplatz liegen: ein Tap wuerde dann
+	#     das Gebaeude treffen und der gezeichnete Platz waere verdeckt.
+	#     Vor It. 33 lag er bei (0.50, 0.60) mitten im Bauband.
+	var plots_for_plaza: Array = cs._compute_plots(stage)
+	cs._plots = plots_for_plaza
+	var plaza_under: Array = []
+	for pp in plots_for_plaza:
+		var d: Vector2 = (pp["center"] as Vector2) - plaza_pos
+		if abs(d.x) < float(pp["hw"]) * 0.8 and abs(d.y) < float(pp["hh"]) * 1.6:
+			plaza_under.append(String(pp["id"]))
+	ok = _check(plaza_under.is_empty(),
+		"Platz liegt unter keinem Bauplatz (%s)" % str(plaza_under)) and ok
+
+	# 7) Layout-Wahl + Beschriftungen kollidieren nicht (Iteration 16).
+	#    Die Test-Stadt ist Fraktion 1 (Menschen). Ob deren gemalter
+	#    Hintergrund im Build liegt, entscheidet welches Layout gilt -
+	#    geprueft wird deshalb die Konsistenz, nicht ein fixes Layout.
+	var painted: bool = cs._has_painted_bg()
+	var expected: Dictionary = cs._layout if painted else cs._layout_plain
+	ok = _check(cs._active_layout() == expected,
+		"Layout passt zum Hintergrund (gemalt=%s)" % str(painted)) and ok
+	ok = _check(not cs._layout_plain.is_empty(),
+		"Plain-Layout aus city_layout.json geladen (%d Plots)" % cs._layout_plain.size()) and ok
+
+	# Beschriftungs-Boxen: zwei Zeilen ab center + hh + 18, Breite = hw*1.9.
+	# Ueberlappen sich zwei Boxen, laufen die Texte im Spiel ineinander -
+	# genau der Fehler aus dem Nutzer-Screenshot.
+	var boxes: Array = []
+	for p2 in plots:
+		var c2: Vector2 = p2["center"]
+		var hw2: float = float(p2["hw"])
+		var hh2: float = float(p2["hh"])
+		boxes.append({
+			"id": String(p2["id"]),
+			"rect": Rect2(Vector2(c2.x - hw2 * 0.95, c2.y + hh2 + 18.0),
+				Vector2(hw2 * 1.9, CityScreen.LABEL_BLOCK_H)),
+		})
+	var clashes: Array = []
+	for i in range(boxes.size()):
+		for j in range(i + 1, boxes.size()):
+			if (boxes[i]["rect"] as Rect2).intersects(boxes[j]["rect"] as Rect2):
+				clashes.append("%s/%s" % [boxes[i]["id"], boxes[j]["id"]])
+	ok = _check(clashes.is_empty(),
+		"keine Text-Kollisionen im aktiven Layout (%s)" % str(clashes)) and ok
+
+	# Dasselbe fuer das jeweils ANDERE Layout - beide muessen sauber sein,
+	# je nachdem ob eine Fraktion einen gemalten Hintergrund hat.
+	var other: Dictionary = cs._layout_plain if painted else cs._layout
+	var saved: Dictionary = cs._layout
+	cs._layout = other
+	cs._layout_plain = other
+	var plots2: Array = cs._compute_plots(cs._stage_rect())
+	var clashes2: Array = []
+	for i2 in range(plots2.size()):
+		for j2 in range(i2 + 1, plots2.size()):
+			var a2: Dictionary = plots2[i2]
+			var b2: Dictionary = plots2[j2]
+			var ra := Rect2(Vector2(a2["center"].x - float(a2["hw"]) * 0.95,
+				a2["center"].y + float(a2["hh"]) + 18.0),
+				Vector2(float(a2["hw"]) * 1.9, CityScreen.LABEL_BLOCK_H))
+			var rb := Rect2(Vector2(b2["center"].x - float(b2["hw"]) * 0.95,
+				b2["center"].y + float(b2["hh"]) + 18.0),
+				Vector2(float(b2["hw"]) * 1.9, CityScreen.LABEL_BLOCK_H))
+			if ra.intersects(rb):
+				clashes2.append("%s/%s" % [String(a2["id"]), String(b2["id"])])
+	cs._layout = saved
+	ok = _check(clashes2.is_empty(),
+		"keine Text-Kollisionen im zweiten Layout (%s)" % str(clashes2)) and ok
+
+	# 8) ASSET-VOLLSTAENDIGKEIT (Iteration 18). Das ist die Sperre gegen den
+	#    violetten Wuerfel: fehlt fuer ein GEBAUTES Gebaeude das Sprite,
+	#    zeichnet _draw_plot einen Volltonquader in Fraktionsfarbe. Vorher
+	#    fehlten 28 von 36 Sprites, und niemand hat es gemerkt, bis ein
+	#    Screenshot vom Geraet kam. Ein neues Gebaeude ohne Grafik macht
+	#    diese Suite jetzt rot.
+	ok = _test_assets_complete(cs) and ok
+
+	# 9) HUD-GEOMETRIE (M13b). Der Anwerbe-Knopf ist der vierte Eintrag in
+	#    der rechten Spalte, und alle vier sind mit festen Offsets gesetzt.
+	#    Ein fuenfter oder ein groesserer Knopf schiebt sich lautlos unter
+	#    den davor - headless sieht man das nicht, gemessen schon.
+	ok = _test_hud_geometry(cs) and ok
+
+	# Abschluss-Marken (It. 31): jede _test*-Funktion setzt am Ende eine
+	# Marke. Ein Laufzeitfehler bricht in GDScript nur die betroffene
+	# Funktion ab - die Suite laeuft weiter und meldet gruen. Genau so hat
+	# It. 24 einen halben Test verschluckt (geratener Funktionsname). Die
+	# Liste kommt aus der Methodentabelle des Skripts selbst, damit auch
+	# eine NEUE Testfunktion auffaellt, die niemand aufruft.
+	var missing: Array = []
+	for m in get_method_list():
+		var mn: String = String(m["name"])
+		if mn.begins_with("_test") and not _done.has(mn):
+			missing.append(mn)
+	ok = _check(missing.is_empty(),
+		"jede Test-Funktion lief bis zum Ende durch (abgebrochen: %s)"
+		% str(missing)) and ok
+
+	print("")
+	if ok:
+		print("CityScreen-Smoke-Test: ALLE CHECKS GRUEN")
+		quit(0)
+	else:
+		print("CityScreen-Smoke-Test: FEHLGESCHLAGEN")
+		quit(1)
+
+
+func _check(cond: bool, msg: String) -> bool:
+	print(("[OK]   " if cond else "[FAIL] ") + msg)
+	return cond
+
+
+func _find(plots: Array, bid: String) -> Dictionary:
+	for p in plots:
+		if String(p["id"]) == bid:
+			return p
+	return {}
+
+
+func _test_assets_complete(cs) -> bool:
+	print("")
+	print("== Asset-Vollstaendigkeit (Sperre gegen den Platzhalter-Quader) ==")
+	var ok := true
+	var f := FileAccess.open("res://data/city_layout.json", FileAccess.READ)
+	var raw: Variant = JSON.parse_string(f.get_as_text())
+	var ids: Array = (raw as Dictionary)["buildings"].keys()
+	ok = _check(ids.size() == 9, "9 Gebaeude-IDs im Layout (sind %d)" % ids.size()) and ok
+
+	var missing: Array = []
+	for fac in CityScreen.FACTION_DIRS:
+		for bid in ids:
+			var path: String = "res://assets/city/%s/%s.svg" % [String(fac), String(bid)]
+			if not ResourceLoader.exists(path):
+				missing.append("%s/%s" % [String(fac), String(bid)])
+	ok = _check(missing.is_empty(), "alle %d Gebaeude-Sprites vorhanden (fehlen: %s)"
+		% [ids.size() * CityScreen.FACTION_DIRS.size(), str(missing)]) and ok
+
+	var missing_bg: Array = []
+	for fac2 in CityScreen.FACTION_DIRS:
+		for name in ["bg", "bg_walled"]:
+			if not ResourceLoader.exists("res://assets/city/%s/%s.svg" % [String(fac2), name]):
+				missing_bg.append("%s/%s" % [String(fac2), name])
+	ok = _check(missing_bg.is_empty(),
+		"Hintergrund + Mauer-Variante fuer alle vier Fraktionen (fehlen: %s)"
+		% str(missing_bg)) and ok
+
+	var missing_con: Array = []
+	for bid2 in ids:
+		if not ResourceLoader.exists("res://assets/city/_shared/construction-%s.svg" % String(bid2)):
+			missing_con.append(String(bid2))
+	ok = _check(missing_con.is_empty(),
+		"Baustellen-Sprite je Gebaeude (fehlen: %s)" % str(missing_con)) and ok
+
+	# Jede Fraktion muss jetzt das gemalte Layout benutzen - alle vier haben
+	# einen Hintergrund. Faellt eine auf das Plain-Layout zurueck, fehlt ihr
+	# Bild.
+	var plain_fallback: Array = []
+	for fid in range(CityScreen.FACTION_DIRS.size()):
+		cs._ctx = {"city": {"faction": fid, "buildings": []}}
+		if not cs._has_painted_bg():
+			plain_fallback.append(String(CityScreen.FACTION_DIRS[fid]))
+	ok = _check(plain_fallback.is_empty(),
+		"alle Fraktionen haben einen gemalten Hintergrund (ohne: %s)"
+		% str(plain_fallback)) and ok
+	_done.append("_test_assets_complete")
+	return ok
+# Kein Knopf der rechten HUD-Spalte darf einen anderen ueberdecken, und
+# keiner darf in die Buehne ragen, in der die Bauplaetze liegen.
+func _test_hud_geometry(cs) -> bool:
+	var ok: bool = true
+	var boxes: Array = []
+	for ch in cs.get_children():
+		if ch is Button:
+			boxes.append({"text": String((ch as Button).text).split("\n")[0],
+				"rect": (ch as Control).get_rect()})
+	ok = _check(boxes.size() >= 3,
+		"HUD hat die Knopfspalte (%d Knoepfe)" % boxes.size()) and ok
+	var clashes: Array = []
+	for i in range(boxes.size()):
+		for j in range(i + 1, boxes.size()):
+			if (boxes[i]["rect"] as Rect2).intersects(boxes[j]["rect"] as Rect2):
+				clashes.append("%s/%s" % [boxes[i]["text"], boxes[j]["text"]])
+	ok = _check(clashes.is_empty(),
+		"keine zwei HUD-Knoepfe ueberdecken sich (%s)" % str(clashes)) and ok
+	# Die Buehne beginnt unter dem HUD-Band; ein Knopf darf nicht auf einem
+	# Bauplatz landen, sonst frisst er den Tap.
+	var stage: Rect2 = cs._stage_rect()
+	var plots: Array = cs._compute_plots(stage)
+	var on_plot: Array = []
+	for b in boxes:
+		for pl in plots:
+			if (b["rect"] as Rect2).intersects(pl["rect"] as Rect2):
+				on_plot.append("%s/%s" % [b["text"], String(pl["id"])])
+	ok = _check(on_plot.is_empty(),
+		"kein HUD-Knopf liegt auf einem Bauplatz (%s)" % str(on_plot)) and ok
+	# Und jeder Knopf muss ganz auf dem Schirm liegen: rechts verankert mit
+	# festem Offset heisst auf einem schmalen Geraet schnell "halb draussen".
+	var screen := Rect2(Vector2.ZERO, Vector2(DEVICE_W, DEVICE_H))
+	var outside: Array = []
+	for b2 in boxes:
+		if not screen.encloses(b2["rect"] as Rect2):
+			outside.append("%s %s" % [b2["text"], str(b2["rect"])])
+	ok = _check(outside.is_empty(),
+		"jeder HUD-Knopf liegt ganz auf dem Schirm (%s)" % str(outside)) and ok
+	_done.append("_test_hud_geometry")
+	return ok

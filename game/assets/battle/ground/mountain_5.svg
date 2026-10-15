@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Kampfboden mountain, Variante 5
+     Erzeugt von tools/gen_battle_art.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <rect width="64" height="64" fill="#42403d"/>
+  <ellipse cx="19.9" cy="43.6" rx="22.4" ry="10.8" fill="#524f4b" opacity="0.24"/>
+  <ellipse cx="26.6" cy="22.6" rx="12.3" ry="4.8" fill="#524f4b" opacity="0.24"/>
+  <ellipse cx="46.0" cy="15.8" rx="27.2" ry="16.2" fill="#524f4b" opacity="0.21"/>
+  <path d="M 16.5 9.0 q 7.6 -3.5 15.2 0" fill="none" stroke="#615d58" stroke-width="2" stroke-linecap="round" opacity="0.23"/>
+  <path d="M 23.7 37.9 q 5.7 -3.5 11.3 0" fill="none" stroke="#615d58" stroke-width="2" stroke-linecap="round" opacity="0.20"/>
+</svg>

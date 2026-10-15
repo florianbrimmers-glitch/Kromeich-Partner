@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Gelaende water, Variante 4 von 6
+     Erzeugt von tools/gen_world_tiles.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <rect width="64" height="64" fill="#265f83"/>
+  <ellipse cx="14.5" cy="18.4" rx="12.5" ry="5.2" fill="#3f83aa" opacity="0.28"/>
+  <ellipse cx="51.9" cy="54.7" rx="15.4" ry="6.5" fill="#3f83aa" opacity="0.32"/>
+  <path d="M 8.6 15.4 q 4.4 -3.5 8.7 0 q 4.4 3.5 8.7 0" fill="none" stroke="#8fd0e8" stroke-width="1.8" stroke-linecap="round" opacity="0.36"/>
+  <path d="M 32.2 18.1 q 6.0 -3.5 11.9 0 q 6.0 3.5 11.9 0" fill="none" stroke="#8fd0e8" stroke-width="1.8" stroke-linecap="round" opacity="0.39"/>
+  <path d="M 6.0 27.4 q 3.9 -3.5 7.8 0 q 3.9 3.5 7.8 0" fill="none" stroke="#8fd0e8" stroke-width="1.8" stroke-linecap="round" opacity="0.41"/>
+  <circle cx="49.4" cy="22.6" r="2.2" fill="none" stroke="#bfe6f5" stroke-width="1.2" opacity="0.66"/>
+</svg>

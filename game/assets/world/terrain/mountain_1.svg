@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Gelaende mountain, Variante 1 von 6
+     Erzeugt von tools/gen_world_tiles.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <rect width="64" height="64" fill="#5e5953"/>
+  <ellipse cx="31.0" cy="15.5" rx="9.7" ry="4.1" fill="#7c766e" opacity="0.34"/>
+  <polygon points="35.3,52.7 41.7,38.8 48.1,52.7" fill="#3a3630"/>
+  <polygon points="35.3,52.7 41.7,38.8 43.2,52.7" fill="#6b655d"/>
+  <polygon points="35.3,52.7 39.6,42.7 41.0,52.7" fill="#928b81" opacity="0.85"/>
+  <polygon points="22.8,28.1 28.0,13.9 33.2,28.1" fill="#3a3630"/>
+  <polygon points="22.8,28.1 28.0,13.9 29.2,28.1" fill="#6b655d"/>
+  <polygon points="22.8,28.1 26.3,17.8 27.5,28.1" fill="#928b81" opacity="0.85"/>
+  <polygon points="11.4,31.6 16.1,22.3 20.8,31.6" fill="#3a3630"/>
+  <polygon points="11.4,31.6 16.1,22.3 17.2,31.6" fill="#6b655d"/>
+  <polygon points="11.4,31.6 14.6,24.9 15.6,31.6" fill="#928b81" opacity="0.85"/>
+</svg>

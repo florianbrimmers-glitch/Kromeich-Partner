@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Kriegsnebel, Variante 3
+     Erzeugt von tools/gen_world_tiles.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <rect width="64" height="64" fill="#0f1119"/>
+  <ellipse cx="14.6" cy="37.8" rx="10.7" ry="6.7" fill="#242836" opacity="0.34"/>
+  <ellipse cx="20.4" cy="28.2" rx="9.5" ry="5.9" fill="#242836" opacity="0.35"/>
+  <ellipse cx="22.6" cy="46.8" rx="11.2" ry="6.9" fill="#242836" opacity="0.32"/>
+  <circle cx="43.0" cy="22.8" r="6.0" fill="#30354a" opacity="0.15"/>
+  <circle cx="48.4" cy="12.5" r="5.4" fill="#30354a" opacity="0.20"/>
+</svg>

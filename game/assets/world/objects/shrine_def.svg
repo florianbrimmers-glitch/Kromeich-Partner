@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Wehrturm: +1 Verteidigung
+     Erzeugt von tools/gen_map_objects.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <ellipse cx="32" cy="57" rx="16" ry="5" fill="#000" opacity="0.40"/>
+  <rect x="20.0" y="20.0" width="24.0" height="34.0" rx="0" fill="#7d776e" stroke="#241c12" stroke-width="2.0"/>
+  <rect x="20.0" y="20.0" width="9.0" height="34.0" rx="0" fill="#989187" stroke="#241c12" stroke-width="0.0"/>
+  <rect x="19.0" y="13.0" width="8.0" height="8.0" rx="0" fill="#6b665f" stroke="#241c12" stroke-width="1.5"/>
+  <rect x="28.0" y="13.0" width="8.0" height="8.0" rx="0" fill="#6b665f" stroke="#241c12" stroke-width="1.5"/>
+  <rect x="37.0" y="13.0" width="8.0" height="8.0" rx="0" fill="#6b665f" stroke="#241c12" stroke-width="1.5"/>
+  <line x1="20.0" y1="30.0" x2="44.0" y2="30.0" stroke="#241c12" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="20.0" y1="40.0" x2="44.0" y2="40.0" stroke="#241c12" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M 32 30 q -9 0 -9 9 l 0 5 q 0 9 9 11 q 9 -2 9 -11 l 0 -5 q 0 -9 -9 -9 Z" fill="#7a3a2c" stroke="#241c12" stroke-width="2"/>
+  <line x1="32.0" y1="33.0" x2="32.0" y2="52.0" stroke="#e6c247" stroke-width="2.0" stroke-linecap="round"/>
+  <line x1="25.0" y1="40.0" x2="39.0" y2="40.0" stroke="#e6c247" stroke-width="2.0" stroke-linecap="round"/>
+</svg>

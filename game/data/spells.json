@@ -1,0 +1,53 @@
+{
+  "$schema_version": 1,
+  "$notes": "24 Spells, 4 Schulen (Licht, Ordnung, Natur, Chaos, Tod) x ~5 Level. Equilibris-Prinzip: Schulen gleichwertig, keine Schule dominant.",
+  "schools": ["licht", "ordnung", "natur", "chaos", "tod"],
+  "spells": [
+    { "id": "heal",            "school": "licht",   "level": 1, "cost_sp": 5,  "target": "friendly_unit", "effect": "heal_dmg=25+5*power",
+      "balance_source": "HoMM3 Cure aufgewertet (Equilibris-Stil: L1-Heals rentabel halten)." },
+    { "id": "bless",           "school": "licht",   "level": 1, "cost_sp": 5,  "target": "friendly_unit", "effect": "dmg_max=true_for_3_turns",
+      "balance_source": "HoMM3 Bless; unveraendert." },
+    { "id": "prayer",          "school": "licht",   "level": 3, "cost_sp": 12, "target": "all_friendly", "effect": "+2_att,+2_def,+2_spd",
+      "balance_source": "HoMM3 Prayer; Cost 12 statt 8 (zu stark fuer 8 SP)." },
+    { "id": "resurrect",       "school": "licht",   "level": 5, "cost_sp": 30, "target": "friendly_unit", "effect": "rez_hp=50+50*power",
+      "balance_source": "HoMM3 Resurrection; max rez gecapped in Battle.cs auf einmal pro Einheit pro Kampf (Equilibris-Kern)." },
+
+    { "id": "haste",           "school": "ordnung", "level": 1, "cost_sp": 6,  "target": "friendly_unit", "effect": "+3_spd_for_3_turns",
+      "balance_source": "HoMM3 Haste; SP 6 statt 5." },
+    { "id": "shield",          "school": "ordnung", "level": 1, "cost_sp": 5,  "target": "friendly_unit", "effect": "-15pct_melee_dmg_taken",
+      "balance_source": "HoMM3 Shield." },
+    { "id": "slow",            "school": "ordnung", "level": 2, "cost_sp": 8,  "target": "enemy_unit",    "effect": "-3_spd_for_3_turns",
+      "balance_source": "HoMM3 Slow; beliebtester L2-Spell, unveraendert." },
+    { "id": "counterstrike",   "school": "ordnung", "level": 4, "cost_sp": 24, "target": "friendly_unit", "effect": "+1_retaliation_per_turn",
+      "balance_source": "HoMM3 Counterstrike; Cost 24 statt 12 (HoMM3-Baseline war zu niedrig, Equilibris analog)." },
+
+    { "id": "stone_skin",      "school": "natur",   "level": 1, "cost_sp": 5,  "target": "friendly_unit", "effect": "+3_def_for_3_turns",
+      "balance_source": "HoMM3 Stone Skin." },
+    { "id": "summon_boat",     "school": "natur",   "level": 1, "cost_sp": 8,  "target": "adventure",     "effect": "spawn_boat",
+      "balance_source": "HoMM3 Summon Boat." },
+    { "id": "protection_fire", "school": "natur",   "level": 2, "cost_sp": 7,  "target": "friendly_unit", "effect": "-50pct_fire_dmg_for_3_turns",
+      "balance_source": "HoMM3 Protection from Fire." },
+    { "id": "town_gate",       "school": "natur",   "level": 4, "cost_sp": 20, "target": "adventure",     "effect": "teleport_to_town",
+      "balance_source": "HoMM3 Town Portal; Cost 20 statt 16 und nur zur naechsten Stadt (Equilibris-Stil: Teleport-Nerf)." },
+
+    { "id": "magic_arrow",     "school": "chaos",   "level": 1, "cost_sp": 5,  "target": "enemy_unit",    "effect": "dmg=10+10*power",
+      "balance_source": "HoMM3 Magic Arrow." },
+    { "id": "fire_bolt",       "school": "chaos",   "level": 2, "cost_sp": 8,  "target": "enemy_unit",    "effect": "dmg=15+15*power",
+      "balance_source": "HoMM3 Lightning Bolt umgebannt; leichter Fire-Schaden statt Air." },
+    { "id": "fireball",        "school": "chaos",   "level": 3, "cost_sp": 15, "target": "enemy_aoe_2",   "effect": "dmg=15+10*power_per_unit",
+      "balance_source": "HoMM3 Fireball; Radius 2 (HoMM3: 2). Kein eigen-army-Friendly-Fire (Equilibris-Stil)." },
+    { "id": "armageddon",      "school": "chaos",   "level": 5, "cost_sp": 40, "target": "battlefield",   "effect": "dmg=30+25*power_all_non_immune",
+      "balance_source": "HoMM3 Armageddon; Cost 40 statt 30. Immunitaet breiter (Gold Wyrm, Bone Dragon). Fuer Build mit Artefakt 'Armageddon-Schild' weiterhin potent." },
+
+    { "id": "weakness",        "school": "tod",     "level": 1, "cost_sp": 5,  "target": "enemy_unit",    "effect": "-3_att_for_3_turns",
+      "balance_source": "HoMM3 Weakness." },
+    { "id": "curse",           "school": "tod",     "level": 2, "cost_sp": 7,  "target": "enemy_unit",    "effect": "dmg_min=true_for_3_turns",
+      "balance_source": "HoMM3 Curse." },
+    { "id": "blind",           "school": "tod",     "level": 3, "cost_sp": 12, "target": "enemy_unit",    "effect": "skip_turns=until_hit",
+      "balance_source": "HoMM3 Blind war OP-L2; hier L3 + Cost 12 (Equilibris verschob Cowardice/Blind analog)." },
+    { "id": "animate_dead",    "school": "tod",     "level": 4, "cost_sp": 20, "target": "friendly_undead","effect": "rez_hp=30+40*power",
+      "balance_source": "HoMM3 Animate Dead; gedeckelt auf Start-Stack-Groesse." },
+    { "id": "implosion",       "school": "tod",     "level": 5, "cost_sp": 35, "target": "enemy_unit",    "effect": "dmg=75+25*power",
+      "balance_source": "HoMM3 Implosion; Cost 35 statt 25 (war zu billig)." }
+  ]
+}

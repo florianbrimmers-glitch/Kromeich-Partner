@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Gelaende grass, Variante 0 von 6
+     Erzeugt von tools/gen_world_tiles.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <rect width="64" height="64" fill="#4d7d2e"/>
+  <ellipse cx="54.0" cy="41.6" rx="7.1" ry="3.0" fill="#6e9a48" opacity="0.48"/>
+  <ellipse cx="45.1" cy="15.2" rx="10.7" ry="4.5" fill="#6e9a48" opacity="0.38"/>
+  <g stroke="#7eac56" stroke-width="1.0" stroke-linecap="round" opacity="0.45">
+    <line x1="17.7" y1="38.7" x2="18.0" y2="34.7"/>
+    <line x1="19.3" y1="38.7" x2="19.9" y2="35.2"/>
+  </g>
+  <g stroke="#7eac56" stroke-width="1.0" stroke-linecap="round" opacity="0.45">
+    <line x1="31.5" y1="22.9" x2="30.7" y2="18.7"/>
+    <line x1="33.1" y1="22.9" x2="32.8" y2="19.3"/>
+  </g>
+  <g stroke="#7eac56" stroke-width="1.0" stroke-linecap="round" opacity="0.45">
+    <line x1="47.3" y1="23.5" x2="46.7" y2="20.0"/>
+    <line x1="48.9" y1="23.5" x2="49.9" y2="19.5"/>
+  </g>
+</svg>
