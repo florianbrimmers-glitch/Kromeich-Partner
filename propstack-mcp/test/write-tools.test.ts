@@ -160,6 +160,12 @@ function fakeClient(impl: Record<string, (...args: unknown[]) => unknown>) {
 						{ field_type: "Number", name: "lagerflache", unit: "sqm" },
 						{ field_type: "Number", name: "mezzanineflache", unit: "euro" },
 						{ field_type: "String", name: "provisionspflichtig" },
+						{ field_type: "Number", name: "lagerflache_gesamt", unit: "sqm" },
+						{ field_type: "String", name: "lagerflache_verfugbar" },
+						{ field_type: "Number", name: "buroflache", unit: "sqm" },
+						{ field_type: "Number", name: "gebaudeflache_gesamt", unit: "sqm" },
+						{ field_type: "Number", name: "gebaudeflache_verfugbar", unit: "sqm" },
+						{ field_type: "String", name: "preisangabe" },
 						{ field_type: "String", name: "bemerkung" },
 						{ custom_options: [{ id: 1, name: "Ja" }, { id: 2, name: "Nein" }], field_type: "Dropdown", name: "spekulative_entwicklung" },
 						{ custom_options: [{ id: 7, name: "Aktiv" }, { id: 8, name: "Inaktiv" }], field_type: "Multiselect", name: "aktiv" },
@@ -431,6 +437,35 @@ describe("create_object / update_object", () => {
 		expect(updates[0]?.[0]).toBe("done");
 	});
 
+	it("spiegelt Standardflächen in die Custom-Felder, die Exposé und Team lesen (Skill: alle Varianten)", async () => {
+		const unit = fakeUnit();
+		const { client } = fakeClient(unit.impl);
+		const out = await createObject(
+			{ client, db: fakeDb().db, now: NOW, sleep, user: USER },
+			{ ...input, custom_fields: { lagerflache: 4800 }, hall_height: 10, industrial_area: 5000, total_floor_space: 5400, usable_floor_space: 400 },
+		);
+		expect(unit.posted().partial_custom_fields).toMatchObject({
+			buroflache: 400,
+			gebaudeflache_gesamt: 5400,
+			gebaudeflache_verfugbar: 5400,
+			hallenhohe: 10,
+			lagerflache: 4800, // explizit übergeben hat Vorrang
+			lagerflache_gesamt: 5000,
+			lagerflache_verfugbar: "5.000 m²",
+			preisangabe: "auf Anfrage",
+		});
+		expect(unit.posted().partial_custom_fields).not.toHaveProperty("mezzanineflache");
+		expect((out.result as { not_applied?: string[] }).not_applied).toBeUndefined();
+	});
+
+	it("vermietet: verfügbare Fläche wird nicht gespiegelt", async () => {
+		const unit = fakeUnit();
+		const { client } = fakeClient(unit.impl);
+		await createObject({ client, db: fakeDb().db, now: NOW, sleep, user: USER }, { ...input, industrial_area: 5000, rented: true });
+		expect(unit.posted().partial_custom_fields).toMatchObject({ lagerflache: 5000, lagerflache_gesamt: 5000 });
+		expect(unit.posted().partial_custom_fields).not.toHaveProperty("lagerflache_verfugbar");
+	});
+
 	it("meldet Felder, die trotz Einzel-PUT nicht haften, und Fehler einzelner PUTs", async () => {
 		const unit = fakeUnit();
 		const failing = {
@@ -501,6 +536,16 @@ describe("create_object / update_object", () => {
 		expect(out.result).toMatchObject({ changed: ["rented", "status_id", "bemerkung (angehängt)"], updated: true });
 		expect((out.result as { not_applied?: string[] }).not_applied).toBeUndefined();
 		expect(JSON.parse(rows[0][7] as string)).toEqual({ custom_fields: { bemerkung: "Alte Bemerkung" }, rented: null, status_id: 163674 });
+	});
+
+	it("update_object: zieht fehlende Flächen-Varianten auch bei unveränderter Standardfläche nach", async () => {
+		const unit = fakeUnit();
+		Object.assign(unit.stored, { industrial_area: 5000, marketing_type: "RENT", rented: false, title: "Alt" });
+		Object.assign(unit.custom, { lagerflache: 5000 });
+		const { client } = fakeClient(unit.impl);
+		const out = await updateObject({ client, db: fakeDb().db, now: NOW, sleep, user: USER }, { id: 900, industrial_area: 5000 });
+		expect(unit.puts).toEqual([{ partial_custom_fields: { lagerflache_gesamt: 5000, lagerflache_verfugbar: "5.000 m²" } }]);
+		expect(out.result).toMatchObject({ updated: true });
 	});
 
 	it("update_object: Kaufpreis bei Mietobjekt abgewiesen, keine Änderung → kein Write", async () => {
