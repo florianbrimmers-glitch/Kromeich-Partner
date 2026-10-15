@@ -103,7 +103,7 @@ export function registerReadTools(server: McpServer, ctx: ToolContext): void {
 		shape: S,
 		fn: (client: PropstackClient, input: z.infer<z.ZodObject<S>>) => Promise<ToolOutput>,
 	) => {
-		server.registerTool(name, { annotations: READ_ONLY, description, inputSchema: shape }, (async (input: z.infer<z.ZodObject<S>>) =>
+		server.registerTool(name, { annotations: READ_ONLY, description, inputSchema: z.strictObject(shape) }, (async (input: z.infer<z.ZodObject<S>>) =>
 			runTool(ctx, name, input, (client) => fn(client, input))) as never);
 	};
 
@@ -182,7 +182,8 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
 			{
 				annotations: { destructiveHint: destructive, idempotentHint: false, openWorldHint: false, readOnlyHint: false },
 				description,
-				inputSchema: shape,
+				// strict: unbekannte Parameter (z. B. aus einer veralteten Tool-Liste) abweisen statt still verwerfen
+				inputSchema: z.strictObject(shape),
 			},
 			(async (input: z.infer<z.ZodObject<S>>) =>
 				runTool(ctx, name, input, (client) => fn({ client, db: ctx.env.AUDIT_DB, user: ctx.props() }, input))) as never,

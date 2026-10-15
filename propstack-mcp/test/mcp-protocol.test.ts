@@ -67,6 +67,22 @@ describe("MCP-Protokoll", () => {
 		expect(called).toBe(false);
 	});
 
+	it("unbekannte Parameter werden abgewiesen statt still verworfen (veraltete Tool-Liste im Client)", async () => {
+		let called = false;
+		const { client } = await connect({
+			searchUnits: async () => {
+				called = true;
+				return { rows: [], total: 0 };
+			},
+		});
+		const { tools } = await client.listTools();
+		expect(tools.find((t) => t.name === "search_objects")!.inputSchema.additionalProperties).toBe(false);
+		const result = await client.callTool({ arguments: { living_space: { from: 1 }, wohnflaeche: 5 }, name: "search_objects" });
+		expect(result.isError).toBe(true);
+		expect(JSON.stringify(result.content)).toMatch(/wohnflaeche/);
+		expect(called).toBe(false);
+	});
+
 	it("führt ein Tool aus, liefert JSON-Text und schreibt das Audit-Log", async () => {
 		const { client, audits } = await connect({
 			getContact: async () => ({ id: 5, identity_number: "GEHEIM", name: "Anna" }),
