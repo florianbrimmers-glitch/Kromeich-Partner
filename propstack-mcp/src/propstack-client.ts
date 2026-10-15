@@ -188,10 +188,6 @@ export class PropstackClient {
 		return this.get(`/projects/${id}`);
 	}
 
-	/** GET /v1/relationships – paginiert; Filterparameter ignoriert Propstack (Notion-Korrektur 24), clientseitig filtern. */
-	async listRelationships(query: Query): Promise<Page> {
-		return toPage(await this.get(`/relationships${buildQuery({ ...query, with_meta: 1 })}`));
-	}
 
 	// ---------- Schreiben (Phase 3) – nur Anlegen/Ändern, keine Löschmethoden ----------
 
