@@ -73,6 +73,25 @@ Bewusste Lücken: Ein einzelner Deal per ID und die Kontakt-Status-Liste sind nu
 - `unit_id` ist in ganz Propstack eindeutig. Bei Einzelobjekten ohne Projekt weglassen.
 - Nicht enthalten: Firmenkontakte (brauchen Propstack-V2), Deals anlegen/ändern, Löschen.
 
+## Phase 3b: Projekte, Eigentümer, Bilder, Prüfaufgabe (Entscheidung Florian, 15.10.2026)
+
+| Tool | Zweck |
+|---|---|
+| `create_project` | Projekt (Standort) anlegen, optional mit Eigentümer. Dublettenprüfung über die Adresse |
+| `set_project_owner` | Eigentümer-Kontakt (eigener Shop) mit einem Projekt verknüpfen |
+| `add_images` | Bilder per öffentlicher https-URL an Objekt oder Projekt hängen |
+
+- **Projekt:** Wrapper `project`, `country` DEU, Betreuer = Nutzer. Was Propstack im Sammel-Request still verwirft, wird erkannt und **einzeln nachgesetzt**. `note` ist nicht schreibbar; offene Punkte gehen über `review_notes` in die Prüfaufgabe. Testprojekte erkennt man am Namenspräfix `MCP-TEST`, weil Projekte keine Merkmale haben.
+- **Eigentümer:** `PUT /projects/{id}` mit `relationships_attributes` (`related_client_id`, nicht `client_id`). Der Projekt-GET zeigt frische Verknüpfungen nicht, deshalb prüft das Tool über die Relationship-Liste (bis 500 Einträge, sonst „nicht prüfbar“). „Existiert bereits“ zählt als Erfolg. Bei einem fremden Shop kommt eine klare Meldung.
+- **Bilder:** Nur öffentliche https-URLs (`remote_photo_url`). Ein Chat-Upload lässt sich über einen Remote-MCP nicht zuverlässig weiterreichen. Jede URL wird vorher geprüft (erreichbar, `Content-Type: image/*`), sonst entstehen leere Bildobjekte, die man nur in der UI löschen kann. Das erste Bild eines Objekts wird Titelbild.
+- **Prüfaufgabe automatisch** nach `create_project` und `create_object`:
+  - an Lena (254958), bei `test: true` an den Nutzer selbst;
+  - `is_reminder: true`, fällig am nächsten Werktag 9:00, Text in ASCII;
+  - Inhalt: Link, Ersteller, Lücken (`not_applied`/`not_verifiable`), Fehler, Hinweise, offene Punkte.
+  - Schlägt sie fehl, bleibt der Datensatz angelegt; im Ergebnis steht `review_task.error`.
+- **API-Key:** Der Key „MCP-Server“ braucht in Propstack zusätzlich Schreibrechte für Projekte, Relationships, Bilder und Aufgaben.
+- **Nicht enthalten:** Dokumente (PDF), `update_project`, Post in #objekte, Löschen.
+
 Write-Log auswerten:
 
 ```sql

@@ -152,6 +152,7 @@ function fakeClient(impl: Record<string, (...args: unknown[]) => unknown>) {
 	const calls: Call[] = [];
 	const defaults: Record<string, (...args: unknown[]) => unknown> = {
 		createGroup: () => ({}),
+		createTask: () => ({ id: 4711 }),
 		listCustomFieldGroups: () =>
 			page([
 				{
@@ -436,6 +437,8 @@ describe("create_object / update_object", () => {
 		expect((out.result as { not_verifiable?: string[] }).not_verifiable).toBeUndefined();
 		expect(sleeps).toContain(1500);
 		expect(updates[0]?.[0]).toBe("done");
+		// Testdaten: Prüfaufgabe an den Nutzer selbst, nicht an Lena
+		expect(out.result).toMatchObject({ review_task: { assigned_to: "Florian Brimmers", due: "2026-10-15T09:00:00", id: 4711 } });
 	});
 
 	it("spiegelt Standardflächen in die Custom-Felder, die Exposé und Team lesen (Skill: alle Varianten)", async () => {

@@ -35,6 +35,7 @@ import {
 	updateObject,
 	updateObjectInput,
 } from "./write-tools";
+import { addImages, addImagesInput, createProject, createProjectInput, setProjectOwner, setProjectOwnerInput } from "./project-tools";
 import { type ZodRawShape, z } from "zod";
 
 export interface ToolContext {
@@ -220,5 +221,27 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
 		updateObjectInput,
 		true,
 		updateObject,
+	);
+	const review = "Danach entsteht automatisch eine Prüfaufgabe an Lena (bei test=true an dich), fällig am nächsten Werktag 9:00 – mit Link und allen Lücken.";
+	register(
+		"create_project",
+		`Projekt (Standort) in Propstack anlegen – für mehrere Einheiten an einem Standort oder ein Objekt mit Projektkontext. Vorher Dublettenprüfung über die Adresse. Eigentümer optional direkt verknüpfen (owner_contact_id, Kontakt aus dem eigenen Shop). Offene Punkte über review_notes (Projekte haben kein internes Notizfeld). Danach Einheiten mit create_object + project_id. ${review} ${rules}`,
+		createProjectInput,
+		false,
+		createProject,
+	);
+	register(
+		"set_project_owner",
+		"Eigentümer (Kontakt aus dem eigenen Shop) mit einem Projekt verknüpfen. Vorhandene Verknüpfungen bleiben bestehen. Ergebnis linked: true/false/„nicht prüfbar“.",
+		setProjectOwnerInput,
+		false,
+		setProjectOwner,
+	);
+	register(
+		"add_images",
+		"Bilder per öffentlicher https-URL an ein Objekt oder Projekt hängen (Propstack lädt sie selbst). Jede URL wird vorher geprüft (erreichbar, wirklich ein Bild). Das erste Bild eines Objekts wird Titelbild – bestes Außenfoto zuerst. Bilder aus dem Chat-Upload gehen NICHT, nur URLs. Bildrechte und Firmenschriftzüge beachten.",
+		addImagesInput,
+		false,
+		addImages,
 	);
 }
