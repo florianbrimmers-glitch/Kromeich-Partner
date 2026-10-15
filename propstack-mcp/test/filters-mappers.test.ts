@@ -96,6 +96,11 @@ describe("Mapper kürzen und schützen", () => {
 		expect(out).not.toHaveProperty("academic_title");
 	});
 
+	it("Kontakt-Liste: Betreuer aus broker_ids, wenn broker_id fehlt", () => {
+		expect(mapContactSummary({ broker_ids: [254958], id: 1, name: "X" })).toMatchObject({ broker_id: 254958 });
+		expect(mapContactSummary({ broker_ids: [], id: 1, name: "X" })).not.toHaveProperty("broker_id");
+	});
+
 	it("Kontakt-Liste nimmt die erste vorhandene Telefonnummer", () => {
 		expect(mapContactSummary({ home_cell: "0171", id: 1, name: "X", phone: null })).toEqual({ id: 1, name: "X", phone: "0171" });
 	});

@@ -178,15 +178,85 @@ export class PropstackClient {
 		return toPage(await this.get("/projects"));
 	}
 
-	private async get(path: string): Promise<unknown> {
+	// ---------- Schreiben (Phase 3) – nur Anlegen/Ändern, keine Löschmethoden ----------
+
+	/** POST /v1/contacts. Achtung: Propstack aktualisiert bei bekannter E-Mail den vorhandenen Kontakt (Upsert) – Dublettenprüfung vorher ist Pflicht. */
+	async createContact(client: Record<string, unknown>): Promise<unknown> {
+		return this.send("POST", "/contacts", { client });
+	}
+
+	/** PUT /v1/contacts/:id */
+	async updateContact(id: number, client: Record<string, unknown>): Promise<unknown> {
+		return this.send("PUT", `/contacts/${id}`, { client });
+	}
+
+	/** POST /v1/units */
+	async createUnit(property: Record<string, unknown>): Promise<unknown> {
+		return this.send("POST", "/units", { property });
+	}
+
+	/** PUT /v1/units/:id */
+	async updateUnit(id: number, property: Record<string, unknown>): Promise<unknown> {
+		return this.send("PUT", `/units/${id}`, { property });
+	}
+
+	/** POST /v1/groups – nur intern für das Test-Merkmal MCP-TEST genutzt. */
+	async createGroup(entity: GroupEntity, name: string): Promise<unknown> {
+		return this.send("POST", "/groups", { entity, name });
+	}
+
+	/**
+	 * Schreibende Anfrage. Retry nur bei 429 (Anfrage wurde nicht verarbeitet).
+	 * Bei 5xx/Timeout KEIN Retry – der Write könnte trotzdem passiert sein.
+	 */
+	private async send(method: "POST" | "PUT", path: string, body: unknown): Promise<unknown> {
 		for (let attempt = 0; ; attempt++) {
-			if (this.requestCount >= this.maxRequests) {
+			this.countRequest();
+			let response: Response;
+			try {
+				response = await this.fetchFn(`${this.baseUrl}${path}`, {
+					body: JSON.stringify(body),
+					headers: { Accept: "application/json", "Content-Type": "application/json", "X-API-KEY": this.apiKey },
+					method,
+					signal: AbortSignal.timeout(this.timeoutMs),
+				});
+			} catch (error) {
 				throw new PropstackError(
-					`Abfrage zu umfangreich (mehr als ${this.maxRequests} Propstack-Anfragen). Bitte Filter enger setzen.`,
+					`Propstack nicht erreichbar (${(error as Error).message}). Status der Änderung unklar – bitte in Propstack prüfen, bevor erneut gespeichert wird.`,
 					0,
 				);
 			}
-			this.requestCount++;
+			if (response.status === 429 && attempt < this.maxRetries) {
+				await this.sleep(retryDelayMs(attempt, response.headers.get("retry-after")));
+				continue;
+			}
+			if (!response.ok) {
+				const detail = response.status === 400 || response.status === 422 ? await validationDetail(response) : "";
+				const unclear = response.status >= 500 ? " Status der Änderung unklar – bitte in Propstack prüfen." : "";
+				throw new PropstackError(`${describeStatus(response.status)}${detail}${unclear}`, response.status);
+			}
+			const text = await response.text();
+			try {
+				return text ? JSON.parse(text) : {};
+			} catch {
+				return {};
+			}
+		}
+	}
+
+	private countRequest(): void {
+		if (this.requestCount >= this.maxRequests) {
+			throw new PropstackError(
+				`Abfrage zu umfangreich (mehr als ${this.maxRequests} Propstack-Anfragen). Bitte Filter enger setzen.`,
+				0,
+			);
+		}
+		this.requestCount++;
+	}
+
+	private async get(path: string): Promise<unknown> {
+		for (let attempt = 0; ; attempt++) {
+			this.countRequest();
 			let response: Response;
 			try {
 				response = await this.fetchFn(`${this.baseUrl}${path}`, {
@@ -207,6 +277,25 @@ export class PropstackClient {
 			}
 			return response.json();
 		}
+	}
+}
+
+/** Validierungsmeldung von Propstack (400/422) kurz und ohne Steuerzeichen durchreichen. */
+async function validationDetail(response: Response): Promise<string> {
+	try {
+		const text = (await response.text()).replace(/[\u0000-\u001f]+/g, " ").trim();
+		if (!text) return "";
+		let message = text;
+		try {
+			const parsed = JSON.parse(text) as Record<string, unknown>;
+			const raw = parsed.errors ?? parsed.error ?? parsed.message ?? parsed;
+			message = typeof raw === "string" ? raw : JSON.stringify(raw);
+		} catch {
+			// kein JSON – Text verwenden
+		}
+		return `: ${message.slice(0, 300)}`;
+	} catch {
+		return "";
 	}
 }
 
