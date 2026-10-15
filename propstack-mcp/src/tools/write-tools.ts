@@ -8,7 +8,7 @@ import {
 	isMobile,
 	objectDuplicates,
 } from "../propstack/dedupe";
-import { type CustomOption, validateCustomFields } from "../propstack/field-rules";
+import { type CustomOption, loadFieldDefs, mirroredCustomFields, validateCustomFields } from "../propstack/field-rules";
 import { scalar } from "../propstack/mappers";
 import { readUnit, UNVERIFIABLE, type UnitState, unitCustomValue, unitValue } from "../propstack/unit-state";
 import { beginWrite, finishWrite } from "../write-log";
@@ -469,7 +469,7 @@ const objectFieldsShape = {
 	usable_floor_space: num.describe("Nutzfläche m² (bei Hallen: Bürofläche)"),
 	plot_area: num.describe("Grundstücksfläche m²"),
 	hall_height: num.describe("Hallenhöhe in m UKB"),
-	floor_load: num.describe("Bodentragkraft in t/m²"),
+	floor_load: num.describe("Bodentragkraft in kg/m² – Propstack hängt kg/m² selbst an (5 t/m² = 5000)"),
 	construction_year: z.number().int().min(1800).max(2100).optional(),
 	free_from: optionalText(100).describe("Verfügbar ab (Text), z. B. „auf Anfrage“ oder „01.03.2027“"),
 	hide_address: z.boolean().optional().describe("Adresse im Exposé ausblenden"),
@@ -609,7 +609,12 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	}
 	const overrideReason = checkOverride(dedupe, input.allow_duplicate_reason);
 
-	const custom = await validateCustomFields(client, "for_properties", input.custom_fields);
+	const defs = await loadFieldDefs(client, "for_properties");
+	const mirrored = mirroredCustomFields(fields, defs, input.custom_fields, {
+		available: fields.rented !== true,
+		priceOnInquiry: fields.price_on_inquiry === true,
+	});
+	const custom = await validateCustomFields(client, "for_properties", { ...mirrored, ...input.custom_fields }, defs);
 	const bemerkung = [originNote(user, now, "Angelegt"), input.bemerkung_append].filter(Boolean).join("\n");
 	const customSend: Raw = { ...(custom?.send ?? {}), bemerkung };
 	const customExpect: Raw = { ...(custom?.expect ?? {}), bemerkung };
@@ -660,6 +665,7 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 			broker: user.name,
 			test: input.test || undefined,
 			override_reason: overrideReason ?? undefined,
+			mirrored_custom_fields: Object.keys(mirrored).length ? Object.keys(mirrored) : undefined,
 			warnings: dedupe.warnings.length ? dedupe.warnings : undefined,
 			not_applied: missing.length ? missing : undefined,
 			not_verifiable: unverified.length ? unverified : undefined,
@@ -717,7 +723,23 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	}
 	const overrideReason = checkOverride(dedupe, input.allow_duplicate_reason);
 
-	const custom = await validateCustomFields(client, "for_properties", input.custom_fields);
+	// Flächen spiegeln; *_verfugbar nur, solange das Objekt nicht vermietet ist
+	const defs = await loadFieldDefs(client, "for_properties");
+	const rentedNow = fields.rented ?? scalar(currentValue("rented"));
+	// Aus den angefragten (nicht nur geänderten) Flächen – so werden auch Altobjekte nachgezogen,
+	// deren Custom-Varianten fehlen. Bereits richtige Werte nicht erneut schreiben.
+	const mirrored = Object.fromEntries(
+		Object.entries(
+			mirroredCustomFields(requested, defs, input.custom_fields, {
+				available: rentedNow === false,
+				priceOnInquiry: requested.price_on_inquiry === true,
+			}),
+		).filter(([key, value]) => {
+			const actual = unitCustomValue(current, key);
+			return actual === UNVERIFIABLE || !same(value, actual);
+		}),
+	);
+	const custom = await validateCustomFields(client, "for_properties", { ...mirrored, ...input.custom_fields }, defs);
 	const customSend: Raw = { ...(custom?.send ?? {}) };
 	const customExpect: Raw = { ...(custom?.expect ?? {}) };
 	const customBefore: Raw = {};

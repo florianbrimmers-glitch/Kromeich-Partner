@@ -83,9 +83,10 @@ export async function validateCustomFields(
 	client: Pick<PropstackClient, "listCustomFieldGroups">,
 	entity: CustomFieldEntity,
 	fields: Record<string, unknown> | undefined,
+	preloaded?: Map<string, FieldDef>,
 ): Promise<ValidatedCustomFields | undefined> {
 	if (!fields || !Object.keys(fields).length) return undefined;
-	const defs = await loadFieldDefs(client, entity);
+	const defs = preloaded ?? (await loadFieldDefs(client, entity));
 	const blocked = entity === "for_properties" ? BLOCKED_OBJECT_FIELDS : {};
 	const errors: string[] = [];
 	const send: Raw = {};
@@ -155,4 +156,48 @@ export async function validateCustomFields(
 		throw new PropstackError(`Custom-Felder ungültig: ${errors.join("; ")}. Gültige Felder über list_fields.`, 400);
 	}
 	return { expect, send };
+}
+
+// ---------- Flächen spiegeln ----------
+// Exposé und Teamansicht lesen die Flächen-Custom-Felder (lagerflache, buroflache …),
+// nicht die Standardfelder. Skill: „Flächen-Custom-Fields doppelt setzen … immer alle Varianten.“
+// Referenz: Einheit 4465616 (Baumstraße Unit 1).
+
+const AREA_MIRRORS: Record<string, { always: string[]; available: string[] }> = {
+	hall_height: { always: ["hallenhohe"], available: [] },
+	industrial_area: { always: ["lagerflache", "lagerflache_gesamt"], available: ["lagerflache_verfugbar"] },
+	total_floor_space: { always: ["gebaudeflache_gesamt"], available: ["gebaudeflache_verfugbar"] },
+	usable_floor_space: { always: ["buroflache", "buroflache_gesamt"], available: ["buroflache_verfugbar"] },
+};
+
+function formatSqm(value: number): string {
+	return `${value.toLocaleString("de-DE", { maximumFractionDigits: 2 })} m²`;
+}
+
+/**
+ * Custom-Feld-Werte, die aus Standardfeldern folgen. Explizit übergebene Custom-Felder haben Vorrang.
+ * `available`: Fläche ist frei (nicht vermietet) → auch die *_verfugbar-Felder setzen.
+ */
+export function mirroredCustomFields(
+	fields: Raw,
+	defs: Map<string, FieldDef>,
+	explicit: Raw | undefined,
+	options: { available: boolean; priceOnInquiry: boolean },
+): Raw {
+	const out: Raw = {};
+	const put = (key: string, value: number) => {
+		const def = defs.get(key);
+		if (!def || (explicit && key in explicit) || BLOCKED_OBJECT_FIELDS[key]) return;
+		out[key] = def.type === "Number" ? value : formatSqm(value);
+	};
+	for (const [field, targets] of Object.entries(AREA_MIRRORS)) {
+		const value = fields[field];
+		if (typeof value !== "number") continue;
+		for (const key of targets.always) put(key, value);
+		if (options.available) for (const key of targets.available) put(key, value);
+	}
+	if (options.priceOnInquiry && defs.get("preisangabe")?.type === "String" && !(explicit && "preisangabe" in explicit)) {
+		out.preisangabe = "auf Anfrage";
+	}
+	return out;
 }
