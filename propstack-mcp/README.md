@@ -97,6 +97,28 @@ Bewusste Lücken: Ein einzelner Deal per ID und die Kontakt-Status-Liste sind nu
 - **API-Key:** Der Key „MCP-Server“ braucht in Propstack zusätzlich Schreibrechte für Projekte, Relationships, Bilder und Aufgaben.
 - **Nicht enthalten:** Dokumente (PDF), `update_project`, Post in #objekte, Löschen. Im reinen claude.ai-Chat ohne Code-Ausführung gibt es keinen Datei-Upload, dort nur `add_images` per URL.
 
+## Phase 4: Massenänderungen (plan → apply_plan → undo_plan)
+
+| Tool | Zweck |
+|---|---|
+| `plan` | Auswahl (ID-Liste oder Filter wie bei den Such-Tools) und Änderung festlegen. **Ändert nichts in Propstack.** Liefert `plan_id`, Anzahl und Vorschau |
+| `apply_plan` | Bestätigten Plan ausführen, in Etappen |
+| `undo_plan` | Ausgeführten Plan rückgängig machen |
+
+- **Änderungen:** Merkmale hinzufügen/entfernen (Kontakte und Objekte); bei Kontakten Betreuer, Quelle, Kontaktstatus; bei Objekten Status und vermietet; Custom-Felder. Bei Objekten mit Merkmalen braucht es eine Live-Prüfung, ob `add_group_ids`/`sub_group_ids` greifen. Das Ergebnis meldet es sonst als `not_applied`.
+- **Regeln:**
+  - Höchstens 500 Datensätze je Plan.
+  - Die Plan-ID verfällt 10 Minuten nach dem Planen (Spezifikation). Danach muss neu geplant werden, weil sich der Bestand geändert haben kann.
+  - Nur wer geplant hat, darf ausführen. Claude muss die Vorschau zeigen und eine ausdrückliche Bestätigung einholen.
+- **Gleiche Regeln wie Einzeländerungen:** `apply_plan` schreibt jeden Datensatz über `update_contact` bzw. `update_object`. Es gelten dieselben Prüfungen (Einzel-PUTs, Spiegelung, Preissperre, aktiv/inaktiv, Gegenlesen). Jeder Datensatz bekommt einen eigenen Write-Log-Eintrag (`tool = apply_plan:<id>`).
+- **Etappen:** Pro Tool-Aufruf höchstens ~40 Propstack-Requests. Das reicht für etwa 13 Kontakte oder 4–8 Objekte. Claude ruft `apply_plan` erneut auf, bis `remaining = 0`. Bei unklarem Propstack-Status (5xx/Timeout/429) hält der Lauf an. Mit Workers Paid lässt sich das Budget erhöhen (`BULK_REQUEST_BUDGET`).
+- **Rückgängig:** 7 Tage lang (Entscheidung Florian), jeder Nutzer darf es auslösen.
+  - Je Datensatz wird der gesicherte Stand vorher hergestellt, als Rohwert und nicht als Anzeigewert.
+  - Felder, die seitdem jemand anders geändert hat, werden **übersprungen** und gemeldet.
+  - Merkmale werden nur zurückgenommen, wenn der Plan sie wirklich gesetzt bzw. entfernt hat.
+  - Bemerkungen werden nie zurückgesetzt.
+- **Speicher:** D1-Tabellen `bulk_plan` und `bulk_item` (`migrations/0003_bulk_plans.sql`), Löschfrist 12 Monate per Cron.
+
 Write-Log auswerten:
 
 ```sql

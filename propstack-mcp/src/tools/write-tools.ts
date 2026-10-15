@@ -38,6 +38,10 @@ export interface WriteDeps {
 	now?: () => Date;
 	sleep?: (ms: number) => Promise<void>;
 	kv?: KVNamespace;
+	/** Massenänderungen: Tool-Name im Write-Log (z. B. „apply_plan:abc“). */
+	logTool?: string;
+	/** Massenänderungen: Stand vorher je Datensatz mitschneiden (für undo_plan). */
+	capture?: (snapshot: { before: Raw; after: Raw }) => void;
 }
 
 const optionalText = (max: number) => z.string().trim().min(1).max(max).optional();
@@ -98,7 +102,13 @@ function isEmpty(value: unknown): boolean {
 	return false;
 }
 
-function same(requested: unknown, actual: unknown): boolean {
+/** Rohwert eines Propstack-Werts ({value, pretty_value} → value) – für Snapshots, die zurückgeschrieben werden. */
+export function rawValue(value: unknown): unknown {
+	if (value && typeof value === "object" && !Array.isArray(value) && "value" in (value as Raw)) return (value as Raw).value ?? null;
+	return value ?? null;
+}
+
+export function same(requested: unknown, actual: unknown): boolean {
 	if (requested === null) return isEmpty(actual);
 	if (isOption(requested)) {
 		const have = readings(actual);
@@ -134,7 +144,7 @@ export function notApplied(requested: Raw, actual: Raw, custom?: Raw): string[] 
 	return missing;
 }
 
-function groupIdsOf(raw: Raw): number[] {
+export function groupIdsOf(raw: Raw): number[] {
 	const groups = raw.groups ?? raw.property_groups ?? raw.group_ids;
 	return (Array.isArray(groups) ? groups : [])
 		.map((g) => (g && typeof g === "object" ? (g as Raw).id : g))
@@ -199,7 +209,7 @@ const contactFieldsShape = {
 	custom_fields: z.record(z.string(), z.unknown()).optional().describe("Custom-Felder {schlüssel: wert}, Schlüssel über list_fields"),
 };
 
-const CONTACT_KEYS: Record<string, string> = {
+export const CONTACT_KEYS: Record<string, string> = {
 	academic_title: "academic_title",
 	city: "office_city",
 	company: "company",
@@ -213,6 +223,8 @@ const CONTACT_KEYS: Record<string, string> = {
 	position: "position",
 	salutation: "salutation",
 	source_id: "client_source_id",
+	broker_id: "broker_id",
+	client_status_id: "client_status_id",
 	street: "office_street",
 	zip_code: "office_zip_code",
 };
@@ -332,6 +344,8 @@ export async function createContact(deps: WriteDeps, input: z.infer<z.ZodObject<
 export const updateContactInput = {
 	id: id.describe("Propstack-Kontakt-ID"),
 	...contactFieldsShape,
+	broker_id: id.optional().describe("Betreuer ändern (Propstack-Nutzer-ID, über list_reference kind=users)"),
+	client_status_id: id.optional().describe("Kontaktstatus-ID"),
 	add_tag_ids: tagIds.optional().describe("Merkmale hinzufügen"),
 	remove_tag_ids: tagIds.optional().describe("Merkmale entfernen"),
 	note_append: optionalText(2000).describe("Text an die Notiz anhängen (mit Datum und Nutzer); vorhandene Notiz bleibt erhalten"),
@@ -383,11 +397,12 @@ export async function updateContact(deps: WriteDeps, input: z.infer<z.ZodObject<
 		payload.description = [old, `${originNote(user, now, "Ergänzt")}\n${input.note_append}`].filter(Boolean).join("\n\n");
 	}
 	if (addTags.length || removeTags.length) before.tag_ids = currentTags;
-	if (custom) before.custom_fields = Object.fromEntries(Object.keys(custom.send).map((k) => [k, scalar((current.custom_fields as Raw | undefined)?.[k]) ?? null]));
+	if (custom) before.custom_fields = Object.fromEntries(Object.keys(custom.send).map((k) => [k, rawValue((current.custom_fields as Raw | undefined)?.[k])]));
 
 	if (!Object.keys(payload).length) {
 		return { count: 0, result: { updated: false, id: input.id, note: "Keine Änderung – alle Werte sind bereits so gesetzt." } };
 	}
+	deps.capture?.({ after: { ...fields, ...(custom ? { custom_fields: custom.send } : {}) }, before });
 
 	const logId = await beginWrite(deps.db, {
 		action: "update",
@@ -397,7 +412,7 @@ export async function updateContact(deps: WriteDeps, input: z.infer<z.ZodObject<
 		entityId: input.id,
 		overrideReason,
 		request: payload,
-		tool: "update_contact",
+		tool: deps.logTool ?? "update_contact",
 		userEmail: user.email,
 		warnings: dedupe.warnings,
 	});
@@ -577,7 +592,7 @@ function checkPublicPrice(marketingType: unknown, fields: Raw, confirmed: boolea
 	return true;
 }
 
-function groupIdsOfUnit(state: UnitState): number[] {
+export function groupIdsOfUnit(state: UnitState): number[] {
 	const fromDetail = groupIdsOf(state.detail);
 	return fromDetail.length || !state.row ? fromDetail : groupIdsOf(state.row);
 }
@@ -731,6 +746,8 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 export const updateObjectInput = {
 	id: id.describe("Propstack-Objekt-ID"),
 	...objectFieldsShape,
+	add_tag_ids: tagIds.optional().describe("Merkmale hinzufügen (list_tags entity=objects)"),
+	remove_tag_ids: tagIds.optional().describe("Merkmale entfernen"),
 	allow_duplicate_reason: optionalText(500).describe("Nur falls die geänderte Adresse/Einheit/Vermarktungsart mit einem anderen Objekt kollidiert: Begründung"),
 };
 
@@ -778,6 +795,11 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	}
 	const overrideReason = checkOverride(dedupe, input.allow_duplicate_reason);
 
+	const currentTags = groupIdsOfUnit(current);
+	const addTags = (input.add_tag_ids ?? []).filter((t) => !currentTags.includes(t));
+	const removeTags = (input.remove_tag_ids ?? []).filter((t) => currentTags.includes(t));
+	if (addTags.length || removeTags.length) before.tag_ids = currentTags;
+
 	// Flächen spiegeln; *_verfugbar nur, solange das Objekt nicht vermietet ist
 	const defs = await loadFieldDefs(client, "for_properties");
 	const rentedNow = requested.rented ?? scalar(currentValue("rented"));
@@ -820,7 +842,7 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	const customBefore: Raw = {};
 	for (const key of Object.keys(customSend)) {
 		const actual = unitCustomValue(current, key);
-		customBefore[key] = actual === UNVERIFIABLE ? "nicht lesbar" : (scalar(actual) ?? null);
+		customBefore[key] = actual === UNVERIFIABLE ? "nicht lesbar" : rawValue(actual);
 	}
 	if (input.bemerkung_append) {
 		const old = unitCustomValue(current, "bemerkung");
@@ -835,12 +857,21 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	}
 	if (Object.keys(customBefore).length) before.custom_fields = customBefore;
 
-	if (!Object.keys(fields).length && !Object.keys(customSend).length) {
+	if (!Object.keys(fields).length && !Object.keys(customSend).length && !addTags.length && !removeTags.length) {
 		return { count: 0, result: { updated: false, id: input.id, note: "Keine Änderung – alle Werte sind bereits so gesetzt." } };
 	}
+	deps.capture?.({
+		after: { ...Object.fromEntries(Object.entries(fields).map(([k, v]) => [fieldLabel(k), v])), ...(Object.keys(customSend).length ? { custom_fields: customSend } : {}) },
+		before,
+	});
 
 	const { bulk, solo } = splitSolo(fields);
-	const payload: Raw = { ...bulk, ...(Object.keys(customSend).length ? { partial_custom_fields: customSend } : {}) };
+	const payload: Raw = {
+		...bulk,
+		...(Object.keys(customSend).length ? { partial_custom_fields: customSend } : {}),
+		...(addTags.length ? { add_group_ids: addTags } : {}),
+		...(removeTags.length ? { sub_group_ids: removeTags } : {}),
+	};
 
 	const logId = await beginWrite(deps.db, {
 		action: "update",
@@ -854,7 +885,7 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 			einzeln_nachgesetzt: Object.fromEntries(solo.map(([k, v]) => [fieldLabel(k), v])),
 			public_price_confirmed: input.public_price_confirmed,
 		},
-		tool: "update_object",
+		tool: deps.logTool ?? "update_object",
 		userEmail: user.email,
 		warnings: dedupe.warnings,
 	});
@@ -874,6 +905,9 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 
 	const state = await readUnit(client, input.id);
 	const { missing, unverified } = verifyObject(state, fields, customExpect);
+	const groupsAfter = groupIdsOfUnit(state);
+	for (const t of addTags) if (!groupsAfter.includes(t)) missing.push(`add_tag ${t}`);
+	for (const t of removeTags) if (groupsAfter.includes(t)) missing.push(`remove_tag ${t}`);
 	await finishWrite(deps.db, logId, {
 		error: writeErrors.length ? writeErrors.join(" | ") : undefined,
 		notApplied: [...missing, ...unverified.map((f) => `${f} (nicht prüfbar)`)],
@@ -888,6 +922,8 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 			title: scalar(state.row?.title ?? state.detail.title),
 			changed: [
 				...Object.keys(fields).map(fieldLabel),
+				...(addTags.length ? ["add_tags"] : []),
+				...(removeTags.length ? ["remove_tags"] : []),
 				...Object.keys(customSend).map((k) => (k === "bemerkung" && input.bemerkung_append ? "bemerkung (angehängt)" : `custom_fields.${k}`)),
 			],
 			warnings: dedupe.warnings.length ? dedupe.warnings : undefined,

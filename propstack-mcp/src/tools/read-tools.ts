@@ -687,3 +687,36 @@ export async function aggregate(client: Client, input: AggregateInput): Promise<
 		}),
 	};
 }
+
+// ---------- Auswahl für Massenänderungen (Phase 4) ----------
+// Alle Treffer eines Filters laden – dieselben Filter und dieselbe Logik wie search_contacts/search_objects.
+
+export async function selectContacts(client: Client, filters: ContactFilters, limit: number): Promise<Raw[]> {
+	const base = contactQuery(filters);
+	const tagIds = filters.tag_ids ?? [];
+	if (filters.tag_match === "all" && tagIds.length > 1) {
+		return rowsWithAllTags((q) => client.searchContacts(q), base, tagIds, (id) => ({ group: [id] }));
+	}
+	const loaded = await loadAll((q) => client.searchContacts(q), base, LOAD_PAGE_SIZE, Math.ceil((limit + 1) / LOAD_PAGE_SIZE));
+	return loaded.rows;
+}
+
+export async function selectObjects(client: Client, filters: ObjectFilters, limit: number): Promise<Raw[]> {
+	const search = (q: Query) => client.searchUnits(q);
+	const statusIds = filters.status_ids ?? [];
+	const tagIds = filters.tag_ids ?? [];
+	const tagAll = filters.tag_match === "all" && tagIds.length > 1;
+	if (!filters.city && !filters.zip_prefix && !tagAll) {
+		return (await loadAll(search, objectQuery(filters), LOAD_PAGE_SIZE, Math.ceil((limit + 1) / LOAD_PAGE_SIZE))).rows;
+	}
+	const base: Query = { ...objectQuery({ ...filters, status_ids: undefined }), q: filters.query ?? filters.city ?? filters.zip_prefix };
+	let rows: Raw[];
+	if (tagAll) rows = await rowsWithAllTags(search, base, tagIds, (id) => ({ group: String(id) }));
+	else {
+		const loaded = await loadAll(search, base);
+		if (!loaded.complete) throw new PropstackError("Zu viele Treffer für den Ortsfilter. Bitte zusätzlich filtern.", 400);
+		rows = loaded.rows;
+	}
+	rows = rows.filter((row) => matchesLocation(row, filters.city, filters.zip_prefix));
+	return statusIds.length ? rows.filter((row) => statusIds.includes(rowStatusId(row) as number)) : rows;
+}
