@@ -36,6 +36,7 @@ import {
 	updateObjectInput,
 } from "./write-tools";
 import { imageUploadUrl, imageUploadUrlInput } from "../image-upload";
+import { applyPlan, MAX_PLAN_ITEMS, planBulk, planBulkInput, planIdInput, undoPlan } from "./bulk-tools";
 import { addImages, addImagesInput, createProject, createProjectInput, setProjectOwner, setProjectOwnerInput } from "./project-tools";
 import { type ZodRawShape, z } from "zod";
 
@@ -254,5 +255,26 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
 		imageUploadUrlInput,
 		false,
 		imageUploadUrl,
+	);
+	register(
+		"plan",
+		`Massenänderung PLANEN (ändert noch nichts): Kontakte oder Objekte per ID-Liste oder Filter (wie search_contacts/search_objects) auswählen, Änderung festlegen (Merkmale hinzufügen/entfernen, Betreuer/Quelle/Status, Objekt-Status, vermietet, Custom-Felder). Liefert plan_id, Anzahl und Vorschau; max. ${MAX_PLAN_ITEMS} Datensätze. Danach dem Nutzer die Vorschau zeigen und ausdrücklich bestätigen lassen – erst dann apply_plan. Die plan_id verfällt nach 10 Minuten.`,
+		planBulkInput,
+		false,
+		planBulk,
+	);
+	register(
+		"apply_plan",
+		"Bestätigten Plan AUSFÜHREN. Nur nach ausdrücklicher Bestätigung durch den Nutzer und nur durch den, der geplant hat. Je Datensatz dieselben Regeln, Prüfungen und Write-Log wie update_contact/update_object. Läuft in Etappen: solange remaining > 0, erneut mit derselben plan_id aufrufen (ohne erneute Rückfrage). Rückgängig 7 Tage lang mit undo_plan.",
+		planIdInput,
+		true,
+		applyPlan,
+	);
+	register(
+		"undo_plan",
+		"Ausgeführten Plan RÜCKGÄNGIG machen (bis 7 Tage danach). Stellt je Datensatz den Stand vorher her – aber nur Felder, die seitdem niemand anders geändert hat; diese werden übersprungen und gemeldet. Bemerkungen werden nie zurückgesetzt. Läuft in Etappen wie apply_plan.",
+		planIdInput,
+		true,
+		undoPlan,
 	);
 }

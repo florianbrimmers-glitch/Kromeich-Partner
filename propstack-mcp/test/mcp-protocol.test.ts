@@ -95,7 +95,7 @@ describe("MCP-Protokoll", () => {
 		expect(audits[0][3]).toBe("get_contact");
 	});
 
-	it("Schreib-Tools: genau acht, nicht readOnly, Updates als überschreibend markiert, kein Löschen", async () => {
+	it("Schreib-Tools: genau elf, nicht readOnly, Updates als überschreibend markiert, kein Löschen", async () => {
 		const server = new McpServer({ name: "test", version: "0" });
 		const ctx = { env: {} as Env, props: () => ({ brokerId: 1, email: "t@kromeichpartner.de", name: "T" }) };
 		registerReadTools(server, ctx);
@@ -115,6 +115,9 @@ describe("MCP-Protokoll", () => {
 			["set_project_owner", false],
 			["add_images", false],
 			["image_upload_url", false],
+			["plan", false],
+			["apply_plan", true],
+			["undo_plan", true],
 		]);
 		expect(tools.some((t) => /delete|remove_contact|remove_object|destroy|purge/i.test(t.name))).toBe(false);
 		const create = tools.find((t) => t.name === "create_contact")!;
