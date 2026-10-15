@@ -168,6 +168,7 @@ function fakeClient(impl: Record<string, (...args: unknown[]) => unknown>) {
 						{ field_type: "Number", name: "gebaudeflache_verfugbar", unit: "sqm" },
 						{ field_type: "String", name: "preisangabe" },
 						{ field_type: "String", name: "status_logistik" },
+						{ field_type: "Boolean", name: "kein_automatischer_exposeversand" },
 						{ field_type: "String", name: "bemerkung" },
 						{ custom_options: [{ id: 1, name: "Ja" }, { id: 2, name: "Nein" }], field_type: "Dropdown", name: "spekulative_entwicklung" },
 						{ custom_options: [{ id: 7, name: "Aktiv" }, { id: 8, name: "Inaktiv" }], field_type: "Multiselect", name: "aktiv" },
@@ -478,12 +479,14 @@ describe("create_object / update_object", () => {
 		expect(unit.posted().partial_custom_fields).not.toHaveProperty("gebaudeflache_verfugbar");
 	});
 
-	it("verfügbar anlegen: status_logistik/aktiv Aktiv; 0 m² wird abgewiesen", async () => {
+	it("aktiv nur bei Status Vermarktung; Akquise bleibt inaktiv; Testobjekte ohne Exposéversand; 0 m² abgewiesen", async () => {
 		const unit = fakeUnit();
 		const { client } = fakeClient(unit.impl);
 		const deps = { client, db: fakeDb().db, now: NOW, sleep, user: USER };
-		await createObject(deps, { ...input, industrial_area: 1000 });
+		await createObject(deps, { ...input, industrial_area: 1000, status_id: 163674 });
 		expect(unit.posted().partial_custom_fields).toMatchObject({ aktiv: [7], lagerflache_verfugbar: "1.000 m²", status_logistik: "Aktiv" });
+		await createObject(deps, { ...input, industrial_area: 1000, status_id: 163672, test: true });
+		expect(unit.posted().partial_custom_fields).toMatchObject({ aktiv: [8], kein_automatischer_exposeversand: true, status_logistik: "Inaktiv" });
 		await expect(createObject(deps, { ...input, custom_fields: { lagerflache: 0 } })).rejects.toThrow(/0 m²/);
 	});
 

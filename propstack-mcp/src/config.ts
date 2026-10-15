@@ -18,3 +18,6 @@ export const AUDIT_RETENTION_MONTHS = 12;
 export const AGGREGATE_MAX_GROUPS = 40;
 export const DEAL_PAGE_SIZE = 200;
 export const DEAL_MAX_PAGES = 40;
+
+/** Objekt-Status „Vermarktung“ – nur dann gilt eine Einheit als aktiv (status_logistik/aktiv). */
+export const STATUS_MARKETING = 163674;

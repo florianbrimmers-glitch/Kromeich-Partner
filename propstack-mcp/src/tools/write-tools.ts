@@ -8,6 +8,7 @@ import {
 	isMobile,
 	objectDuplicates,
 } from "../propstack/dedupe";
+import { STATUS_MARKETING } from "../config";
 import { type CustomOption, loadFieldDefs, mirroredCustomFields, validateCustomFields } from "../propstack/field-rules";
 import { scalar } from "../propstack/mappers";
 import { readUnit, UNVERIFIABLE, type UnitState, unitCustomValue, unitValue } from "../propstack/unit-state";
@@ -621,9 +622,14 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	if (fields.rented === true && fields.free_from === undefined) fields.free_from = "vermietet";
 	const mirrored = mirroredCustomFields(fields, defs, input.custom_fields, {
 		flags: true,
+		marketable: fields.property_status_id === STATUS_MARKETING,
 		priceOnInquiry: fields.price_on_inquiry === true,
 		rent: fields.rented === true ? "rented" : "available",
 	});
+	// Testobjekte nie automatisch an Interessenten verschicken
+	if (input.test && defs.get("kein_automatischer_exposeversand")?.type === "Boolean" && !(input.custom_fields && "kein_automatischer_exposeversand" in input.custom_fields)) {
+		mirrored.kein_automatischer_exposeversand = true;
+	}
 	const custom = await validateCustomFields(client, "for_properties", { ...mirrored, ...input.custom_fields }, defs);
 	const bemerkung = [originNote(user, now, "Angelegt"), input.bemerkung_append].filter(Boolean).join("\n");
 	const customSend: Raw = { ...(custom?.send ?? {}), bemerkung };
@@ -780,7 +786,8 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	const mirrored = Object.fromEntries(
 		Object.entries(
 			mirroredCustomFields(areaSource, defs, input.custom_fields, {
-				flags: rentChanged,
+				flags: rentChanged || "property_status_id" in fields,
+				marketable: Number(requested.property_status_id ?? currentValue("property_status_id")) === STATUS_MARKETING,
 				priceOnInquiry: requested.price_on_inquiry === true,
 				rent: rentedNow === true ? "rented" : rentedNow === false ? "available" : "unknown",
 			}),
