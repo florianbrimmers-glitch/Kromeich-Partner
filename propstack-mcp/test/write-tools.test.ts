@@ -157,7 +157,12 @@ function fakeClient(impl: Record<string, (...args: unknown[]) => unknown>) {
 				{
 					custom_fields: [
 						{ field_type: "Number", name: "hallenhohe" },
-						{ custom_options: [{ name: "Ja" }, { name: "Nein" }], field_type: "Dropdown", name: "spekulative_entwicklung" },
+						{ field_type: "Number", name: "lagerflache", unit: "sqm" },
+						{ field_type: "Number", name: "mezzanineflache", unit: "euro" },
+						{ field_type: "String", name: "provisionspflichtig" },
+						{ field_type: "String", name: "bemerkung" },
+						{ custom_options: [{ id: 1, name: "Ja" }, { id: 2, name: "Nein" }], field_type: "Dropdown", name: "spekulative_entwicklung" },
+						{ custom_options: [{ id: 7, name: "Aktiv" }, { id: 8, name: "Inaktiv" }], field_type: "Multiselect", name: "aktiv" },
 					],
 				},
 			]),
@@ -341,37 +346,131 @@ describe("create_object / update_object", () => {
 		zip_code: "51381",
 	};
 
-	it("legt an mit Betreuer, Test-Merkmal, validierten Custom-Feldern und prüft Status zurück", async () => {
-		let sent: Record<string, unknown> = {};
-		const { client } = fakeClient({
-			createUnit: (payload) => {
-				sent = payload as Record<string, unknown>;
+	/** Simuliertes Propstack-Objekt mit dem echten Verhalten laut Notion-Feld-Mapping. */
+	function fakeUnit(options: { lagExpand?: number; dropInMulti?: boolean } = {}) {
+		const stored: Record<string, unknown> = {};
+		const custom: Record<string, unknown> = {};
+		const puts: Record<string, unknown>[] = [];
+		let posted: Record<string, unknown> = {};
+		let expandCalls = 0;
+		const solo = ["rs_category", "total_floor_space", "industrial_area", "hall_height", "floor_load", "broker_id", "rented", "property_status_id"];
+		const apply = (payload: Record<string, unknown>) => {
+			const keys = Object.keys(payload).filter((k) => k !== "partial_custom_fields" && k !== "group_ids");
+			for (const key of keys) {
+				// Propstack verwirft kritische Felder im POST und in Multi-Feld-PUTs still
+				if (options.dropInMulti !== false && solo.includes(key) && keys.length > 1) continue;
+				stored[key] = payload[key];
+			}
+			Object.assign(custom, payload.partial_custom_fields ?? {});
+			if (payload.group_ids) stored.group_ids = payload.group_ids;
+		};
+		const impl = {
+			createUnit: (payload: unknown) => {
+				posted = payload as Record<string, unknown>;
+				const p = { ...(payload as Record<string, unknown>) };
+				// POST: auch Einzelfelder fallen raus
+				for (const key of solo) delete p[key];
+				apply(p);
 				return { id: 900 };
 			},
 			getUnit: () => ({
-				...sent,
-				custom_fields: { hallenhohe: { pretty_value: "10,5", value: 10.5 } },
+				// Einzel-GET: kein rs_category, keine Flächen, kein broker_id/property_status_id – dafür status/broker
+				broker: stored.broker_id ? { id: stored.broker_id } : null,
+				custom_fields: Object.fromEntries(Object.entries(custom).map(([k, v]) => [k, { pretty_value: String(v), value: v }])),
 				id: 900,
-				property_groups: [{ id: 999 }],
-				status: { id: 163672, name: "Akquise" },
-				title: { label: "Überschrift", value: "MCP Test Halle" },
+				property_groups: ((stored.group_ids as number[]) ?? []).map((id) => ({ id })),
+				status: stored.property_status_id ? { id: stored.property_status_id } : null,
+				title: stored.title,
 			}),
-		});
+			searchUnits: (q: unknown) => {
+				const query = q as Query;
+				if (!query.expand) return page([]);
+				expandCalls++;
+				if (expandCalls <= (options.lagExpand ?? 0)) return page([]);
+				const row: Record<string, unknown> = { id: { label: "ID", value: 900 } };
+				for (const [k, v] of Object.entries(stored)) row[k] = { label: k, value: v };
+				for (const k of solo) if (!(k in row)) row[k] = { label: k, value: null };
+				return page([row]);
+			},
+			updateUnit: (_id: unknown, payload: unknown) => {
+				puts.push(payload as Record<string, unknown>);
+				apply(payload as Record<string, unknown>);
+				return {};
+			},
+		};
+		return { custom, impl, posted: () => posted, puts, stored, expandCalls: () => expandCalls };
+	}
+
+	const sleeps: number[] = [];
+	const sleep = async (ms: number) => {
+		sleeps.push(ms);
+	};
+
+	it("legt an: kritische Felder einzeln nachgesetzt, Herkunft in bemerkung, Gegenlesen über expand", async () => {
+		const unit = fakeUnit({ lagExpand: 1 });
+		const { client } = fakeClient(unit.impl);
+		const { db, updates } = fakeDb();
 		const out = await createObject(
-			{ client, db: fakeDb().db, now: NOW, user: USER },
-			{ ...input, custom_fields: { hallenhohe: "10,5" }, living_space: 1000, status_id: 163672, test: true },
+			{ client, db, now: NOW, sleep, user: USER },
+			{ ...input, custom_fields: { hallenhohe: 10.5, spekulative_entwicklung: "ja" }, industrial_area: 5863, rs_category: "HALL", status_id: 163672, test: true },
 		);
-		expect(sent).toMatchObject({ broker_id: 347158, group_ids: [999], living_space: 1000, partial_custom_fields: { hallenhohe: 10.5 }, property_status_id: 163672 });
-		expect(sent).not.toHaveProperty("property_space_value");
+		const posted = unit.posted();
+		expect(posted).not.toHaveProperty("other_note");
+		expect(posted).not.toHaveProperty("object_type");
+		expect(posted).toMatchObject({ group_ids: [999], price_on_inquiry: true, title: "MCP Test Halle" });
+		expect(posted.partial_custom_fields).toMatchObject({
+			bemerkung: "Angelegt über Claude (Propstack MCP) von Florian Brimmers am 2026-10-14.",
+			hallenhohe: 10.5,
+			spekulative_entwicklung: 1,
+		});
+		expect(unit.puts).toEqual([{ rs_category: "HALL" }, { industrial_area: 5863 }, { property_status_id: 163672 }, { broker_id: 347158 }]);
 		expect(out.result).toMatchObject({ created: true, id: 900, title: "MCP Test Halle" });
 		expect((out.result as { not_applied?: string[] }).not_applied).toBeUndefined();
+		expect((out.result as { not_verifiable?: string[] }).not_verifiable).toBeUndefined();
+		expect(sleeps).toContain(1500);
+		expect(updates[0]?.[0]).toBe("done");
+	});
+
+	it("meldet Felder, die trotz Einzel-PUT nicht haften, und Fehler einzelner PUTs", async () => {
+		const unit = fakeUnit();
+		const failing = {
+			...unit.impl,
+			updateUnit: (_id: unknown, payload: unknown) => {
+				const p = payload as Record<string, unknown>;
+				if ("hall_height" in p) throw new Error("Propstack-Anfrage fehlgeschlagen (400)");
+				if ("floor_load" in p) return {}; // HTTP 200, aber verworfen
+				return unit.impl.updateUnit(_id, payload);
+			},
+		};
+		const { client } = fakeClient(failing);
+		const { db, updates } = fakeDb();
+		const out = await createObject({ client, db, now: NOW, sleep, user: USER }, { ...input, floor_load: 5, hall_height: 10 });
+		expect(out.result).toMatchObject({ not_applied: expect.arrayContaining(["floor_load", "hall_height"]), write_errors: [expect.stringMatching(/^hall_height: .*400/)] });
+		expect(updates[0]?.[0]).toBe("done_with_gaps");
+	});
+
+	it("Mietobjekt: öffentlicher Preis wird abgewiesen, gesperrte Custom-Felder auch", async () => {
+		const { client, calls } = fakeClient(fakeUnit().impl);
+		const deps = { client, db: fakeDb().db, now: NOW, sleep, user: USER };
+		await expect(createObject(deps, { ...input, price: 5500 })).rejects.toThrow(/intern_mietpreis/);
+		await expect(createObject(deps, { ...input, custom_fields: { provisionspflichtig: "ja" } })).rejects.toThrow(/provisionspflichtig" gesperrt/);
+		await expect(createObject(deps, { ...input, custom_fields: { mezzanineflache: 300 } })).rejects.toThrow(/Euro/);
+		await expect(createObject(deps, { ...input, custom_fields: { bemerkung: "x" } })).rejects.toThrow(/bemerkung_append/);
+		expect(calls.some((c) => c.method === "createUnit")).toBe(false);
+	});
+
+	it("Zahlen nur nackt: Komma-Text und Tausenderpunkt werden abgewiesen", async () => {
+		const { client } = fakeClient(fakeUnit().impl);
+		const deps = { client, db: fakeDb().db, now: NOW, sleep, user: USER };
+		await expect(createObject(deps, { ...input, custom_fields: { hallenhohe: "10,5" } })).rejects.toThrow(/nackte Zahl/);
+		await expect(createObject(deps, { ...input, custom_fields: { lagerflache: 6.417 } })).rejects.toThrow(/Tausenderpunkt.*6417/);
 	});
 
 	it("Dublette blockiert ohne Override", async () => {
 		const { client, calls } = fakeClient({
 			searchUnits: () => page([{ ...input, id: 10, unit_id: "Unit 9" }]),
 		});
-		const out = await createObject({ client, db: fakeDb().db, now: NOW, user: USER }, input);
+		const out = await createObject({ client, db: fakeDb().db, now: NOW, sleep, user: USER }, input);
 		expect(out.result).toMatchObject({ blocked: "Dublette", duplicates: [{ id: 10 }] });
 		expect(calls.some((c) => c.method === "createUnit")).toBe(false);
 	});
@@ -379,24 +478,40 @@ describe("create_object / update_object", () => {
 	it("ungültige Custom-Felder werden vor dem Write abgewiesen", async () => {
 		const { client, calls } = fakeClient({});
 		await expect(
-			createObject({ client, db: fakeDb().db, now: NOW, user: USER }, { ...input, custom_fields: { gibtsnicht: 1, spekulative_entwicklung: "Vielleicht" } }),
-		).rejects.toThrow(/unbekanntes Feld "gibtsnicht".*spekulative_entwicklung/);
+			createObject({ client, db: fakeDb().db, now: NOW, sleep, user: USER }, { ...input, custom_fields: { gibtsnicht: 1, spekulative_entwicklung: "Vielleicht" } }),
+		).rejects.toThrow(/unbekanntes Feld "gibtsnicht".*spekulative_entwicklung.*Ja \(1\)/);
 		expect(calls.some((c) => c.method === "createUnit")).toBe(false);
 	});
 
-	it("update_object: Statuswechsel mit Snapshot, Gegenlesen", async () => {
+	it("update_object: Status und rented einzeln, Bemerkung angehängt, Snapshot vorher", async () => {
+		const unit = fakeUnit();
+		Object.assign(unit.stored, { broker_id: 347158, marketing_type: "RENT", property_status_id: 163674, title: "SCHLE99" });
+		Object.assign(unit.custom, { bemerkung: "Alte Bemerkung" });
+		const { client } = fakeClient(unit.impl);
 		const { db, rows } = fakeDb();
-		let status = 163674;
-		const { client } = fakeClient({
-			getUnit: () => ({ id: 5231702, status: { id: status }, title: "SCHLE99" }),
-			updateUnit: (_id, payload) => {
-				status = (payload as { property_status_id: number }).property_status_id;
-				return {};
-			},
-		});
-		const out = await updateObject({ client, db, now: NOW, user: USER }, { id: 5231702, status_id: 163675 });
-		expect(out.result).toMatchObject({ changed: ["status_id"], updated: true });
-		expect(JSON.parse(rows[0][7] as string)).toEqual({ property_status_id: 163674 });
+		const out = await updateObject(
+			{ client, db, now: NOW, sleep, user: USER },
+			{ bemerkung_append: "Eigentümer will 6 €/m²", id: 900, rented: true, status_id: 163676, title: "SCHLE99" },
+		);
+		expect(unit.puts).toEqual([
+			{ partial_custom_fields: { bemerkung: expect.stringMatching(/^Alte Bemerkung\n\nErgänzt über Claude .* am 2026-10-14\.\nEigentümer will 6 €\/m²$/) } },
+			{ rented: true },
+			{ property_status_id: 163676 },
+		]);
+		expect(out.result).toMatchObject({ changed: ["rented", "status_id", "bemerkung (angehängt)"], updated: true });
+		expect((out.result as { not_applied?: string[] }).not_applied).toBeUndefined();
+		expect(JSON.parse(rows[0][7] as string)).toEqual({ custom_fields: { bemerkung: "Alte Bemerkung" }, rented: null, status_id: 163674 });
+	});
+
+	it("update_object: Kaufpreis bei Mietobjekt abgewiesen, keine Änderung → kein Write", async () => {
+		const unit = fakeUnit();
+		Object.assign(unit.stored, { marketing_type: "RENT", title: "SCHLE99" });
+		const { client, calls } = fakeClient(unit.impl);
+		const deps = { client, db: fakeDb().db, now: NOW, sleep, user: USER };
+		await expect(updateObject(deps, { id: 900, price: 100 })).rejects.toThrow(/nur bei BUY/);
+		const out = await updateObject(deps, { id: 900, title: "SCHLE99" });
+		expect(out.result).toMatchObject({ updated: false });
+		expect(calls.some((c) => c.method === "updateUnit")).toBe(false);
 	});
 });
 
@@ -407,11 +522,17 @@ describe("Hilfsfunktionen", () => {
 		expect(notApplied({}, { custom_fields: { a: { pretty_value: "Ja", value: true } } }, { a: true })).toEqual([]);
 	});
 
-	it("validateCustomFields wandelt Zahlen mit Komma", async () => {
+	it("validateCustomFields: Auswahlwerte als Option-ID, Zahlen unverändert, null leert", async () => {
 		const { client } = fakeClient({});
-		expect(await validateCustomFields(client, "for_properties", { hallenhohe: "10,5", spekulative_entwicklung: "Ja" })).toEqual({
-			hallenhohe: 10.5,
-			spekulative_entwicklung: "Ja",
+		expect(await validateCustomFields(client, "for_properties", { aktiv: ["Aktiv"], hallenhohe: 10.5, spekulative_entwicklung: 2, provisionspflichtig: null })).toEqual({
+			expect: { aktiv: [{ id: 7, name: "Aktiv" }], hallenhohe: 10.5, provisionspflichtig: null, spekulative_entwicklung: { id: 2, name: "Nein" } },
+			send: { aktiv: [7], hallenhohe: 10.5, provisionspflichtig: null, spekulative_entwicklung: 2 },
 		});
+	});
+
+	it("notApplied erkennt Auswahlwerte über ID oder Klartext", () => {
+		expect(notApplied({}, { custom_fields: { s: { pretty_value: "Ja", value: 1 } } }, { s: { id: 1, name: "Ja" } })).toEqual([]);
+		expect(notApplied({}, { custom_fields: { a: { pretty_value: "Aktiv, Inaktiv", value: [7, 8] } } }, { a: [{ id: 8, name: "Inaktiv" }] })).toEqual([]);
+		expect(notApplied({}, { custom_fields: { s: { value: 2 } } }, { s: { id: 1, name: "Ja" } })).toEqual(["custom_fields.s"]);
 	});
 });

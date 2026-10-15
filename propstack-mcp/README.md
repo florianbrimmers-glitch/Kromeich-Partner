@@ -58,7 +58,15 @@ Bewusste Lücken: Ein einzelner Deal per ID und die Kontakt-Status-Liste sind nu
 - **Override** (`allow_duplicate_reason`): nur mit Begründung (≥ 15 Zeichen). Die Begründung wird im Write-Log protokolliert.
 - **Testdaten:** `test: true` setzt das Merkmal `MCP-TEST`. Fehlt es, legt der Connector es einmalig an. Löschen kann nur Florian manuell.
 - Notizen werden bei Updates nur ergänzt (mit Datum und Nutzer), nie ersetzt.
-- Flächen: `property_space_value` ist in Propstack berechnet und nicht schreibbar. Geschrieben werden `living_space` (bei den Hallen steht dort die Hallenfläche), `total_floor_space` und `usable_floor_space`.
+
+**Objekte – Regeln aus dem Notion-Feld-Mapping („Propstack API – Feld-Mapping“, Korrekturen) und dem Skill `propstack-expose-workflow`:**
+- **Einzel-PUTs:** `rs_category`, `total_floor_space`, `industrial_area`, `hall_height`, `floor_load`, `broker_id`, `rented` und der Status verwirft Propstack im POST und in PUTs mit mehreren Feldern still (HTTP 200). Diese Felder werden nach dem Anlegen bzw. Ändern **einzeln** geschrieben. Ein fehlgeschlagener Einzel-PUT bricht die übrigen nicht ab und steht als `write_errors` im Ergebnis.
+- **Gegenlesen:** Der Einzel-GET liefert Flächen, Kategorie, Hallenhöhe, Status-ID usw. gar nicht. Gelesen wird deshalb über `GET /v1/units?expand=1&per=100&property_ids[]=ID`, Status über `status.id`, Betreuer über `broker.id`. Frisch angelegte Objekte fehlen dort kurz, deshalb gibt es Retries nach 1,5 s und 4 s. Felder, die kein Kanal zurückliefert, stehen als `not_verifiable` im Ergebnis (nicht als Fehler). `get_object` nutzt denselben Weg.
+- **Nicht angeboten:** `object_type` (leitet Propstack aus `rs_type` ab), `base_rent`/`total_rent` (Mietpreise nie öffentlich), `property_space_value` (berechnet), `note` (nicht schreibbar). `lat`/`lng` dienen nur der Dublettenprüfung und werden nicht gespeichert, weil sie unzuverlässig haften.
+- **Preise:** `price` nur bei BUY. Bei RENT wird `price_on_inquiry: true` gesetzt. Mietpreise gehören in die Custom-Felder `intern_mietpreis_hallenflache` / `_buro` / `_mezzanine`.
+- **Interne Notizen** landen im Custom-Feld `bemerkung` (Herkunftsnotiz beim Anlegen, `bemerkung_append` hängt mit Datum und Nutzer an). Beschreibung, Lage, Ausstattung und Sonstiges sind **exposé-sichtbar**.
+- **Custom-Felder:** Zahlen nur als nackte Zahl mit Dezimalpunkt. Text wie `"10,5"` wird abgewiesen, ebenso m²-Werte mit drei Nachkommastellen (Tausenderpunkt-Verdacht). Auswahlfelder werden per Name oder Option-ID angenommen und als **Option-ID** gesendet. **Gesperrt:** `provisionspflichtig` (nur `null`), `mezzanineflache` (Einheit Euro, stattdessen `mezzanineflache_gesamt`/`_verfugbar`), `mietpreis_*` (stattdessen `intern_mietpreis_*`), `bemerkung` (nur über `bemerkung_append`). `list_fields` zeigt Einheit, Option-IDs und Sperren.
+- `unit_id` ist in ganz Propstack eindeutig. Bei Einzelobjekten ohne Projekt weglassen.
 - Nicht enthalten: Firmenkontakte (brauchen Propstack-V2), Deals anlegen/ändern, Löschen.
 
 Write-Log auswerten:

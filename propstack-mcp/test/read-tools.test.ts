@@ -3,7 +3,7 @@ import { retentionCutoff, serializeParams } from "../src/audit";
 import type { Page, PropstackClient, Query } from "../src/propstack-client";
 import { PropstackError } from "../src/propstack-client";
 import { runTool } from "../src/tools/register";
-import { aggregate, listTags, pipelineStatus, searchContacts, searchDeals } from "../src/tools/read-tools";
+import { aggregate, getObject, listFields, listTags, pipelineStatus, searchContacts, searchDeals } from "../src/tools/read-tools";
 
 const page = (rows: Record<string, unknown>[], total: number | null = rows.length): Page => ({ rows, total });
 
@@ -275,5 +275,37 @@ describe("runTool + Audit-Log", () => {
 	it("Parameter werden begrenzt, Aufbewahrung 12 Monate", () => {
 		expect(serializeParams({ q: "x".repeat(5000) }).length).toBe(2001);
 		expect(retentionCutoff(new Date("2026-10-09T00:00:00Z"))).toBe("2025-10-09T00:00:00.000Z");
+	});
+});
+
+describe("Objekte lesen nach Feld-Mapping", () => {
+	it("get_object ergänzt den lückenhaften Einzel-GET um den expand-Kanal", async () => {
+		const { client, calls } = fakeClient({
+			getUnit: async () => ({ broker: { id: 3, name: "Lena" }, id: 9, lat: 51.1, status: { id: 163674, name: "Vermarktung" }, title: "Halle" }),
+			searchUnits: async () =>
+				page([{ hall_height: { label: "Hallenhöhe", value: 10 }, id: { value: 9 }, industrial_area: { label: "Hallenfläche", value: 5863 }, lat: 51, rs_category: { value: "HALL" } }]),
+		});
+		const out = (await getObject(client, { id: 9 })).result as Record<string, unknown>;
+		expect(out).toMatchObject({ hall_height: 10, industrial_area: 5863, lat: 51.1, rs_category: "HALL", status: "Vermarktung" });
+	});
+
+	it("list_fields zeigt Einheit, Option-IDs und gesperrte Felder", async () => {
+		const { client } = fakeClient({
+			listCustomFieldGroups: async () =>
+				page([
+					{
+						custom_fields: [
+							{ field_type: "Number", name: "mezzanineflache", unit: "euro" },
+							{ custom_options: [{ id: 1, name: "Ja" }], field_type: "Dropdown", name: "spekulative_entwicklung" },
+						],
+						name: "Webseite",
+					},
+				]),
+		});
+		const out = (await listFields(client, { entity: "objects" })).result as { groups: { fields: Record<string, unknown>[] }[] };
+		expect(out.groups[0].fields).toEqual([
+			{ blocked: expect.stringMatching(/Euro/), key: "mezzanineflache", type: "Number", unit: "euro" },
+			{ key: "spekulative_entwicklung", options: [{ id: 1, name: "Ja" }], type: "Dropdown" },
+		]);
 	});
 });

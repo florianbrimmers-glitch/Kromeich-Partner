@@ -24,6 +24,8 @@ import {
 	type StageInfo,
 	stageIndex,
 } from "../propstack/mappers";
+import { BLOCKED_OBJECT_FIELDS } from "../propstack/field-rules";
+import { mergedUnit, readUnit } from "../propstack/unit-state";
 
 // Lese-Tools (Phase 2). Jede Funktion liefert das gekürzte Ergebnis und eine
 // Trefferzahl fürs Audit-Log. Kein Tool schreibt nach Propstack.
@@ -260,7 +262,9 @@ export async function searchObjects(
 }
 
 export async function getObject(client: Client, input: { id: number }): Promise<ToolOutput> {
-	return { count: 1, result: mapUnitDetail(asObject(await client.getUnit(input.id))) };
+	// Einzel-GET allein ist lückenhaft (Flächen, Kategorie, Hallenhöhe fehlen) → expand-Kanal ergänzt.
+	const state = await readUnit(client, input.id);
+	return { count: 1, result: mapUnitDetail(asObject(mergedUnit(state))) };
 }
 
 // ---------- Deals ----------
@@ -453,8 +457,11 @@ export async function listFields(client: Client, input: { entity: "contacts" | "
 	const result = groups.rows.map((group) => {
 		const fields = (Array.isArray(group.custom_fields) ? (group.custom_fields as Raw[]) : []).map((f) => {
 			count++;
-			const options = Array.isArray(f.custom_options) ? (f.custom_options as Raw[]).map((o) => scalar(o.name)) : [];
-			return compact({ key: f.name, label: f.pretty_name, type: f.field_type, options });
+			const options = Array.isArray(f.custom_options)
+				? (f.custom_options as Raw[]).map((o) => (typeof o.id === "number" ? { id: o.id, name: scalar(o.name) } : scalar(o.name)))
+				: [];
+			const blocked = input.entity === "objects" ? BLOCKED_OBJECT_FIELDS[String(f.name)] : undefined;
+			return compact({ key: f.name, label: f.pretty_name, type: f.field_type, unit: f.unit, options, blocked });
 		});
 		return compact({ group: scalar(group.name), fields });
 	});
@@ -463,6 +470,10 @@ export async function listFields(client: Client, input: { entity: "contacts" | "
 		result: {
 			entity: input.entity,
 			filter_hint: "Filtern über cf_<key>, z. B. cf_marketing_channel=Lead (nur Kontakte/Objekte)",
+			write_hint:
+				input.entity === "objects"
+					? "Schreiben: Number als nackte Zahl mit Dezimalpunkt in der angegebenen unit (sqm = m², euro = €), Auswahlfelder per Name oder Option-ID. Felder mit blocked nicht verwenden."
+					: undefined,
 			groups: result,
 		},
 	};

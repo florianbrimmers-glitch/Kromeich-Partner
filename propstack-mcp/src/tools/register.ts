@@ -189,6 +189,8 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
 		);
 	};
 
+	const objectRules =
+		"Regeln (Propstack-Feld-Mapping): Mietpreise nie öffentlich – in custom_fields intern_mietpreis_*, Objekt bekommt price_on_inquiry. Beschreibungstexte sind exposé-sichtbar; Interna, Konditionen, Eigentümer und offene Punkte nur in bemerkung_append. provisionspflichtig nie setzen. Kritische Felder (rs_category, Flächen, Hallenhöhe, Bodentragkraft, Status, rented, Betreuer) werden einzeln geschrieben und zurückgelesen; not_applied/not_verifiable im Ergebnis dem Nutzer melden.";
 	const rules = `Betreuer wird immer der angemeldete Nutzer. Testdaten immer mit test=true anlegen (Merkmal ${TEST_TAG}). Es gibt keine Lösch-Funktion.`;
 	register(
 		"create_contact",
@@ -206,14 +208,14 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
 	);
 	register(
 		"create_object",
-		`Objekt (Einheit) in Propstack anlegen. Vorher Dublettenprüfung über Adresse bzw. Geokoordinaten + Vermarktungsart + Einheit (blockiert); gleiche Adresse mit anderer Vermarktungsart oder Einheit ist nur ein Hinweis. ${rules}`,
+		`Objekt (Einheit) in Propstack anlegen. Vorher Dublettenprüfung über Adresse bzw. Geokoordinaten + Vermarktungsart + Einheit (blockiert); gleiche Adresse mit anderer Vermarktungsart oder Einheit ist nur ein Hinweis. ${objectRules} ${rules}`,
 		createObjectInput,
 		false,
 		createObject,
 	);
 	register(
 		"update_object",
-		"Vorhandenes Objekt ändern: Eckdaten, Status, Preise, Flächen, Texte, Custom-Felder. Nur geänderte Werte werden geschrieben, der vorherige Stand wird gesichert. Bei Adress-/Einheiten-/Vermarktungsänderung erneute Dublettenprüfung.",
+		`Vorhandenes Objekt ändern: Eckdaten, Status, Vermietet, Flächen, Texte, interne Bemerkung (angehängt), Custom-Felder. Nur geänderte Werte werden geschrieben, der vorherige Stand wird gesichert. Bei Adress-/Einheiten-/Vermarktungsänderung erneute Dublettenprüfung. ${objectRules}`,
 		updateObjectInput,
 		true,
 		updateObject,
