@@ -29,7 +29,6 @@ function fakeClient(impl: Record<string, (...args: unknown[]) => unknown>) {
 	const defaults: Record<string, (...args: unknown[]) => unknown> = {
 		createTask: () => ({ id: 77 }),
 		getContact: () => ({ id: 17366550, name: "Goodman Germany GmbH" }),
-		listRelationships: () => page([]),
 		searchProjects: () => page([]),
 	};
 	const all = { ...defaults, ...impl };
@@ -94,10 +93,12 @@ describe("create_project", () => {
 				return { id: 600 };
 			},
 			getProject: () => ({ ...stored, broker: stored.broker_id ? { id: stored.broker_id } : null, id: 600 }),
-			listRelationships: () => page([{ client_id: 17366550, id: 1, internal_name: "owner", project_id: 600 }]),
 			updateProject: (_id, p) => {
 				puts.push(p as Record<string, unknown>);
 				if (!("relationships_attributes" in (p as object))) Object.assign(stored, p);
+				else if (puts.filter((x) => "relationships_attributes" in x).length > 1) {
+					throw new Error('Propstack-Anfrage fehlgeschlagen (400): ["Relationships project ist bereits mit dem Kontakt verbunden"]');
+				}
 				return {};
 			},
 		});
@@ -107,10 +108,8 @@ describe("create_project", () => {
 		);
 		expect(stored).toMatchObject({ country: "DEU", for_rent: true, name: "MCP-TEST Logistikhalle in (40) Düsseldorf – Kappeler Straße" });
 		expect(stored).not.toHaveProperty("note");
-		expect(puts).toEqual([
-			{ broker_id: 347158 },
-			{ relationships_attributes: [{ internal_name: "owner", related_client_id: 17366550 }] },
-		]);
+		const link = { relationships_attributes: [{ internal_name: "owner", related_client_id: 17366550 }] };
+		expect(puts).toEqual([{ broker_id: 347158 }, link, link]); // zweiter Aufruf = Gegenprobe
 		expect(out.result).toMatchObject({
 			created: true,
 			id: 600,
@@ -141,28 +140,30 @@ describe("set_project_owner", () => {
 		await expect(setProjectOwner({ client, db: fakeDb().db, user: USER }, { contact_id: 120978, project_id: 1 })).rejects.toThrow(/eigenen Shop/);
 	});
 
-	it("findet neue Verknüpfung auf der letzten Seite der Relationship-Liste", async () => {
-		const pages: unknown[] = [];
+	it("bestätigt eine neue Verknüpfung über die Gegenprobe (Propstack lehnt Doppelte ab)", async () => {
+		let calls = 0;
 		const { client } = fakeClient({
 			getProject: () => ({ id: 1, name: "P" }),
-			listRelationships: (q) => {
-				const p = (q as { page: number }).page;
-				pages.push(p);
-				const rows = Array.from({ length: p === 12 ? 30 : 100 }, (_, i) => ({ client_id: 9, id: i, project_id: 9 }));
-				if (p === 12) rows.push({ client_id: 2, id: 999, project_id: 1 });
-				return { rows, total: 1131 };
+			updateProject: () => {
+				calls++;
+				if (calls === 1) return {};
+				throw new Error('Propstack-Anfrage fehlgeschlagen (400): ["Relationships project ist bereits mit dem Kontakt verbunden"]');
 			},
-			updateProject: () => ({}),
 		});
 		const out = await setProjectOwner({ client, db: fakeDb().db, user: USER }, { contact_id: 2, project_id: 1 });
 		expect(out.result).toMatchObject({ linked: true });
-		expect(pages).toEqual([1, 12]);
+		expect(calls).toBe(2);
+	});
+
+	it("nimmt Propstack die Probe ebenfalls an, gilt das als nicht prüfbar", async () => {
+		const { client } = fakeClient({ getProject: () => ({ id: 1, name: "P" }), updateProject: () => ({}) });
+		const out = await setProjectOwner({ client, db: fakeDb().db, user: USER }, { contact_id: 2, project_id: 1 });
+		expect(out.result).toMatchObject({ linked: "nicht prüfbar", note: expect.stringMatching(/zweimal/) });
 	});
 
 	it("Live-Meldung „bereits mit dem Kontakt verbunden“ zählt als verknüpft (Projekt 603380, 15.10.)", async () => {
 		const { client } = fakeClient({
 			getProject: () => ({ id: 603380, name: "P" }),
-			listRelationships: () => page([{ client_id: 37523924, project_id: 603380 }]),
 			updateProject: () => {
 				throw new Error('Propstack-Anfrage fehlgeschlagen (400): ["Relationships project ist bereits mit dem Kontakt verbunden"]');
 			},
@@ -174,7 +175,6 @@ describe("set_project_owner", () => {
 	it("bereits verknüpft zählt als erfolgreich", async () => {
 		const { client } = fakeClient({
 			getProject: () => ({ id: 1, name: "P" }),
-			listRelationships: () => page([{ client_id: 2, project_id: 1 }]),
 			updateProject: () => {
 				throw new Error("Propstack-Anfrage fehlgeschlagen (400): Diese Verknüpfung existiert bereits.");
 			},

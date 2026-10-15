@@ -233,41 +233,38 @@ export async function createProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 
 // ---------- Eigentümer verknüpfen ----------
 
-const RELATIONSHIP_PAGES = 5;
-const RELATIONSHIP_PAGE_SIZE = 100;
+const ALREADY_LINKED = /existiert bereits|bereits mit dem Kontakt verbunden|bereits verbunden/i;
 
-/** PUT relationships_attributes, danach in der Relationship-Liste suchen (Projekt-GET zeigt frische Verknüpfungen nicht). */
+/**
+ * PUT relationships_attributes. Prüfung über Propstack selbst: Der Projekt-GET zeigt frische Verknüpfungen
+ * nicht, und die Relationship-Liste ließ sich live nicht zuverlässig auswerten. Propstack lehnt eine doppelte
+ * Verknüpfung aber mit „bereits mit dem Kontakt verbunden“ ab – deshalb nach dem Setzen derselbe Aufruf
+ * als Probe: kommt diese Ablehnung, ist die Verknüpfung bestätigt (und es entsteht nichts Doppeltes).
+ */
 export async function linkOwner(
 	client: PropstackClient,
 	projectId: number,
 	contactId: number,
-): Promise<{ linked: boolean | "nicht prüfbar"; already?: boolean; error?: string }> {
-	let already = false;
+): Promise<{ linked: boolean | "nicht prüfbar"; already?: boolean; error?: string; note?: string }> {
+	const attach = () => client.updateProject(projectId, { relationships_attributes: [{ internal_name: "owner", related_client_id: contactId }] });
 	try {
-		await client.updateProject(projectId, { relationships_attributes: [{ internal_name: "owner", related_client_id: contactId }] });
+		await attach();
 	} catch (error) {
 		const message = (error as Error).message;
-		if (/existiert bereits|bereits mit dem Kontakt verbunden|bereits verbunden/i.test(message)) already = true;
-		else if (/Shop/i.test(message)) {
+		if (ALREADY_LINKED.test(message)) return { already: true, linked: true };
+		if (/Shop/i.test(message)) {
 			return { error: `${message} – der Kontakt gehört zu einem fremden Shop. Bitte den Kontakt aus dem eigenen Shop (Kromeich GmbH) verwenden.`, linked: false };
-		} else return { error: message, linked: false };
+		}
+		return { error: message, linked: false };
 	}
 	try {
-		// Neue Verknüpfungen stehen vermutlich hinten → Gesamtzahl holen und von der letzten Seite rückwärts lesen
-		const first = await client.listRelationships({ page: 1, per: RELATIONSHIP_PAGE_SIZE });
-		const isHit = (r: Raw) =>
-			Number(scalar(r.project_id)) === projectId && Number(scalar(r.client_id ?? r.related_client_id)) === contactId;
-		if (first.rows.some(isHit)) return { already, linked: true };
-		const lastPage = first.total !== null ? Math.ceil(first.total / RELATIONSHIP_PAGE_SIZE) : 1;
-		if (lastPage <= 1 && first.rows.length < RELATIONSHIP_PAGE_SIZE) return { already, linked: false };
-		for (let page = lastPage; page > Math.max(1, lastPage - RELATIONSHIP_PAGES); page--) {
-			const result = await client.listRelationships({ page, per: RELATIONSHIP_PAGE_SIZE });
-			if (result.rows.some(isHit)) return { already, linked: true };
-		}
-	} catch {
-		// Liste nicht lesbar → nicht prüfbar
+		await attach();
+		// Zweiter Aufruf wurde angenommen → Propstack hat die erste Verknüpfung nicht gespeichert oder lässt Doppelte zu
+		return { linked: "nicht prüfbar", note: "Propstack hat die Verknüpfung zweimal angenommen – bitte in der UI prüfen, ob sie (ggf. doppelt) vorhanden ist." };
+	} catch (error) {
+		if (ALREADY_LINKED.test((error as Error).message)) return { linked: true };
+		return { linked: "nicht prüfbar", note: `Gegenprobe nicht eindeutig: ${(error as Error).message}` };
 	}
-	return { already, linked: "nicht prüfbar" };
 }
 
 export const setProjectOwnerInput = {
@@ -305,10 +302,7 @@ export async function setProjectOwner(deps: WriteDeps, input: z.infer<z.ZodObjec
 			owner: { id: input.contact_id, name: scalar(contact.name) },
 			linked: result.linked,
 			already_linked: result.already || undefined,
-			note:
-				result.linked === true
-					? undefined
-					: "Propstack hat die Verknüpfung angenommen, sie ist aber (noch) nicht in der Relationship-Liste sichtbar – bitte in der UI prüfen.",
+			note: result.linked === true ? undefined : (result.note ?? "Verknüpfung nicht bestätigt – bitte in der UI prüfen."),
 		},
 	};
 }
