@@ -178,6 +178,21 @@ export class PropstackClient {
 		return toPage(await this.get("/projects"));
 	}
 
+	/** GET /v1/projects?q=… – Projekte suchen (Dublettenprüfung). */
+	async searchProjects(query: Query): Promise<Page> {
+		return toPage(await this.get(`/projects${buildQuery({ ...query, with_meta: 1 })}`));
+	}
+
+	/** GET /v1/projects/:id */
+	async getProject(id: number): Promise<unknown> {
+		return this.get(`/projects/${id}`);
+	}
+
+	/** GET /v1/relationships – paginiert; Filterparameter ignoriert Propstack (Notion-Korrektur 24), clientseitig filtern. */
+	async listRelationships(query: Query): Promise<Page> {
+		return toPage(await this.get(`/relationships${buildQuery({ ...query, with_meta: 1 })}`));
+	}
+
 	// ---------- Schreiben (Phase 3) – nur Anlegen/Ändern, keine Löschmethoden ----------
 
 	/** POST /v1/contacts. Achtung: Propstack aktualisiert bei bekannter E-Mail den vorhandenen Kontakt (Upsert) – Dublettenprüfung vorher ist Pflicht. */
@@ -198,6 +213,26 @@ export class PropstackClient {
 	/** PUT /v1/units/:id */
 	async updateUnit(id: number, property: Record<string, unknown>): Promise<unknown> {
 		return this.send("PUT", `/units/${id}`, { property });
+	}
+
+	/** POST /v1/projects (Wrapper project). */
+	async createProject(project: Record<string, unknown>): Promise<unknown> {
+		return this.send("POST", "/projects", { project });
+	}
+
+	/** PUT /v1/projects/:id (Wrapper project) – auch für die Eigentümer-Verknüpfung (relationships_attributes). */
+	async updateProject(id: number, project: Record<string, unknown>): Promise<unknown> {
+		return this.send("PUT", `/projects/${id}`, { project });
+	}
+
+	/** POST /v1/images mit remote_photo_url (Propstack lädt das Bild selbst). */
+	async createImage(image: Record<string, unknown>): Promise<unknown> {
+		return this.send("POST", "/images", { image });
+	}
+
+	/** POST /v1/tasks (Wrapper task) – Prüfaufgaben. */
+	async createTask(task: Record<string, unknown>): Promise<unknown> {
+		return this.send("POST", "/tasks", { task });
 	}
 
 	/** POST /v1/groups – nur intern für das Test-Merkmal MCP-TEST genutzt. */

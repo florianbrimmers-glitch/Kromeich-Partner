@@ -11,6 +11,7 @@ import {
 import { type CustomOption, loadFieldDefs, mirroredCustomFields, validateCustomFields } from "../propstack/field-rules";
 import { scalar } from "../propstack/mappers";
 import { readUnit, UNVERIFIABLE, type UnitState, unitCustomValue, unitValue } from "../propstack/unit-state";
+import { CRM_BASE, createReviewTask } from "../review-task";
 import { beginWrite, finishWrite } from "../write-log";
 import { loadAll, type ToolOutput } from "./read-tools";
 
@@ -665,12 +666,35 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 		status: gaps ? "done_with_gaps" : "done",
 	});
 
+	const review = await createReviewTask(client, deps.db, {
+		lines: [
+			`Objekt ${newId}: ${input.title}`,
+			`${CRM_BASE}/properties/${newId}`,
+			...(input.project_id ? [`Projekt: ${CRM_BASE}/projects/${input.project_id}`] : []),
+			`Angelegt ueber Claude (Propstack MCP) von ${user.name} am ${today(now)}.`,
+			...(overrideReason ? [`Dublette bewusst angelegt: ${overrideReason}`] : []),
+			...dedupe.warnings.map((w) => `Hinweis: ${w}`),
+			...(missing.length ? [`Nicht uebernommen: ${missing.join(", ")}`] : []),
+			...(unverified.length ? [`Nicht pruefbar: ${unverified.join(", ")}`] : []),
+			...(writeErrors.length ? [`Fehler: ${writeErrors.join("; ")}`] : []),
+			"Pruefen: Stammdaten, Flaechen (inkl. Custom-Felder), Texte (keine Konditionen/Eigentuemer), Provision, Custom Fields, Bilder.",
+		],
+		now,
+		projectIds: input.project_id ? [input.project_id] : undefined,
+		propertyIds: [newId],
+		test: input.test === true,
+		title: `${input.title} - Objekt ${newId}`,
+		user,
+	});
+
 	return {
 		count: 1,
 		result: {
 			created: true,
 			id: newId,
 			title: scalar(state.row?.title ?? state.detail.title),
+			link: `${CRM_BASE}/properties/${newId}`,
+			review_task: review,
 			broker: user.name,
 			test: input.test || undefined,
 			override_reason: overrideReason ?? undefined,

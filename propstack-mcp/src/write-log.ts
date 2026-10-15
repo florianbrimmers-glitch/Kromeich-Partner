@@ -9,7 +9,7 @@ export interface WriteStart {
 	userEmail: string;
 	brokerId: number;
 	tool: string;
-	entity: "contact" | "object" | "tag";
+	entity: "contact" | "object" | "tag" | "project" | "image" | "task";
 	entityId: number | null;
 	action: "create" | "update";
 	before: Record<string, unknown> | null;
