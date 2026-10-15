@@ -159,6 +159,18 @@ describe("set_project_owner", () => {
 		expect(pages).toEqual([1, 12]);
 	});
 
+	it("Live-Meldung „bereits mit dem Kontakt verbunden“ zählt als verknüpft (Projekt 603380, 15.10.)", async () => {
+		const { client } = fakeClient({
+			getProject: () => ({ id: 603380, name: "P" }),
+			listRelationships: () => page([{ client_id: 37523924, project_id: 603380 }]),
+			updateProject: () => {
+				throw new Error('Propstack-Anfrage fehlgeschlagen (400): ["Relationships project ist bereits mit dem Kontakt verbunden"]');
+			},
+		});
+		const out = await setProjectOwner({ client, db: fakeDb().db, user: USER }, { contact_id: 37523924, project_id: 603380 });
+		expect(out.result).toMatchObject({ already_linked: true, linked: true });
+	});
+
 	it("bereits verknüpft zählt als erfolgreich", async () => {
 		const { client } = fakeClient({
 			getProject: () => ({ id: 1, name: "P" }),

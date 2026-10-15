@@ -247,7 +247,7 @@ export async function linkOwner(
 		await client.updateProject(projectId, { relationships_attributes: [{ internal_name: "owner", related_client_id: contactId }] });
 	} catch (error) {
 		const message = (error as Error).message;
-		if (/existiert bereits/i.test(message)) already = true;
+		if (/existiert bereits|bereits mit dem Kontakt verbunden|bereits verbunden/i.test(message)) already = true;
 		else if (/Shop/i.test(message)) {
 			return { error: `${message} – der Kontakt gehört zu einem fremden Shop. Bitte den Kontakt aus dem eigenen Shop (Kromeich GmbH) verwenden.`, linked: false };
 		} else return { error: message, linked: false };
