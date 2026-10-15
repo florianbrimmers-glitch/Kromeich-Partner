@@ -359,9 +359,10 @@ describe("create_object / update_object", () => {
 		});
 		const out = await createObject(
 			{ client, db: fakeDb().db, now: NOW, user: USER },
-			{ ...input, custom_fields: { hallenhohe: "10,5" }, status_id: 163672, test: true },
+			{ ...input, custom_fields: { hallenhohe: "10,5" }, living_space: 1000, status_id: 163672, test: true },
 		);
-		expect(sent).toMatchObject({ broker_id: 347158, group_ids: [999], partial_custom_fields: { hallenhohe: 10.5 }, property_status_id: 163672 });
+		expect(sent).toMatchObject({ broker_id: 347158, group_ids: [999], living_space: 1000, partial_custom_fields: { hallenhohe: 10.5 }, property_status_id: 163672 });
+		expect(sent).not.toHaveProperty("property_space_value");
 		expect(out.result).toMatchObject({ created: true, id: 900, title: "MCP Test Halle" });
 		expect((out.result as { not_applied?: string[] }).not_applied).toBeUndefined();
 	});

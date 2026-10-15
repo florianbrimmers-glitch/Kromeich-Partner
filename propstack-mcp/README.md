@@ -58,6 +58,7 @@ Bewusste Lücken: Ein einzelner Deal per ID und die Kontakt-Status-Liste sind nu
 - **Override** (`allow_duplicate_reason`): nur mit Begründung (≥ 15 Zeichen). Die Begründung wird im Write-Log protokolliert.
 - **Testdaten:** `test: true` setzt das Merkmal `MCP-TEST`. Fehlt es, legt der Connector es einmalig an. Löschen kann nur Florian manuell.
 - Notizen werden bei Updates nur ergänzt (mit Datum und Nutzer), nie ersetzt.
+- Flächen: `property_space_value` ist in Propstack berechnet und nicht schreibbar. Geschrieben werden `living_space` (bei den Hallen steht dort die Hallenfläche), `total_floor_space` und `usable_floor_space`.
 - Nicht enthalten: Firmenkontakte (brauchen Propstack-V2), Deals anlegen/ändern, Löschen.
 
 Write-Log auswerten:
