@@ -467,7 +467,10 @@ const objectFieldsShape = {
 	price: num.describe("Kaufpreis"),
 	base_rent: num.describe("Kaltmiete"),
 	total_rent: num.describe("Warmmiete"),
-	property_space_value: num.describe("Fläche m²"),
+	// property_space_value ist in Propstack berechnet und nicht schreibbar (live: 400 "unknown attribute").
+	living_space: num.describe("Fläche m² – bei euren Hallen steht hier die Hallenfläche (Propstack-Feld „Wohnfläche“)"),
+	total_floor_space: num.describe("Gesamtfläche m²"),
+	usable_floor_space: num.describe("Nutzfläche m²"),
 	plot_area: num.describe("Grundstücksfläche m²"),
 	number_of_rooms: num,
 	construction_year: z.number().int().min(1800).max(2100).optional(),
@@ -483,7 +486,7 @@ const objectFieldsShape = {
 
 const OBJECT_KEYS = [
 	"title", "marketing_type", "object_type", "rs_type", "rs_category", "unit_id", "street", "house_number", "zip_code", "city",
-	"project_id", "price", "base_rent", "total_rent", "property_space_value", "plot_area", "number_of_rooms", "construction_year",
+	"project_id", "price", "base_rent", "total_rent", "living_space", "total_floor_space", "usable_floor_space", "plot_area", "number_of_rooms", "construction_year",
 	"courtage", "description_note", "location_note", "furnishing_note", "other_note", "lat", "lng",
 ] as const;
 

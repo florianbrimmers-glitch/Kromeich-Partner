@@ -100,5 +100,9 @@ describe("MCP-Protokoll", () => {
 		const create = tools.find((t) => t.name === "create_contact")!;
 		expect(create.inputSchema.required).toEqual(["last_name"]);
 		expect(create.description).toMatch(/MCP-TEST/);
+		// Live-Befund 15.10.: property_space_value ist berechnet und darf nicht als Eingabe angeboten werden
+		const createObject = tools.find((t) => t.name === "create_object")!;
+		expect(Object.keys(createObject.inputSchema.properties ?? {})).not.toContain("property_space_value");
+		expect(Object.keys(createObject.inputSchema.properties ?? {})).toEqual(expect.arrayContaining(["living_space", "total_floor_space"]));
 	});
 });
