@@ -102,7 +102,9 @@ describe("MCP-Protokoll", () => {
 		expect(create.description).toMatch(/MCP-TEST/);
 		// Live-Befund 15.10.: property_space_value ist berechnet und darf nicht als Eingabe angeboten werden
 		const createObject = tools.find((t) => t.name === "create_object")!;
-		expect(Object.keys(createObject.inputSchema.properties ?? {})).not.toContain("property_space_value");
-		expect(Object.keys(createObject.inputSchema.properties ?? {})).toEqual(expect.arrayContaining(["living_space", "total_floor_space"]));
+		const objectFields = Object.keys(createObject.inputSchema.properties ?? {});
+		// Feld-Mapping: berechnete/abgeleitete Felder und öffentliche Mietfelder nicht anbieten
+		for (const field of ["property_space_value", "object_type", "base_rent", "total_rent"]) expect(objectFields).not.toContain(field);
+		expect(objectFields).toEqual(expect.arrayContaining(["industrial_area", "total_floor_space", "hall_height", "rented", "price_on_inquiry", "bemerkung_append"]));
 	});
 });

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import type { Props } from "../auth/session";
-import { type CustomFieldEntity, type GroupEntity, PropstackClient, PropstackError } from "../propstack-client";
+import { type GroupEntity, PropstackClient, PropstackError } from "../propstack-client";
 import {
 	type ContactSearchResults,
 	contactDuplicates,
@@ -8,9 +8,13 @@ import {
 	isMobile,
 	objectDuplicates,
 } from "../propstack/dedupe";
+import { type CustomOption, validateCustomFields } from "../propstack/field-rules";
 import { scalar } from "../propstack/mappers";
+import { readUnit, UNVERIFIABLE, type UnitState, unitCustomValue, unitValue } from "../propstack/unit-state";
 import { beginWrite, finishWrite } from "../write-log";
 import { loadAll, type ToolOutput } from "./read-tools";
+
+export { validateCustomFields };
 
 // Schreib-Tools (Phase 3). Grundsätze:
 // - Betreuer ist immer der angemeldete Nutzer (Spezifikation).
@@ -30,6 +34,7 @@ export interface WriteDeps {
 	db: D1Database | undefined;
 	user: Props;
 	now?: () => Date;
+	sleep?: (ms: number) => Promise<void>;
 }
 
 const optionalText = (max: number) => z.string().trim().min(1).max(max).optional();
@@ -60,83 +65,56 @@ export async function ensureTestTag(client: PropstackClient, entity: GroupEntity
 	return created;
 }
 
-interface FieldDef {
-	type: string;
-	options: string[];
+function isOption(value: unknown): value is CustomOption {
+	return !!value && typeof value === "object" && !Array.isArray(value) && typeof (value as Raw).id === "number" && "name" in (value as Raw);
 }
 
-/** Custom-Felder gegen die Definition prüfen – sonst verwirft Propstack sie still. */
-export async function validateCustomFields(
-	client: PropstackClient,
-	entity: CustomFieldEntity,
-	fields: Record<string, unknown> | undefined,
-): Promise<Record<string, unknown> | undefined> {
-	if (!fields || !Object.keys(fields).length) return undefined;
-	const defs = new Map<string, FieldDef>();
-	for (const group of (await client.listCustomFieldGroups(entity)).rows) {
-		for (const f of Array.isArray(group.custom_fields) ? (group.custom_fields as Raw[]) : []) {
-			const options = Array.isArray(f.custom_options) ? (f.custom_options as Raw[]).map((o) => String(scalar(o.name))) : [];
-			defs.set(String(f.name), { options, type: String(f.field_type) });
-		}
+function norm(value: unknown): string {
+	return String(value ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+/** Alle Lesarten eines Propstack-Werts als Text (value, pretty_value, label, Listen, {id,name}). */
+function readings(value: unknown): string[] {
+	if (Array.isArray(value)) return value.flatMap(readings);
+	if (value && typeof value === "object") {
+		const obj = value as Raw;
+		return [obj.value, obj.pretty_value, obj.id, obj.name].filter((v) => v !== undefined && v !== null).flatMap(readings);
 	}
-	const errors: string[] = [];
-	const out: Record<string, unknown> = {};
-	for (const [key, value] of Object.entries(fields)) {
-		const def = defs.get(key);
-		if (!def) {
-			errors.push(`unbekanntes Feld "${key}"`);
-			continue;
-		}
-		const fail = (expected: string) => errors.push(`"${key}" erwartet ${expected}`);
-		switch (def.type) {
-			case "Number": {
-				const n = typeof value === "number" ? value : Number(String(value).replace(",", "."));
-				if (!Number.isFinite(n)) fail("eine Zahl");
-				else out[key] = n;
-				break;
-			}
-			case "Boolean":
-				if (typeof value !== "boolean") fail("true/false");
-				else out[key] = value;
-				break;
-			case "Date":
-				if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) fail("ein Datum JJJJ-MM-TT");
-				else out[key] = value;
-				break;
-			case "Dropdown":
-				if (!def.options.includes(String(value))) fail(`einen der Werte ${def.options.join(", ")}`);
-				else out[key] = value;
-				break;
-			case "Multiselect": {
-				const values = Array.isArray(value) ? value.map(String) : [String(value)];
-				if (!values.every((v) => def.options.includes(v))) fail(`Werte aus ${def.options.join(", ")}`);
-				else out[key] = values;
-				break;
-			}
-			default:
-				if (typeof value === "object") fail("einen Text");
-				else out[key] = String(value);
-		}
+	if (value === null || value === undefined) return [];
+	const text = norm(value);
+	return text.includes(",") ? [text, ...text.split(/,\s*/)] : [text];
+}
+
+function isEmpty(value: unknown): boolean {
+	if (value === null || value === undefined || value === "") return true;
+	if (Array.isArray(value)) return value.length === 0;
+	if (typeof value === "object") {
+		const obj = value as Raw;
+		if ("value" in obj) return isEmpty(obj.value);
 	}
-	if (errors.length) {
-		throw new PropstackError(`Custom-Felder ungültig: ${errors.join("; ")}. Gültige Felder über list_fields.`, 400);
-	}
-	return out;
+	return false;
 }
 
 function same(requested: unknown, actual: unknown): boolean {
+	if (requested === null) return isEmpty(actual);
+	if (isOption(requested)) {
+		const have = readings(actual);
+		return have.includes(String(requested.id)) || have.includes(norm(requested.name));
+	}
+	if (Array.isArray(requested)) {
+		const have = readings(actual);
+		return requested.every((r) => (isOption(r) ? have.includes(String(r.id)) || have.includes(norm(r.name)) : have.includes(norm(r))));
+	}
 	const candidates =
 		actual && typeof actual === "object" && !Array.isArray(actual)
 			? [(actual as Raw).value, (actual as Raw).pretty_value]
 			: [actual];
 	return candidates.some((candidate) => {
-		if (typeof requested === "number") return Number(candidate) === requested;
+		if (typeof requested === "number") return candidate !== null && candidate !== "" && Number(candidate) === requested;
 		if (typeof requested === "boolean") return candidate === requested || String(candidate) === String(requested);
-		if (Array.isArray(requested)) {
-			const have = Array.isArray(candidate) ? candidate.map(String) : String(candidate ?? "").split(/,\s*/);
-			return requested.every((r) => have.includes(String(r)));
-		}
-		return String(candidate ?? "").trim() === String(requested ?? "").trim();
+		// Groß-/Kleinschreibung zählt (Korrektur „mueller“ → „Müller“ muss geschrieben werden)
+		const squash = (v: unknown) => String(v ?? "").replace(/\s+/g, " ").trim();
+		return squash(candidate) === squash(requested);
 	});
 }
 
@@ -302,7 +280,7 @@ export async function createContact(deps: WriteDeps, input: z.infer<z.ZodObject<
 		broker_id: user.brokerId,
 		description: [input.description, originNote(user, now, "Angelegt")].filter(Boolean).join("\n\n"),
 		...(tags.length ? { group_ids: tags } : {}),
-		...(custom ? { partial_custom_fields: custom } : {}),
+		...(custom ? { partial_custom_fields: custom.send } : {}),
 	};
 
 	const logId = await beginWrite(deps.db, {
@@ -327,7 +305,7 @@ export async function createContact(deps: WriteDeps, input: z.infer<z.ZodObject<
 	}
 
 	const actual = await asObjectOrThrow(client.getContact(newId));
-	const missing = notApplied({ ...fields, broker_id: user.brokerId }, actual, custom);
+	const missing = notApplied({ ...fields, broker_id: user.brokerId }, actual, custom?.expect);
 	const groups = groupIdsOf(actual);
 	for (const tag of tags) if (!groups.includes(tag)) missing.push(`tag ${tag}`);
 	await finishWrite(deps.db, logId, { entityId: newId, notApplied: missing, status: missing.length ? "done_with_gaps" : "done" });
@@ -395,14 +373,14 @@ export async function updateContact(deps: WriteDeps, input: z.infer<z.ZodObject<
 	const payload: Raw = { ...fields };
 	if (addTags.length) payload.add_group_ids = addTags;
 	if (removeTags.length) payload.sub_group_ids = removeTags;
-	if (custom) payload.partial_custom_fields = custom;
+	if (custom) payload.partial_custom_fields = custom.send;
 	if (input.note_append) {
 		const old = String(scalar(current.description) ?? "");
 		before.description = old;
 		payload.description = [old, `${originNote(user, now, "Ergänzt")}\n${input.note_append}`].filter(Boolean).join("\n\n");
 	}
 	if (addTags.length || removeTags.length) before.tag_ids = currentTags;
-	if (custom) before.custom_fields = Object.fromEntries(Object.keys(custom).map((k) => [k, scalar((current.custom_fields as Raw | undefined)?.[k]) ?? null]));
+	if (custom) before.custom_fields = Object.fromEntries(Object.keys(custom.send).map((k) => [k, scalar((current.custom_fields as Raw | undefined)?.[k]) ?? null]));
 
 	if (!Object.keys(payload).length) {
 		return { count: 0, result: { updated: false, id: input.id, note: "Keine Änderung – alle Werte sind bereits so gesetzt." } };
@@ -428,7 +406,7 @@ export async function updateContact(deps: WriteDeps, input: z.infer<z.ZodObject<
 	}
 
 	const actual = await asObjectOrThrow(client.getContact(input.id));
-	const missing = notApplied(fields, actual, custom);
+	const missing = notApplied(fields, actual, custom?.expect);
 	const groups = groupIdsOf(actual);
 	for (const t of addTags) if (!groups.includes(t)) missing.push(`add_tag ${t}`);
 	for (const t of removeTags) if (groups.includes(t)) missing.push(`remove_tag ${t}`);
@@ -440,7 +418,7 @@ export async function updateContact(deps: WriteDeps, input: z.infer<z.ZodObject<
 			updated: true,
 			id: input.id,
 			name: scalar(actual.name),
-			changed: [...Object.keys(fields), ...(addTags.length ? ["add_tags"] : []), ...(removeTags.length ? ["remove_tags"] : []), ...(input.note_append ? ["note"] : []), ...Object.keys(custom ?? {}).map((k) => `custom_fields.${k}`)],
+			changed: [...Object.keys(fields), ...(addTags.length ? ["add_tags"] : []), ...(removeTags.length ? ["remove_tags"] : []), ...(input.note_append ? ["note"] : []), ...Object.keys(custom?.send ?? {}).map((k) => `custom_fields.${k}`)],
 			warnings: dedupe.warnings.length ? dedupe.warnings : undefined,
 			not_applied: missing.length ? missing : undefined,
 		},
@@ -448,46 +426,76 @@ export async function updateContact(deps: WriteDeps, input: z.infer<z.ZodObject<
 }
 
 // ---------- Objekte ----------
+// Regeln aus dem Notion-Feld-Mapping (Korrekturen) und dem Skill propstack-expose-workflow:
+// - Einige Felder verwirft Propstack im POST und in Multi-Feld-PUTs still → einzeln per PUT.
+// - object_type leitet Propstack aus rs_type ab → nicht anbieten.
+// - Mietpreise nie öffentlich (price/base_rent) → intern_mietpreis_* + price_on_inquiry.
+// - Interne Notizen in das Custom-Feld bemerkung; Beschreibungstexte sind exposé-sichtbar.
+// - lat/lng haften unzuverlässig → nur für die Dublettenprüfung, nicht schreiben.
+
+/** Werden im POST und in PUTs mit mehreren Feldern still verworfen → je Feld ein PUT. */
+export const SOLO_OBJECT_FIELDS = [
+	"rs_category",
+	"total_floor_space",
+	"industrial_area",
+	"hall_height",
+	"floor_load",
+	"broker_id",
+	"rented",
+	"property_status_id",
+] as const;
 
 const num = z.number().nonnegative().optional();
+const EXPOSE_VISIBLE = "EXPOSÉ-SICHTBAR: keine Konditionen, Eigentümer, Kundennamen oder offenen Punkte – die gehören in bemerkung_append";
 
 const objectFieldsShape = {
-	title: optionalText(250).describe("Überschrift"),
+	title: optionalText(250).describe("Überschrift, Format: Logistikhalle in (XX) Ort"),
 	marketing_type: z.enum(["BUY", "RENT"]).optional().describe("BUY = Kauf, RENT = Miete"),
-	object_type: z.enum(["LIVING", "COMMERCIAL", "INVESTMENT"]).optional(),
-	rs_type: z.string().regex(/^[A-Z_]+$/).optional().describe("Objektart, z. B. INDUSTRY, OFFICE, HOUSE, APARTMENT"),
+	rs_type: z.string().regex(/^[A-Z_]+$/).optional().describe("Objektart, z. B. INDUSTRY, OFFICE. Die Objektkategorie (object_type) leitet Propstack daraus ab"),
 	rs_category: z.string().regex(/^[A-Z_]+$/).optional().describe("Unterart, z. B. HALL, WAREHOUSE"),
-	unit_id: optionalText(50).describe("Einheit, z. B. Unit 1"),
+	unit_id: optionalText(50).describe("Einheitennummer – in ganz Propstack eindeutig. Bei Einzelobjekten ohne Projekt weglassen"),
 	street: optionalText(200),
 	house_number: optionalText(20),
 	zip_code: optionalText(10),
 	city: optionalText(100),
 	project_id: id.optional(),
-	status_id: id.optional().describe("Objekt-Status (über list_reference kind=object_statuses)"),
-	price: num.describe("Kaufpreis"),
-	base_rent: num.describe("Kaltmiete"),
-	total_rent: num.describe("Warmmiete"),
-	// property_space_value ist in Propstack berechnet und nicht schreibbar (live: 400 "unknown attribute").
-	living_space: num.describe("Fläche m² – bei euren Hallen steht hier die Hallenfläche (Propstack-Feld „Wohnfläche“)"),
+	status_id: id
+		.optional()
+		.describe("Objekt-Status (list_reference kind=object_statuses): 163672 Akquise, 163673 Vorbereitung, 163674 Vermarktung, 163675 Reserviert, 163676 Abgeschlossen. Einen Status „vermietet“ gibt es nicht – dafür rented"),
+	price: num.describe("Kaufpreis – nur bei BUY. Mietpreise nie öffentlich: custom_fields intern_mietpreis_hallenflache / _buro / _mezzanine"),
+	price_on_inquiry: z.boolean().optional().describe("Preis auf Anfrage. Bei RENT automatisch true, sofern nicht anders angegeben"),
+	industrial_area: num.describe("Hallenfläche m²"),
 	total_floor_space: num.describe("Gesamtfläche m²"),
-	usable_floor_space: num.describe("Nutzfläche m²"),
+	usable_floor_space: num.describe("Nutzfläche m² (bei Hallen: Bürofläche)"),
 	plot_area: num.describe("Grundstücksfläche m²"),
-	number_of_rooms: num,
+	hall_height: num.describe("Hallenhöhe in m UKB"),
+	floor_load: num.describe("Bodentragkraft in t/m²"),
 	construction_year: z.number().int().min(1800).max(2100).optional(),
-	courtage: optionalText(200).describe("Provision (Text)"),
-	description_note: optionalText(10000).describe("Objektbeschreibung"),
-	location_note: optionalText(10000).describe("Lagebeschreibung"),
-	furnishing_note: optionalText(10000).describe("Ausstattung"),
-	other_note: optionalText(10000).describe("Sonstiges"),
-	lat: z.number().min(-90).max(90).optional(),
-	lng: z.number().min(-180).max(180).optional(),
-	custom_fields: z.record(z.string(), z.unknown()).optional().describe("Custom-Felder {schlüssel: wert}, Schlüssel über list_fields entity=objects"),
+	free_from: optionalText(100).describe("Verfügbar ab (Text), z. B. „auf Anfrage“ oder „01.03.2027“"),
+	hide_address: z.boolean().optional().describe("Adresse im Exposé ausblenden"),
+	rented: z.boolean().optional().describe("Vermietet ja/nein – unabhängig vom Status"),
+	courtage: optionalText(200).describe("Provisionstext fürs Exposé – nur der Provisionstext, keine Arbeitsvermerke"),
+	courtage_note: optionalText(2000).describe("Provisionshinweis, z. B. die Staffel"),
+	description_note: optionalText(10000).describe(`Objektbeschreibung. ${EXPOSE_VISIBLE}`),
+	location_note: optionalText(10000).describe(`Lagebeschreibung. ${EXPOSE_VISIBLE}`),
+	furnishing_note: optionalText(10000).describe(`Ausstattung. ${EXPOSE_VISIBLE}`),
+	other_note: optionalText(10000).describe(`Sonstiges. ${EXPOSE_VISIBLE}`),
+	bemerkung_append: optionalText(4000).describe("Interne Bemerkung (Custom-Feld bemerkung, nicht im Exposé) – wird mit Datum und Nutzer angehängt"),
+	lat: z.number().min(-90).max(90).optional().describe("Nur für die Dublettenprüfung – wird nicht gespeichert"),
+	lng: z.number().min(-180).max(180).optional().describe("Nur für die Dublettenprüfung – wird nicht gespeichert"),
+	custom_fields: z
+		.record(z.string(), z.unknown())
+		.optional()
+		.describe(
+			"Custom-Felder {schlüssel: wert}, Schlüssel über list_fields entity=objects. Zahlen als nackte Zahl mit Dezimalpunkt (10.5, nie \"10,5\" oder \"6.417 m²\"), Auswahlfelder per Name oder Option-ID, null leert. Gesperrt: provisionspflichtig, mezzanineflache, mietpreis_*, bemerkung",
+		),
 };
 
 const OBJECT_KEYS = [
-	"title", "marketing_type", "object_type", "rs_type", "rs_category", "unit_id", "street", "house_number", "zip_code", "city",
-	"project_id", "price", "base_rent", "total_rent", "living_space", "total_floor_space", "usable_floor_space", "plot_area", "number_of_rooms", "construction_year",
-	"courtage", "description_note", "location_note", "furnishing_note", "other_note", "lat", "lng",
+	"title", "marketing_type", "rs_type", "rs_category", "unit_id", "street", "house_number", "zip_code", "city", "project_id",
+	"price", "price_on_inquiry", "industrial_area", "total_floor_space", "usable_floor_space", "plot_area", "hall_height", "floor_load",
+	"construction_year", "free_from", "hide_address", "rented", "courtage", "courtage_note",
+	"description_note", "location_note", "furnishing_note", "other_note",
 ] as const;
 
 function objectPayload(input: Raw): Raw {
@@ -497,9 +505,64 @@ function objectPayload(input: Raw): Raw {
 	return out;
 }
 
-function statusIdOf(raw: Raw): unknown {
-	const status = (raw.property_status ?? raw.status) as Raw | undefined;
-	return raw.property_status_id ?? (status && typeof status === "object" ? status.id : undefined);
+const fieldLabel = (key: string) => (key === "property_status_id" ? "status_id" : key);
+
+function splitSolo(fields: Raw): { bulk: Raw; solo: [string, unknown][] } {
+	const bulk: Raw = {};
+	const solo: [string, unknown][] = [];
+	for (const [key, value] of Object.entries(fields)) {
+		if ((SOLO_OBJECT_FIELDS as readonly string[]).includes(key)) solo.push([key, value]);
+		else bulk[key] = value;
+	}
+	return { bulk, solo };
+}
+
+/** Einzel-PUTs; ein Fehler bricht die übrigen nicht ab (das Objekt existiert bereits). */
+async function writeSolo(client: PropstackClient, unitId: number, solo: [string, unknown][]): Promise<string[]> {
+	const errors: string[] = [];
+	for (const [key, value] of solo) {
+		try {
+			await client.updateUnit(unitId, { [key]: value });
+		} catch (error) {
+			errors.push(`${fieldLabel(key)}: ${(error as Error).message}`);
+		}
+	}
+	return errors;
+}
+
+function sameUnitValue(key: string, requested: unknown, actual: unknown): boolean {
+	if (key === "property_status_id" || key === "broker_id") return actual !== null && actual !== undefined && Number(actual) === requested;
+	return same(requested, actual);
+}
+
+function verifyObject(state: UnitState, fields: Raw, customExpect: Raw): { missing: string[]; unverified: string[] } {
+	const missing: string[] = [];
+	const unverified: string[] = [];
+	for (const [key, value] of Object.entries(fields)) {
+		const actual = unitValue(state, key);
+		if (actual === UNVERIFIABLE) unverified.push(fieldLabel(key));
+		else if (!sameUnitValue(key, value, actual)) missing.push(fieldLabel(key));
+	}
+	for (const [key, value] of Object.entries(customExpect)) {
+		const actual = unitCustomValue(state, key);
+		if (actual === UNVERIFIABLE) unverified.push(`custom_fields.${key}`);
+		else if (!same(value, actual)) missing.push(`custom_fields.${key}`);
+	}
+	return { missing, unverified };
+}
+
+function rejectPublicRent(marketingType: unknown, fields: Raw): void {
+	if (fields.price !== undefined && marketingType !== "BUY") {
+		throw new PropstackError(
+			"price ist der öffentliche Kaufpreis und nur bei BUY erlaubt. Mietpreise nie öffentlich: custom_fields intern_mietpreis_hallenflache / intern_mietpreis_buro / intern_mietpreis_mezzanine, dazu price_on_inquiry: true.",
+			400,
+		);
+	}
+}
+
+function groupIdsOfUnit(state: UnitState): number[] {
+	const fromDetail = groupIdsOf(state.detail);
+	return fromDetail.length || !state.row ? fromDetail : groupIdsOf(state.row);
 }
 
 async function objectCandidates(client: PropstackClient, zip: string): Promise<Raw[]> {
@@ -508,16 +571,17 @@ async function objectCandidates(client: PropstackClient, zip: string): Promise<R
 	return loaded.rows;
 }
 
-function verifyObject(fields: Raw, actual: Raw, custom?: Raw): string[] {
-	const { property_status_id: statusId, ...rest } = fields;
-	const missing = notApplied(rest, actual, custom);
-	if (statusId !== undefined && statusIdOf(actual) !== statusId) missing.push("status_id");
-	return missing;
+function gapNote(missing: string[], unverified: string[], writeErrors: string[]): string | undefined {
+	const parts: string[] = [];
+	if (writeErrors.length) parts.push("Einige Felder konnten nicht geschrieben werden (write_errors).");
+	if (missing.length) parts.push("Propstack hat einige Felder nicht übernommen (not_applied) – bitte in Propstack prüfen.");
+	if (unverified.length) parts.push("Einige Felder liefert Propstack nicht zurück und konnten deshalb nicht gegengeprüft werden (not_verifiable).");
+	return parts.length ? parts.join(" ") : undefined;
 }
 
 export const createObjectInput = {
 	...objectFieldsShape,
-	title: z.string().trim().min(1).max(250).describe("Überschrift (Pflicht)"),
+	title: z.string().trim().min(1).max(250).describe("Überschrift (Pflicht), Format: Logistikhalle in (XX) Ort"),
 	marketing_type: z.enum(["BUY", "RENT"]).describe("BUY = Kauf, RENT = Miete (Pflicht)"),
 	rs_type: z.string().regex(/^[A-Z_]+$/).describe("Objektart (Pflicht), z. B. INDUSTRY"),
 	street: z.string().trim().min(1).max(200),
@@ -531,6 +595,11 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	const { client, user } = deps;
 	const now = deps.now?.() ?? new Date();
 
+	const fields = objectPayload(input);
+	rejectPublicRent(input.marketing_type, fields);
+	if (input.marketing_type === "RENT" && fields.price_on_inquiry === undefined) fields.price_on_inquiry = true;
+	fields.broker_id = user.brokerId;
+
 	const dedupe = objectDuplicates(input, await objectCandidates(client, input.zip_code));
 	if (dedupe.duplicates.length && !input.allow_duplicate_reason) {
 		return blockedResult(
@@ -541,15 +610,13 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	const overrideReason = checkOverride(dedupe, input.allow_duplicate_reason);
 
 	const custom = await validateCustomFields(client, "for_properties", input.custom_fields);
+	const bemerkung = [originNote(user, now, "Angelegt"), input.bemerkung_append].filter(Boolean).join("\n");
+	const customSend: Raw = { ...(custom?.send ?? {}), bemerkung };
+	const customExpect: Raw = { ...(custom?.expect ?? {}), bemerkung };
 	const tags = input.test ? [await ensureTestTag(client, "for_properties")] : [];
-	const fields = objectPayload(input);
-	const payload: Raw = {
-		...fields,
-		broker_id: user.brokerId,
-		other_note: [input.other_note, originNote(user, now, "Angelegt")].filter(Boolean).join("\n\n"),
-		...(tags.length ? { group_ids: tags } : {}),
-		...(custom ? { partial_custom_fields: custom } : {}),
-	};
+
+	const { bulk, solo } = splitSolo(fields);
+	const payload: Raw = { ...bulk, ...(tags.length ? { group_ids: tags } : {}), partial_custom_fields: customSend };
 
 	const logId = await beginWrite(deps.db, {
 		action: "create",
@@ -558,7 +625,7 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 		entity: "object",
 		entityId: null,
 		overrideReason,
-		request: payload,
+		request: { ...payload, einzeln_nachgesetzt: Object.fromEntries(solo.map(([k, v]) => [fieldLabel(k), v])) },
 		tool: "create_object",
 		userEmail: user.email,
 		warnings: dedupe.warnings,
@@ -571,25 +638,33 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 		throw error;
 	}
 
-	const actual = await asObjectOrThrow(client.getUnit(newId));
-	const { other_note: _ignored, ...checkFields } = fields;
-	const missing = verifyObject({ ...checkFields, broker_id: user.brokerId }, actual, custom);
-	const groups = groupIdsOf(actual);
+	const writeErrors = await writeSolo(client, newId, solo);
+	const state = await readUnit(client, newId, { fresh: true, sleep: deps.sleep });
+	const { missing, unverified } = verifyObject(state, fields, customExpect);
+	const groups = groupIdsOfUnit(state);
 	for (const tag of tags) if (!groups.includes(tag)) missing.push(`tag ${TEST_TAG}`);
-	await finishWrite(deps.db, logId, { entityId: newId, notApplied: missing, status: missing.length ? "done_with_gaps" : "done" });
+	const gaps = missing.length || writeErrors.length;
+	await finishWrite(deps.db, logId, {
+		entityId: newId,
+		error: writeErrors.length ? writeErrors.join(" | ") : undefined,
+		notApplied: [...missing, ...unverified.map((f) => `${f} (nicht prüfbar)`)],
+		status: gaps ? "done_with_gaps" : "done",
+	});
 
 	return {
 		count: 1,
 		result: {
 			created: true,
 			id: newId,
-			title: scalar(actual.title),
+			title: scalar(state.row?.title ?? state.detail.title),
 			broker: user.name,
 			test: input.test || undefined,
 			override_reason: overrideReason ?? undefined,
 			warnings: dedupe.warnings.length ? dedupe.warnings : undefined,
 			not_applied: missing.length ? missing : undefined,
-			note: missing.length ? "Propstack hat einige Felder nicht übernommen – bitte prüfen." : undefined,
+			not_verifiable: unverified.length ? unverified : undefined,
+			write_errors: writeErrors.length ? writeErrors : undefined,
+			note: gapNote(missing, unverified, writeErrors),
 		},
 	};
 }
@@ -602,29 +677,40 @@ export const updateObjectInput = {
 
 export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<typeof updateObjectInput>>): Promise<ToolOutput> {
 	const { client, user } = deps;
-	const current = await asObjectOrThrow(client.getUnit(input.id));
+	const now = deps.now?.() ?? new Date();
+	const current = await readUnit(client, input.id);
+	const currentValue = (key: string) => {
+		const value = unitValue(current, key);
+		return value === UNVERIFIABLE ? undefined : value;
+	};
 
 	const requested = objectPayload(input);
+	rejectPublicRent(requested.marketing_type ?? scalar(currentValue("marketing_type")), requested);
+
+	// Nur echte Änderungen schreiben; nicht lesbare Felder werden vorsichtshalber geschrieben
 	const fields: Raw = {};
 	const before: Raw = {};
 	for (const [key, value] of Object.entries(requested)) {
-		const currentValue = key === "property_status_id" ? statusIdOf(current) : current[key];
-		if (key === "property_status_id" ? currentValue === value : same(value, currentValue)) continue;
+		const actual = unitValue(current, key);
+		if (actual !== UNVERIFIABLE && sameUnitValue(key, value, actual)) continue;
 		fields[key] = value;
-		before[key] = (key === "property_status_id" ? currentValue : scalar(currentValue)) ?? null;
+		before[fieldLabel(key)] = actual === UNVERIFIABLE ? "nicht lesbar" : (scalar(actual) ?? null);
 	}
 
 	// Adresse, Einheit oder Vermarktungsart geändert → Kollision mit anderem Objekt prüfen
 	let dedupe: DedupeResult = { duplicates: [], warnings: [] };
 	if (["street", "house_number", "zip_code", "unit_id", "marketing_type"].some((k) => k in fields)) {
-		const merged = {
-			house_number: String(fields.house_number ?? scalar(current.house_number) ?? ""),
-			marketing_type: String(fields.marketing_type ?? scalar(current.marketing_type) ?? ""),
-			street: String(fields.street ?? scalar(current.street) ?? ""),
-			unit_id: String(fields.unit_id ?? scalar(current.unit_id) ?? ""),
-			zip_code: String(fields.zip_code ?? scalar(current.zip_code) ?? ""),
+		const merged = (key: string) => String(fields[key] ?? scalar(currentValue(key)) ?? "");
+		const candidate = {
+			house_number: merged("house_number"),
+			lat: input.lat,
+			lng: input.lng,
+			marketing_type: merged("marketing_type"),
+			street: merged("street"),
+			unit_id: merged("unit_id"),
+			zip_code: merged("zip_code"),
 		};
-		if (merged.zip_code) dedupe = objectDuplicates(merged, await objectCandidates(client, merged.zip_code), input.id);
+		if (candidate.zip_code) dedupe = objectDuplicates(candidate, await objectCandidates(client, candidate.zip_code), input.id);
 	}
 	if (dedupe.duplicates.length && !input.allow_duplicate_reason) {
 		return blockedResult(dedupe, "Nichts geändert – das Objekt würde mit einem vorhandenen kollidieren.");
@@ -632,14 +718,32 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	const overrideReason = checkOverride(dedupe, input.allow_duplicate_reason);
 
 	const custom = await validateCustomFields(client, "for_properties", input.custom_fields);
-	const payload: Raw = { ...fields };
-	if (custom) {
-		payload.partial_custom_fields = custom;
-		before.custom_fields = Object.fromEntries(Object.keys(custom).map((k) => [k, scalar((current.custom_fields as Raw | undefined)?.[k]) ?? null]));
+	const customSend: Raw = { ...(custom?.send ?? {}) };
+	const customExpect: Raw = { ...(custom?.expect ?? {}) };
+	const customBefore: Raw = {};
+	for (const key of Object.keys(customSend)) {
+		const actual = unitCustomValue(current, key);
+		customBefore[key] = actual === UNVERIFIABLE ? "nicht lesbar" : (scalar(actual) ?? null);
 	}
-	if (!Object.keys(payload).length) {
+	if (input.bemerkung_append) {
+		const old = unitCustomValue(current, "bemerkung");
+		if (old === UNVERIFIABLE) {
+			throw new PropstackError("Die vorhandene Bemerkung konnte nicht gelesen werden – nichts geändert, damit sie nicht überschrieben wird.", 0);
+		}
+		const oldText = String(scalar(old) ?? "").trim();
+		const text = [oldText, `${originNote(user, now, "Ergänzt")}\n${input.bemerkung_append}`].filter(Boolean).join("\n\n");
+		customSend.bemerkung = text;
+		customExpect.bemerkung = text;
+		customBefore.bemerkung = oldText;
+	}
+	if (Object.keys(customBefore).length) before.custom_fields = customBefore;
+
+	if (!Object.keys(fields).length && !Object.keys(customSend).length) {
 		return { count: 0, result: { updated: false, id: input.id, note: "Keine Änderung – alle Werte sind bereits so gesetzt." } };
 	}
+
+	const { bulk, solo } = splitSolo(fields);
+	const payload: Raw = { ...bulk, ...(Object.keys(customSend).length ? { partial_custom_fields: customSend } : {}) };
 
 	const logId = await beginWrite(deps.db, {
 		action: "update",
@@ -648,32 +752,48 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 		entity: "object",
 		entityId: input.id,
 		overrideReason,
-		request: payload,
+		request: { ...payload, einzeln_nachgesetzt: Object.fromEntries(solo.map(([k, v]) => [fieldLabel(k), v])) },
 		tool: "update_object",
 		userEmail: user.email,
 		warnings: dedupe.warnings,
 	});
-	try {
-		await client.updateUnit(input.id, payload);
-	} catch (error) {
-		await finishWrite(deps.db, logId, { error: (error as Error).message, status: "failed" });
-		throw error;
+	if (Object.keys(payload).length) {
+		try {
+			await client.updateUnit(input.id, payload);
+		} catch (error) {
+			await finishWrite(deps.db, logId, { error: (error as Error).message, status: "failed" });
+			throw error;
+		}
+	}
+	const writeErrors = await writeSolo(client, input.id, solo);
+	if (!Object.keys(payload).length && writeErrors.length === solo.length) {
+		await finishWrite(deps.db, logId, { error: writeErrors.join(" | "), status: "failed" });
+		throw new PropstackError(`Nichts geändert: ${writeErrors.join("; ")}`, 0);
 	}
 
-	const actual = await asObjectOrThrow(client.getUnit(input.id));
-	const missing = verifyObject(fields, actual, custom);
-	await finishWrite(deps.db, logId, { notApplied: missing, status: missing.length ? "done_with_gaps" : "done" });
+	const state = await readUnit(client, input.id);
+	const { missing, unverified } = verifyObject(state, fields, customExpect);
+	await finishWrite(deps.db, logId, {
+		error: writeErrors.length ? writeErrors.join(" | ") : undefined,
+		notApplied: [...missing, ...unverified.map((f) => `${f} (nicht prüfbar)`)],
+		status: missing.length || writeErrors.length ? "done_with_gaps" : "done",
+	});
 
 	return {
 		count: 1,
 		result: {
 			updated: true,
 			id: input.id,
-			title: scalar(actual.title),
-			changed: [...Object.keys(fields).map((k) => (k === "property_status_id" ? "status_id" : k)), ...Object.keys(custom ?? {}).map((k) => `custom_fields.${k}`)],
+			title: scalar(state.row?.title ?? state.detail.title),
+			changed: [
+				...Object.keys(fields).map(fieldLabel),
+				...Object.keys(customSend).map((k) => (k === "bemerkung" && input.bemerkung_append ? "bemerkung (angehängt)" : `custom_fields.${k}`)),
+			],
 			warnings: dedupe.warnings.length ? dedupe.warnings : undefined,
 			not_applied: missing.length ? missing : undefined,
+			not_verifiable: unverified.length ? unverified : undefined,
+			write_errors: writeErrors.length ? writeErrors : undefined,
+			note: gapNote(missing, unverified, writeErrors),
 		},
 	};
 }
-
