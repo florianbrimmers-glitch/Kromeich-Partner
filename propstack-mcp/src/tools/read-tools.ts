@@ -24,7 +24,7 @@ import {
 	type StageInfo,
 	stageIndex,
 } from "../propstack/mappers";
-import { BLOCKED_OBJECT_FIELDS } from "../propstack/field-rules";
+import { BLOCKED_OBJECT_FIELDS, PUBLIC_PRICE_FIELDS } from "../propstack/field-rules";
 import { mergedUnit, readUnit } from "../propstack/unit-state";
 
 // Lese-Tools (Phase 2). Jede Funktion liefert das gekürzte Ergebnis und eine
@@ -461,7 +461,8 @@ export async function listFields(client: Client, input: { entity: "contacts" | "
 				? (f.custom_options as Raw[]).map((o) => (typeof o.id === "number" ? { id: o.id, name: scalar(o.name) } : scalar(o.name)))
 				: [];
 			const blocked = input.entity === "objects" ? BLOCKED_OBJECT_FIELDS[String(f.name)] : undefined;
-			return compact({ key: f.name, label: f.pretty_name, type: f.field_type, unit: f.unit, options, blocked });
+			const publicPrice = input.entity === "objects" && PUBLIC_PRICE_FIELDS[String(f.name)] ? `öffentlicher Preis – nur mit public_price_confirmed (intern: ${PUBLIC_PRICE_FIELDS[String(f.name)]})` : undefined;
+			return compact({ key: f.name, label: f.pretty_name, type: f.field_type, unit: f.unit, options, blocked, public_price: publicPrice });
 		});
 		return compact({ group: scalar(group.name), fields });
 	});

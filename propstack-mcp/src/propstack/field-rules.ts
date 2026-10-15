@@ -28,13 +28,23 @@ export interface FieldDef {
 export const BLOCKED_OBJECT_FIELDS: Record<string, string> = {
 	provisionspflichtig: "nie setzen – jeder Wert bricht eine bestehende Automatisierung (nur null zum Leeren erlaubt)",
 	mezzanineflache: "trägt die Einheit Euro – Fläche wird zum Geldbetrag. Stattdessen mezzanineflache_gesamt / mezzanineflache_verfugbar",
-	mietpreis_hallenflache: "Mietpreise nie in öffentliche Felder – intern_mietpreis_hallenflache verwenden",
-	mietpreis_buroflache: "Mietpreise nie in öffentliche Felder – intern_mietpreis_buro verwenden",
-	mietpreis_mezzanine: "Mietpreise nie in öffentliche Felder – intern_mietpreis_mezzanine verwenden",
 	bemerkung: "nicht direkt überschreiben – bemerkung_append verwenden (vorhandene Bemerkung bleibt erhalten)",
 };
 
 const BLOCK_EVEN_NULL = new Set(["bemerkung"]);
+
+/**
+ * Öffentliche Preisfelder (Exposé/Portale): nur auf Nachfrage oder ausdrückliche Ansage des Nutzers
+ * (public_price_confirmed). Interne Preise (intern_*) sind immer erlaubt. Entscheidung Florian, 15.10.2026.
+ */
+export const PUBLIC_PRICE_FIELDS: Record<string, string> = {
+	mietpreis_buroflache: "intern_mietpreis_buro",
+	mietpreis_hallenflache: "intern_mietpreis_hallenflache",
+	mietpreis_mezzanine: "intern_mietpreis_mezzanine",
+};
+
+export const PUBLIC_PRICE_HINT =
+	"Öffentliche Preise nur auf ausdrückliche Ansage: erst den Nutzer fragen, dann mit public_price_confirmed: true erneut aufrufen. Interne Preise jederzeit in intern_mietpreis_hallenflache / intern_mietpreis_buro / intern_mietpreis_mezzanine.";
 
 export async function loadFieldDefs(client: Pick<PropstackClient, "listCustomFieldGroups">, entity: CustomFieldEntity): Promise<Map<string, FieldDef>> {
 	const defs = new Map<string, FieldDef>();
@@ -84,6 +94,7 @@ export async function validateCustomFields(
 	entity: CustomFieldEntity,
 	fields: Record<string, unknown> | undefined,
 	preloaded?: Map<string, FieldDef>,
+	options: { publicPriceConfirmed?: boolean } = {},
 ): Promise<ValidatedCustomFields | undefined> {
 	if (!fields || !Object.keys(fields).length) return undefined;
 	const defs = preloaded ?? (await loadFieldDefs(client, entity));
@@ -99,6 +110,10 @@ export async function validateCustomFields(
 		}
 		if (blocked[key] && (value !== null || BLOCK_EVEN_NULL.has(key))) {
 			errors.push(`"${key}" gesperrt: ${blocked[key]}`);
+			continue;
+		}
+		if (entity === "for_properties" && PUBLIC_PRICE_FIELDS[key] && value !== null && !options.publicPriceConfirmed) {
+			errors.push(`"${key}" ist ein öffentlicher Preis (intern: ${PUBLIC_PRICE_FIELDS[key]})`);
 			continue;
 		}
 		if (value === null) {
@@ -155,7 +170,8 @@ export async function validateCustomFields(
 		}
 	}
 	if (errors.length) {
-		throw new PropstackError(`Custom-Felder ungültig: ${errors.join("; ")}. Gültige Felder über list_fields.`, 400);
+		const priceHint = errors.some((e) => e.includes("öffentlicher Preis")) ? ` ${PUBLIC_PRICE_HINT}` : "";
+		throw new PropstackError(`Custom-Felder ungültig: ${errors.join("; ")}. Gültige Felder über list_fields.${priceHint}`, 400);
 	}
 	return { expect, send };
 }

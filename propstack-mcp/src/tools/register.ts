@@ -196,7 +196,7 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
 	};
 
 	const objectRules =
-		"Regeln (Propstack-Feld-Mapping): Mietpreise nie öffentlich – in custom_fields intern_mietpreis_*, Objekt bekommt price_on_inquiry. Beschreibungstexte sind exposé-sichtbar; Interna, Konditionen, Eigentümer und offene Punkte nur in bemerkung_append. provisionspflichtig nie setzen. Kritische Felder (rs_category, Flächen, Hallenhöhe, Bodentragkraft, Status, rented, Betreuer) werden einzeln geschrieben und zurückgelesen; not_applied/not_verifiable im Ergebnis dem Nutzer melden.";
+		"Regeln (Propstack-Feld-Mapping): Interne Preise jederzeit in custom_fields intern_mietpreis_*. ÖFFENTLICHE Preise (price, base_rent, mietpreis_*) nur, wenn der Nutzer es ausdrücklich ansagt oder auf Nachfrage bestätigt – dann public_price_confirmed: true; sonst „Preis auf Anfrage“. Beschreibungstexte sind exposé-sichtbar; Interna, Konditionen, Eigentümer und offene Punkte nur in bemerkung_append. provisionspflichtig nie setzen. Kritische Felder (rs_category, Flächen, Hallenhöhe, Bodentragkraft, Status, rented, Betreuer) werden einzeln geschrieben und zurückgelesen; not_applied/not_verifiable im Ergebnis dem Nutzer melden.";
 	const rules = `Betreuer wird immer der angemeldete Nutzer. Testdaten immer mit test=true anlegen (Merkmal ${TEST_TAG}). Es gibt keine Lösch-Funktion.`;
 	register(
 		"create_contact",

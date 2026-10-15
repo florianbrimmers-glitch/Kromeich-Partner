@@ -124,7 +124,7 @@ describe("MCP-Protokoll", () => {
 		const createObject = tools.find((t) => t.name === "create_object")!;
 		const objectFields = Object.keys(createObject.inputSchema.properties ?? {});
 		// Feld-Mapping: berechnete/abgeleitete Felder und öffentliche Mietfelder nicht anbieten
-		for (const field of ["property_space_value", "object_type", "base_rent", "total_rent"]) expect(objectFields).not.toContain(field);
-		expect(objectFields).toEqual(expect.arrayContaining(["industrial_area", "total_floor_space", "hall_height", "rented", "price_on_inquiry", "bemerkung_append"]));
+		for (const field of ["property_space_value", "object_type", "total_rent"]) expect(objectFields).not.toContain(field);
+		expect(objectFields).toEqual(expect.arrayContaining(["industrial_area", "total_floor_space", "hall_height", "rented", "price_on_inquiry", "bemerkung_append", "public_price_confirmed"]));
 	});
 });

@@ -169,6 +169,8 @@ function fakeClient(impl: Record<string, (...args: unknown[]) => unknown>) {
 						{ field_type: "String", name: "preisangabe" },
 						{ field_type: "String", name: "status_logistik" },
 						{ field_type: "Boolean", name: "kein_automatischer_exposeversand" },
+						{ field_type: "Number", name: "mietpreis_hallenflache" },
+						{ field_type: "Number", name: "intern_mietpreis_hallenflache" },
 						{ field_type: "String", name: "bemerkung" },
 						{ custom_options: [{ id: 1, name: "Ja" }, { id: 2, name: "Nein" }], field_type: "Dropdown", name: "spekulative_entwicklung" },
 						{ custom_options: [{ id: 7, name: "Aktiv" }, { id: 8, name: "Inaktiv" }], field_type: "Multiselect", name: "aktiv" },
@@ -518,6 +520,30 @@ describe("create_object / update_object", () => {
 		expect(calls.some((c) => c.method === "createUnit")).toBe(false);
 	});
 
+	it("öffentliche Preise nur mit Bestätigung (Entscheidung Florian); intern immer", async () => {
+		const unit = fakeUnit();
+		const { client, calls } = fakeClient(unit.impl);
+		const deps = { client, db: fakeDb().db, now: NOW, sleep, user: USER };
+		const buy = { ...input, marketing_type: "BUY" as const };
+		await expect(createObject(deps, { ...buy, price: 2_500_000 })).rejects.toThrow(/öffentliche Preise/);
+		await expect(createObject(deps, { ...input, custom_fields: { mietpreis_hallenflache: 6.5 } })).rejects.toThrow(/öffentlicher Preis.*intern_mietpreis_hallenflache/);
+		expect(calls.some((c) => c.method === "createUnit")).toBe(false);
+
+		await createObject(deps, { ...input, custom_fields: { intern_mietpreis_hallenflache: 6.5 } });
+		expect(unit.posted()).toMatchObject({ price_on_inquiry: true });
+		await createObject(deps, { ...buy, house_number: "100", price: 2_500_000, public_price_confirmed: true, unit_id: "Unit 10" });
+		expect(unit.posted()).toMatchObject({ price: 2_500_000, price_on_inquiry: false });
+		await createObject(deps, { ...input, base_rent: 18_000, house_number: "101", public_price_confirmed: true, unit_id: "Unit 11" });
+		expect(unit.posted()).toMatchObject({ base_rent: 18_000, price_on_inquiry: false });
+	});
+
+	it("Status Reserviert gilt als aktiv", async () => {
+		const unit = fakeUnit();
+		const { client } = fakeClient(unit.impl);
+		await createObject({ client, db: fakeDb().db, now: NOW, sleep, user: USER }, { ...input, industrial_area: 1000, status_id: 163675 });
+		expect(unit.posted().partial_custom_fields).toMatchObject({ aktiv: [7], status_logistik: "Aktiv" });
+	});
+
 	it("Zahlen nur nackt: Komma-Text und Tausenderpunkt werden abgewiesen", async () => {
 		const { client } = fakeClient(fakeUnit().impl);
 		const deps = { client, db: fakeDb().db, now: NOW, sleep, user: USER };
@@ -588,7 +614,8 @@ describe("create_object / update_object", () => {
 		Object.assign(unit.stored, { marketing_type: "RENT", title: "SCHLE99" });
 		const { client, calls } = fakeClient(unit.impl);
 		const deps = { client, db: fakeDb().db, now: NOW, sleep, user: USER };
-		await expect(updateObject(deps, { id: 900, price: 100 })).rejects.toThrow(/nur bei BUY/);
+		await expect(updateObject(deps, { id: 900, price: 100 })).rejects.toThrow(/öffentliche Preise.*fragen/);
+		await expect(updateObject(deps, { id: 900, price: 100, public_price_confirmed: true })).rejects.toThrow(/nur bei BUY/);
 		const out = await updateObject(deps, { id: 900, title: "SCHLE99" });
 		expect(out.result).toMatchObject({ updated: false });
 		expect(calls.some((c) => c.method === "updateUnit")).toBe(false);
