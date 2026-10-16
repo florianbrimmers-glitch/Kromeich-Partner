@@ -1,4 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// Kein Netz in Tests: Geokodierung (OpenStreetMap) findet nichts
+beforeEach(() => {
+	vi.stubGlobal("fetch", async () => new Response("[]", { status: 200 }));
+});
 import {
 	contactDuplicates,
 	isGenericEmail,
@@ -169,6 +174,8 @@ function fakeClient(impl: Record<string, (...args: unknown[]) => unknown>) {
 						{ field_type: "String", name: "preisangabe" },
 						{ field_type: "String", name: "status_logistik" },
 						{ field_type: "Boolean", name: "kein_automatischer_exposeversand" },
+						{ field_type: "String", name: "beleuchtung_halle" },
+						{ field_type: "String", name: "beleuchtung" },
 						{ field_type: "Number", name: "mietpreis_hallenflache" },
 						{ field_type: "Number", name: "intern_mietpreis_hallenflache" },
 						{ field_type: "String", name: "bemerkung" },
@@ -559,6 +566,45 @@ describe("create_object / update_object", () => {
 		const deps = { client, db: fakeDb().db, now: NOW, sleep, user: USER };
 		await expect(createObject(deps, { ...input, custom_fields: { hallenhohe: "10,5" } })).rejects.toThrow(/nackte Zahl/);
 		await expect(createObject(deps, { ...input, custom_fields: { lagerflache: 6.417 } })).rejects.toThrow(/Tausenderpunkt.*6417/);
+	});
+
+	it("Eigentümer an der Einheit (Gegenprobe), Beleuchtung in beide Felder, angegebene Koordinaten mit Stufen-Trick", async () => {
+		const unit = fakeUnit();
+		let relationshipCalls = 0;
+		const coordPuts: Record<string, unknown>[] = [];
+		const coords: Record<string, number> = {};
+		const impl = {
+			...unit.impl,
+			getContact: () => ({ id: 35208656, name: "JJW Hillscheid Grundbesitz GmbH" }),
+			getUnit: () => ({ ...(unit.impl.getUnit() as Record<string, unknown>), ...coords }),
+			updateUnit: (id: unknown, payload: unknown) => {
+				const p = payload as Record<string, unknown>;
+				if ("relationships_attributes" in p) {
+					relationshipCalls++;
+					if (relationshipCalls > 1) throw new Error('Propstack-Anfrage fehlgeschlagen (400): ["Relationships property ist bereits mit dem Kontakt verbunden"]');
+					return {};
+				}
+				if ("lat" in p || "lng" in p) {
+					coordPuts.push(p);
+					Object.assign(coords, p);
+					return {};
+				}
+				return unit.impl.updateUnit(id, payload);
+			},
+		};
+		const { client } = fakeClient(impl);
+		const out = await createObject(
+			{ client, db: fakeDb().db, now: NOW, sleep, user: USER },
+			{ ...input, custom_fields: { beleuchtung_halle: "LED" }, lat: 50.4367, lng: 7.7047, owner_contact_id: 35208656 },
+		);
+		expect(out.result).toMatchObject({
+			coordinates: { source: "angegeben", verified: true },
+			owner: { id: 35208656, linked: true },
+		});
+		expect(unit.posted().partial_custom_fields).toMatchObject({ beleuchtung: "LED", beleuchtung_halle: "LED" });
+		expect(coordPuts[0]).toEqual({ lat: 50.4367 });
+		expect(coordPuts[coordPuts.length - 1]).toEqual({ lng: 7.7047 });
+		expect((out.result as { not_applied?: string[] }).not_applied).toBeUndefined();
 	});
 
 	it("Einheit im Projekt: keine eigene Prüfaufgabe, solange alles übernommen wurde", async () => {

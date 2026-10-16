@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Page, PropstackClient } from "../src/propstack-client";
-import { createReviewTask, nextWorkdayNine, toAscii } from "../src/review-task";
+import { createReviewTask, nextWorkdayNine } from "../src/review-task";
 import { addImages, checkImageUrl, createProject, setProjectOwner } from "../src/tools/project-tools";
 
 const page = (rows: Record<string, unknown>[]): Page => ({ rows, total: rows.length });
@@ -47,8 +47,7 @@ function fakeClient(impl: Record<string, (...args: unknown[]) => unknown>) {
 }
 
 describe("Prüfaufgabe", () => {
-	it("ASCII und nächster Werktag 9:00", () => {
-		expect(toAscii("Prüfung: Halle in (51) Köln – 5.000 m² für 5,50 €")).toBe("Pruefung: Halle in (51) Koeln - 5.000 m2 fuer 5,50 EUR");
+	it("nächster Werktag 9:00", () => {
 		expect(nextWorkdayNine(new Date("2026-10-16T10:00:00Z"))).toBe("2026-10-19T09:00:00"); // Fr → Mo
 		expect(nextWorkdayNine(new Date("2026-10-14T21:30:00Z"))).toBe("2026-10-15T09:00:00"); // Mi 23:30 Berlin → Do
 	});
@@ -63,10 +62,10 @@ describe("Prüfaufgabe", () => {
 		});
 		const out = await createReviewTask(client, fakeDb().db, { lines: ["Objekt <b>1</b>: Hallé"], now: NOW(), propertyIds: [1], test: false, title: "Halle", user: USER });
 		expect(out).toMatchObject({ assigned_to: "Lena Klinnert", id: 1 });
-		expect(sent).toMatchObject({ broker_id: 254958, is_reminder: true, property_ids: [1], title: "Pruefung: Halle" });
-		expect(sent.body).toBe("<p>Objekt &lt;b&gt;1&lt;/b&gt;: Halle</p>");
+		expect(sent).toMatchObject({ broker_id: 254958, is_reminder: true, property_ids: [1], title: "Prüfung: Halle" });
+		expect(sent.body).toBe("<p>Objekt &lt;b&gt;1&lt;/b&gt;: Hallé</p>"); // Umlaute/Sonderzeichen bleiben
 		await createReviewTask(client, fakeDb().db, { lines: [], now: NOW(), test: true, title: "Halle", user: USER });
-		expect(sent).toMatchObject({ broker_id: 347158, title: "[MCP-TEST] Pruefung: Halle" });
+		expect(sent).toMatchObject({ broker_id: 347158, title: "[MCP-TEST] Prüfung: Halle" });
 	});
 
 	it("Fehler beim Anlegen der Aufgabe wird gemeldet, nicht geworfen", async () => {
@@ -92,7 +91,8 @@ describe("create_project", () => {
 				Object.assign(stored, rest);
 				return { id: 600 };
 			},
-			getProject: () => ({ ...stored, broker: stored.broker_id ? { id: stored.broker_id } : null, id: 600 }),
+			// Propstack hat selbst geokodiert → keine Koordinaten-Writes
+			getProject: () => ({ ...stored, broker: stored.broker_id ? { id: stored.broker_id } : null, id: 600, lat: 51.2, lng: 6.8 }),
 			updateProject: (_id, p) => {
 				puts.push(p as Record<string, unknown>);
 				if (!("relationships_attributes" in (p as object))) Object.assign(stored, p);
@@ -226,5 +226,50 @@ describe("add_images", () => {
 		}) as unknown as typeof fetch;
 		expect(await checkImageUrl("https://x.de/a.png", f)).toBeNull();
 		expect(methods).toEqual(["HEAD", "GET"]);
+	});
+});
+
+describe("Koordinaten (Notion-Korrektur 34)", async () => {
+	const { ensureCoordinates, writeCoordinates } = await import("../src/propstack/geo");
+
+	it("lat einmal, lng in Stufen 1–4 Nachkommastellen, dann exakt; Kontrolle per Einzel-GET", async () => {
+		const puts: Record<string, unknown>[] = [];
+		let stored: Record<string, number> = {};
+		const out = await writeCoordinates(
+			async () => stored,
+			async (b) => {
+				puts.push(b);
+				stored = { ...stored, ...(b as Record<string, number>) };
+			},
+			{ lat: 50.4367, lng: 7.704712 },
+		);
+		expect(puts).toEqual([{ lat: 50.4367 }, { lng: 7.7 }, { lng: 7.7 }, { lng: 7.705 }, { lng: 7.7047 }, { lng: 7.704712 }]);
+		expect(out).toMatchObject({ verified: true });
+	});
+
+	it("Propstack hat selbst Koordinaten → nichts schreiben; sonst OpenStreetMap mit Genauigkeit", async () => {
+		const noWrite = await ensureCoordinates({ current: { lat: 50.1, lng: 7.1 }, put: async () => { throw new Error("darf nicht schreiben"); }, read: async () => ({}) });
+		expect(noWrite).toMatchObject({ source: "Propstack", verified: true });
+
+		let stored: Record<string, number> = {};
+		const fetchFn = (async (url: string) => {
+			expect(url).toContain("postalcode=56204");
+			return new Response(JSON.stringify([{ lat: "50.4367123", lon: "7.7047456" }]), { status: 200 });
+		}) as unknown as typeof fetch;
+		const geo = await ensureCoordinates({
+			address: { city: "Hillscheid", street: "Am Scheid", zip_code: "56204" },
+			current: {},
+			fetchFn,
+			put: async (b) => {
+				stored = { ...stored, ...(b as Record<string, number>) };
+			},
+			read: async () => stored,
+		});
+		expect(geo).toMatchObject({ lat: 50.436712, lng: 7.704746, precision: "Straße (keine Hausnummer)", source: "OpenStreetMap", verified: true });
+	});
+
+	it("lng haftet nicht → nicht verifiziert", async () => {
+		const out = await writeCoordinates(async () => ({ lat: 50, lng: 7 }), async () => ({}), { lat: 50.5, lng: 7.5 });
+		expect(out.verified).toBe(false);
 	});
 });

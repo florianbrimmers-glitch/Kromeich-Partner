@@ -192,6 +192,9 @@ function formatSqm(value: number): string {
 	return `${value.toLocaleString("de-DE", { maximumFractionDigits: 2 })} m²`;
 }
 
+/** Custom-Felder mit gleicher Bedeutung, die getrennt gelesen werden – jeweils beide setzen. */
+const CUSTOM_FIELD_PAIRS: [string, string][] = [["beleuchtung_halle", "beleuchtung"]];
+
 export type RentState = "available" | "rented" | "unknown";
 
 /**
@@ -228,6 +231,14 @@ export function mirroredCustomFields(
 		const active = options.rent === "available" && options.marketable;
 		if (free("status_logistik")) out.status_logistik = active ? "Aktiv" : "Inaktiv";
 		if (free("aktiv")) out.aktiv = [active ? "Aktiv" : "Inaktiv"];
+	}
+	// Feldpaare, die Exposé/Teamansicht getrennt lesen (live 16.10.: beleuchtung_halle gesetzt, beleuchtung leer)
+	for (const [one, other] of CUSTOM_FIELD_PAIRS) {
+		for (const [from, to] of [[one, other], [other, one]]) {
+			const value = explicit?.[from];
+			if (value === undefined || value === null || !free(to) || defs.get(from)?.type !== defs.get(to)?.type) continue;
+			out[to] = value;
+		}
 	}
 	if (options.priceOnInquiry && defs.get("preisangabe")?.type === "String" && !(explicit && "preisangabe" in explicit)) {
 		out.preisangabe = "auf Anfrage";

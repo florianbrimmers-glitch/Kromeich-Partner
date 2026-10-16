@@ -3,24 +3,11 @@ import type { PropstackClient } from "./propstack-client";
 import { beginWrite, finishWrite } from "./write-log";
 
 // Automatische Prüfaufgabe nach jedem Anlegen über den MCP (Entscheidung Florian, 15.10.2026).
-// Propstack-Regeln (Skill/Team-Prozess): is_reminder: true (sonst Notiz), Body in ASCII,
+// Propstack-Regeln (Skill/Team-Prozess): is_reminder: true (sonst Notiz),
 // fällig am nächsten Werktag 09:00. Testdaten gehen an den Nutzer selbst, nicht an Lena.
 
 export const REVIEWER = { brokerId: 254958, name: "Lena Klinnert" };
 export const CRM_BASE = "https://crm.propstack.de/app/portfolio";
-
-const ASCII_MAP: Record<string, string> = {
-	Ä: "Ae", Ö: "Oe", Ü: "Ue", ä: "ae", ö: "oe", ü: "ue", ß: "ss",
-	"–": "-", "—": "-", "„": '"', "“": '"', "”": '"', "‚": "'", "‘": "'", "’": "'",
-	"²": "2", "€": "EUR", "…": "...", "→": "->", "é": "e", "É": "E",
-};
-
-/** Propstack-Aufgaben nur in ASCII (Umlaute werden sonst zerstört). */
-export function toAscii(text: string): string {
-	return text
-		.replace(/[ÄÖÜäöüß–—„“”‚‘’²€…→éÉ]/g, (c) => ASCII_MAP[c] ?? "")
-		.replace(/[^\x20-\x7e\n]/g, "");
-}
 
 function escapeHtml(text: string): string {
 	return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -60,8 +47,9 @@ export async function createReviewTask(
 ): Promise<ReviewTaskResult> {
 	const assignee = input.test ? { brokerId: input.user.brokerId, name: input.user.name } : REVIEWER;
 	const due = nextWorkdayNine(input.now ?? new Date());
-	const title = toAscii(`${input.test ? "[MCP-TEST] " : ""}Pruefung: ${input.title}`).slice(0, 250);
-	const body = `<p>${input.lines.map((l) => escapeHtml(toAscii(l))).join("<br>")}</p>`;
+	// Umlaute bleiben erhalten: der MCP sendet sauberes UTF-8 (die ASCII-Regel im Skill stammt aus dem alten curl-Weg)
+	const title = `${input.test ? "[MCP-TEST] " : ""}Prüfung: ${input.title}`.slice(0, 250);
+	const body = `<p>${input.lines.map((l) => escapeHtml(l)).join("<br>")}</p>`;
 	const task: Record<string, unknown> = {
 		body,
 		broker_id: assignee.brokerId,

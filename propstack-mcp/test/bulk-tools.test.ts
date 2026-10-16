@@ -1,4 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// Kein Netz in Tests: Geokodierung (OpenStreetMap) findet nichts
+beforeEach(() => {
+	vi.stubGlobal("fetch", async () => new Response("[]", { status: 200 }));
+});
 import { MemoryBulkStore } from "../src/bulk/store";
 import { type Page, type PropstackClient, PropstackError, type Query } from "../src/propstack-client";
 import { applyPlan, planBulk, undoInput, undoPlan } from "../src/tools/bulk-tools";

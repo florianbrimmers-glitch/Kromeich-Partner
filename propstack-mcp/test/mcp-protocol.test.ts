@@ -1,7 +1,12 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// Kein Netz in Tests: Geokodierung (OpenStreetMap) findet nichts
+beforeEach(() => {
+	vi.stubGlobal("fetch", async () => new Response("[]", { status: 200 }));
+});
 import type { PropstackClient } from "../src/propstack-client";
 import { registerReadTools, registerWriteTools } from "../src/tools/register";
 
