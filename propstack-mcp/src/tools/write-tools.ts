@@ -316,6 +316,20 @@ export async function createContact(deps: WriteDeps, input: z.infer<z.ZodObject<
 		newId = createdId(await client.createContact(payload));
 	} catch (error) {
 		await finishWrite(deps.db, logId, { error: (error as Error).message, status: "failed" });
+		// Live 16.10.: Unterkontakte liefert die Kontaktsuche nicht – Propstack blockt dann selbst
+		const sub = /bereits als Unterkontakt bei Kontakt ([^"\]]+?) hinterlegt/i.exec((error as Error).message);
+		if (sub) {
+			const parent = sub[1].trim();
+			return {
+				count: 0,
+				result: {
+					created: false,
+					blocked: "Dublette",
+					duplicates: [{ name: parent, reason: `E-Mail ist bereits als Unterkontakt bei ${parent} hinterlegt` }],
+					hint: `Nichts angelegt. Die Person existiert schon als Unterkontakt von ${parent} – dort ergänzen (Unterkontakte zeigt die Suche nicht an).`,
+				},
+			};
+		}
 		throw error;
 	}
 
@@ -701,26 +715,31 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 		status: gaps ? "done_with_gaps" : "done",
 	});
 
-	const review = await createReviewTask(client, deps.db, {
-		lines: [
-			`Objekt ${newId}: ${input.title}`,
-			`${CRM_BASE}/properties/${newId}`,
-			...(input.project_id ? [`Projekt: ${CRM_BASE}/projects/${input.project_id}`] : []),
-			`Angelegt ueber Claude (Propstack MCP) von ${user.name} am ${today(now)}.`,
-			...(overrideReason ? [`Dublette bewusst angelegt: ${overrideReason}`] : []),
-			...dedupe.warnings.map((w) => `Hinweis: ${w}`),
-			...(missing.length ? [`Nicht uebernommen: ${missing.join(", ")}`] : []),
-			...(unverified.length ? [`Nicht pruefbar: ${unverified.join(", ")}`] : []),
-			...(writeErrors.length ? [`Fehler: ${writeErrors.join("; ")}`] : []),
-			"Pruefen: Stammdaten, Flaechen (inkl. Custom-Felder), Texte (keine Konditionen/Eigentuemer), Provision, Custom Fields, Bilder.",
-		],
-		now,
-		projectIds: input.project_id ? [input.project_id] : undefined,
-		propertyIds: [newId],
-		test: input.test === true,
-		title: `${input.title} - Objekt ${newId}`,
-		user,
-	});
+	// Einheit im Projekt: die Prüfaufgabe des Projekts deckt sie ab – eigene Aufgabe nur bei Problemen
+	// (Live-Befund 16.10.: 1 Projekt + 4 Einheiten = 5 Aufgaben für Lena).
+	const needsOwnTask = !input.project_id || missing.length > 0 || writeErrors.length > 0 || overrideReason !== null;
+	const review = needsOwnTask
+		? await createReviewTask(client, deps.db, {
+				lines: [
+					`Objekt ${newId}: ${input.title}`,
+					`${CRM_BASE}/properties/${newId}`,
+					...(input.project_id ? [`Projekt: ${CRM_BASE}/projects/${input.project_id}`] : []),
+					`Angelegt ueber Claude (Propstack MCP) von ${user.name} am ${today(now)}.`,
+					...(overrideReason ? [`Dublette bewusst angelegt: ${overrideReason}`] : []),
+					...dedupe.warnings.map((w) => `Hinweis: ${w}`),
+					...(missing.length ? [`Nicht uebernommen: ${missing.join(", ")}`] : []),
+					...(unverified.length ? [`Nicht pruefbar: ${unverified.join(", ")}`] : []),
+					...(writeErrors.length ? [`Fehler: ${writeErrors.join("; ")}`] : []),
+					"Pruefen: Stammdaten, Flaechen (inkl. Custom-Felder), Texte (keine Konditionen/Eigentuemer), Provision, Custom Fields, Bilder.",
+				],
+				now,
+				projectIds: input.project_id ? [input.project_id] : undefined,
+				propertyIds: [newId],
+				test: input.test === true,
+				title: `${input.title} - Objekt ${newId}`,
+				user,
+			})
+		: { covered_by: `Prüfaufgabe des Projekts ${input.project_id}` };
 
 	return {
 		count: 1,
