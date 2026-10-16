@@ -78,6 +78,9 @@ describe("plan", () => {
 		await expect(planBulk(deps, { changes: { status_id: 163674 }, description: "xxxxx", entity: "contacts", ids: [1] })).rejects.toThrow(/nicht möglich: status_id/);
 		await expect(planBulk(deps, { changes: { add_tag_ids: [9], remove_tag_ids: [9] }, description: "xxxxx", entity: "contacts", ids: [1] })).rejects.toThrow(/gleichzeitig/);
 		await expect(planBulk(deps, { changes: {}, description: "xxxxx", entity: "contacts", ids: [1] })).rejects.toThrow(/Keine Änderung/);
+		await expect(planBulk(deps, { changes: { add_tag_ids: [9] }, description: "xxxxx", entity: "objects", ids: [1] })).rejects.toThrow(
+			/Für Objekte nicht möglich: add_tag_ids/,
+		);
 	});
 
 	it("mehr als 500 Treffer → abgelehnt", async () => {

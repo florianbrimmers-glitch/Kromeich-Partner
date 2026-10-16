@@ -105,7 +105,7 @@ Bewusste Lücken: Ein einzelner Deal per ID und die Kontakt-Status-Liste sind nu
 | `apply_plan` | Bestätigten Plan ausführen, in Etappen |
 | `undo_plan` | Ausgeführten Plan rückgängig machen |
 
-- **Änderungen:** Merkmale hinzufügen/entfernen (Kontakte und Objekte); bei Kontakten Betreuer, Quelle, Kontaktstatus; bei Objekten Status und vermietet; Custom-Felder. Merkmale an Objekten werden als vollständige Liste `group_ids` geschrieben. Live am 16.10. geprüft: `add_group_ids`/`sub_group_ids` ignoriert Propstack bei Objekten still.
+- **Änderungen:** Kontakte: Merkmale hinzufügen/entfernen, Betreuer, Quelle, Kontaktstatus, Custom-Felder. Objekte: Status, vermietet, Custom-Felder. **Keine Merkmale an Objekten** (Entscheidung Florian, 16.10.). Live geprüft: Propstack ignoriert Merkmal-Updates an Objekten still (`sub_group_ids` und leere `group_ids`). Das Test-Merkmal MCP-TEST wird nur beim Anlegen gesetzt, das funktioniert.
 - **Regeln:**
   - Höchstens 500 Datensätze je Plan.
   - Die Plan-ID verfällt 10 Minuten nach dem Planen (Spezifikation). Danach muss neu geplant werden, weil sich der Bestand geändert haben kann.

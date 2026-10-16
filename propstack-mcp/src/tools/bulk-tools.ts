@@ -41,8 +41,8 @@ const id = z.number().int().positive();
 const tagIds = z.array(id).min(1).max(20);
 
 export const changesShape = {
-	add_tag_ids: tagIds.optional().describe("Merkmale hinzufügen (list_tags)"),
-	remove_tag_ids: tagIds.optional().describe("Merkmale entfernen"),
+	add_tag_ids: tagIds.optional().describe("Nur Kontakte: Merkmale hinzufügen (list_tags entity=contacts)"),
+	remove_tag_ids: tagIds.optional().describe("Nur Kontakte: Merkmale entfernen"),
 	broker_id: id.optional().describe("Nur Kontakte: Betreuer setzen (list_reference kind=users)"),
 	source_id: id.optional().describe("Nur Kontakte: Kontakt-Quelle setzen"),
 	client_status_id: id.optional().describe("Nur Kontakte: Kontaktstatus setzen"),
@@ -52,7 +52,9 @@ export const changesShape = {
 	public_price_confirmed: z.literal(true).optional().describe("Nur Objekte: öffentliche Preisfelder (mietpreis_*) – nur auf ausdrückliche Ansage"),
 };
 
-const CONTACT_ONLY = ["broker_id", "source_id", "client_status_id"];
+// Merkmale nur an Kontakten (Entscheidung Florian, 16.10.): an Objekten ignoriert Propstack Merkmal-Updates
+// still (live: sub_group_ids und leere group_ids ohne Wirkung) und das Team braucht sie dort nicht.
+const CONTACT_ONLY = ["broker_id", "source_id", "client_status_id", "add_tag_ids", "remove_tag_ids"];
 const OBJECT_ONLY = ["status_id", "rented", "public_price_confirmed"];
 
 export const planBulkInput = {
@@ -198,7 +200,7 @@ function itemInput(entity: "contacts" | "objects", entityId: number, changes: Ra
 	const pick = (keys: string[]) => Object.fromEntries(keys.filter((k) => changes[k] !== undefined).map((k) => [k, changes[k]]));
 	return entity === "contacts"
 		? { id: entityId, ...pick(["add_tag_ids", "remove_tag_ids", "broker_id", "source_id", "client_status_id", "custom_fields"]) }
-		: { id: entityId, ...pick(["add_tag_ids", "remove_tag_ids", "status_id", "rented", "custom_fields", "public_price_confirmed"]) };
+		: { id: entityId, ...pick(["status_id", "rented", "custom_fields", "public_price_confirmed"]) };
 }
 
 async function runOne(

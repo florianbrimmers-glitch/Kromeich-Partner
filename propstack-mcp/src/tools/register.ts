@@ -258,7 +258,7 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
 	);
 	register(
 		"plan",
-		`Massenänderung PLANEN (ändert noch nichts): Kontakte oder Objekte per ID-Liste oder Filter (wie search_contacts/search_objects) auswählen, Änderung festlegen (Merkmale hinzufügen/entfernen, Betreuer/Quelle/Status, Objekt-Status, vermietet, Custom-Felder). Liefert plan_id, Anzahl und Vorschau; max. ${MAX_PLAN_ITEMS} Datensätze. Danach dem Nutzer die Vorschau zeigen und ausdrücklich bestätigen lassen – erst dann apply_plan. Die plan_id verfällt nach 10 Minuten.`,
+		`Massenänderung PLANEN (ändert noch nichts): Kontakte oder Objekte per ID-Liste oder Filter (wie search_contacts/search_objects) auswählen, Änderung festlegen – Kontakte: Merkmale hinzufügen/entfernen, Betreuer, Quelle, Kontaktstatus, Custom-Felder; Objekte: Status, vermietet, Custom-Felder (keine Merkmale). Liefert plan_id, Anzahl und Vorschau; max. ${MAX_PLAN_ITEMS} Datensätze. Danach dem Nutzer die Vorschau zeigen und ausdrücklich bestätigen lassen – erst dann apply_plan. Die plan_id verfällt nach 10 Minuten.`,
 		planBulkInput,
 		false,
 		planBulk,

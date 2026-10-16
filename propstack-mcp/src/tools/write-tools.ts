@@ -746,8 +746,6 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 export const updateObjectInput = {
 	id: id.describe("Propstack-Objekt-ID"),
 	...objectFieldsShape,
-	add_tag_ids: tagIds.optional().describe("Merkmale hinzufügen (list_tags entity=objects)"),
-	remove_tag_ids: tagIds.optional().describe("Merkmale entfernen"),
 	allow_duplicate_reason: optionalText(500).describe("Nur falls die geänderte Adresse/Einheit/Vermarktungsart mit einem anderen Objekt kollidiert: Begründung"),
 };
 
@@ -794,11 +792,6 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 		return blockedResult(dedupe, "Nichts geändert – das Objekt würde mit einem vorhandenen kollidieren.");
 	}
 	const overrideReason = checkOverride(dedupe, input.allow_duplicate_reason);
-
-	const currentTags = groupIdsOfUnit(current);
-	const addTags = (input.add_tag_ids ?? []).filter((t) => !currentTags.includes(t));
-	const removeTags = (input.remove_tag_ids ?? []).filter((t) => currentTags.includes(t));
-	if (addTags.length || removeTags.length) before.tag_ids = currentTags;
 
 	// Flächen spiegeln; *_verfugbar nur, solange das Objekt nicht vermietet ist
 	const defs = await loadFieldDefs(client, "for_properties");
@@ -857,7 +850,7 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	}
 	if (Object.keys(customBefore).length) before.custom_fields = customBefore;
 
-	if (!Object.keys(fields).length && !Object.keys(customSend).length && !addTags.length && !removeTags.length) {
+	if (!Object.keys(fields).length && !Object.keys(customSend).length) {
 		return { count: 0, result: { updated: false, id: input.id, note: "Keine Änderung – alle Werte sind bereits so gesetzt." } };
 	}
 	deps.capture?.({
@@ -869,11 +862,6 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	const payload: Raw = {
 		...bulk,
 		...(Object.keys(customSend).length ? { partial_custom_fields: customSend } : {}),
-		// Live 16.10.: add_group_ids/sub_group_ids ignoriert Propstack bei Objekten still (HTTP 200).
-		// group_ids (vollständige Liste) funktioniert – wie beim Anlegen.
-		...(addTags.length || removeTags.length
-			? { group_ids: [...currentTags.filter((t) => !removeTags.includes(t)), ...addTags] }
-			: {}),
 	};
 
 	const logId = await beginWrite(deps.db, {
@@ -908,9 +896,6 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 
 	const state = await readUnit(client, input.id);
 	const { missing, unverified } = verifyObject(state, fields, customExpect);
-	const groupsAfter = groupIdsOfUnit(state);
-	for (const t of addTags) if (!groupsAfter.includes(t)) missing.push(`add_tag ${t}`);
-	for (const t of removeTags) if (groupsAfter.includes(t)) missing.push(`remove_tag ${t}`);
 	await finishWrite(deps.db, logId, {
 		error: writeErrors.length ? writeErrors.join(" | ") : undefined,
 		notApplied: [...missing, ...unverified.map((f) => `${f} (nicht prüfbar)`)],
@@ -925,8 +910,6 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 			title: scalar(state.row?.title ?? state.detail.title),
 			changed: [
 				...Object.keys(fields).map(fieldLabel),
-				...(addTags.length ? ["add_tags"] : []),
-				...(removeTags.length ? ["remove_tags"] : []),
 				...Object.keys(customSend).map((k) => (k === "bemerkung" && input.bemerkung_append ? "bemerkung (angehängt)" : `custom_fields.${k}`)),
 			],
 			warnings: dedupe.warnings.length ? dedupe.warnings : undefined,
