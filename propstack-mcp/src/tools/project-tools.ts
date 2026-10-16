@@ -4,6 +4,8 @@ import { type DedupeResult, sameAddress } from "../propstack/dedupe";
 import { scalar } from "../propstack/mappers";
 import { CRM_BASE, createReviewTask } from "../review-task";
 import { beginWrite, finishWrite } from "../write-log";
+import { coordsOf, ensureCoordinates } from "../propstack/geo";
+import { linkOwnerTo, type OwnerResult } from "../propstack/owner";
 import { loadAll, type ToolOutput } from "./read-tools";
 import { TEST_TAG, type WriteDeps } from "./write-tools";
 
@@ -83,7 +85,9 @@ export const createProjectInput = {
 	description_note: optionalText(10000).describe(`Objektbeschreibung. ${EXPOSE_VISIBLE}`),
 	location_note: optionalText(10000).describe(`Lagebeschreibung. ${EXPOSE_VISIBLE}`),
 	furnishing_note: optionalText(10000).describe(`Ausstattung. ${EXPOSE_VISIBLE}`),
-	owner_contact_id: id.optional().describe("Eigentümer-Kontakt (eigener Shop). Wird nach dem Anlegen separat verknüpft"),
+	owner_contact_id: id.optional().describe("Eigentümer-Kontakt (eigener Shop). Wird nach dem Anlegen separat verknüpft – an den Einheiten ebenfalls angeben"),
+	lat: z.number().min(-90).max(90).optional().describe("Breitengrad, falls bekannt. Sonst übernimmt das Tool Propstacks Geokodierung oder ermittelt die Koordinaten aus der Adresse (OpenStreetMap)"),
+	lng: z.number().min(-180).max(180).optional().describe("Längengrad, falls bekannt"),
 	review_notes: z
 		.array(z.string().trim().min(1).max(500))
 		.max(20)
@@ -182,6 +186,16 @@ export async function createProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 		({ missing, unverified } = compareProject(fields, actual));
 	}
 
+	const coordinates = await ensureCoordinates({
+		address: input,
+		current: coordsOf(actual),
+		provided: { lat: input.lat, lng: input.lng },
+		fetchFn: deps.fetchFn,
+		put: (body) => client.updateProject(projectId, body),
+		read: async () => coordsOf(asObject(await client.getProject(projectId))),
+	});
+	// Lücke nur, wenn geschrieben wurde und nicht haftet; „nichts gefunden“ steht in der Prüfaufgabe
+	if (!coordinates.verified && coordinates.source !== "keine") missing.push("lat/lng");
 	const ownerResult = owner ? await linkOwner(client, projectId, owner.id) : undefined;
 	if (ownerResult?.error) writeErrors.push(`Eigentümer: ${ownerResult.error}`);
 	const ownerGap = ownerResult && ownerResult.linked !== true && !ownerResult.error ? [`owner ${ownerResult.linked === false ? "nicht gefunden" : "nicht prüfbar"}`] : [];
@@ -196,13 +210,16 @@ export async function createProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 		lines: [
 			`Projekt ${projectId}: ${name}`,
 			`${CRM_BASE}/projects/${projectId}`,
-			`Angelegt ueber Claude (Propstack MCP) von ${user.name} am ${today(now)}.`,
-			owner ? `Eigentuemer: ${owner.name} (${owner.id})${ownerResult?.linked === true ? "" : " – Verknuepfung pruefen"}` : "Eigentuemer: nicht verknuepft",
+			`Angelegt über Claude (Propstack MCP) von ${user.name} am ${today(now)}.`,
+			owner ? `Eigentümer: ${owner.name} (${owner.id})${ownerResult?.linked === true ? "" : " – Verknüpfung prüfen"}` : "Eigentümer: nicht verknüpft",
+			coordinates.verified
+				? `Koordinaten: ${coordinates.lat}, ${coordinates.lng} (${coordinates.source}${coordinates.precision ? `, Genauigkeit ${coordinates.precision}` : ""})`
+				: "Koordinaten: fehlen – bitte nachtragen",
 			...(overrideReason ? [`Dublette bewusst angelegt: ${overrideReason}`] : []),
-			...(missing.length ? [`Nicht uebernommen: ${missing.join(", ")}`] : []),
+			...(missing.length ? [`Nicht übernommen: ${missing.join(", ")}`] : []),
 			...(writeErrors.length ? [`Fehler: ${writeErrors.join("; ")}`] : []),
 			...(input.review_notes ?? []).map((n) => `Offen: ${n}`),
-			"Pruefen: Adresse/Koordinaten, Texte (keine Konditionen/Eigentuemer), Provision, Einheiten, Bilder.",
+			"Prüfen: Adresse/Koordinaten, Texte (keine Konditionen/Eigentümer), Provision, Einheiten, Bilder.",
 		],
 		now,
 		projectIds: [projectId],
@@ -221,6 +238,7 @@ export async function createProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 			broker: user.name,
 			test: input.test || undefined,
 			owner: owner ? { ...owner, linked: ownerResult?.linked } : undefined,
+			coordinates,
 			override_reason: overrideReason ?? undefined,
 			not_applied: missing.length ? missing : undefined,
 			not_verifiable: unverified.length ? unverified : undefined,
@@ -233,62 +251,38 @@ export async function createProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 
 // ---------- Eigentümer verknüpfen ----------
 
-const ALREADY_LINKED = /existiert bereits|bereits mit dem Kontakt verbunden|bereits verbunden/i;
-
-/**
- * PUT relationships_attributes. Prüfung über Propstack selbst: Der Projekt-GET zeigt frische Verknüpfungen
- * nicht, und die Relationship-Liste ließ sich live nicht zuverlässig auswerten. Propstack lehnt eine doppelte
- * Verknüpfung aber mit „bereits mit dem Kontakt verbunden“ ab – deshalb nach dem Setzen derselbe Aufruf
- * als Probe: kommt diese Ablehnung, ist die Verknüpfung bestätigt (und es entsteht nichts Doppeltes).
- */
-export async function linkOwner(
-	client: PropstackClient,
-	projectId: number,
-	contactId: number,
-): Promise<{ linked: boolean | "nicht prüfbar"; already?: boolean; error?: string; note?: string }> {
-	const attach = () => client.updateProject(projectId, { relationships_attributes: [{ internal_name: "owner", related_client_id: contactId }] });
-	try {
-		await attach();
-	} catch (error) {
-		const message = (error as Error).message;
-		if (ALREADY_LINKED.test(message)) return { already: true, linked: true };
-		if (/Shop/i.test(message)) {
-			return { error: `${message} – der Kontakt gehört zu einem fremden Shop. Bitte den Kontakt aus dem eigenen Shop (Kromeich GmbH) verwenden.`, linked: false };
-		}
-		return { error: message, linked: false };
-	}
-	try {
-		await attach();
-		// Zweiter Aufruf wurde angenommen → Propstack hat die erste Verknüpfung nicht gespeichert oder lässt Doppelte zu
-		return { linked: "nicht prüfbar", note: "Propstack hat die Verknüpfung zweimal angenommen – bitte in der UI prüfen, ob sie (ggf. doppelt) vorhanden ist." };
-	} catch (error) {
-		if (ALREADY_LINKED.test((error as Error).message)) return { linked: true };
-		return { linked: "nicht prüfbar", note: `Gegenprobe nicht eindeutig: ${(error as Error).message}` };
-	}
+/** Kompatibel zu früher: Eigentümer an einem Projekt. */
+export function linkOwner(client: PropstackClient, projectId: number, contactId: number): Promise<OwnerResult> {
+	return linkOwnerTo(client, { id: projectId, type: "project" }, contactId);
 }
 
 export const setProjectOwnerInput = {
-	project_id: id.describe("Propstack-Projekt-ID"),
+	project_id: id.optional().describe("Propstack-Projekt-ID"),
+	object_id: id.optional().describe("Propstack-Objekt-ID (Einheit) – statt project_id"),
 	contact_id: id.describe("Eigentümer-Kontakt-ID (eigener Shop)"),
 };
 
 export async function setProjectOwner(deps: WriteDeps, input: z.infer<z.ZodObject<typeof setProjectOwnerInput>>): Promise<ToolOutput> {
 	const { client, user } = deps;
-	const project = asObject(await client.getProject(input.project_id));
+	if ((input.project_id === undefined) === (input.object_id === undefined)) {
+		throw new PropstackError("Genau eins von project_id oder object_id angeben.", 400);
+	}
+	const target = input.project_id !== undefined ? { id: input.project_id, type: "project" as const } : { id: input.object_id!, type: "object" as const };
+	const record = asObject(target.type === "project" ? await client.getProject(target.id) : await client.getUnit(target.id));
 	const contact = asObject(await client.getContact(input.contact_id));
 	const logId = await beginWrite(deps.db, {
 		action: "update",
 		before: null,
 		brokerId: user.brokerId,
-		entity: "project",
-		entityId: input.project_id,
+		entity: target.type,
+		entityId: target.id,
 		overrideReason: null,
 		request: { owner_contact_id: input.contact_id },
 		tool: "set_project_owner",
 		userEmail: user.email,
 		warnings: [],
 	});
-	const result = await linkOwner(client, input.project_id, input.contact_id);
+	const result = await linkOwnerTo(client, target, input.contact_id);
 	await finishWrite(deps.db, logId, {
 		error: result.error,
 		notApplied: result.linked === true ? [] : [`owner ${result.linked === false ? "nicht gefunden" : "nicht prüfbar"}`],
@@ -298,7 +292,7 @@ export async function setProjectOwner(deps: WriteDeps, input: z.infer<z.ZodObjec
 	return {
 		count: 1,
 		result: {
-			project: { id: input.project_id, name: scalar(project.name) },
+			[target.type]: { id: target.id, name: scalar(record.name) ?? scalar(record.title) },
 			owner: { id: input.contact_id, name: scalar(contact.name) },
 			linked: result.linked,
 			already_linked: result.already || undefined,

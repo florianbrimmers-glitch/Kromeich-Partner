@@ -237,7 +237,7 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
 	);
 	register(
 		"set_project_owner",
-		"Eigentümer (Kontakt aus dem eigenen Shop) mit einem Projekt verknüpfen. Vorhandene Verknüpfungen bleiben bestehen. Ergebnis linked: true/false/„nicht prüfbar“.",
+		"Eigentümer (Kontakt aus dem eigenen Shop) mit einem Projekt (project_id) oder einer Einheit (object_id) verknüpfen. Vorhandene Verknüpfungen bleiben bestehen. Ergebnis linked: true/false/„nicht prüfbar“.",
 		setProjectOwnerInput,
 		false,
 		setProjectOwner,

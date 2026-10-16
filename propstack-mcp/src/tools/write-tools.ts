@@ -14,6 +14,8 @@ import { scalar } from "../propstack/mappers";
 import { readUnit, UNVERIFIABLE, type UnitState, unitCustomValue, unitValue } from "../propstack/unit-state";
 import { CRM_BASE, createReviewTask } from "../review-task";
 import { beginWrite, finishWrite } from "../write-log";
+import { coordsOf, ensureCoordinates } from "../propstack/geo";
+import { linkOwnerTo } from "../propstack/owner";
 import { loadAll, type ToolOutput } from "./read-tools";
 
 export { validateCustomFields };
@@ -38,6 +40,8 @@ export interface WriteDeps {
 	now?: () => Date;
 	sleep?: (ms: number) => Promise<void>;
 	kv?: KVNamespace;
+	/** Für Geokodierung (Tests). */
+	fetchFn?: typeof fetch;
 	/** Massenänderungen: Tool-Name im Write-Log (z. B. „apply_plan:abc“). */
 	logTool?: string;
 	/** Massenänderungen: Stand vorher je Datensatz mitschneiden (für undo_plan). */
@@ -526,8 +530,13 @@ const objectFieldsShape = {
 	furnishing_note: optionalText(10000).describe(`Ausstattung. ${EXPOSE_VISIBLE}`),
 	other_note: optionalText(10000).describe(`Sonstiges. ${EXPOSE_VISIBLE}`),
 	bemerkung_append: optionalText(4000).describe("Interne Bemerkung (Custom-Feld bemerkung, nicht im Exposé) – wird mit Datum und Nutzer angehängt"),
-	lat: z.number().min(-90).max(90).optional().describe("Nur für die Dublettenprüfung – wird nicht gespeichert"),
-	lng: z.number().min(-180).max(180).optional().describe("Nur für die Dublettenprüfung – wird nicht gespeichert"),
+	lat: z
+		.number()
+		.min(-90)
+		.max(90)
+		.optional()
+		.describe("Breitengrad, falls bekannt (z. B. aus einem Bestandsobjekt). Sonst übernimmt das Tool Propstacks Geokodierung oder ermittelt die Koordinaten aus der Adresse (OpenStreetMap)"),
+	lng: z.number().min(-180).max(180).optional().describe("Längengrad, falls bekannt"),
 	custom_fields: z
 		.record(z.string(), z.unknown())
 		.optional()
@@ -633,6 +642,7 @@ export const createObjectInput = {
 	street: z.string().trim().min(1).max(200),
 	zip_code: z.string().trim().regex(/^\d{4,5}$/),
 	city: z.string().trim().min(1).max(100),
+	owner_contact_id: id.optional().describe("Eigentümer-Kontakt (eigener Shop) – bei Einheiten im Projekt denselben wie am Projekt"),
 	test: z.boolean().optional().describe(`Testdatensatz: setzt das Merkmal ${TEST_TAG}. Für alle Tests Pflicht.`),
 	allow_duplicate_reason: optionalText(500).describe("Nur wenn die Dublettenprüfung blockiert und es nachweislich ein anderes Objekt ist: Begründung (wird protokolliert)"),
 };
@@ -654,6 +664,11 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 		);
 	}
 	const overrideReason = checkOverride(dedupe, input.allow_duplicate_reason);
+
+	// Eigentümer-Kontakt vorher prüfen (404 → nichts anlegen statt Einheit ohne Eigentümer)
+	const owner = input.owner_contact_id
+		? { id: input.owner_contact_id, name: String(scalar(((await client.getContact(input.owner_contact_id)) as Raw | null)?.name) ?? input.owner_contact_id) }
+		: undefined;
 
 	const defs = await loadFieldDefs(client, "for_properties");
 	if (fields.rented === true && fields.free_from === undefined) fields.free_from = "vermietet";
@@ -707,6 +722,22 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	const { missing, unverified } = verifyObject(state, fields, customExpect);
 	const groups = groupIdsOfUnit(state);
 	for (const tag of tags) if (!groups.includes(tag)) missing.push(`tag ${TEST_TAG}`);
+
+	// Koordinaten (Stufen-Trick, Kontrolle per Einzel-GET); Lücke nur, wenn geschrieben und nicht haftend
+	const coordinates = await ensureCoordinates({
+		address: input,
+		current: coordsOf(state.detail),
+		fetchFn: deps.fetchFn,
+		provided: { lat: input.lat, lng: input.lng },
+		put: (body) => client.updateUnit(newId, body),
+		read: async () => coordsOf(((await client.getUnit(newId)) ?? {}) as Raw),
+	});
+	if (!coordinates.verified && coordinates.source !== "keine") missing.push("lat/lng");
+
+	// Eigentümer an der Einheit (Entscheidung Florian, 16.10.)
+	const ownerResult = owner ? await linkOwnerTo(client, { id: newId, type: "object" }, owner.id) : undefined;
+	if (ownerResult?.error) writeErrors.push(`Eigentümer: ${ownerResult.error}`);
+	else if (ownerResult && ownerResult.linked !== true) missing.push("owner (nicht prüfbar)");
 	const gaps = missing.length || writeErrors.length;
 	await finishWrite(deps.db, logId, {
 		entityId: newId,
@@ -724,13 +755,17 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 					`Objekt ${newId}: ${input.title}`,
 					`${CRM_BASE}/properties/${newId}`,
 					...(input.project_id ? [`Projekt: ${CRM_BASE}/projects/${input.project_id}`] : []),
-					`Angelegt ueber Claude (Propstack MCP) von ${user.name} am ${today(now)}.`,
+					`Angelegt über Claude (Propstack MCP) von ${user.name} am ${today(now)}.`,
+					owner ? `Eigentümer: ${owner.name} (${owner.id})${ownerResult?.linked === true ? "" : " – Verknüpfung prüfen"}` : "Eigentümer: nicht verknüpft",
+					coordinates.verified
+						? `Koordinaten: ${coordinates.lat}, ${coordinates.lng} (${coordinates.source}${coordinates.precision ? `, Genauigkeit ${coordinates.precision}` : ""})`
+						: "Koordinaten: fehlen – bitte nachtragen",
 					...(overrideReason ? [`Dublette bewusst angelegt: ${overrideReason}`] : []),
 					...dedupe.warnings.map((w) => `Hinweis: ${w}`),
-					...(missing.length ? [`Nicht uebernommen: ${missing.join(", ")}`] : []),
-					...(unverified.length ? [`Nicht pruefbar: ${unverified.join(", ")}`] : []),
+					...(missing.length ? [`Nicht übernommen: ${missing.join(", ")}`] : []),
+					...(unverified.length ? [`Nicht prüfbar: ${unverified.join(", ")}`] : []),
 					...(writeErrors.length ? [`Fehler: ${writeErrors.join("; ")}`] : []),
-					"Pruefen: Stammdaten, Flaechen (inkl. Custom-Felder), Texte (keine Konditionen/Eigentuemer), Provision, Custom Fields, Bilder.",
+					"Prüfen: Stammdaten, Flächen (inkl. Custom-Felder), Texte (keine Konditionen/Eigentümer), Provision, Custom-Felder, Bilder.",
 				],
 				now,
 				projectIds: input.project_id ? [input.project_id] : undefined,
@@ -752,6 +787,8 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 			broker: user.name,
 			test: input.test || undefined,
 			override_reason: overrideReason ?? undefined,
+			owner: owner ? { ...owner, linked: ownerResult?.linked } : undefined,
+			coordinates,
 			mirrored_custom_fields: Object.keys(mirrored).length ? Object.keys(mirrored) : undefined,
 			warnings: dedupe.warnings.length ? dedupe.warnings : undefined,
 			not_applied: missing.length ? missing : undefined,
@@ -869,7 +906,8 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	}
 	if (Object.keys(customBefore).length) before.custom_fields = customBefore;
 
-	if (!Object.keys(fields).length && !Object.keys(customSend).length) {
+	const coordsRequested = input.lat !== undefined && input.lng !== undefined;
+	if (!Object.keys(fields).length && !Object.keys(customSend).length && !coordsRequested) {
 		return { count: 0, result: { updated: false, id: input.id, note: "Keine Änderung – alle Werte sind bereits so gesetzt." } };
 	}
 	deps.capture?.({
@@ -915,6 +953,17 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 
 	const state = await readUnit(client, input.id);
 	const { missing, unverified } = verifyObject(state, fields, customExpect);
+	// Koordinaten nur, wenn ausdrücklich angegeben (Stufen-Trick, Kontrolle per Einzel-GET)
+	let coordinates: Awaited<ReturnType<typeof ensureCoordinates>> | undefined;
+	if (input.lat !== undefined && input.lng !== undefined) {
+		coordinates = await ensureCoordinates({
+			current: coordsOf(state.detail),
+			provided: { lat: input.lat, lng: input.lng },
+			put: (body) => client.updateUnit(input.id, body),
+			read: async () => coordsOf(((await client.getUnit(input.id)) ?? {}) as Raw),
+		});
+		if (!coordinates.verified) missing.push("lat/lng");
+	}
 	await finishWrite(deps.db, logId, {
 		error: writeErrors.length ? writeErrors.join(" | ") : undefined,
 		notApplied: [...missing, ...unverified.map((f) => `${f} (nicht prüfbar)`)],
@@ -933,6 +982,7 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 			],
 			warnings: dedupe.warnings.length ? dedupe.warnings : undefined,
 			not_applied: missing.length ? missing : undefined,
+			coordinates,
 			not_verifiable: unverified.length ? unverified : undefined,
 			write_errors: writeErrors.length ? writeErrors : undefined,
 			note: gapNote(missing, unverified, writeErrors),
