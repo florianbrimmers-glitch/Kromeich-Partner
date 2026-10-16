@@ -249,6 +249,141 @@ export async function createProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 	};
 }
 
+// ---------- Projekt ändern ----------
+// Entscheidung Florian, 16.10.: Provision, Texte und Koordinaten auch am Projekt nachträglich setzen.
+// Wie update_object: nur echte Änderungen, Snapshot vorher, Gegenlesen, Verlorenes einzeln nachsetzen.
+
+const PROJECT_TEXT_KEYS = ["name", "title", "street", "house_number", "zip_code", "city", "courtage", "courtage_note", "description_note", "location_note", "furnishing_note"] as const;
+
+export const updateProjectInput = {
+	id: id.describe("Propstack-Projekt-ID"),
+	name: optionalText(250).describe("Projektname, Format: Logistikhalle in (XX) Ort – Straße"),
+	title: optionalText(250).describe("Marketingname"),
+	street: optionalText(200),
+	house_number: optionalText(20),
+	zip_code: z.string().trim().regex(/^\d{4,5}$/).optional(),
+	city: optionalText(100),
+	hide_address: z.boolean().optional().describe("Adresse im Exposé ausblenden"),
+	courtage: optionalText(200).describe("Provisionstext fürs Exposé, z. B. „Provisionsfrei“"),
+	courtage_note: optionalText(2000).describe("Provisionshinweis"),
+	description_note: optionalText(10000).describe(`Objektbeschreibung. ${EXPOSE_VISIBLE}`),
+	location_note: optionalText(10000).describe(`Lagebeschreibung. ${EXPOSE_VISIBLE}`),
+	furnishing_note: optionalText(10000).describe(`Ausstattung. ${EXPOSE_VISIBLE}`),
+	lat: z.number().min(-90).max(90).optional().describe("Breitengrad – nur zusammen mit lng; geschrieben mit dem Stufen-Trick und per Einzel-GET geprüft"),
+	lng: z.number().min(-180).max(180).optional().describe("Längengrad"),
+	allow_duplicate_reason: optionalText(500).describe("Nur falls die geänderte Adresse mit einem anderen Projekt kollidiert: Begründung"),
+};
+
+export async function updateProject(deps: WriteDeps, input: z.infer<z.ZodObject<typeof updateProjectInput>>): Promise<ToolOutput> {
+	const { client, user } = deps;
+	if ((input.lat === undefined) !== (input.lng === undefined)) throw new PropstackError("lat und lng nur zusammen angeben.", 400);
+	const current = asObject(await client.getProject(input.id));
+	if (!Object.keys(current).length) throw new PropstackError("Projekt nicht gefunden.", 404);
+
+	const requested: Raw = {};
+	for (const key of [...PROJECT_TEXT_KEYS, "hide_address"] as const) if (input[key] !== undefined) requested[key] = input[key];
+	const fields: Raw = {};
+	const before: Raw = {};
+	for (const [key, value] of Object.entries(requested)) {
+		const actual = readValue(current, key);
+		if (actual !== undefined && matches(value, actual)) continue;
+		fields[key] = value;
+		before[key] = actual ?? null;
+	}
+
+	// Adresse geändert → Kollision mit anderem Projekt prüfen
+	let overrideReason: string | null = null;
+	if (["street", "house_number", "zip_code"].some((k) => k in fields)) {
+		const address = {
+			house_number: String(fields.house_number ?? scalar(current.house_number) ?? ""),
+			street: String(fields.street ?? scalar(current.street) ?? ""),
+			zip_code: String(fields.zip_code ?? scalar(current.zip_code) ?? ""),
+		};
+		const dedupe = await projectDuplicates(client, address);
+		const others = dedupe.duplicates.filter((d) => d.id !== input.id);
+		if (others.length && !input.allow_duplicate_reason) {
+			return { count: 0, result: { updated: false, blocked: "Dublette", duplicates: others, hint: "Nichts geändert – an dieser Adresse gibt es schon ein Projekt." } };
+		}
+		if (others.length) {
+			overrideReason = input.allow_duplicate_reason!.trim();
+			if (overrideReason.length < MIN_OVERRIDE_REASON) {
+				throw new PropstackError(`allow_duplicate_reason braucht eine echte Begründung (mind. ${MIN_OVERRIDE_REASON} Zeichen).`, 400);
+			}
+		}
+	}
+
+	const coordsRequested = input.lat !== undefined && input.lng !== undefined;
+	if (!Object.keys(fields).length && !coordsRequested) {
+		return { count: 0, result: { updated: false, id: input.id, note: "Keine Änderung – alle Werte sind bereits so gesetzt." } };
+	}
+
+	const logId = await beginWrite(deps.db, {
+		action: "update",
+		before,
+		brokerId: user.brokerId,
+		entity: "project",
+		entityId: input.id,
+		overrideReason,
+		request: { ...fields, ...(coordsRequested ? { lat: input.lat, lng: input.lng } : {}) },
+		tool: "update_project",
+		userEmail: user.email,
+		warnings: [],
+	});
+	if (Object.keys(fields).length) {
+		try {
+			await client.updateProject(input.id, fields);
+		} catch (error) {
+			await finishWrite(deps.db, logId, { error: (error as Error).message, status: "failed" });
+			throw error;
+		}
+	}
+
+	// Gegenlesen; Verlorenes einzeln nachsetzen
+	let actual = asObject(await client.getProject(input.id));
+	let { missing, unverified } = compareProject(fields, actual);
+	const writeErrors: string[] = [];
+	if (missing.length) {
+		for (const key of missing) {
+			try {
+				await client.updateProject(input.id, { [key]: fields[key] });
+			} catch (error) {
+				writeErrors.push(`${key}: ${(error as Error).message}`);
+			}
+		}
+		actual = asObject(await client.getProject(input.id));
+		({ missing, unverified } = compareProject(fields, actual));
+	}
+
+	const coordinates = coordsRequested
+		? await ensureCoordinates({
+				current: coordsOf(actual),
+				provided: { lat: input.lat, lng: input.lng },
+				put: (body) => client.updateProject(input.id, body),
+				read: async () => coordsOf(asObject(await client.getProject(input.id))),
+			})
+		: undefined;
+	if (coordinates && !coordinates.verified) missing.push("lat/lng");
+
+	await finishWrite(deps.db, logId, {
+		error: writeErrors.length ? writeErrors.join(" | ") : undefined,
+		notApplied: [...missing, ...unverified.map((f) => `${f} (nicht prüfbar)`)],
+		status: missing.length || writeErrors.length ? "done_with_gaps" : "done",
+	});
+	return {
+		count: 1,
+		result: {
+			updated: true,
+			id: input.id,
+			name: scalar(actual.name),
+			changed: [...Object.keys(fields), ...(coordsRequested ? ["lat/lng"] : [])],
+			coordinates,
+			not_applied: missing.length ? missing : undefined,
+			not_verifiable: unverified.length ? unverified : undefined,
+			write_errors: writeErrors.length ? writeErrors : undefined,
+		},
+	};
+}
+
 // ---------- Eigentümer verknüpfen ----------
 
 /** Kompatibel zu früher: Eigentümer an einem Projekt. */

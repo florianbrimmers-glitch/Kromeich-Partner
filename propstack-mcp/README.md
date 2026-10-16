@@ -82,7 +82,8 @@ Bewusste Lücken: Ein einzelner Deal per ID und die Kontakt-Status-Liste sind nu
 | Tool | Zweck |
 |---|---|
 | `create_project` | Projekt (Standort) anlegen, optional mit Eigentümer. Dublettenprüfung über die Adresse |
-| `set_project_owner` | Eigentümer-Kontakt (eigener Shop) mit einem Projekt verknüpfen |
+| `update_project` | Projekt ändern: Name, Adresse, Provision, Exposé-Texte, Adresse ausblenden, Koordinaten |
+| `set_project_owner` | Eigentümer-Kontakt (eigener Shop) mit einem Projekt oder einer Einheit verknüpfen |
 | `add_images` | Bilder per öffentlicher https-URL an Objekt oder Projekt hängen |
 
 - **Projekt:** Wrapper `project`, `country` DEU, Betreuer = Nutzer. Was Propstack im Sammel-Request still verwirft, wird erkannt und **einzeln nachgesetzt**. `note` ist nicht schreibbar; offene Punkte gehen über `review_notes` in die Prüfaufgabe. Testprojekte erkennt man am Namenspräfix `MCP-TEST`, weil Projekte keine Merkmale haben.
@@ -99,7 +100,8 @@ Bewusste Lücken: Ein einzelner Deal per ID und die Kontakt-Status-Liste sind nu
   - Erlaubt sind JPEG, PNG und WebP, erkannt an den Datei-Bytes. Max. 15 MB je Bild, max. 20 Bilder je Adresse.
   - Ist eine Datei ungültig, wird nichts hochgeladen. Der Propstack-Key verlässt den Server nicht.
 - **API-Key:** Der Key „MCP-Server“ braucht in Propstack zusätzlich Schreibrechte für Projekte, Relationships, Bilder und Aufgaben.
-- **Nicht enthalten:** Dokumente (PDF), `update_project`, Post in #objekte, Löschen. Im reinen claude.ai-Chat ohne Code-Ausführung gibt es keinen Datei-Upload, dort nur `add_images` per URL.
+- **`update_project`** (Entscheidung Florian, 16.10.) arbeitet wie `update_object`: Es schreibt nur echte Änderungen, legt vorher einen Snapshot ins Write-Log und liest danach zurück. Was Propstack still verwirft, wird einzeln nachgesetzt. Koordinaten nur zusammen (lat+lng) und mit dem Stufen-Trick, bei Adressänderung mit Dublettenprüfung.
+- **Nicht enthalten:** Dokumente (PDF), Post in #objekte, Löschen. Im reinen claude.ai-Chat ohne Code-Ausführung gibt es keinen Datei-Upload, dort nur `add_images` per URL.
 
 ## Phase 4: Massenänderungen (plan → apply_plan → undo_plan)
 

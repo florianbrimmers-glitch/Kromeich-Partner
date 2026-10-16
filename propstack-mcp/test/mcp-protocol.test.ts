@@ -100,7 +100,7 @@ describe("MCP-Protokoll", () => {
 		expect(audits[0][3]).toBe("get_contact");
 	});
 
-	it("Schreib-Tools: genau elf, nicht readOnly, Updates als überschreibend markiert, kein Löschen", async () => {
+	it("Schreib-Tools: genau zwölf, nicht readOnly, Updates als überschreibend markiert, kein Löschen", async () => {
 		const server = new McpServer({ name: "test", version: "0" });
 		const ctx = { env: {} as Env, props: () => ({ brokerId: 1, email: "t@kromeichpartner.de", name: "T" }) };
 		registerReadTools(server, ctx);
@@ -117,6 +117,7 @@ describe("MCP-Protokoll", () => {
 			["create_object", false],
 			["update_object", true],
 			["create_project", false],
+			["update_project", true],
 			["set_project_owner", false],
 			["add_images", false],
 			["image_upload_url", false],

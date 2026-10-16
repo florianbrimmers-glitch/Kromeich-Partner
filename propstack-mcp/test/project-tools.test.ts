@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Page, PropstackClient } from "../src/propstack-client";
 import { createReviewTask, nextWorkdayNine } from "../src/review-task";
-import { addImages, checkImageUrl, createProject, setProjectOwner } from "../src/tools/project-tools";
+import { addImages, checkImageUrl, createProject, setProjectOwner, updateProject } from "../src/tools/project-tools";
 
 const page = (rows: Record<string, unknown>[]): Page => ({ rows, total: rows.length });
 const USER = { brokerId: 347158, email: "florian.brimmers@kromeichpartner.de", name: "Florian Brimmers" };
@@ -271,5 +271,45 @@ describe("Koordinaten (Notion-Korrektur 34)", async () => {
 	it("lng haftet nicht → nicht verifiziert", async () => {
 		const out = await writeCoordinates(async () => ({ lat: 50, lng: 7 }), async () => ({}), { lat: 50.5, lng: 7.5 });
 		expect(out.verified).toBe(false);
+	});
+});
+
+describe("update_project", () => {
+	it("schreibt nur Änderungen, sichert vorher, setzt Verlorenes einzeln nach, Koordinaten per Stufen-Trick", async () => {
+		const stored: Record<string, unknown> = { city: "Hillscheid", courtage: null, courtage_note: null, id: 603710, name: "P", street: "Am Scheid", zip_code: "56204" };
+		const puts: Record<string, unknown>[] = [];
+		const { client } = fakeClient({
+			getProject: () => ({ ...stored }),
+			updateProject: (_id, p) => {
+				const payload = p as Record<string, unknown>;
+				puts.push(payload);
+				// Sammel-PUT verliert courtage_note still
+				const keys = Object.keys(payload);
+				for (const [k, v] of Object.entries(payload)) if (!(k === "courtage_note" && keys.length > 1)) stored[k] = v;
+				return {};
+			},
+		});
+		const { db, rows } = fakeDb();
+		const out = await updateProject(
+			{ client, db, now: NOW, user: USER },
+			{ city: "Hillscheid", courtage: "Provisionsfrei", courtage_note: "Die Anmietung erfolgt provisionsfrei für den Mieter.", id: 603710, lat: 50.4367, lng: 7.7047 },
+		);
+		expect(puts[0]).toEqual({ courtage: "Provisionsfrei", courtage_note: "Die Anmietung erfolgt provisionsfrei für den Mieter." });
+		expect(puts[1]).toEqual({ courtage_note: "Die Anmietung erfolgt provisionsfrei für den Mieter." });
+		expect(puts[2]).toEqual({ lat: 50.4367 });
+		expect(out.result).toMatchObject({ changed: ["courtage", "courtage_note", "lat/lng"], coordinates: { verified: true }, updated: true });
+		expect((out.result as { not_applied?: string[] }).not_applied).toBeUndefined();
+		expect(JSON.parse(rows[0][7] as string)).toEqual({ courtage: null, courtage_note: null });
+	});
+
+	it("keine Änderung → kein Write; Adresse kollidiert → blockiert", async () => {
+		const { client, calls } = fakeClient({
+			getProject: () => ({ city: "Hillscheid", courtage: "Provisionsfrei", id: 1, name: "P", street: "Am Scheid", zip_code: "56204" }),
+			searchProjects: () => page([{ id: 2, name: "Anderes", street: "Hauptstraße", house_number: "1", zip_code: "56204" }]),
+		});
+		const deps = { client, db: fakeDb().db, now: NOW, user: USER };
+		expect((await updateProject(deps, { courtage: "Provisionsfrei", id: 1 })).result).toMatchObject({ updated: false });
+		expect((await updateProject(deps, { house_number: "1", id: 1, street: "Hauptstraße" })).result).toMatchObject({ blocked: "Dublette", duplicates: [{ id: 2 }] });
+		expect(calls.some((c) => c.method === "updateProject")).toBe(false);
 	});
 });
