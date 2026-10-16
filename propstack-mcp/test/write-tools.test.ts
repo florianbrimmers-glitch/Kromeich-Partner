@@ -269,6 +269,16 @@ describe("create_contact", () => {
 		expect(rows[0][10]).toBe("Vater und Sohn teilen sich das Firmenhandy");
 	});
 
+	it("Unterkontakt-Dublette (Propstack blockt, Suche findet sie nicht) → klare Blockade statt Fehler", async () => {
+		const { client } = fakeClient({
+			createContact: () => {
+				throw new Error('Propstack-Anfrage fehlgeschlagen (400): ["tj@pprheinland.de ist bereits als Unterkontakt bei Kontakt Christian Weber hinterlegt"]');
+			},
+		});
+		const out = await createContact({ client, db: fakeDb().db, now: NOW, user: USER }, { email: "tj@pprheinland.de", last_name: "Jung" });
+		expect(out.result).toMatchObject({ blocked: "Dublette", created: false, duplicates: [{ name: "Christian Weber" }] });
+	});
+
 	it("Festnetz-Mobilnummer wird abgewiesen", async () => {
 		const { client } = fakeClient({});
 		await expect(createContact({ client, db: fakeDb().db, now: NOW, user: USER }, { last_name: "X", mobile: "02436 8020" })).rejects.toThrow(
@@ -549,6 +559,14 @@ describe("create_object / update_object", () => {
 		const deps = { client, db: fakeDb().db, now: NOW, sleep, user: USER };
 		await expect(createObject(deps, { ...input, custom_fields: { hallenhohe: "10,5" } })).rejects.toThrow(/nackte Zahl/);
 		await expect(createObject(deps, { ...input, custom_fields: { lagerflache: 6.417 } })).rejects.toThrow(/Tausenderpunkt.*6417/);
+	});
+
+	it("Einheit im Projekt: keine eigene Prüfaufgabe, solange alles übernommen wurde", async () => {
+		const unit = fakeUnit();
+		const { client, calls } = fakeClient(unit.impl);
+		const out = await createObject({ client, db: fakeDb().db, now: NOW, sleep, user: USER }, { ...input, project_id: 603710 });
+		expect(out.result).toMatchObject({ review_task: { covered_by: "Prüfaufgabe des Projekts 603710" } });
+		expect(calls.some((c) => c.method === "createTask")).toBe(false);
 	});
 
 	it("Dublette blockiert ohne Override", async () => {

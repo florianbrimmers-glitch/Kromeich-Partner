@@ -81,6 +81,12 @@ function labelOf(row: Raw, entity: "contacts" | "objects"): string {
 
 export type BulkDeps = WriteDeps & { store?: BulkStore };
 
+/** 5xx, Timeout/Netz, 429: vorübergehend – Datensatz bleibt offen und wird beim nächsten Aufruf erneut versucht.
+ * Sicher, weil update_contact/update_object vorher den aktuellen Stand lesen und nur Abweichungen schreiben. */
+function isTransient(error: unknown): boolean {
+	return error instanceof PropstackError && (error.status === 0 || error.status >= 500 || error.status === 429);
+}
+
 function storeOf(deps: BulkDeps): BulkStore {
 	if (deps.store) return deps.store;
 	if (!deps.db) throw new PropstackError("Plan-Speicher nicht verfügbar – aus Sicherheitsgründen keine Massenänderung.", 0);
@@ -247,6 +253,7 @@ export async function applyPlan(deps: BulkDeps, input: z.infer<z.ZodObject<typeo
 
 	const cost = COST[plan.entity].apply;
 	let processed = 0;
+	let interrupted: string | null = null;
 	for (;;) {
 		const [item] = await store.items(plan.id, "pending", 1);
 		if (!item || client.requestsUsed + cost > BULK_REQUEST_BUDGET) break;
@@ -257,13 +264,19 @@ export async function applyPlan(deps: BulkDeps, input: z.infer<z.ZodObject<typeo
 			await store.updateItem(plan.id, item.entity_id, {
 				before: snapshot?.before ?? null,
 				changed: snapshot?.after ?? null,
+				error: null,
 				not_applied: gaps.length ? gaps : null,
 				status: result.updated === false ? "unchanged" : gaps.length ? "done_with_gaps" : "done",
 			});
 		} catch (error) {
+			if (isTransient(error)) {
+				// Propstack gestört → anhalten, Datensatz offen lassen (Live-Befund 16.10.: 502 mitten im Lauf)
+				processed--;
+				interrupted = (error as Error).message;
+				await store.updateItem(plan.id, item.entity_id, { error: `Vorübergehend: ${interrupted}`.slice(0, 500) });
+				break;
+			}
 			await store.updateItem(plan.id, item.entity_id, { error: (error as Error).message.slice(0, 500), status: "failed" });
-			// Status unklar (5xx/Timeout) → anhalten statt blind weiterzuschreiben
-			if (error instanceof PropstackError && (error.status === 0 || error.status >= 500 || error.status === 429)) break;
 		}
 	}
 
@@ -289,8 +302,8 @@ export async function applyPlan(deps: BulkDeps, input: z.infer<z.ZodObject<typeo
 			next:
 				progress.remaining === 0
 					? `Fertig. Rückgängig bis ${new Date(now.getTime() + UNDO_DAYS * 86_400_000).toISOString().slice(0, 10)} mit undo_plan möglich.`
-					: processed === 0
-						? "Abgebrochen: Propstack-Status unklar – Fehler prüfen, dann apply_plan erneut aufrufen."
+					: interrupted
+						? `Angehalten – Propstack gestört (${interrupted}). Noch ${progress.remaining} offen; in ein paar Minuten apply_plan mit derselben plan_id erneut aufrufen. Bereits erledigte Datensätze werden nicht doppelt geschrieben.`
 						: `Noch ${progress.remaining} offen – apply_plan mit derselben plan_id erneut aufrufen (ohne erneute Rückfrage).`,
 		},
 	};
@@ -415,6 +428,7 @@ export async function undoPlan(deps: BulkDeps, input: z.infer<z.ZodObject<typeof
 
 	const cost = COST[plan.entity].undo;
 	let processed = 0;
+	let interrupted: string | null = null;
 	for (;;) {
 		const [item] = await store.items(plan.id, "undoable", 1);
 		if (!item || client.requestsUsed + cost > BULK_REQUEST_BUDGET) break;
@@ -434,8 +448,13 @@ export async function undoPlan(deps: BulkDeps, input: z.infer<z.ZodObject<typeof
 				undo_status: status,
 			});
 		} catch (error) {
+			if (isTransient(error)) {
+				processed--;
+				interrupted = (error as Error).message;
+				await store.updateItem(plan.id, item.entity_id, { undo_note: `Vorübergehend: ${interrupted}`.slice(0, 500) });
+				break;
+			}
 			await store.updateItem(plan.id, item.entity_id, { undo_note: (error as Error).message.slice(0, 500), undo_status: "failed" });
-			if (error instanceof PropstackError && (error.status === 0 || error.status >= 500 || error.status === 429)) break;
 		}
 	}
 
@@ -455,7 +474,12 @@ export async function undoPlan(deps: BulkDeps, input: z.infer<z.ZodObject<typeof
 			skipped: u.skipped || undefined,
 			failed: u.failed || undefined,
 			problems: problems.length ? problems : undefined,
-			next: remaining ? "undo_plan mit derselben plan_id erneut aufrufen." : "Fertig. Übersprungene Felder wurden inzwischen von jemand anderem geändert und bleiben so.",
+			interrupted: interrupted ?? undefined,
+			next: interrupted
+				? `Angehalten – Propstack gestört (${interrupted}). In ein paar Minuten undo_plan mit derselben plan_id erneut aufrufen.`
+				: remaining
+					? "undo_plan mit derselben plan_id erneut aufrufen."
+					: "Fertig. Übersprungene Felder wurden inzwischen von jemand anderem geändert und bleiben so.",
 		},
 	};
 }

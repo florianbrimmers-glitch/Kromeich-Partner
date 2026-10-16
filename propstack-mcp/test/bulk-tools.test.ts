@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { MemoryBulkStore } from "../src/bulk/store";
-import type { Page, PropstackClient, Query } from "../src/propstack-client";
+import { type Page, type PropstackClient, PropstackError, type Query } from "../src/propstack-client";
 import { applyPlan, planBulk, undoInput, undoPlan } from "../src/tools/bulk-tools";
 
 const page = (rows: Record<string, unknown>[]): Page => ({ rows, total: rows.length });
@@ -142,6 +142,27 @@ describe("apply_plan / undo_plan", () => {
 		expect(world.contacts.get(2)!.broker_id).toBe(7);
 		expect(store.rows[1].undo_note).toMatch(/broker_id \(inzwischen geändert\)/);
 		expect((await store.getPlan(planId))!.status).toBe("undone");
+	});
+
+	it("Propstack-Störung (502): anhalten, Datensatz bleibt offen, nächster Aufruf macht weiter (Live-Befund 16.10.)", async () => {
+		const { db, planId, store, world } = await planned(3);
+		let outage = true;
+		const flaky = () => {
+			const c = world.makeClient();
+			const original = c.updateContact.bind(c);
+			(c as unknown as { updateContact: unknown }).updateContact = async (id: number, payload: Record<string, unknown>) => {
+				if (outage && id === 2) throw new PropstackError("Propstack-Serverfehler (502)", 502);
+				return original(id, payload);
+			};
+			return c;
+		};
+		const first = (await applyPlan({ client: flaky(), db, now: () => T0, store, user: USER }, { plan_id: planId })).result as Record<string, unknown>;
+		expect(first).toMatchObject({ done: 1, finished: false, remaining: 2 });
+		expect(String(first.next)).toMatch(/Angehalten – Propstack gestört/);
+		outage = false;
+		const second = (await applyPlan({ client: flaky(), db, now: () => T0, store, user: USER }, { plan_id: planId })).result as Record<string, unknown>;
+		expect(second).toMatchObject({ done: 3, finished: true });
+		expect(store.rows.every((r) => r.status === "done" && r.error === null)).toBe(true);
 	});
 
 	it("Undo-Frist 7 Tage", async () => {
