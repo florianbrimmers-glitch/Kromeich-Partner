@@ -37,7 +37,16 @@ import {
 } from "./write-tools";
 import { imageUploadUrl, imageUploadUrlInput } from "../image-upload";
 import { applyPlan, MAX_PLAN_ITEMS, planBulk, planBulkInput, planIdInput, undoPlan } from "./bulk-tools";
-import { addImages, addImagesInput, createProject, createProjectInput, setProjectOwner, setProjectOwnerInput } from "./project-tools";
+import {
+	addImages,
+	addImagesInput,
+	createProject,
+	createProjectInput,
+	setProjectOwner,
+	setProjectOwnerInput,
+	updateProject,
+	updateProjectInput,
+} from "./project-tools";
 import { type ZodRawShape, z } from "zod";
 
 export interface ToolContext {
@@ -234,6 +243,13 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
 		createProjectInput,
 		false,
 		createProject,
+	);
+	register(
+		"update_project",
+		"Vorhandenes Projekt ändern: Name, Marketingname, Adresse, Provision (courtage/courtage_note), Exposé-Texte, Adresse ausblenden, Koordinaten (lat+lng, Stufen-Trick). Nur geänderte Werte werden geschrieben, der vorherige Stand wird gesichert, verworfene Felder einzeln nachgesetzt. Bei Adressänderung Dublettenprüfung. Eigentümer: set_project_owner. Es gibt keine Lösch-Funktion.",
+		updateProjectInput,
+		true,
+		updateProject,
 	);
 	register(
 		"set_project_owner",
