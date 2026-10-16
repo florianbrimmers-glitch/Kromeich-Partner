@@ -869,8 +869,11 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	const payload: Raw = {
 		...bulk,
 		...(Object.keys(customSend).length ? { partial_custom_fields: customSend } : {}),
-		...(addTags.length ? { add_group_ids: addTags } : {}),
-		...(removeTags.length ? { sub_group_ids: removeTags } : {}),
+		// Live 16.10.: add_group_ids/sub_group_ids ignoriert Propstack bei Objekten still (HTTP 200).
+		// group_ids (vollständige Liste) funktioniert – wie beim Anlegen.
+		...(addTags.length || removeTags.length
+			? { group_ids: [...currentTags.filter((t) => !removeTags.includes(t)), ...addTags] }
+			: {}),
 	};
 
 	const logId = await beginWrite(deps.db, {

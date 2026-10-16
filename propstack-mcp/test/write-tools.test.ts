@@ -643,3 +643,20 @@ describe("Hilfsfunktionen", () => {
 		expect(notApplied({}, { custom_fields: { s: { value: 2 } } }, { s: { id: 1, name: "Ja" } })).toEqual(["custom_fields.s"]);
 	});
 });
+
+describe("Objekt-Merkmale", () => {
+	it("schreibt die vollständige Liste group_ids (sub_group_ids ignoriert Propstack bei Objekten)", async () => {
+		const puts: Record<string, unknown>[] = [];
+		const { client } = fakeClient({
+			getUnit: () => ({ id: 1, property_groups: [{ id: 1 }, { id: 2 }], title: "T" }),
+			searchUnits: () => page([]),
+			updateUnit: (_id, payload) => {
+				puts.push(payload as Record<string, unknown>);
+				return {};
+			},
+		});
+		await updateObject({ client, db: fakeDb().db, now: NOW, user: USER }, { add_tag_ids: [3], id: 1, remove_tag_ids: [1] });
+		expect(puts[0]).toEqual({ group_ids: [2, 3] });
+		expect(puts[0]).not.toHaveProperty("sub_group_ids");
+	});
+});
