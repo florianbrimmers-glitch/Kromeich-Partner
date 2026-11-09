@@ -286,9 +286,48 @@ describe("Koordinaten (Notion-Korrektur 34)", async () => {
 		expect(fromProject).toMatchObject({ lat: 50.4109821, lng: 7.6811256, source: "Projekt", verified: true });
 	});
 
-	it("lng haftet nicht → nicht verifiziert", async () => {
-		const out = await writeCoordinates(async () => ({ lat: 50, lng: 7 }), async () => ({}), { lat: 50.5, lng: 7.5 });
+	it("lng haftet nicht → nach einem zweiten Durchgang als nicht verifiziert gemeldet", async () => {
+		let puts = 0;
+		const pauses: number[] = [];
+		const out = await writeCoordinates(async () => ({ lat: 50, lng: 7 }), async () => void puts++, { lat: 50.5, lng: 7.5 }, async (ms) => void pauses.push(ms));
 		expect(out.verified).toBe(false);
+		expect(puts).toBe(12); // zwei Durchgänge: je lat + fünf lng-Stufen
+		expect(pauses).toEqual([1000]);
+	});
+
+	it("lng bleibt im ersten Durchgang auf einem Zwischenwert stehen → zweiter Durchgang sitzt (live 09.11., Projekt 603710)", async () => {
+		let stored: Record<string, number> = { lat: 50.4367, lng: 7.7047 };
+		let lngPuts = 0;
+		const out = await writeCoordinates(
+			async () => stored,
+			async (b) => {
+				const body = b as Record<string, number>;
+				if ("lng" in body) {
+					lngPuts++;
+					// Propstack übernimmt im ersten Durchgang nur die ersten beiden Stufen
+					if (lngPuts > 2 && lngPuts <= 5) return;
+				}
+				stored = { ...stored, ...body };
+			},
+			{ lat: 50.4109821, lng: 7.6811256 },
+			async () => {},
+		);
+		expect(out).toMatchObject({ lat: 50.4109821, lng: 7.6811256, verified: true });
+		expect(lngPuts).toBe(10);
+	});
+
+	it("veralteter Lesewert nach dem Schreiben: nach der Pause neu lesen, nicht noch einmal schreiben", async () => {
+		const target = { lat: 50.4109821, lng: 7.6811256 };
+		let reads = 0;
+		let puts = 0;
+		const out = await writeCoordinates(
+			async () => (++reads <= 2 ? { lat: 50.4, lng: 7.68 } : target), // 1. Lesen vorher, 2. Lesen veraltet, 3. Lesen aktuell
+			async () => void puts++,
+			target,
+			async () => {},
+		);
+		expect(out.verified).toBe(true);
+		expect(puts).toBe(6);
 	});
 });
 

@@ -112,6 +112,21 @@ describe("Objekt-Dubletten", () => {
 		expect(r.warnings[0]).toMatch(/Weitere Einheit.*11/);
 	});
 
+	it("Einheit im Projekt: Geschwister-Einheiten werden nicht gemeldet, fremde Objekte an der Adresse gebündelt", () => {
+		const rows = [
+			...existing.map((row) => ({ ...row, project_id: 7 })),
+			...[21, 22, 23, 24, 25].map((id) => ({ ...existing[0], id, project_id: { label: "Projekt", value: 8 }, unit_id: `Fremd ${id}` })),
+		];
+		const candidate = { house_number: "99", marketing_type: "RENT", project_id: 7, street: "Schlebuscher Straße", unit_id: "Unit 3", zip_code: "51381" };
+		const r = objectDuplicates(candidate, rows);
+		expect(r.duplicates).toEqual([]);
+		expect(r.warnings).toHaveLength(4);
+		expect(r.warnings[0]).toMatch(/Weitere Einheit an derselben Adresse: .*\(21, Fremd 21, RENT\)/);
+		expect(r.warnings[3]).toBe("… und 2 weitere Objekte an derselben Adresse.");
+		// gleiche Einheit im selben Projekt blockiert weiterhin
+		expect(objectDuplicates({ ...candidate, unit_id: "Unit 1" }, rows).duplicates.map((d) => d.id)).toEqual([10]);
+	});
+
 	it("andere Vermarktungsart ist nur ein Hinweis", () => {
 		const r = objectDuplicates({ house_number: "99", marketing_type: "BUY", street: "Schlebuscher Straße", unit_id: "Unit 1", zip_code: "51381" }, existing);
 		expect(r.duplicates).toEqual([]);

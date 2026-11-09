@@ -761,7 +761,7 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	if (titleCheck.warning) textWarnings.push(titleCheck.warning);
 
 	const dedupe = objectDuplicates(
-		{ ...address, lat: input.lat, lng: input.lng, marketing_type: input.marketing_type, unit_id: input.unit_id },
+		{ ...address, lat: input.lat, lng: input.lng, marketing_type: input.marketing_type, project_id: input.project_id, unit_id: input.unit_id },
 		await objectCandidates(client, address.zip_code),
 	);
 	if (dedupe.duplicates.length && !input.allow_duplicate_reason) {
@@ -838,6 +838,7 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	const given = input.lat !== undefined && input.lng !== undefined;
 	const projectCoords = project && sameAddress({ ...address, marketing_type: "" }, project) ? coordsOf(project) : {};
 	const coordinates = await ensureCoordinates({
+		sleep: deps.sleep,
 		address,
 		current: coordsOf(state.detail),
 		fetchFn: deps.fetchFn,
@@ -1123,6 +1124,7 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	let coordinates: Awaited<ReturnType<typeof ensureCoordinates>> | undefined;
 	if (coordsRequested) {
 		coordinates = await ensureCoordinates({
+			sleep: deps.sleep,
 			current: coordsOf(state.detail),
 			provided: { lat: input.lat, lng: input.lng },
 			put: (body) => client.updateUnit(input.id, body),

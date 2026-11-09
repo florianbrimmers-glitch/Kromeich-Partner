@@ -88,24 +88,40 @@ export async function geocode(
 	}
 }
 
-/** Schreibt lat/lng mit dem Stufen-Trick und prüft per Einzel-GET. */
+export const COORDINATE_RETRY_DELAY_MS = 1000;
+const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Schreibt lat/lng mit dem Stufen-Trick und prüft per Einzel-GET.
+ * Haftet der Wert danach nicht, wird nach kurzer Pause neu gelesen und einmal wiederholt
+ * (live 09.11.: am Projekt blieb lng nach dem ersten Durchgang auf einem Zwischenwert stehen,
+ * der zweite Durchgang saß).
+ */
 export async function writeCoordinates(
 	read: () => Promise<Partial<Coordinates>>,
 	put: (body: Partial<Coordinates>) => Promise<unknown>,
 	target: Coordinates,
+	sleep: (ms: number) => Promise<void> = defaultSleep,
 ): Promise<{ verified: boolean; lat?: number; lng?: number; error?: string }> {
+	const reached = (c: Partial<Coordinates>) => close(c.lat, target.lat) && close(c.lng, target.lng);
 	try {
-		const current = await read();
-		if (!close(current.lat, target.lat)) await put({ lat: target.lat });
-		if (!close(current.lng, target.lng)) {
-			for (const digits of [1, 2, 3, 4]) {
-				const factor = 10 ** digits;
-				await put({ lng: Math.round(target.lng * factor) / factor });
+		let after: Partial<Coordinates> = {};
+		for (let pass = 0; pass < 2; pass++) {
+			const current = await read();
+			if (reached(current)) return { lat: current.lat, lng: current.lng, verified: true };
+			if (!close(current.lat, target.lat)) await put({ lat: target.lat });
+			if (!close(current.lng, target.lng)) {
+				for (const digits of [1, 2, 3, 4]) {
+					const factor = 10 ** digits;
+					await put({ lng: Math.round(target.lng * factor) / factor });
+				}
+				await put({ lng: target.lng });
 			}
-			await put({ lng: target.lng });
+			after = await read();
+			if (reached(after)) return { lat: after.lat, lng: after.lng, verified: true };
+			if (pass === 0) await sleep(COORDINATE_RETRY_DELAY_MS);
 		}
-		const after = await read();
-		return { lat: after.lat, lng: after.lng, verified: close(after.lat, target.lat) && close(after.lng, target.lng) };
+		return { lat: after.lat, lng: after.lng, verified: false };
 	} catch (error) {
 		return { error: (error as Error).message, verified: false };
 	}
@@ -124,10 +140,11 @@ export async function ensureCoordinates(options: {
 	read: () => Promise<Partial<Coordinates>>;
 	put: (body: Partial<Coordinates>) => Promise<unknown>;
 	fetchFn?: typeof fetch;
+	sleep?: (ms: number) => Promise<void>;
 }): Promise<CoordinateResult> {
 	const { provided, current } = options;
 	if (provided?.lat !== undefined && provided.lng !== undefined) {
-		const result = await writeCoordinates(options.read, options.put, { lat: provided.lat, lng: provided.lng });
+		const result = await writeCoordinates(options.read, options.put, { lat: provided.lat, lng: provided.lng }, options.sleep);
 		return { ...result, source: options.providedSource ?? "angegeben", note: result.error };
 	}
 	if (hasCoordinates(current)) {
@@ -136,7 +153,7 @@ export async function ensureCoordinates(options: {
 	if (!options.address) return { source: "keine", verified: false, note: "Keine Koordinaten und keine Adresse." };
 	const found = await geocode(options.address, options.fetchFn);
 	if (!found) return { source: "keine", verified: false, note: "Adresse nicht gefunden (OpenStreetMap) – Koordinaten bitte nachtragen." };
-	const result = await writeCoordinates(options.read, options.put, found);
+	const result = await writeCoordinates(options.read, options.put, found, options.sleep);
 	return { ...result, precision: found.precision, source: "OpenStreetMap", note: result.error ?? (found.exact ? undefined : STREET_LEVEL_NOTE) };
 }
 

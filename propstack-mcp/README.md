@@ -133,7 +133,9 @@ Quelle: „Objekte in Propstack anlegen“ und „Projekte in Propstack anlegen�
 - **Was fehlt, wird gemeldet:** Jedes Anlegen liefert `howto_not_provided` (laut How-to wichtig, aber nicht angegeben) und `text_warnings`. Beides steht auch in der Prüfaufgabe.
 - **Projekt oder Einzelobjekt:** Projekt nur bei mindestens zwei getrennt vermietbaren Einheiten, im Zweifel Einzelobjekt (Wissensdatenbank, Abschnitt 3).
 - **`contact_person_id` schreibt nicht mehr ins Custom-Feld `ansprechpartner_vermietung`** (v0.8.0 tat das mit der Kontakt-ID). Von Hand angelegte Objekte nutzen das Feld nicht; der Ansprechpartner ist jetzt eine echte Verknüpfung.
-- **Diagnose:** `get_object` und `get_project` mit `diagnose: "field_names"` listen die Feldnamen mit Bezeichnung und Typ, die Propstack liefert – ohne Werte. Damit lassen sich Felder aus der Oberfläche finden, die die Doku nicht nennt.
+- **Diagnose:** `get_object` und `get_project` mit `diagnose: "field_names"` listen die Feldnamen mit Bezeichnung und Typ, die Propstack liefert – ohne Werte. Mit `diagnose_key` (z. B. `"energie"`) nur die passenden Felder, dafür tiefer aufgeschlüsselt. Damit lassen sich Felder aus der Oberfläche finden, die die Doku nicht nennt. Befund 09.11.: Einheiten liefern `note` („Notiz“), `relationships` (verknüpfte Kontakte) und `firing_types` („Wesentlicher Energieträger“).
+- **`get_object`** zeigt deshalb auch `internal_note`, `contacts` (Eigentümer/Ansprechpartner) und `energy_source`.
+- **Koordinaten mit zweitem Durchgang:** Haftet der Wert nach dem Stufen-Trick nicht, liest das Tool nach einer Sekunde neu und wiederholt einmal (live am Projekt beobachtet).
 - **Nachsichtige IDs:** Ziffernfolgen als Text (`"123"`) werden bei IDs und Anzahlen angenommen. Clients mit veralteter Tool-Liste schicken neue Parameter als Text.
 
 ## Phase 4: Massenänderungen (plan → apply_plan → undo_plan)

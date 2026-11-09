@@ -200,9 +200,12 @@ export interface ObjectCandidate {
 	unit_id?: string;
 	lat?: number;
 	lng?: number;
+	/** Einheit eines Projekts: weitere Einheiten desselben Projekts sind erwartbar und werden nicht gemeldet. */
+	project_id?: number;
 }
 
 const GEO_TOLERANCE_M = 30;
+const MAX_UNIT_HINTS = 3;
 
 export function sameAddress(input: ObjectCandidate, row: Raw): boolean {
 	const zipMatch = String(scalar(row.zip_code) ?? "").trim() === input.zip_code.trim();
@@ -220,6 +223,7 @@ export function sameAddress(input: ObjectCandidate, row: Raw): boolean {
 export function objectDuplicates(input: ObjectCandidate, rows: Raw[], excludeId?: number): DedupeResult {
 	const duplicates: Match[] = [];
 	const warnings: string[] = [];
+	const otherUnits: string[] = [];
 	const unit = normalizeUnit(input.unit_id);
 	for (const row of rows) {
 		if (row.id === excludeId || !sameAddress(input, row)) continue;
@@ -230,9 +234,11 @@ export function objectDuplicates(input: ObjectCandidate, rows: Raw[], excludeId?
 			duplicates.push({ id: row.id as number, name: label, reason: "gleiche Adresse, Vermarktungsart und Einheit" });
 		} else if (sameUnit) {
 			warnings.push(`Gleiche Adresse und Einheit mit anderer Vermarktungsart: ${label}.`);
-		} else {
-			warnings.push(`Weitere Einheit an derselben Adresse: ${label}.`);
+		} else if (input.project_id === undefined || Number(scalar(row.project_id)) !== input.project_id) {
+			otherUnits.push(label);
 		}
 	}
+	for (const label of otherUnits.slice(0, MAX_UNIT_HINTS)) warnings.push(`Weitere Einheit an derselben Adresse: ${label}.`);
+	if (otherUnits.length > MAX_UNIT_HINTS) warnings.push(`… und ${otherUnits.length - MAX_UNIT_HINTS} weitere Objekte an derselben Adresse.`);
 	return { duplicates, warnings };
 }

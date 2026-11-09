@@ -268,40 +268,65 @@ export async function searchObjects(
 // Welche Felder liefert Propstack für einen Datensatz? Nur Namen, Bezeichnungen und Typen – keine Werte.
 // Hilft, wenn ein Feld aus der Oberfläche (z. B. „Wesentlicher Energieträger“) über die API gesucht wird.
 
-function shapeOf(value: unknown): string {
+function shapeOf(value: unknown, depth = 0): string {
 	if (value === null || value === undefined) return "leer";
+	const inner = (obj: Raw, limit: number) => {
+		const keys = Object.keys(obj);
+		const shown = keys.slice(0, limit).map((key) => (depth > 0 ? `${key}: ${shapeOf(obj[key], depth - 1)}` : key));
+		return `${shown.join(", ")}${keys.length > limit ? `, … (${keys.length})` : ""}`;
+	};
 	if (Array.isArray(value)) {
 		const first = value[0];
-		const inner = first && typeof first === "object" && !Array.isArray(first) ? ` von {${Object.keys(first as Raw).slice(0, 25).join(", ")}}` : "";
-		return `Liste[${value.length}]${inner}`;
+		return `Liste[${value.length}]${first && typeof first === "object" && !Array.isArray(first) ? ` von {${inner(first as Raw, 30)}}` : ""}`;
 	}
 	if (typeof value === "object") {
 		const obj = value as Raw;
 		if ("label" in obj && "value" in obj) return `„${String(obj.label)}“ (${obj.value === null || obj.value === undefined ? "leer" : typeof obj.value})`;
-		const keys = Object.keys(obj);
-		return `Objekt{${keys.slice(0, 25).join(", ")}${keys.length > 25 ? `, … (${keys.length})` : ""}}`;
+		return `Objekt{${inner(obj, depth > 0 ? 40 : 25)}}`;
 	}
 	return typeof value;
 }
 
-export function fieldShapes(raw: Raw): Record<string, string> {
-	return Object.fromEntries(Object.entries(raw).map(([key, value]) => [key, shapeOf(value)]));
+/** Feldnamen mit Bezeichnung und Typ. Mit filter: nur passende Felder, dafür zwei Ebenen tief. */
+export function fieldShapes(raw: Raw, filter?: string): Record<string, string> {
+	const wanted = filter?.toLowerCase();
+	return Object.fromEntries(
+		Object.entries(raw)
+			.filter(([key, value]) => {
+				if (!wanted) return true;
+				const label = value && typeof value === "object" && !Array.isArray(value) ? String((value as Raw).label ?? "") : "";
+				return key.toLowerCase().includes(wanted) || label.toLowerCase().includes(wanted);
+			})
+			.map(([key, value]) => [key, shapeOf(value, wanted ? 2 : 0)]),
+	);
 }
 
 const diagnose = z
 	.enum(["field_names"])
 	.optional()
 	.describe("Nur zur Diagnose: statt der Daten die Feldnamen mit Bezeichnung und Typ ausgeben, die Propstack für diesen Datensatz liefert (keine Werte)");
+const diagnoseKey = z
+	.string()
+	.trim()
+	.min(2)
+	.max(60)
+	.optional()
+	.describe("Nur mit diagnose: auf Felder einschränken, deren Name oder Bezeichnung diesen Text enthält (z. B. „energie“) – diese werden tiefer aufgeschlüsselt");
 
-export const getObjectInput = { id: id.describe("Propstack-Objekt-ID"), diagnose };
+type DiagnoseInput = { id: number; diagnose?: "field_names"; diagnose_key?: string };
 
-export async function getObject(client: Client, input: { id: number; diagnose?: "field_names" }): Promise<ToolOutput> {
+export const getObjectInput = { id: id.describe("Propstack-Objekt-ID"), diagnose, diagnose_key: diagnoseKey };
+
+export async function getObject(client: Client, input: DiagnoseInput): Promise<ToolOutput> {
 	// Einzel-GET allein ist lückenhaft (Flächen, Kategorie, Hallenhöhe fehlen) → expand-Kanal ergänzt.
 	const state = await readUnit(client, input.id);
 	if (input.diagnose) {
+		const detail = fieldShapes(state.detail, input.diagnose_key);
+		// Listenkanal: nur, was dort anders oder zusätzlich ist
+		const list = Object.fromEntries(Object.entries(state.row ? fieldShapes(state.row, input.diagnose_key) : {}).filter(([key, shape]) => detail[key] !== shape));
 		return {
 			count: 1,
-			result: { entity: "object", id: input.id, field_names: fieldShapes(state.detail), list_field_names: state.row ? fieldShapes(state.row) : undefined },
+			result: { entity: "object", id: input.id, field_names: detail, only_in_list_channel: Object.keys(list).length ? list : undefined },
 		};
 	}
 	return { count: 1, result: mapUnitDetail(asObject(mergedUnit(state))) };
@@ -309,11 +334,11 @@ export async function getObject(client: Client, input: { id: number; diagnose?: 
 
 // ---------- Projekte ----------
 
-export const getProjectInput = { id: id.describe("Propstack-Projekt-ID"), diagnose };
+export const getProjectInput = { id: id.describe("Propstack-Projekt-ID"), diagnose, diagnose_key: diagnoseKey };
 
-export async function getProject(client: Client, input: { id: number; diagnose?: "field_names" }): Promise<ToolOutput> {
+export async function getProject(client: Client, input: DiagnoseInput): Promise<ToolOutput> {
 	const raw = asObject(await client.getProject(input.id));
-	if (input.diagnose) return { count: 1, result: { entity: "project", id: input.id, field_names: fieldShapes(raw) } };
+	if (input.diagnose) return { count: 1, result: { entity: "project", id: input.id, field_names: fieldShapes(raw, input.diagnose_key) } };
 	const units = await client.searchUnits({ page: 1, per: 100, project_id: input.id });
 	return { count: 1, result: withBrokerName(mapProjectDetail(raw, units), await brokerNames(client)) };
 }

@@ -156,6 +156,11 @@ describe("MCP-Protokoll", () => {
 		// keine Werte
 		expect(diagnose).not.toContain("Hillscheid");
 		expect(diagnose).not.toContain("Provisionsfrei");
+		// mit Filter: nur passende Felder (Name oder Bezeichnung), dafür tiefer aufgeschlüsselt
+		const filtered = JSON.parse(((await client.callTool({ arguments: { diagnose: "field_names", diagnose_key: "image", id: 604473 }, name: "get_project" })).content as { text: string }[])[0].text);
+		expect(filtered.field_names).toEqual({ images: "Liste[2] von {id: number, is_floorplan: boolean, title: string, url: string}" });
+		const byLabel = JSON.parse(((await client.callTool({ arguments: { diagnose: "field_names", diagnose_key: "überschrift", id: 604473 }, name: "get_project" })).content as { text: string }[])[0].text);
+		expect(Object.keys(byLabel.field_names)).toEqual(["title"]);
 	});
 
 	it("Schreib-Tools: genau zwölf, nicht readOnly, Updates als überschreibend markiert, kein Löschen", async () => {
