@@ -530,6 +530,9 @@ const objectFieldsShape = {
 	furnishing_note: optionalText(10000).describe(`Ausstattung. ${EXPOSE_VISIBLE}`),
 	other_note: optionalText(10000).describe(`Sonstiges. ${EXPOSE_VISIBLE}`),
 	bemerkung_append: optionalText(4000).describe("Interne Bemerkung (Custom-Feld bemerkung, nicht im Exposé) – wird mit Datum und Nutzer angehängt"),
+	contact_person_id: id
+		.optional()
+		.describe("Ansprechpartner Vermietung (Kontakt-ID) – wird ins Feld ansprechpartner_vermietung geschrieben, wie bei den Bestandsobjekten"),
 	lat: z
 		.number()
 		.min(-90)
@@ -670,6 +673,20 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 		? { id: input.owner_contact_id, name: String(scalar(((await client.getContact(input.owner_contact_id)) as Raw | null)?.name) ?? input.owner_contact_id) }
 		: undefined;
 
+	// Einheit im Projekt: Lage und Ausstattung vom Projekt übernehmen, wenn keine eigenen angegeben
+	// (Rückmeldung Oguzhan, 24.10.: an den Einheiten fehlten Lagebeschreibung und Ausstattung)
+	const inherited: string[] = [];
+	if (input.project_id && (input.location_note === undefined || input.furnishing_note === undefined)) {
+		const project = ((await client.getProject(input.project_id)) ?? {}) as Raw;
+		for (const key of ["location_note", "furnishing_note"] as const) {
+			const text = scalar(project[key]);
+			if (input[key] === undefined && typeof text === "string" && text.trim()) {
+				fields[key] = text.trim();
+				inherited.push(key);
+			}
+		}
+	}
+
 	const defs = await loadFieldDefs(client, "for_properties");
 	if (fields.rented === true && fields.free_from === undefined) fields.free_from = "vermietet";
 	const mirrored = mirroredCustomFields(fields, defs, input.custom_fields, {
@@ -681,6 +698,11 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	// Testobjekte nie automatisch an Interessenten verschicken
 	if (input.test && defs.get("kein_automatischer_exposeversand")?.type === "Boolean" && !(input.custom_fields && "kein_automatischer_exposeversand" in input.custom_fields)) {
 		mirrored.kein_automatischer_exposeversand = true;
+	}
+	if (input.contact_person_id) {
+		// Kontakt muss existieren (404 statt toter Verweis); Bestandsobjekte führen die ID als Text
+		await client.getContact(input.contact_person_id);
+		mirrored.ansprechpartner_vermietung = String(input.contact_person_id);
 	}
 	const custom = await validateCustomFields(client, "for_properties", { ...mirrored, ...input.custom_fields }, defs, {
 		publicPriceConfirmed: input.public_price_confirmed === true,
@@ -789,6 +811,7 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 			override_reason: overrideReason ?? undefined,
 			owner: owner ? { ...owner, linked: ownerResult?.linked } : undefined,
 			coordinates,
+			inherited_from_project: inherited.length ? inherited : undefined,
 			mirrored_custom_fields: Object.keys(mirrored).length ? Object.keys(mirrored) : undefined,
 			warnings: dedupe.warnings.length ? dedupe.warnings : undefined,
 			not_applied: missing.length ? missing : undefined,
@@ -883,6 +906,11 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 			return actual === UNVERIFIABLE || !same(value, actual);
 		}),
 	);
+	if (input.contact_person_id) {
+		// Kontakt muss existieren (404 statt toter Verweis); Bestandsobjekte führen die ID als Text
+		await client.getContact(input.contact_person_id);
+		mirrored.ansprechpartner_vermietung = String(input.contact_person_id);
+	}
 	const custom = await validateCustomFields(client, "for_properties", { ...mirrored, ...input.custom_fields }, defs, {
 		publicPriceConfirmed: input.public_price_confirmed === true,
 	});

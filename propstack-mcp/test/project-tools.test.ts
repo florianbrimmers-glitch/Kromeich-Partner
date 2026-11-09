@@ -107,7 +107,8 @@ describe("create_project", () => {
 			{ ...input, courtage: "Provisionsfrei", owner_contact_id: 17366550, review_notes: ["Energieausweis fehlt"], test: true },
 		);
 		expect(stored).toMatchObject({ country: "DEU", for_rent: true, name: "MCP-TEST Logistikhalle in (40) Düsseldorf – Kappeler Straße" });
-		expect(stored).not.toHaveProperty("note");
+		// Interne Notiz am Projekt (API-Doku: note) mit Herkunft
+		expect(String(stored.note)).toMatch(/^Angelegt über Claude \(Propstack MCP\) von Florian Brimmers/);
 		const link = { relationships_attributes: [{ internal_name: "owner", related_client_id: 17366550 }] };
 		expect(puts).toEqual([{ broker_id: 347158 }, link, link]); // zweiter Aufruf = Gegenprobe
 		expect(out.result).toMatchObject({
@@ -256,8 +257,21 @@ describe("Koordinaten (Notion-Korrektur 34)", async () => {
 			expect(url).toContain("postalcode=56204");
 			return new Response(JSON.stringify([{ lat: "50.4367123", lon: "7.7047456" }]), { status: 200 });
 		}) as unknown as typeof fetch;
-		const geo = await ensureCoordinates({
+		// Ohne Hausnummer: nur Straßenmitte → nicht setzen, als Vorschlag melden (live 16.10.: ~3 km daneben)
+		const street = await ensureCoordinates({
 			address: { city: "Hillscheid", street: "Am Scheid", zip_code: "56204" },
+			current: {},
+			fetchFn,
+			put: async () => {
+				throw new Error("darf nicht schreiben");
+			},
+			read: async () => ({}),
+		});
+		expect(street).toMatchObject({ lat: 50.436712, source: "keine", verified: false });
+		expect(street.note).toMatch(/Straßenmitte/);
+
+		const geo = await ensureCoordinates({
+			address: { city: "Hillscheid", house_number: "3", street: "Am Scheid", zip_code: "56204" },
 			current: {},
 			fetchFn,
 			put: async (b) => {
@@ -265,7 +279,7 @@ describe("Koordinaten (Notion-Korrektur 34)", async () => {
 			},
 			read: async () => stored,
 		});
-		expect(geo).toMatchObject({ lat: 50.436712, lng: 7.704746, precision: "Straße (keine Hausnummer)", source: "OpenStreetMap", verified: true });
+		expect(geo).toMatchObject({ lat: 50.436712, lng: 7.704746, precision: "Hausnummer", source: "OpenStreetMap", verified: true });
 	});
 
 	it("lng haftet nicht → nicht verifiziert", async () => {
@@ -311,5 +325,27 @@ describe("update_project", () => {
 		expect((await updateProject(deps, { courtage: "Provisionsfrei", id: 1 })).result).toMatchObject({ updated: false });
 		expect((await updateProject(deps, { house_number: "1", id: 1, street: "Hauptstraße" })).result).toMatchObject({ blocked: "Dublette", duplicates: [{ id: 2 }] });
 		expect(calls.some((c) => c.method === "updateProject")).toBe(false);
+	});
+});
+
+describe("update_project – interne Notiz, Unterzeile", () => {
+	it("hängt die Notiz an (alter Text bleibt), schreibt sub_headline, meldet nicht Gespeichertes", async () => {
+		const stored: Record<string, unknown> = { city: "Hillscheid", id: 1, name: "P", note: "Alt", street: "Am Scheid", sub_headline: null, zip_code: "56204" };
+		const { client } = fakeClient({
+			getProject: () => ({ ...stored }),
+			listCustomFieldGroups: () => page([]),
+			updateProject: (_id, p) => {
+				const payload = p as Record<string, unknown>;
+				// Simulation: Propstack verwirft note still (wie laut Notion früher beobachtet)
+				for (const [k, v] of Object.entries(payload)) if (k !== "note") stored[k] = v;
+				return {};
+			},
+		});
+		const out = await updateProject(
+			{ client, db: fakeDb().db, now: NOW, user: USER },
+			{ id: 1, note_append: "Exposé: https://example.org/expose.pdf · Alleinmandat", sub_headline: "Direkt an der A48" },
+		);
+		expect(stored.sub_headline).toBe("Direkt an der A48");
+		expect(out.result).toMatchObject({ changed: ["sub_headline", "note"], not_applied: ["note"] });
 	});
 });
