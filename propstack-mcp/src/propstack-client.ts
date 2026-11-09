@@ -85,7 +85,7 @@ export type GroupEntity = "for_clients" | "for_properties" | "for_activities";
 export type CustomFieldEntity = "for_clients" | "for_properties" | "for_projects" | "for_deals";
 
 /**
- * Propstack-Client – nur lesend und nur explizit definierte Endpunkte.
+ * Propstack-Client – nur explizit definierte Endpunkte (Lesen, Anlegen, Ändern; kein Löschen).
  * Kein generischer Passthrough (harte Regel der Spezifikation).
  */
 export class PropstackClient {
@@ -230,11 +230,13 @@ export class PropstackClient {
 	 * POST /v1/images als Multipart mit Datei. Feldname MUSS image[photo] sein –
 	 * image[file] erzeugt ein leeres Bildobjekt, das nur in der UI löschbar ist (Skill/Notion).
 	 */
-	async uploadImage(imageableType: "Property" | "Project", imageableId: number, photo: Blob, filename: string): Promise<unknown> {
+	async uploadImage(imageableType: "Property" | "Project", imageableId: number, photo: Blob, filename: string, title?: string): Promise<unknown> {
 		return this.sendMultipart("/images", () => {
 			const form = new FormData();
 			form.append("image[imageable_type]", imageableType);
 			form.append("image[imageable_id]", String(imageableId));
+			// API-Doku „Bilder“: title = Bildbeschreibung (wird auch als Dateiname in der URL verwendet)
+			if (title) form.append("image[title]", title);
 			form.append("image[photo]", photo, filename);
 			return form;
 		});

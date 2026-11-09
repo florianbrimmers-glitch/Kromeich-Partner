@@ -7,6 +7,7 @@ import {
 	type DedupeResult,
 	isMobile,
 	objectDuplicates,
+	sameAddress,
 } from "../propstack/dedupe";
 import { ACTIVE_STATUSES } from "../config";
 import { PUBLIC_PRICE_HINT, type CustomOption, loadFieldDefs, mirroredCustomFields, validateCustomFields } from "../propstack/field-rules";
@@ -14,8 +15,25 @@ import { scalar } from "../propstack/mappers";
 import { readUnit, UNVERIFIABLE, type UnitState, unitCustomValue, unitValue } from "../propstack/unit-state";
 import { CRM_BASE, createReviewTask } from "../review-task";
 import { beginWrite, finishWrite } from "../write-log";
-import { coordsOf, ensureCoordinates } from "../propstack/geo";
-import { linkOwnerTo } from "../propstack/owner";
+import { coordinatesLine, coordsOf, ensureCoordinates, hasCoordinates } from "../propstack/geo";
+import {
+	checkExposeTexts,
+	checkZipPrefix,
+	commissionFields,
+	commissionParam,
+	EXPOSE_TEXT_KEYS,
+	howtoCustomFields,
+	howtoObjectShape,
+	internalNoteLines,
+	internalNoteShape,
+	OBJECT_UI_STEPS,
+	objectNotProvided,
+	ownerNamesOf,
+	TEXT_RULES,
+	throwOnTextErrors,
+} from "../propstack/howto";
+import { linkContact, type RelationResult, relationLine } from "../propstack/relations";
+import { id, optionalText } from "./params";
 import { loadAll, type ToolOutput } from "./read-tools";
 
 export { validateCustomFields };
@@ -48,8 +66,6 @@ export interface WriteDeps {
 	capture?: (snapshot: { before: Raw; after: Raw }) => void;
 }
 
-const optionalText = (max: number) => z.string().trim().min(1).max(max).optional();
-const id = z.number().int().positive();
 const tagIds = z.array(id).min(1).max(20);
 
 // ---------- Hilfen ----------
@@ -462,13 +478,14 @@ export async function updateContact(deps: WriteDeps, input: z.infer<z.ZodObject<
 }
 
 // ---------- Objekte ----------
-// Regeln aus dem Notion-Feld-Mapping (Korrekturen) und dem Skill propstack-expose-workflow:
+// Regeln aus dem Notion-Feld-Mapping (Korrekturen), dem Skill propstack-expose-workflow und den Team-How-tos:
 // - Einige Felder verwirft Propstack im POST und in Multi-Feld-PUTs still → einzeln per PUT.
 // - object_type leitet Propstack aus rs_type ab → nicht anbieten.
 // - Öffentliche Preise (price, base_rent, mietpreis_*) nur mit public_price_confirmed (Nutzer hat es
 //   ausdrücklich angesagt bzw. auf Nachfrage bestätigt); interne Preise (intern_*) immer. Sonst price_on_inquiry.
 // - Interne Notizen in das Custom-Feld bemerkung; Beschreibungstexte sind exposé-sichtbar.
-// - lat/lng haften unzuverlässig → nur für die Dublettenprüfung, nicht schreiben.
+// - Einheiten im Projekt übernehmen Adresse, Überschrift, Beschreibung, Lage, Ausstattung, Provision und
+//   Koordinaten vom Projekt (How-to „Projekte anlegen“: „werden normalerweise automatisch vom Projekt gezogen“).
 
 /** Werden im POST und in PUTs mit mehreren Feldern still verworfen → je Feld ein PUT. */
 export const SOLO_OBJECT_FIELDS = [
@@ -485,66 +502,68 @@ export const SOLO_OBJECT_FIELDS = [
 const num = z.number().nonnegative().optional();
 /** Flächen nie 0 m² (Team-Regel). */
 const area = z.number().positive().optional();
-const EXPOSE_VISIBLE = "EXPOSÉ-SICHTBAR: keine Konditionen, Eigentümer, Kundennamen oder offenen Punkte – die gehören in bemerkung_append";
+const EXPOSE_VISIBLE = "Steht im Exposé";
 
 const objectFieldsShape = {
-	title: optionalText(250).describe("Überschrift, Format: Logistikhalle in (XX) Ort"),
+	title: optionalText(250).describe(
+		"Überschrift, Format: „Logistikhalle in (XX) Ort“ (XX = erste zwei PLZ-Ziffern). Bei Einheiten im Projekt weglassen – dann gilt die Überschrift des Projekts",
+	),
 	marketing_type: z.enum(["BUY", "RENT"]).optional().describe("BUY = Kauf, RENT = Miete"),
-	rs_type: z.string().regex(/^[A-Z_]+$/).optional().describe("Objektart, z. B. INDUSTRY, OFFICE. Die Objektkategorie (object_type) leitet Propstack daraus ab"),
-	rs_category: z.string().regex(/^[A-Z_]+$/).optional().describe("Unterart, z. B. HALL, WAREHOUSE"),
-	unit_id: optionalText(50).describe("Einheitennummer – in ganz Propstack eindeutig. Bei Einzelobjekten ohne Projekt weglassen"),
-	street: optionalText(200),
+	rs_type: z.string().regex(/^[A-Z_]+$/).optional().describe("Objektart, z. B. INDUSTRY (Halle/Produktion), OFFICE. Die Objektkategorie (object_type) leitet Propstack daraus ab"),
+	rs_category: z.string().regex(/^[A-Z_]+$/).optional().describe("Unterart, z. B. HALL (How-to: Halle/Produktion → Halle), WAREHOUSE"),
+	unit_id: optionalText(50).describe("Einheitennummer, z. B. „Unit 1“ – bei Einheiten im Projekt Pflicht, bei Einzelobjekten weglassen"),
+	street: optionalText(200).describe("Straße. Bei Einheiten im Projekt weglassen, wenn die Adresse die des Projekts ist"),
 	house_number: optionalText(20),
 	zip_code: optionalText(10),
 	city: optionalText(100),
-	project_id: id.optional(),
+	project_id: id.optional().describe("Projekt, zu dem die Einheit gehört"),
 	status_id: id
 		.optional()
 		.describe("Objekt-Status (list_reference kind=object_statuses): 163672 Akquise, 163673 Vorbereitung, 163674 Vermarktung, 163675 Reserviert, 163676 Abgeschlossen. Einen Status „vermietet“ gibt es nicht – dafür rented"),
 	price: num.describe("Öffentlicher Kaufpreis (nur BUY) – NUR mit public_price_confirmed. Ohne Ansage: weglassen, Objekt bekommt „Preis auf Anfrage“"),
-	base_rent: num.describe("Öffentliche Kaltmiete (nur RENT) – NUR mit public_price_confirmed. Interne Mietpreise immer in custom_fields intern_mietpreis_*"),
+	base_rent: num.describe("Öffentliche Kaltmiete (nur RENT) – NUR mit public_price_confirmed. Interne Mietpreise immer in internal_rent_*"),
 	public_price_confirmed: z
 		.literal(true)
 		.optional()
 		.describe("Nur setzen, wenn der Nutzer einen ÖFFENTLICHEN Preis ausdrücklich angesagt oder auf Nachfrage bestätigt hat. Sonst vorher fragen. Wird protokolliert"),
 	price_on_inquiry: z.boolean().optional().describe("Preis auf Anfrage. Beim Anlegen automatisch true, außer ein öffentlicher Preis wird gesetzt"),
 	industrial_area: area.describe("Hallenfläche m²"),
-	total_floor_space: area.describe("Gesamtfläche m² = Halle + Mezzanine, OHNE Büro (Regel seit 13.08.2026)"),
-	usable_floor_space: area.describe("Nutzfläche m² (bei Hallen: Bürofläche)"),
+	total_floor_space: area.describe("Gesamtfläche m² = Hallenfläche + Mezzaninefläche, OHNE Büro. Beim Anlegen ohne Angabe so berechnet"),
+	usable_floor_space: area.describe("Bürofläche m² (Standardfeld Nutzfläche)"),
 	plot_area: area.describe("Grundstücksfläche m²"),
 	hall_height: num.describe("Hallenhöhe in m UKB"),
 	floor_load: num.describe("Bodentragkraft in kg/m² – Propstack hängt kg/m² selbst an (5 t/m² = 5000)"),
-	construction_year: z.number().int().min(1800).max(2100).optional(),
+	construction_year: z.number().int().min(1800).max(2100).optional().describe("Baujahr"),
 	free_from: optionalText(100).describe("Verfügbar ab (Text), z. B. „auf Anfrage“ oder „01.03.2027“"),
 	hide_address: z.boolean().optional().describe("Adresse im Exposé ausblenden"),
 	rented: z
 		.boolean()
 		.optional()
 		.describe(
-			"Vermietet ja/nein. true setzt automatisch free_from „vermietet“, status_logistik/aktiv Inaktiv und die verfügbaren Flächen auf „X m² (vermietet)“. Den Status (163676 Abgeschlossen) separat über status_id setzen",
+			"Vermietet ja/nein (Standard: nicht vermietet). true setzt automatisch free_from „vermietet“, status_logistik/aktiv Inaktiv und die verfügbaren Flächen auf „X m² (vermietet)“. Den Status (163676 Abgeschlossen) separat über status_id setzen",
 		),
-	courtage: optionalText(200).describe("Provisionstext fürs Exposé – nur der Provisionstext, keine Arbeitsvermerke"),
-	courtage_note: optionalText(2000).describe("Provisionshinweis, z. B. die Staffel"),
-	description_note: optionalText(10000).describe(`Objektbeschreibung. ${EXPOSE_VISIBLE}`),
-	location_note: optionalText(10000).describe(`Lagebeschreibung. ${EXPOSE_VISIBLE}`),
-	furnishing_note: optionalText(10000).describe(`Ausstattung. ${EXPOSE_VISIBLE}`),
-	other_note: optionalText(10000).describe(`Sonstiges. ${EXPOSE_VISIBLE}`),
-	bemerkung_append: optionalText(4000).describe("Interne Bemerkung (Custom-Feld bemerkung, nicht im Exposé) – wird mit Datum und Nutzer angehängt"),
-	contact_person_id: id
-		.optional()
-		.describe("Ansprechpartner Vermietung (Kontakt-ID) – wird ins Feld ansprechpartner_vermietung geschrieben, wie bei den Bestandsobjekten"),
+	commission: commissionParam,
+	courtage: optionalText(200).describe("Außenprovision fürs Exposé – nur der Provisionstext, keine Arbeitsvermerke. Bei Einheiten im Projekt weglassen (kommt vom Projekt)"),
+	courtage_note: optionalText(2000).describe("Provisionshinweis. Standardtexte über commission"),
+	description_note: optionalText(10000).describe(`${TEXT_RULES.description_object}. ${EXPOSE_VISIBLE}`),
+	location_note: optionalText(10000).describe(`${TEXT_RULES.location}. ${EXPOSE_VISIBLE}`),
+	furnishing_note: optionalText(10000).describe(`${TEXT_RULES.furnishing}. ${EXPOSE_VISIBLE}`),
+	other_note: optionalText(10000).describe(`Sonstiges. ${EXPOSE_VISIBLE} – keine Konditionen, Eigentümer, Kundennamen, Adresse oder offenen Punkte`),
+	bemerkung_append: optionalText(4000).describe("Interne Bemerkung (Custom-Feld bemerkung, nicht im Exposé): offene Punkte, abgeleitete Werte, Sonstiges – wird mit Datum und Nutzer angehängt"),
+	...internalNoteShape,
+	...howtoObjectShape,
 	lat: z
 		.number()
 		.min(-90)
 		.max(90)
 		.optional()
-		.describe("Breitengrad, falls bekannt (z. B. aus einem Bestandsobjekt). Sonst übernimmt das Tool Propstacks Geokodierung oder ermittelt die Koordinaten aus der Adresse (OpenStreetMap)"),
-	lng: z.number().min(-180).max(180).optional().describe("Längengrad, falls bekannt"),
+		.describe("Breitengrad – nur zusammen mit lng. Sonst: Koordinaten des Projekts (gleiche Adresse), Propstacks eigene Geokodierung oder OpenStreetMap"),
+	lng: z.number().min(-180).max(180).optional().describe("Längengrad"),
 	custom_fields: z
 		.record(z.string(), z.unknown())
 		.optional()
 		.describe(
-			"Custom-Felder {schlüssel: wert}, Schlüssel über list_fields entity=objects. Zahlen als nackte Zahl mit Dezimalpunkt (10.5, nie \"10,5\" oder \"6.417 m²\"), Auswahlfelder per Name oder Option-ID, null leert. Gesperrt: provisionspflichtig, mezzanineflache, bemerkung. mietpreis_* sind öffentlich → nur mit public_price_confirmed",
+			"Weitere Custom-Felder {schlüssel: wert}, Schlüssel über list_fields entity=objects. Zahlen als nackte Zahl mit Dezimalpunkt (10.5, nie \"10,5\" oder \"6.417 m²\"), Auswahlfelder per Name oder Option-ID, null leert. Gesperrt: provisionspflichtig, mezzanineflache, bemerkung. mietpreis_* sind öffentlich → nur mit public_price_confirmed",
 		),
 };
 
@@ -639,13 +658,11 @@ function gapNote(missing: string[], unverified: string[], writeErrors: string[])
 
 export const createObjectInput = {
 	...objectFieldsShape,
-	title: z.string().trim().min(1).max(250).describe("Überschrift (Pflicht), Format: Logistikhalle in (XX) Ort"),
 	marketing_type: z.enum(["BUY", "RENT"]).describe("BUY = Kauf, RENT = Miete (Pflicht)"),
-	rs_type: z.string().regex(/^[A-Z_]+$/).describe("Objektart (Pflicht), z. B. INDUSTRY"),
-	street: z.string().trim().min(1).max(200),
-	zip_code: z.string().trim().regex(/^\d{4,5}$/),
-	city: z.string().trim().min(1).max(100),
-	owner_contact_id: id.optional().describe("Eigentümer-Kontakt (eigener Shop) – bei Einheiten im Projekt denselben wie am Projekt"),
+	rs_type: z.string().regex(/^[A-Z_]+$/).describe("Objektart (Pflicht), z. B. INDUSTRY (Halle/Produktion)"),
+	zip_code: z.string().trim().regex(/^\d{4,5}$/).optional(),
+	owner_contact_id: id.optional().describe("Eigentümer-Kontakt (eigener Shop) – wird als Eigentümer verknüpft. Bei Einheiten im Projekt denselben wie am Projekt angeben"),
+	contact_person_id: id.optional().describe("Ansprechpartner-Kontakt, sofern vorhanden – wird als Kontakt verknüpft. Bei Einheiten im Projekt denselben wie am Projekt"),
 	test: z.boolean().optional().describe(`Testdatensatz: setzt das Merkmal ${TEST_TAG}. Für alle Tests Pflicht.`),
 	allow_duplicate_reason: optionalText(500).describe("Nur wenn die Dublettenprüfung blockiert und es nachweislich ein anderes Objekt ist: Begründung (wird protokolliert)"),
 };
@@ -653,13 +670,100 @@ export const createObjectInput = {
 export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<typeof createObjectInput>>): Promise<ToolOutput> {
 	const { client, user } = deps;
 	const now = deps.now?.() ?? new Date();
+	if ((input.lat === undefined) !== (input.lng === undefined)) throw new PropstackError("lat und lng nur zusammen angeben.", 400);
 
-	const fields = objectPayload(input);
+	// Einheit im Projekt: Adresse, Überschrift, Texte, Provision und Koordinaten kommen vom Projekt, wenn nicht angegeben
+	// (How-to; Rückmeldung Oguzhan 24.10.: Beschreibung nicht 1:1 übernommen, Lage und Ausstattung fehlten)
+	const project = input.project_id ? await asObjectOrThrow(client.getProject(input.project_id)) : undefined;
+	const fromProject = (key: string): string | undefined => {
+		const value = scalar(project?.[key]);
+		return typeof value === "string" && value.trim() ? value.trim() : undefined;
+	};
+	const inherited: string[] = [];
+	const resolved: Raw = { ...input };
+	const ownAddress = input.street !== undefined || input.house_number !== undefined || input.zip_code !== undefined || input.city !== undefined;
+	if (project) {
+		if (!input.unit_id) throw new PropstackError("Eine Einheit im Projekt braucht eine Einheitennummer (unit_id, z. B. „Unit 1“).", 400);
+		if (!ownAddress) {
+			for (const key of ["street", "house_number", "zip_code", "city"]) {
+				const value = fromProject(key);
+				if (value !== undefined) resolved[key] = value;
+			}
+			if (resolved.street) inherited.push("address");
+		}
+		if (input.title === undefined) {
+			const title = fromProject("title") ?? fromProject("name");
+			if (title) {
+				resolved.title = title;
+				inherited.push("title");
+			}
+		}
+	}
+	const absent = ["title", "street", "zip_code", "city"].filter((key) => !resolved[key]);
+	if (absent.length) {
+		const why = !project
+			? ""
+			: ownAddress
+				? " – die Adresse einer Einheit entweder vollständig angeben (street, zip_code, city) oder ganz weglassen, dann gilt die des Projekts"
+				: " (auch am Projekt nicht hinterlegt)";
+		throw new PropstackError(`Pflichtangaben fehlen: ${absent.join(", ")}${why}.`, 400);
+	}
+	if (!/^\d{4,5}$/.test(String(resolved.zip_code))) throw new PropstackError(`PLZ „${resolved.zip_code}“ ist ungültig.`, 400);
+	const address = {
+		city: String(resolved.city),
+		house_number: resolved.house_number as string | undefined,
+		street: String(resolved.street),
+		zip_code: String(resolved.zip_code),
+	};
+
+	const fields = objectPayload(resolved);
 	const publishing = checkPublicPrice(input.marketing_type, fields, input.public_price_confirmed === true);
 	if (fields.price_on_inquiry === undefined) fields.price_on_inquiry = !publishing;
 	fields.broker_id = user.brokerId;
+	const derived: string[] = [];
+	if (fields.total_floor_space === undefined && typeof fields.industrial_area === "number") {
+		fields.total_floor_space = fields.industrial_area + (input.mezzanine_area ?? 0);
+		derived.push("total_floor_space = Hallenfläche + Mezzaninefläche");
+	}
 
-	const dedupe = objectDuplicates(input, await objectCandidates(client, input.zip_code));
+	// Kontakte vorher prüfen (404 → nichts anlegen statt Einheit ohne Eigentümer)
+	const ownerContact = input.owner_contact_id ? await asObjectOrThrow(client.getContact(input.owner_contact_id)) : undefined;
+	const owner = ownerContact ? { id: input.owner_contact_id!, name: String(scalar(ownerContact.name) ?? input.owner_contact_id) } : undefined;
+	const sameContact = input.contact_person_id !== undefined && input.contact_person_id === input.owner_contact_id;
+	const personContact = input.contact_person_id && !sameContact ? await asObjectOrThrow(client.getContact(input.contact_person_id)) : ownerContact;
+	const contactPerson = input.contact_person_id ? { id: input.contact_person_id, name: String(scalar(personContact?.name) ?? input.contact_person_id) } : undefined;
+
+	// Provision: ausdrücklich angegeben > Vorgabe (commission) > vom Projekt
+	const ownCommission = input.commission !== undefined || input.courtage !== undefined || input.courtage_note !== undefined;
+	Object.assign(fields, commissionFields(input.commission, input.marketing_type, input));
+	const inheritedTexts: Raw = {};
+	if (project) {
+		for (const key of ["description_note", "location_note", "furnishing_note", ...(ownCommission ? [] : ["courtage", "courtage_note"])]) {
+			const text = fromProject(key);
+			if (fields[key] !== undefined || text === undefined) continue;
+			fields[key] = text;
+			inherited.push(key);
+			inheritedTexts[key] = text;
+		}
+	}
+
+	// Texte: eigene Angaben werden bei Regelverstößen abgewiesen; vom Projekt Übernommenes nur gemeldet
+	const titleInherited = inherited.includes("title");
+	const textContext = { city: address.city, ownerNames: ownerNamesOf(ownerContact), publicPriceConfirmed: input.public_price_confirmed === true, street: address.street };
+	const ownTexts = Object.fromEntries(EXPOSE_TEXT_KEYS.filter((key) => !(key in inheritedTexts) && !(key === "title" && titleInherited)).map((key) => [key, fields[key]]));
+	const findings = checkExposeTexts(ownTexts, textContext);
+	throwOnTextErrors(findings);
+	const fromProjectFindings = checkExposeTexts({ ...inheritedTexts, ...(titleInherited ? { title: fields.title } : {}) }, textContext);
+	const textWarnings = [...findings.warnings, ...[...fromProjectFindings.errors, ...fromProjectFindings.warnings].map((w) => `Vom Projekt übernommen – ${w}`)];
+	const titleCheck = checkZipPrefix("Überschrift", fields.title, address.zip_code);
+	if (titleCheck.error && !titleInherited) throw new PropstackError(titleCheck.error, 400);
+	if (titleCheck.error) textWarnings.push(`Vom Projekt übernommen – ${titleCheck.error}`);
+	if (titleCheck.warning) textWarnings.push(titleCheck.warning);
+
+	const dedupe = objectDuplicates(
+		{ ...address, lat: input.lat, lng: input.lng, marketing_type: input.marketing_type, unit_id: input.unit_id },
+		await objectCandidates(client, address.zip_code),
+	);
 	if (dedupe.duplicates.length && !input.allow_duplicate_reason) {
 		return blockedResult(
 			dedupe,
@@ -668,46 +772,29 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	}
 	const overrideReason = checkOverride(dedupe, input.allow_duplicate_reason);
 
-	// Eigentümer-Kontakt vorher prüfen (404 → nichts anlegen statt Einheit ohne Eigentümer)
-	const owner = input.owner_contact_id
-		? { id: input.owner_contact_id, name: String(scalar(((await client.getContact(input.owner_contact_id)) as Raw | null)?.name) ?? input.owner_contact_id) }
-		: undefined;
-
-	// Einheit im Projekt: Lage und Ausstattung vom Projekt übernehmen, wenn keine eigenen angegeben
-	// (Rückmeldung Oguzhan, 24.10.: an den Einheiten fehlten Lagebeschreibung und Ausstattung)
-	const inherited: string[] = [];
-	if (input.project_id && (input.location_note === undefined || input.furnishing_note === undefined)) {
-		const project = ((await client.getProject(input.project_id)) ?? {}) as Raw;
-		for (const key of ["location_note", "furnishing_note"] as const) {
-			const text = scalar(project[key]);
-			if (input[key] === undefined && typeof text === "string" && text.trim()) {
-				fields[key] = text.trim();
-				inherited.push(key);
-			}
-		}
-	}
-
 	const defs = await loadFieldDefs(client, "for_properties");
 	if (fields.rented === true && fields.free_from === undefined) fields.free_from = "vermietet";
-	const mirrored = mirroredCustomFields(fields, defs, input.custom_fields, {
+	if (input.active === true && fields.rented === true) {
+		throw new PropstackError("active: true und rented: true widersprechen sich – vermietete Einheiten sind inaktiv.", 400);
+	}
+	const rent = fields.rented === true ? "rented" : "available";
+	const howto = howtoCustomFields(input, defs, input.custom_fields, rent);
+	const explicit: Raw = { ...howto, ...input.custom_fields };
+	const mirrored = mirroredCustomFields(fields, defs, explicit, {
+		active: input.active,
 		flags: true,
 		marketable: ACTIVE_STATUSES.includes(Number(fields.property_status_id)),
 		priceOnInquiry: fields.price_on_inquiry === true,
-		rent: fields.rented === true ? "rented" : "available",
+		rent,
 	});
 	// Testobjekte nie automatisch an Interessenten verschicken
-	if (input.test && defs.get("kein_automatischer_exposeversand")?.type === "Boolean" && !(input.custom_fields && "kein_automatischer_exposeversand" in input.custom_fields)) {
+	if (input.test && defs.get("kein_automatischer_exposeversand")?.type === "Boolean" && !("kein_automatischer_exposeversand" in explicit)) {
 		mirrored.kein_automatischer_exposeversand = true;
 	}
-	if (input.contact_person_id) {
-		// Kontakt muss existieren (404 statt toter Verweis); Bestandsobjekte führen die ID als Text
-		await client.getContact(input.contact_person_id);
-		mirrored.ansprechpartner_vermietung = String(input.contact_person_id);
-	}
-	const custom = await validateCustomFields(client, "for_properties", { ...mirrored, ...input.custom_fields }, defs, {
+	const custom = await validateCustomFields(client, "for_properties", { ...mirrored, ...explicit }, defs, {
 		publicPriceConfirmed: input.public_price_confirmed === true,
 	});
-	const bemerkung = [originNote(user, now, "Angelegt"), input.bemerkung_append].filter(Boolean).join("\n");
+	const bemerkung = [originNote(user, now, "Angelegt"), ...internalNoteLines(input), input.bemerkung_append].filter(Boolean).join("\n");
 	const customSend: Raw = { ...(custom?.send ?? {}), bemerkung };
 	const customExpect: Raw = { ...(custom?.expect ?? {}), bemerkung };
 	const tags = input.test ? [await ensureTestTag(client, "for_properties")] : [];
@@ -724,12 +811,14 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 		overrideReason,
 		request: {
 			...payload,
+			contact_person_id: input.contact_person_id,
 			einzeln_nachgesetzt: Object.fromEntries(solo.map(([k, v]) => [fieldLabel(k), v])),
+			owner_contact_id: input.owner_contact_id,
 			public_price_confirmed: input.public_price_confirmed,
 		},
 		tool: "create_object",
 		userEmail: user.email,
-		warnings: dedupe.warnings,
+		warnings: [...dedupe.warnings, ...textWarnings],
 	});
 	let newId: number;
 	try {
@@ -745,21 +834,35 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	const groups = groupIdsOfUnit(state);
 	for (const tag of tags) if (!groups.includes(tag)) missing.push(`tag ${TEST_TAG}`);
 
-	// Koordinaten (Stufen-Trick, Kontrolle per Einzel-GET); Lücke nur, wenn geschrieben und nicht haftend
+	// Koordinaten (Stufen-Trick, Kontrolle per Einzel-GET): angegeben > Projekt (gleiche Adresse) > Propstack > OpenStreetMap
+	const given = input.lat !== undefined && input.lng !== undefined;
+	const projectCoords = project && sameAddress({ ...address, marketing_type: "" }, project) ? coordsOf(project) : {};
 	const coordinates = await ensureCoordinates({
-		address: input,
+		address,
 		current: coordsOf(state.detail),
 		fetchFn: deps.fetchFn,
-		provided: { lat: input.lat, lng: input.lng },
+		provided: given ? { lat: input.lat, lng: input.lng } : hasCoordinates(projectCoords) ? projectCoords : undefined,
+		providedSource: given ? "angegeben" : "Projekt",
 		put: (body) => client.updateUnit(newId, body),
 		read: async () => coordsOf(((await client.getUnit(newId)) ?? {}) as Raw),
 	});
+	// Lücke nur, wenn geschrieben wurde und nicht haftet; „nichts gefunden“ steht im Ergebnis
 	if (!coordinates.verified && coordinates.source !== "keine") missing.push("lat/lng");
 
-	// Eigentümer an der Einheit (Entscheidung Florian, 16.10.)
-	const ownerResult = owner ? await linkOwnerTo(client, { id: newId, type: "object" }, owner.id) : undefined;
+	// Eigentümer und Ansprechpartner an der Einheit (How-to „Ansprechpartner“; Entscheidung Florian, 16.10.)
+	const target = { id: newId, type: "object" as const };
+	const ownerResult = owner ? await linkContact(client, target, owner.id, "owner") : undefined;
 	if (ownerResult?.error) writeErrors.push(`Eigentümer: ${ownerResult.error}`);
 	else if (ownerResult && ownerResult.linked !== true) missing.push("owner (nicht prüfbar)");
+	let contactResult: RelationResult | undefined;
+	if (contactPerson) {
+		contactResult = sameContact
+			? { already: true, linked: ownerResult?.linked ?? false, note: "Ansprechpartner ist der Eigentümer – als Eigentümer verknüpft." }
+			: await linkContact(client, target, contactPerson.id, "contact_person");
+		if (contactResult.error) writeErrors.push(`Ansprechpartner: ${contactResult.error}`);
+		else if (contactResult.linked !== true && !sameContact) missing.push("contact_person (nicht prüfbar)");
+	}
+
 	const gaps = missing.length || writeErrors.length;
 	await finishWrite(deps.db, logId, {
 		entityId: newId,
@@ -768,32 +871,37 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 		status: gaps ? "done_with_gaps" : "done",
 	});
 
+	const notProvided = objectNotProvided(input, fields, { explicit: input.custom_fields, inProject: Boolean(project) });
+
 	// Einheit im Projekt: die Prüfaufgabe des Projekts deckt sie ab – eigene Aufgabe nur bei Problemen
 	// (Live-Befund 16.10.: 1 Projekt + 4 Einheiten = 5 Aufgaben für Lena).
 	const needsOwnTask = !input.project_id || missing.length > 0 || writeErrors.length > 0 || overrideReason !== null;
+	const title = String(fields.title);
 	const review = needsOwnTask
 		? await createReviewTask(client, deps.db, {
 				lines: [
-					`Objekt ${newId}: ${input.title}`,
+					`Objekt ${newId}: ${title}${input.unit_id ? ` – ${input.unit_id}` : ""}`,
 					`${CRM_BASE}/properties/${newId}`,
 					...(input.project_id ? [`Projekt: ${CRM_BASE}/projects/${input.project_id}`] : []),
 					`Angelegt über Claude (Propstack MCP) von ${user.name} am ${today(now)}.`,
-					owner ? `Eigentümer: ${owner.name} (${owner.id})${ownerResult?.linked === true ? "" : " – Verknüpfung prüfen"}` : "Eigentümer: nicht verknüpft",
-					coordinates.verified
-						? `Koordinaten: ${coordinates.lat}, ${coordinates.lng} (${coordinates.source}${coordinates.precision ? `, Genauigkeit ${coordinates.precision}` : ""})`
-						: "Koordinaten: fehlen – bitte nachtragen",
+					relationLine("owner", owner, ownerResult),
+					relationLine("contact_person", contactPerson, contactResult),
+					coordinatesLine(coordinates),
 					...(overrideReason ? [`Dublette bewusst angelegt: ${overrideReason}`] : []),
 					...dedupe.warnings.map((w) => `Hinweis: ${w}`),
 					...(missing.length ? [`Nicht übernommen: ${missing.join(", ")}`] : []),
 					...(unverified.length ? [`Nicht prüfbar: ${unverified.join(", ")}`] : []),
 					...(writeErrors.length ? [`Fehler: ${writeErrors.join("; ")}`] : []),
-					"Prüfen: Stammdaten, Flächen (inkl. Custom-Felder), Texte (keine Konditionen/Eigentümer), Provision, Custom-Felder, Bilder.",
+					...(notProvided.length ? [`Nicht angegeben (laut How-to wichtig): ${notProvided.join(", ")}`] : []),
+					...textWarnings.map((w) => `Texthinweis: ${w}`),
+					"Prüfen: Stammdaten, Flächen (inkl. Custom-Felder), Texte (kein Eigentümer, keine Adresse, keine Preise), Provision, Bilder.",
+					...OBJECT_UI_STEPS,
 				],
 				now,
 				projectIds: input.project_id ? [input.project_id] : undefined,
 				propertyIds: [newId],
 				test: input.test === true,
-				title: `${input.title} - Objekt ${newId}`,
+				title: `${title} - Objekt ${newId}`,
 				user,
 			})
 		: { covered_by: `Prüfaufgabe des Projekts ${input.project_id}` };
@@ -810,10 +918,15 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 			test: input.test || undefined,
 			override_reason: overrideReason ?? undefined,
 			owner: owner ? { ...owner, linked: ownerResult?.linked } : undefined,
+			contact_person: contactPerson ? { ...contactPerson, linked: contactResult?.linked, note: contactResult?.note } : undefined,
 			coordinates,
 			inherited_from_project: inherited.length ? inherited : undefined,
+			derived: derived.length ? derived : undefined,
 			mirrored_custom_fields: Object.keys(mirrored).length ? Object.keys(mirrored) : undefined,
 			warnings: dedupe.warnings.length ? dedupe.warnings : undefined,
+			text_warnings: textWarnings.length ? textWarnings : undefined,
+			howto_not_provided: notProvided.length ? notProvided : undefined,
+			ui_steps: input.project_id ? undefined : OBJECT_UI_STEPS,
 			not_applied: missing.length ? missing : undefined,
 			not_verifiable: unverified.length ? unverified : undefined,
 			write_errors: writeErrors.length ? writeErrors : undefined,
@@ -831,16 +944,20 @@ export const updateObjectInput = {
 export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<typeof updateObjectInput>>): Promise<ToolOutput> {
 	const { client, user } = deps;
 	const now = deps.now?.() ?? new Date();
+	if ((input.lat === undefined) !== (input.lng === undefined)) throw new PropstackError("lat und lng nur zusammen angeben.", 400);
 	const current = await readUnit(client, input.id);
 	const currentValue = (key: string) => {
 		const value = unitValue(current, key);
 		return value === UNVERIFIABLE ? undefined : value;
 	};
+	const currentText = (key: string) => String(scalar(currentValue(key)) ?? "");
 
 	const requested = objectPayload(input);
-	if (checkPublicPrice(requested.marketing_type ?? scalar(currentValue("marketing_type")), requested, input.public_price_confirmed === true) && requested.price_on_inquiry === undefined) {
+	const marketingType = requested.marketing_type ?? scalar(currentValue("marketing_type"));
+	if (checkPublicPrice(marketingType, requested, input.public_price_confirmed === true) && requested.price_on_inquiry === undefined) {
 		requested.price_on_inquiry = false;
 	}
+	Object.assign(requested, commissionFields(input.commission, marketingType, input));
 
 	// Nur echte Änderungen schreiben; nicht lesbare Felder werden vorsichtshalber geschrieben
 	const fields: Raw = {};
@@ -850,6 +967,23 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 		if (actual !== UNVERIFIABLE && sameUnitValue(key, value, actual)) continue;
 		fields[key] = value;
 		before[fieldLabel(key)] = actual === UNVERIFIABLE ? "nicht lesbar" : (scalar(actual) ?? null);
+	}
+
+	// Geänderte Texte gegen die Team-Regeln prüfen (unveränderte Alttexte bleiben unberührt)
+	const findings = checkExposeTexts(fields, {
+		city: String(requested.city ?? currentText("city")),
+		publicPriceConfirmed: input.public_price_confirmed === true,
+		street: String(requested.street ?? currentText("street")),
+	});
+	throwOnTextErrors(findings);
+	const notes = [...findings.warnings];
+	if (typeof fields.title === "string") {
+		const titleCheck = checkZipPrefix("Überschrift", fields.title, String(requested.zip_code ?? currentText("zip_code")));
+		if (titleCheck.error) throw new PropstackError(titleCheck.error, 400);
+		if (titleCheck.warning) notes.push(titleCheck.warning);
+	}
+	if ("industrial_area" in fields && requested.total_floor_space === undefined) {
+		notes.push("Hallenfläche geändert, Gesamtfläche (total_floor_space = Halle + Mezzanine) nicht – bitte prüfen.");
 	}
 
 	// Adresse, Einheit oder Vermarktungsart geändert → Kollision mit anderem Objekt prüfen
@@ -875,6 +1009,10 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	// Flächen spiegeln; *_verfugbar nur, solange das Objekt nicht vermietet ist
 	const defs = await loadFieldDefs(client, "for_properties");
 	const rentedNow = requested.rented ?? scalar(currentValue("rented"));
+	if (input.active === true && rentedNow === true) {
+		throw new PropstackError("active: true passt nicht zu einem vermieteten Objekt – vermietete Einheiten sind inaktiv.", 400);
+	}
+	const rentState = rentedNow === true ? "rented" : rentedNow === false ? "available" : "unknown";
 	const rentChanged = "rented" in fields;
 	if (rentChanged && fields.rented === true && requested.free_from === undefined) {
 		const actual = unitValue(current, "free_from");
@@ -893,24 +1031,23 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 			if (areaSource[key] === undefined && typeof actual === "number" && actual > 0) areaSource[key] = actual;
 		}
 	}
+	const howto = howtoCustomFields(input, defs, input.custom_fields, rentState);
+	const explicit: Raw = { ...howto, ...input.custom_fields };
 	const mirrored = Object.fromEntries(
-		Object.entries(
-			mirroredCustomFields(areaSource, defs, input.custom_fields, {
-				flags: rentChanged || "property_status_id" in fields,
+		Object.entries({
+			...mirroredCustomFields(areaSource, defs, explicit, {
+				active: input.active,
+				flags: rentChanged || "property_status_id" in fields || input.active !== undefined,
 				marketable: ACTIVE_STATUSES.includes(Number(requested.property_status_id ?? currentValue("property_status_id"))),
 				priceOnInquiry: requested.price_on_inquiry === true,
-				rent: rentedNow === true ? "rented" : rentedNow === false ? "available" : "unknown",
+				rent: rentState,
 			}),
-		).filter(([key, value]) => {
+			...howto,
+		}).filter(([key, value]) => {
 			const actual = unitCustomValue(current, key);
 			return actual === UNVERIFIABLE || !same(value, actual);
 		}),
 	);
-	if (input.contact_person_id) {
-		// Kontakt muss existieren (404 statt toter Verweis); Bestandsobjekte führen die ID als Text
-		await client.getContact(input.contact_person_id);
-		mirrored.ansprechpartner_vermietung = String(input.contact_person_id);
-	}
 	const custom = await validateCustomFields(client, "for_properties", { ...mirrored, ...input.custom_fields }, defs, {
 		publicPriceConfirmed: input.public_price_confirmed === true,
 	});
@@ -921,13 +1058,14 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 		const actual = unitCustomValue(current, key);
 		customBefore[key] = actual === UNVERIFIABLE ? "nicht lesbar" : rawValue(actual);
 	}
-	if (input.bemerkung_append) {
+	const appendLines = [...internalNoteLines(input), input.bemerkung_append].filter(Boolean);
+	if (appendLines.length) {
 		const old = unitCustomValue(current, "bemerkung");
 		if (old === UNVERIFIABLE) {
 			throw new PropstackError("Die vorhandene Bemerkung konnte nicht gelesen werden – nichts geändert, damit sie nicht überschrieben wird.", 0);
 		}
 		const oldText = String(scalar(old) ?? "").trim();
-		const text = [oldText, `${originNote(user, now, "Ergänzt")}\n${input.bemerkung_append}`].filter(Boolean).join("\n\n");
+		const text = [oldText, `${originNote(user, now, "Ergänzt")}\n${appendLines.join("\n")}`].filter(Boolean).join("\n\n");
 		customSend.bemerkung = text;
 		customExpect.bemerkung = text;
 		customBefore.bemerkung = oldText;
@@ -963,7 +1101,7 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 		},
 		tool: deps.logTool ?? "update_object",
 		userEmail: user.email,
-		warnings: dedupe.warnings,
+		warnings: [...dedupe.warnings, ...notes],
 	});
 	if (Object.keys(payload).length) {
 		try {
@@ -974,7 +1112,7 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 		}
 	}
 	const writeErrors = await writeSolo(client, input.id, solo);
-	if (!Object.keys(payload).length && writeErrors.length === solo.length) {
+	if (!Object.keys(payload).length && solo.length > 0 && writeErrors.length === solo.length) {
 		await finishWrite(deps.db, logId, { error: writeErrors.join(" | "), status: "failed" });
 		throw new PropstackError(`Nichts geändert: ${writeErrors.join("; ")}`, 0);
 	}
@@ -983,7 +1121,7 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	const { missing, unverified } = verifyObject(state, fields, customExpect);
 	// Koordinaten nur, wenn ausdrücklich angegeben (Stufen-Trick, Kontrolle per Einzel-GET)
 	let coordinates: Awaited<ReturnType<typeof ensureCoordinates>> | undefined;
-	if (input.lat !== undefined && input.lng !== undefined) {
+	if (coordsRequested) {
 		coordinates = await ensureCoordinates({
 			current: coordsOf(state.detail),
 			provided: { lat: input.lat, lng: input.lng },
@@ -998,6 +1136,7 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 		status: missing.length || writeErrors.length ? "done_with_gaps" : "done",
 	});
 
+	const warnings = [...dedupe.warnings, ...notes];
 	return {
 		count: 1,
 		result: {
@@ -1006,9 +1145,10 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 			title: scalar(state.row?.title ?? state.detail.title),
 			changed: [
 				...Object.keys(fields).map(fieldLabel),
-				...Object.keys(customSend).map((k) => (k === "bemerkung" && input.bemerkung_append ? "bemerkung (angehängt)" : `custom_fields.${k}`)),
+				...Object.keys(customSend).map((k) => (k === "bemerkung" && appendLines.length ? "bemerkung (angehängt)" : `custom_fields.${k}`)),
+				...(coordsRequested ? ["lat/lng"] : []),
 			],
-			warnings: dedupe.warnings.length ? dedupe.warnings : undefined,
+			warnings: warnings.length ? warnings : undefined,
 			not_applied: missing.length ? missing : undefined,
 			coordinates,
 			not_verifiable: unverified.length ? unverified : undefined,

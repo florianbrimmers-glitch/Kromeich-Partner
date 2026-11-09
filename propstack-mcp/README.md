@@ -15,7 +15,8 @@ Live unter `https://propstack-mcp.kromeichpartner.workers.dev/mcp`, als Organisa
 |---|---|---|
 | `whoami` | Angemeldeter Nutzer und Propstack-ID | – |
 | `search_contacts` / `get_contact` | Kontakte suchen bzw. abrufen | `GET /contacts`, `GET /contacts/:id` |
-| `search_objects` / `get_object` | Objekte (Einheiten) suchen bzw. abrufen | `GET /units`, `GET /units/:id?new=1` |
+| `search_objects` / `get_object` | Objekte (Einheiten) suchen bzw. abrufen, inkl. Bildern mit Titel | `GET /units`, `GET /units/:id?new=1` |
+| `get_project` | Projekt abrufen: Name, Überschrift, Unterzeile, Adresse, Koordinaten, Provision, Texte, Bilder mit Titel, Links, Einheiten | `GET /projects/:id`, `GET /units?project_id=` |
 | `search_deals` | Deals suchen und abrufen (Kontakt, Objekt, Phase, Preis) | `GET /client_properties` |
 | `pipeline_status` | Pipelines mit Phasen; je Phase Anzahl, Summe Preis, gewichteter Wert | `GET /deal_pipelines`, `GET /client_properties` |
 | `list_tags` | Merkmale je Entität mit IDs | `GET /groups`, `GET /super_groups` |
@@ -41,8 +42,8 @@ Bewusste Lücken: Ein einzelner Deal per ID und die Kontakt-Status-Liste sind nu
 |---|---|
 | `create_contact` | Kontakt (Person) anlegen |
 | `update_contact` | Kontakt ändern, Merkmale hinzufügen/entfernen (taggen), Notiz **anhängen** |
-| `create_object` | Objekt (Einheit) anlegen |
-| `update_object` | Objekt ändern (Eckdaten, Status, Preise, Flächen, Texte, Custom-Felder) |
+| `create_object` | Objekt anlegen – Einzelobjekt oder Einheit eines Projekts (übernimmt dann Adresse, Überschrift, Texte, Provision und Koordinaten vom Projekt) |
+| `update_object` | Objekt ändern (Eckdaten, Status, Aktiv, Preise, Flächen, Ausstattungsfelder, Provision, Texte, Custom-Felder, Koordinaten) |
 
 **Ablauf jedes Writes:**
 1. Eingaben prüfen. Custom-Felder werden gegen `list_fields` validiert (Name, Typ, Auswahlwerte), sonst verwirft Propstack sie still.
@@ -62,53 +63,78 @@ Bewusste Lücken: Ein einzelner Deal per ID und die Kontakt-Status-Liste sind nu
 **Objekte – Regeln aus dem Notion-Feld-Mapping („Propstack API – Feld-Mapping“, Korrekturen) und dem Skill `propstack-expose-workflow`:**
 - **Einzel-PUTs:** `rs_category`, `total_floor_space`, `industrial_area`, `hall_height`, `floor_load`, `broker_id`, `rented` und der Status verwirft Propstack im POST und in PUTs mit mehreren Feldern still (HTTP 200). Diese Felder werden nach dem Anlegen bzw. Ändern **einzeln** geschrieben. Ein fehlgeschlagener Einzel-PUT bricht die übrigen nicht ab und steht als `write_errors` im Ergebnis.
 - **Gegenlesen:** Der Einzel-GET liefert Flächen, Kategorie, Hallenhöhe, Status-ID usw. gar nicht. Gelesen wird deshalb über `GET /v1/units?expand=1&per=100&property_ids[]=ID`, Status über `status.id`, Betreuer über `broker.id`. Frisch angelegte Objekte fehlen dort kurz, deshalb gibt es Retries nach 1,5 s und 4 s. Felder, die kein Kanal zurückliefert, stehen als `not_verifiable` im Ergebnis (nicht als Fehler). `get_object` nutzt denselben Weg.
-- **Nicht angeboten:** `object_type` (leitet Propstack aus `rs_type` ab), `base_rent`/`total_rent` (Mietpreise nie öffentlich), `property_space_value` (berechnet), `note` (nicht schreibbar). Zu den Koordinaten siehe unten.
+- **Nicht angeboten:** `object_type` (leitet Propstack aus `rs_type` ab), `total_rent`, `property_space_value` (berechnet), `note` an Einheiten (laut Notion nicht schreibbar; über die API bisher nicht gegenprüfbar). Zu den Koordinaten siehe unten.
 - **Preise (Entscheidung Florian, 15.10.2026):** Interne Preise (`intern_mietpreis_hallenflache` / `_buro` / `_mezzanine`) dürfen immer gesetzt werden. **Öffentliche Preise** (`price` nur bei BUY, `base_rent` nur bei RENT, Custom-Felder `mietpreis_*`) nur, wenn der Nutzer sie ausdrücklich ansagt oder auf Nachfrage bestätigt. Dann setzt Claude `public_price_confirmed: true`, und die Bestätigung steht im Write-Log. Ohne Bestätigung weist das Tool ab und fordert zur Nachfrage auf. Ohne öffentlichen Preis gilt `price_on_inquiry: true`, auch bei Kaufobjekten.
 - **Interne Notizen** landen im Custom-Feld `bemerkung` (Herkunftsnotiz beim Anlegen, `bemerkung_append` hängt mit Datum und Nutzer an). Beschreibung, Lage, Ausstattung und Sonstiges sind **exposé-sichtbar**.
 - **Custom-Felder:** Zahlen nur als nackte Zahl mit Dezimalpunkt. Text wie `"10,5"` wird abgewiesen, ebenso m²-Werte mit drei Nachkommastellen (Tausenderpunkt-Verdacht). Auswahlfelder werden per Name oder Option-ID angenommen und als **Option-ID** gesendet. **Gesperrt:** `provisionspflichtig` (nur `null`), `mezzanineflache` (Einheit Euro, stattdessen `mezzanineflache_gesamt`/`_verfugbar`), `bemerkung` (nur über `bemerkung_append`). `list_fields` zeigt Einheit, Option-IDs und Sperren.
 - **Flächen gespiegelt:** Exposé und Teamansicht lesen die Flächen-Custom-Felder. Aus `industrial_area`, `usable_floor_space`, `total_floor_space` und `hall_height` füllt das Tool deshalb automatisch `lagerflache`/`_gesamt`, `buroflache`/`_gesamt`, `gebaudeflache_gesamt` und `hallenhohe`. Ist das Objekt nicht vermietet, kommen auch die `*_verfugbar`-Felder dazu, bei „Preis auf Anfrage“ außerdem `preisangabe`. Explizit übergebene Custom-Felder haben Vorrang. Bei Updates werden fehlende Varianten auch an Altobjekten nachgezogen.
 - **Vermietet** (`rented: true`, Team-Prozess): Das Tool setzt automatisch `free_from` „vermietet“, `status_logistik` und `aktiv` auf Inaktiv und die verfügbaren Flächen auf „X m² (vermietet)“. `status_logistik`/`aktiv` stehen **nur bei Status Vermarktung oder Reserviert** (und nicht vermietet) auf Aktiv, sonst auf Inaktiv; sie werden beim Anlegen und bei jedem Status- oder Vermietungswechsel neu gesetzt. Grund: Objekte in Akquise oder Vorbereitung dürfen nicht in Automatisierungen wie Exposéversand oder Webseite landen. Testobjekte bekommen zusätzlich `kein_automatischer_exposeversand` = Ja. Den Status (163676 Abgeschlossen) setzt man weiterhin separat.
 - **Flächen:** nie 0 m². `total_floor_space` = Halle + Mezzanine, ohne Büro (Regel seit 13.08.2026).
-- **Koordinaten (Entscheidung Florian, 16.10.):** Angegebene Werte haben Vorrang. Ohne Angabe gilt, was Propstack selbst ermittelt; fehlt das, ermittelt das Tool die Koordinaten aus der Adresse über OpenStreetMap (Nominatim) und meldet die Genauigkeit (Hausnummer oder Straße). Geschrieben wird mit dem Trick aus Notion-Korrektur 34: erst `lat`, dann `lng` mit 1, 2, 3, 4 Nachkommastellen und zuletzt exakt. Die Kontrolle läuft per Einzel-GET.
-- **Eigentümer an Einheiten:** `create_object` mit `owner_contact_id`, nachträglich über `set_project_owner` mit `object_id`. Die Prüfung erfolgt wie bei Projekten über die Gegenprobe.
+- **Koordinaten (Entscheidung Florian, 16.10.; korrigiert 09.11.):** Reihenfolge: angegebene Werte > Koordinaten des Projekts (Einheit mit gleicher Adresse) > was Propstack selbst ermittelt > OpenStreetMap (Nominatim) aus der Adresse. Das Tool meldet die Genauigkeit ehrlich: „Hausnummer“ nur, wenn OpenStreetMap die Hausnummer wirklich kennt, sonst „Straße“. Straßengenaue Treffer werden **gesetzt** und in der Prüfaufgabe zum Nachsehen markiert. Geschrieben wird mit dem Trick aus Notion-Korrektur 34: erst `lat`, dann `lng` mit 1, 2, 3, 4 Nachkommastellen und zuletzt exakt. Die Kontrolle läuft per Einzel-GET. An den Kartendienst geht nur die Adresse, mit neutralem Client-Namen.
+- **Eigentümer und Ansprechpartner an Einheiten:** `create_object` mit `owner_contact_id` und `contact_person_id`, nachträglich über `set_project_owner` mit `object_id` (und `role`). Die Prüfung erfolgt wie bei Projekten über die Gegenprobe.
 - **Feldpaare:** `beleuchtung_halle` und `beleuchtung` werden gegenseitig gespiegelt, weil Exposé und Teamansicht sie getrennt lesen.
 - **Prüfaufgaben mit Umlauten:** Die ASCII-Regel aus dem Skill galt für den alten curl-Weg.
 - `floor_load` (Bodentragkraft) in **kg/m²**. Propstack hängt die Einheit selbst an, 5 t/m² entsprechen also 5000.
-- `unit_id` ist in ganz Propstack eindeutig. Bei Einzelobjekten ohne Projekt weglassen.
+- `unit_id` (Einheitennummer, z. B. „Unit 1“) ist bei Einheiten im Projekt Pflicht. Bei Einzelobjekten ohne Projekt weglassen.
 - Nicht enthalten: Firmenkontakte (brauchen Propstack-V2), Deals anlegen/ändern, Löschen.
 
 ## Phase 3b: Projekte, Eigentümer, Bilder, Prüfaufgabe (Entscheidung Florian, 15.10.2026)
 
 | Tool | Zweck |
 |---|---|
-| `create_project` | Projekt (Standort) anlegen, optional mit Eigentümer. Dublettenprüfung über die Adresse |
-| `update_project` | Projekt ändern: Name, Adresse, Provision, Exposé-Texte, Adresse ausblenden, Koordinaten |
-| `set_project_owner` | Eigentümer-Kontakt (eigener Shop) mit einem Projekt oder einer Einheit verknüpfen |
-| `add_images` | Bilder per öffentlicher https-URL an Objekt oder Projekt hängen |
+| `create_project` | Projekt (Standort mit mindestens zwei Einheiten) anlegen, mit Eigentümer, Ansprechpartner, interner Notiz, Provision. Dublettenprüfung über die Adresse |
+| `update_project` | Projekt ändern: Name, Überschrift, Unterzeile, Adresse, Provision, Exposé-Texte, Adresse ausblenden, Koordinaten |
+| `set_project_owner` | Kontakt (eigener Shop) mit einem Projekt oder einer Einheit verknüpfen – als Eigentümer oder mit `role: contact_person` als Ansprechpartner |
+| `add_images` | Bilder per öffentlicher https-URL an Objekt oder Projekt hängen, mit Titeln |
+| `image_upload_url` | Einmal-Adresse für den Upload von Bilddateien, mit Titeln |
 
-- **Projekt:** Wrapper `project`, `country` DEU, Betreuer = Nutzer. Was Propstack im Sammel-Request still verwirft, wird erkannt und **einzeln nachgesetzt**. `note` ist nicht schreibbar; offene Punkte gehen über `review_notes` in die Prüfaufgabe. Testprojekte erkennt man am Namenspräfix `MCP-TEST`, weil Projekte keine Merkmale haben.
-- **Eigentümer:** `PUT /projects/{id}` mit `relationships_attributes` (`related_client_id`, nicht `client_id`). Der Projekt-GET zeigt frische Verknüpfungen nicht, deshalb prüft das Tool über eine Gegenprobe. Es sendet denselben Aufruf ein zweites Mal; Propstack lehnt Doppelte mit „bereits mit dem Kontakt verbunden“ ab, und genau das bestätigt die Verknüpfung. Ist die Antwort nicht eindeutig, meldet das Tool „nicht prüfbar“ und vermerkt es im Write-Log. Die Relationship-Liste ließ sich live nicht zuverlässig auswerten. „Existiert bereits“ zählt als Erfolg. Bei einem fremden Shop kommt eine klare Meldung.
-- **Bilder:** Nur öffentliche https-URLs (`remote_photo_url`). Ein Chat-Upload lässt sich über einen Remote-MCP nicht zuverlässig weiterreichen. Jede URL wird vorher geprüft (erreichbar, `Content-Type: image/*`, mit User-Agent), sonst entstehen leere Bildobjekte, die man nur in der UI löschen kann. Das erste Bild eines Objekts wird Titelbild.
+- **Projekt:** Wrapper `project`, `country` DEU, Betreuer = Nutzer. Was Propstack im Sammel-Request still verwirft, wird erkannt und **einzeln nachgesetzt**. Offene Punkte gehen über `review_notes` in die Prüfaufgabe. Testprojekte erkennt man am Namenspräfix `MCP-TEST`, weil Projekte keine Merkmale haben.
+- **Interne Notiz am Projekt (`note`):** Propstack nimmt das Feld an, liefert es im GET aber **nicht zurück** (live 09.11.; die Notion-Seite hielt es deshalb für nicht schreibbar). Folge: Beim Anlegen wird die Notiz blind geschrieben und zusätzlich in die Prüfaufgabe kopiert. **Nachträglich anhängen geht nicht** – ohne den alten Text würde „anhängen“ ihn ersetzen. `update_project` lehnt `note_append` deshalb ab, solange der GET die Notiz nicht liefert.
+- **Eigentümer und Ansprechpartner:** `PUT /projects/{id}` bzw. `PUT /units/{id}` mit `relationships_attributes` (`related_client_id`, nicht `client_id`): Eigentümer mit `internal_name: owner`, Ansprechpartner als verknüpfter Kontakt mit `internal_name: partner` und `name: Ansprechpartner` (API-Doku „Objekte“). Der Projekt-GET zeigt frische Verknüpfungen nicht, deshalb prüft das Tool über eine Gegenprobe. Es sendet denselben Aufruf ein zweites Mal; Propstack lehnt Doppelte mit „bereits mit dem Kontakt verbunden“ ab, und genau das bestätigt die Verknüpfung. Ist die Antwort nicht eindeutig, meldet das Tool „nicht prüfbar“ und vermerkt es im Write-Log. Die Relationship-Liste ließ sich live nicht zuverlässig auswerten. „Existiert bereits“ zählt als Erfolg. Bei einem fremden Shop kommt eine klare Meldung.
+- **Bilder per URL (`add_images`):** Nur öffentliche https-URLs (`remote_photo_url`). Jede URL wird vorher geprüft (erreichbar, `Content-Type: image/*`, mit neutralem User-Agent), sonst entstehen leere Bildobjekte, die man nur in der UI löschen kann. Das erste Bild eines Objekts wird Titelbild. `titles` benennt die Bilder (How-to: „müssen in Propstack benannt werden“).
 - **Prüfaufgabe automatisch** nach `create_project` und `create_object`:
   - an Lena (254958), bei `test: true` an den Nutzer selbst;
-  - `is_reminder: true`, fällig am nächsten Werktag 9:00, Text in ASCII;
-  - Inhalt: Link, Ersteller, Lücken (`not_applied`/`not_verifiable`), Fehler, Hinweise, offene Punkte.
+  - `is_reminder: true`, fällig am nächsten Werktag 9:00;
+  - Inhalt: Link, Ersteller, Eigentümer und Ansprechpartner, Koordinaten mit Genauigkeit, Lücken (`not_applied`/`not_verifiable`), Fehler, was laut How-to fehlt, Texthinweise, offene Punkte, die interne Notiz des Projekts zur Kontrolle und die Schritte, die nur in Propstack selbst gehen;
+  - Einheiten im Projekt bekommen eine eigene Aufgabe nur bei Problemen – sonst deckt die Aufgabe des Projekts sie ab.
   - Schlägt sie fehl, bleibt der Datensatz angelegt; im Ergebnis steht `review_task.error`.
 - **Bilder als Datei** (`image_upload_url`, für Claude Code und Cowork):
   - Das Tool liefert eine Einmal-Adresse `…/upload/images/<token>`: 15 Minuten gültig, an Nutzer und genau ein Objekt/Projekt gebunden, Token mit 256 Bit, liegt in KV.
-  - Die Sitzung lädt per `curl -F "image[photo]=@bild.jpg" <adresse>` hoch. Der Worker reicht die Dateien per Multipart (`image[photo]`) an Propstack weiter, mit Write-Log (`tool = image_upload`) und Audit.
+  - Die Sitzung lädt per `curl -F "image[photo]=@bild.jpg" -F "title=Außenansicht" <adresse>` hoch – je Bild ein `title` in derselben Reihenfolge. Der Worker reicht Datei und Titel per Multipart (`image[photo]`, `image[title]`) an Propstack weiter, mit Write-Log (`tool = image_upload`) und Audit.
+  - Aus dem Dateinamen wird bewusst **kein** Titel gemacht: Dateien aus Exposés heißen oft nach dem Eigentümer, und der Titel steht im Exposé.
   - Erlaubt sind JPEG, PNG und WebP, erkannt an den Datei-Bytes. Max. 15 MB je Bild, max. 20 Bilder je Adresse.
   - Ist eine Datei ungültig, wird nichts hochgeladen. Der Propstack-Key verlässt den Server nicht.
 - **API-Key:** Der Key „MCP-Server“ braucht in Propstack zusätzlich Schreibrechte für Projekte, Relationships, Bilder und Aufgaben.
-- **Rückmeldung Oguzhan (24.10.):**
-  - Projekte haben eine **interne Notiz** (`internal_note` beim Anlegen, `note_append` bei Änderungen; API-Feld `note`). Die Notion-Seite hält `note` für nicht schreibbar; das Gegenlesen meldet es, falls Propstack es verwirft.
-  - Projekte haben **`sub_headline`** (Unterzeile fürs Exposé) und **Projekt-Custom-Felder**.
-  - Einheiten im Projekt **übernehmen Lage- und Ausstattungstext** vom Projekt, wenn keine eigenen angegeben sind.
-  - **`contact_person_id`** schreibt den Ansprechpartner Vermietung (Kontakt-ID) ins Feld `ansprechpartner_vermietung`.
-  - **Koordinaten ohne Hausnummer:** OpenStreetMap kennt dann nur die Straßenmitte (Hillscheid: rund 3 km daneben). Das Tool setzt sie deshalb **nicht**, sondern meldet sie als Vorschlag. Genaue Werte kommen per `lat`/`lng`.
-  - Die Schalter „Einheiten im Exposé anzeigen“ und „Auf der Landingpage verlinken“ sind laut Notion und API-Doku nicht per API setzbar. Sie bleiben ein Handgriff in der Oberfläche.
 - **`update_project`** (Entscheidung Florian, 16.10.) arbeitet wie `update_object`: Es schreibt nur echte Änderungen, legt vorher einen Snapshot ins Write-Log und liest danach zurück. Was Propstack still verwirft, wird einzeln nachgesetzt. Koordinaten nur zusammen (lat+lng) und mit dem Stufen-Trick, bei Adressänderung mit Dublettenprüfung.
 - **Nicht enthalten:** Dokumente (PDF), Post in #objekte, Löschen. Im reinen claude.ai-Chat ohne Code-Ausführung gibt es keinen Datei-Upload, dort nur `add_images` per URL.
+
+## Team-How-to im Server (v0.9.0, 09.11.2026)
+
+Quelle: „Objekte in Propstack anlegen“ und „Projekte in Propstack anlegen“ (Drive: K & P → Allgemein → Knowledge Sharing → Propstack), die Notion-Wissensdatenbank und die Rückmeldung von Oguzhan (24.10.). Abgeglichen mit von Hand angelegten Datensätzen (Herford 6324578, Hillscheid 6282819). Die Regeln stehen im Code (`src/propstack/howto.ts`), damit jede Claude-Sitzung nach demselben Muster schreibt – unabhängig vom Skill.
+
+| How-to | Im Connector |
+|---|---|
+| Überschrift „Logistikhalle in (2-stellige PLZ) Ort“ | Falsche Ziffern in „(XX)“ → abgewiesen. Fehlt die Angabe → Hinweis. Projekt: `title` = `name`, wenn nicht anders angegeben |
+| Aktiv, „wenn wir das Objekt anbieten können“ | `active`. Ohne Angabe: Aktiv nur bei Status Vermarktung/Reserviert und nicht vermietet |
+| Interne Notizen: Link, Alleinmandat, Mietpreise, Provisionsregelung, Projektname des Entwicklers | `source_link`, `mandate`, `internal_commission`, `developer_project_name`; Mietpreise am Objekt in `internal_rent_hall` / `_office` / `_mezzanine` (interne Felder), am Projekt in `internal_rents`. Ziel: Projekt → `note`, Objekt → Custom-Feld `bemerkung` |
+| Ansprechpartner: Eigentümer ausfüllen, Kontakt hinterlegen | `owner_contact_id` und `contact_person_id` beim Anlegen, nachträglich `set_project_owner` (mit `role`) |
+| Adresse aus dem Dropdown → Koordinaten | Koordinaten werden ermittelt, geschrieben und gegengelesen (siehe oben). Einheiten übernehmen Adresse und Koordinaten des Projekts |
+| Provision ja/nein mit Standardtexten | `commission`: `provisionsfrei` oder `staffel` (die vier Sätze der Staffel). Feste Regeln je Eigentümer stehen in der Tool-Beschreibung |
+| Wichtige Flächenfelder | Eigene Parameter, auf die Felder gelegt, die das Team in Propstack sieht: `hall_divisible_from` → `lagerflache_teilbar_ab`, `office_divisible_from` → `buroflache_teilbar_ab`, `mezzanine_area` → `mezzanineflache_gesamt`/`_verfugbar`, `mezzanine_divisible_from`, `car_parking` → `stellplatze_verfugbar`, `truck_parking` → `lkw_stellplatze_gesamt`, `dock_doors` → `ramepntore`, `ground_level_doors` → `anzahl_rampentore_2`, `wgk`, `lighting` → `beleuchtung` + `beleuchtung_halle`, `sprinkler` → `sprinkleranlage`. Gesamtfläche = Halle + Mezzanine wird beim Anlegen berechnet |
+| Energie: Heizungsart Halle, Zertifizierung, Baujahr | `heating`, `certification`, `construction_year`. **Wesentlicher Energieträger** ist noch nicht möglich (API-Feld unbekannt) → steht als Handgriff in der Prüfaufgabe |
+| Objektbeschreibung als Fließtext, **ohne Eigentümernamen** | Text wird geprüft: voller Eigentümername oder Preis im Text → abgewiesen. Namensteil oder Straße im Text → Hinweis |
+| Lage: Entfernungen in km, stichpunktartig | Format steht in der Parameter-Beschreibung (gruppierte Liste). Fehlen km-Angaben → Hinweis |
+| Ausstattung: alles, was in kein Feld passt | Muss eine Aufzählung sein (eine Zeile je Punkt). Komma-Kette → abgewiesen |
+| Einheiten: Beschreibung, Lage, Ausstattung, Provision vom Projekt | Werden beim Anlegen der Einheit vom Projekt übernommen, ebenso Überschrift, Adresse und Koordinaten |
+| „Daten auf Einheiten übertragen“ nach Projektänderung | `update_project` nennt den Weg (`units_hint`): `plan` mit `object_filter {project_id}` und Texten/Provision – mit Vorschau und Undo |
+| Bilder benennen, keine Schriftzüge, Grundrisse kennzeichnen | Titel beim Upload (`title` je Bild bzw. `titles`). `get_object`/`get_project` zeigen die Titel. Grundriss-Kennzeichen und Schriftzüge bleiben Handarbeit |
+| „Einheitenliste im Exposé anzeigen“, „Auf der Landing Page verlinken“ | Nicht per API setzbar (nicht in der Doku). Stehen als Handgriff in der Prüfaufgabe und im Ergebnis (`ui_steps`) |
+
+- **Was fehlt, wird gemeldet:** Jedes Anlegen liefert `howto_not_provided` (laut How-to wichtig, aber nicht angegeben) und `text_warnings`. Beides steht auch in der Prüfaufgabe.
+- **Projekt oder Einzelobjekt:** Projekt nur bei mindestens zwei getrennt vermietbaren Einheiten, im Zweifel Einzelobjekt (Wissensdatenbank, Abschnitt 3).
+- **`contact_person_id` schreibt nicht mehr ins Custom-Feld `ansprechpartner_vermietung`** (v0.8.0 tat das mit der Kontakt-ID). Von Hand angelegte Objekte nutzen das Feld nicht; der Ansprechpartner ist jetzt eine echte Verknüpfung.
+- **Diagnose:** `get_object` und `get_project` mit `diagnose: "field_names"` listen die Feldnamen mit Bezeichnung und Typ, die Propstack liefert – ohne Werte. Damit lassen sich Felder aus der Oberfläche finden, die die Doku nicht nennt.
+- **Nachsichtige IDs:** Ziffernfolgen als Text (`"123"`) werden bei IDs und Anzahlen angenommen. Clients mit veralteter Tool-Liste schicken neue Parameter als Text.
 
 ## Phase 4: Massenänderungen (plan → apply_plan → undo_plan)
 
@@ -118,7 +144,7 @@ Bewusste Lücken: Ein einzelner Deal per ID und die Kontakt-Status-Liste sind nu
 | `apply_plan` | Bestätigten Plan ausführen, in Etappen |
 | `undo_plan` | Ausgeführten Plan rückgängig machen |
 
-- **Änderungen:** Kontakte: Merkmale hinzufügen/entfernen, Betreuer, Quelle, Kontaktstatus, Custom-Felder. Objekte: Status, vermietet, Custom-Felder. **Keine Merkmale an Objekten** (Entscheidung Florian, 16.10.). Live geprüft: Propstack ignoriert Merkmal-Updates an Objekten still (`sub_group_ids` und leere `group_ids`). Das Test-Merkmal MCP-TEST wird nur beim Anlegen gesetzt, das funktioniert.
+- **Änderungen:** Kontakte: Merkmale hinzufügen/entfernen, Betreuer, Quelle, Kontaktstatus, Custom-Felder. Objekte: Status, vermietet, Provision (`commission`, `courtage`, `courtage_note`), Exposé-Texte (Beschreibung, Lage, Ausstattung), Custom-Felder. Texte werden schon beim Planen gegen die Team-Regeln geprüft. **Keine Merkmale an Objekten** (Entscheidung Florian, 16.10.). Live geprüft: Propstack ignoriert Merkmal-Updates an Objekten still (`sub_group_ids` und leere `group_ids`). Das Test-Merkmal MCP-TEST wird nur beim Anlegen gesetzt, das funktioniert.
 - **Regeln:**
   - Höchstens 500 Datensätze je Plan.
   - Die Plan-ID verfällt 10 Minuten nach dem Planen (Spezifikation). Danach muss neu geplant werden, weil sich der Bestand geändert haben kann.

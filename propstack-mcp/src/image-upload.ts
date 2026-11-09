@@ -16,6 +16,10 @@ import type { WriteDeps } from "./tools/write-tools";
 
 const KV_PREFIX = "img-upload:";
 const FILE_FIELDS = ["image[photo]", "photo", "file", "image", "images[]"];
+// Bildtitel je Datei, in derselben Reihenfolge (How-to: Bilder müssen in Propstack benannt sein, z. B. „Außenansicht“).
+// Bewusst kein Titel aus dem Dateinamen: Dateien aus Exposés heißen oft nach dem Eigentümer – das stünde dann im Exposé.
+const TITLE_FIELDS = ["title", "titles[]", "image[title]"];
+const TITLE_MAX = 100;
 
 type Target = { type: "Property" | "Project"; id: number };
 
@@ -90,8 +94,8 @@ export async function imageUploadUrl(
 			max_images: grant.remaining,
 			max_mb_per_image: IMAGE_UPLOAD_MAX_BYTES / 1024 / 1024,
 			formats: "JPEG, PNG, WebP",
-			curl: `curl -sS -F "image[photo]=@bild1.jpg" -F "image[photo]=@bild2.jpg" "${url}"`,
-			note: "Dateien in der gewünschten Reihenfolge anhängen – das erste Bild eines Objekts wird Titelbild (bestes Außenfoto zuerst). Die Adresse nicht weitergeben; sie verfällt nach 15 Minuten bzw. wenn die Höchstzahl erreicht ist. Firmenschriftzüge vorher entfernen, Bildrechte klären.",
+			curl: `curl -sS -F "image[photo]=@bild1.jpg" -F "title=Außenansicht" -F "image[photo]=@bild2.jpg" -F "title=Halle innen" "${url}"`,
+			note: "Dateien in der gewünschten Reihenfolge anhängen – das erste Bild eines Objekts wird Titelbild (bestes Außenfoto zuerst). Je Bild ein title in derselben Reihenfolge (z. B. „Außenansicht“; kein Firmen- oder Eigentümername). Allgemeine Bilder ans Projekt, Grundrisse danach in Propstack kennzeichnen. Die Adresse nicht weitergeben; sie verfällt nach 15 Minuten bzw. wenn die Höchstzahl erreicht ist. Firmenschriftzüge vorher entfernen, Bildrechte klären.",
 		},
 	};
 }
@@ -133,18 +137,26 @@ export async function handleImageUpload(request: Request, env: Env, options: Upl
 	if (files.length > grant.remaining) {
 		return json(400, { error: `Zu viele Bilder: ${files.length}, mit dieser Adresse noch erlaubt: ${grant.remaining}. Nichts hochgeladen.` });
 	}
+	const titles: string[] = [];
+	for (const field of TITLE_FIELDS) {
+		for (const value of form.getAll(field)) if (typeof value === "string") titles.push(value.replace(/\s+/g, " ").trim());
+	}
+	if (titles.length && titles.length !== files.length) {
+		return json(400, { error: `${titles.length} Titel für ${files.length} Bilder – je Bild genau ein title, in derselben Reihenfolge. Nichts hochgeladen.` });
+	}
+	if (titles.some((t) => !t || t.length > TITLE_MAX)) return json(400, { error: `Bildtitel leer oder länger als ${TITLE_MAX} Zeichen. Nichts hochgeladen.` });
 
 	// Alles vorab prüfen – lieber nichts hochladen als die Hälfte
-	const checked: { file: File; type: string }[] = [];
+	const checked: { file: File; type: string; title?: string }[] = [];
 	const problems: string[] = [];
-	for (const file of files) {
+	for (const [index, file] of files.entries()) {
 		if (file.size > IMAGE_UPLOAD_MAX_BYTES) {
 			problems.push(`${file.name}: größer als ${IMAGE_UPLOAD_MAX_BYTES / 1024 / 1024} MB`);
 			continue;
 		}
 		const type = sniffImage(new Uint8Array(await file.slice(0, 12).arrayBuffer()));
 		if (!type) problems.push(`${file.name}: kein JPEG, PNG oder WebP`);
-		else checked.push({ file, type });
+		else checked.push({ file, title: titles[index], type });
 	}
 	if (problems.length) return json(400, { error: "Nichts hochgeladen.", problems });
 
@@ -163,7 +175,7 @@ export async function handleImageUpload(request: Request, env: Env, options: Upl
 			entity: "image",
 			entityId: grant.target.id,
 			overrideReason: null,
-			request: { files: checked.map(({ file, type }) => ({ bytes: file.size, name: file.name, type })), imageable_id: grant.target.id, imageable_type: grant.target.type },
+			request: { files: checked.map(({ file, title, type }) => ({ bytes: file.size, name: file.name, title, type })), imageable_id: grant.target.id, imageable_type: grant.target.type },
 			tool: "image_upload",
 			userEmail: grant.email,
 			warnings: [],
@@ -174,15 +186,15 @@ export async function handleImageUpload(request: Request, env: Env, options: Upl
 
 	const client = options.createClient?.() ?? new PropstackClient({ apiKey: env.PROPSTACK_API_KEY });
 	const started = now;
-	const uploaded: { file: string; image_id: number | null }[] = [];
+	const uploaded: { file: string; image_id: number | null; title?: string }[] = [];
 	const errors: string[] = [];
-	for (const { file, type } of checked) {
+	for (const { file, title, type } of checked) {
 		try {
-			const response = (await client.uploadImage(grant.target.type, grant.target.id, new Blob([await file.arrayBuffer()], { type }), file.name)) as
+			const response = (await client.uploadImage(grant.target.type, grant.target.id, new Blob([await file.arrayBuffer()], { type }), file.name, title)) as
 				| Record<string, unknown>
 				| undefined;
 			const id = typeof response?.id === "number" ? response.id : null;
-			uploaded.push({ file: file.name, image_id: id });
+			uploaded.push({ file: file.name, image_id: id, title });
 			if (id === null) errors.push(`${file.name}: keine Bild-ID zurückbekommen – bitte in der UI prüfen`);
 		} catch (error) {
 			errors.push(`${file.name}: ${(error as Error).message}`);
@@ -211,5 +223,8 @@ export async function handleImageUpload(request: Request, env: Env, options: Upl
 		images: uploaded,
 		errors: errors.length ? errors : undefined,
 		remaining_on_this_url: Math.max(0, remaining),
+		note: titles.length
+			? "Grundrisse in Propstack als Grundriss kennzeichnen."
+			: "Ohne Titel hochgeladen – Bilder in Propstack benennen (z. B. „Außenansicht“) oder beim nächsten Mal je Bild -F \"title=…\" mitgeben. Grundrisse als Grundriss kennzeichnen.",
 	});
 }

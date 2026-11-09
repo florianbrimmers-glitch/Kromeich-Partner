@@ -3,8 +3,10 @@ import { type BulkItem, type BulkPlan, type BulkStore, D1BulkStore, type UndoSta
 import { PropstackClient, PropstackError } from "../propstack-client";
 import { contactFilterShape, objectFilterShape } from "../propstack/filters";
 import { validateCustomFields } from "../propstack/field-rules";
+import { checkExposeTexts, commissionParam, throwOnTextErrors } from "../propstack/howto";
 import { scalar } from "../propstack/mappers";
 import { readUnit, UNVERIFIABLE, unitCustomValue, unitValue } from "../propstack/unit-state";
+import { id } from "./params";
 import { selectContacts, selectObjects, type ToolOutput } from "./read-tools";
 import {
 	CONTACT_KEYS,
@@ -37,8 +39,8 @@ export const BULK_REQUEST_BUDGET = 40;
 /** Schlechtester Fall je Datensatz (Lesen, Feldregistry, Schreiben, Einzel-PUTs, Zurücklesen; Undo +Lesen). */
 const COST = { contacts: { apply: 4, undo: 5 }, objects: { apply: 10, undo: 12 } } as const;
 
-const id = z.number().int().positive();
 const tagIds = z.array(id).min(1).max(20);
+const text = (max: number) => z.string().trim().min(1).max(max).optional();
 
 export const changesShape = {
 	add_tag_ids: tagIds.optional().describe("Nur Kontakte: Merkmale hinzufügen (list_tags entity=contacts)"),
@@ -48,6 +50,12 @@ export const changesShape = {
 	client_status_id: id.optional().describe("Nur Kontakte: Kontaktstatus setzen"),
 	status_id: id.optional().describe("Nur Objekte: Objekt-Status (163672 Akquise … 163676 Abgeschlossen)"),
 	rented: z.boolean().optional().describe("Nur Objekte: vermietet ja/nein (mit den Automatiken aus update_object)"),
+	commission: commissionParam.describe("Nur Objekte: Provision nach Team-Standard – provisionsfrei oder staffel (Standardtexte wie bei update_object)"),
+	courtage: text(200).describe("Nur Objekte: Außenprovision fürs Exposé"),
+	courtage_note: text(2000).describe("Nur Objekte: Provisionshinweis"),
+	description_note: text(10000).describe("Nur Objekte: Objektbeschreibung – Regeln wie bei update_object (kein Eigentümer, keine Adresse, keine Preise)"),
+	location_note: text(10000).describe("Nur Objekte: Lage – Regeln wie bei update_object (Entfernungen in km als gruppierte Liste)"),
+	furnishing_note: text(10000).describe("Nur Objekte: Ausstattung als Aufzählung, eine Zeile je Punkt mit „- “"),
 	custom_fields: z.record(z.string(), z.unknown()).optional().describe("Custom-Felder {schlüssel: wert} wie bei update_contact/update_object; null leert"),
 	public_price_confirmed: z.literal(true).optional().describe("Nur Objekte: öffentliche Preisfelder (mietpreis_*) – nur auf ausdrückliche Ansage"),
 };
@@ -55,7 +63,9 @@ export const changesShape = {
 // Merkmale nur an Kontakten (Entscheidung Florian, 16.10.): an Objekten ignoriert Propstack Merkmal-Updates
 // still (live: sub_group_ids und leere group_ids ohne Wirkung) und das Team braucht sie dort nicht.
 const CONTACT_ONLY = ["broker_id", "source_id", "client_status_id", "add_tag_ids", "remove_tag_ids"];
-const OBJECT_ONLY = ["status_id", "rented", "public_price_confirmed"];
+// Texte und Provision an Objekten: Ersatz für „Daten auf Einheiten übertragen“ nach einer Projektänderung (How-to).
+const OBJECT_TEXT_KEYS = ["commission", "courtage", "courtage_note", "description_note", "location_note", "furnishing_note"];
+const OBJECT_ONLY = ["status_id", "rented", "public_price_confirmed", ...OBJECT_TEXT_KEYS];
 
 export const planBulkInput = {
 	entity: z.enum(["contacts", "objects"]).describe("Kontakte oder Objekte"),
@@ -113,7 +123,10 @@ export async function planBulk(deps: BulkDeps, input: z.infer<z.ZodObject<typeof
 	const both = (changes.add_tag_ids as number[] | undefined)?.filter((t) => (changes.remove_tag_ids as number[] | undefined)?.includes(t)) ?? [];
 	if (both.length) throw new PropstackError(`Merkmal gleichzeitig hinzufügen und entfernen: ${both.join(", ")}.`, 400);
 
-	// Custom-Felder jetzt prüfen – lieber vor dem Lauf abweisen als 500-mal danach
+	// Texte und Provision jetzt prüfen – lieber vor dem Lauf abweisen als 500-mal danach
+	const findings = checkExposeTexts(changes, { publicPriceConfirmed: changes.public_price_confirmed === true });
+	throwOnTextErrors(findings);
+	// Custom-Felder ebenso
 	await validateCustomFields(client, entity === "contacts" ? "for_clients" : "for_properties", changes.custom_fields as Raw | undefined, undefined, {
 		publicPriceConfirmed: changes.public_price_confirmed === true,
 	});
@@ -189,6 +202,7 @@ export async function planBulk(deps: BulkDeps, input: z.infer<z.ZodObject<typeof
 			changes,
 			total: rows.length,
 			already_matching: tagOnly ? alreadyOk : undefined,
+			text_warnings: findings.warnings.length ? findings.warnings : undefined,
 			sample: rows.slice(0, 10).map((row) => ({ id: Number(scalar(row.id)), label: labelOf(row, entity) })),
 			estimated_calls: Math.ceil(rows.length / perCall),
 			next: `NICHTS ist geändert. Dem Nutzer Auswahl, Anzahl und Änderung zeigen und ausdrücklich bestätigen lassen – erst dann apply_plan mit plan_id. Die ID verfällt um ${plan.expires_ts}.`,
@@ -206,7 +220,7 @@ function itemInput(entity: "contacts" | "objects", entityId: number, changes: Ra
 	const pick = (keys: string[]) => Object.fromEntries(keys.filter((k) => changes[k] !== undefined).map((k) => [k, changes[k]]));
 	return entity === "contacts"
 		? { id: entityId, ...pick(["add_tag_ids", "remove_tag_ids", "broker_id", "source_id", "client_status_id", "custom_fields"]) }
-		: { id: entityId, ...pick(["status_id", "rented", "custom_fields", "public_price_confirmed"]) };
+		: { id: entityId, ...pick(["status_id", "rented", "custom_fields", "public_price_confirmed", ...OBJECT_TEXT_KEYS]) };
 }
 
 async function runOne(

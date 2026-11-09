@@ -222,7 +222,9 @@ describe("add_images", () => {
 		const methods: string[] = [];
 		const f = (async (_u: string, init: RequestInit) => {
 			methods.push(String(init.method));
-			expect((init.headers as Record<string, string>)["User-Agent"]).toMatch(/KromeichPropstackMCP/);
+			// neutraler Client-Name – keine Firmen- oder Personendaten an fremde Server
+			expect((init.headers as Record<string, string>)["User-Agent"]).toMatch(/^propstack-mcp\//);
+			expect((init.headers as Record<string, string>)["User-Agent"]).not.toMatch(/kromeich/i);
 			return init.method === "HEAD" ? new Response(null, { status: 405 }) : new Response(null, { headers: { "content-type": "image/png" }, status: 206 });
 		}) as unknown as typeof fetch;
 		expect(await checkImageUrl("https://x.de/a.png", f)).toBeNull();
@@ -231,7 +233,7 @@ describe("add_images", () => {
 });
 
 describe("Koordinaten (Notion-Korrektur 34)", async () => {
-	const { ensureCoordinates, writeCoordinates } = await import("../src/propstack/geo");
+	const { coordinatesLine, ensureCoordinates, writeCoordinates } = await import("../src/propstack/geo");
 
 	it("lat einmal, lng in Stufen 1–4 Nachkommastellen, dann exakt; Kontrolle per Einzel-GET", async () => {
 		const puts: Record<string, unknown>[] = [];
@@ -248,38 +250,40 @@ describe("Koordinaten (Notion-Korrektur 34)", async () => {
 		expect(out).toMatchObject({ verified: true });
 	});
 
-	it("Propstack hat selbst Koordinaten → nichts schreiben; sonst OpenStreetMap mit Genauigkeit", async () => {
+	it("Propstack hat selbst Koordinaten → nichts schreiben; sonst OpenStreetMap mit ehrlicher Genauigkeit", async () => {
 		const noWrite = await ensureCoordinates({ current: { lat: 50.1, lng: 7.1 }, put: async () => { throw new Error("darf nicht schreiben"); }, read: async () => ({}) });
 		expect(noWrite).toMatchObject({ source: "Propstack", verified: true });
 
-		let stored: Record<string, number> = {};
-		const fetchFn = (async (url: string) => {
-			expect(url).toContain("postalcode=56204");
-			return new Response(JSON.stringify([{ lat: "50.4367123", lon: "7.7047456" }]), { status: 200 });
-		}) as unknown as typeof fetch;
-		// Ohne Hausnummer: nur Straßenmitte → nicht setzen, als Vorschlag melden (live 16.10.: ~3 km daneben)
-		const street = await ensureCoordinates({
-			address: { city: "Hillscheid", street: "Am Scheid", zip_code: "56204" },
-			current: {},
-			fetchFn,
-			put: async () => {
-				throw new Error("darf nicht schreiben");
-			},
-			read: async () => ({}),
-		});
-		expect(street).toMatchObject({ lat: 50.436712, source: "keine", verified: false });
-		expect(street.note).toMatch(/Straßenmitte/);
+		const store = () => {
+			let stored: Record<string, number> = {};
+			return { put: async (b: unknown) => void (stored = { ...stored, ...(b as Record<string, number>) }), read: async () => stored };
+		};
+		const osm = (houseNumberKnown: boolean) =>
+			(async (url: string, init: RequestInit) => {
+				expect(url).toContain("postalcode=56204");
+				expect(url).toContain("addressdetails=1");
+				expect((init.headers as Record<string, string>)["User-Agent"]).not.toMatch(/kromeich/i);
+				return new Response(JSON.stringify([{ address: houseNumberKnown ? { house_number: "3" } : { road: "Am Scheid" }, lat: "50.4109123", lon: "7.6809456" }]), { status: 200 });
+			}) as unknown as typeof fetch;
 
-		const geo = await ensureCoordinates({
-			address: { city: "Hillscheid", house_number: "3", street: "Am Scheid", zip_code: "56204" },
-			current: {},
-			fetchFn,
-			put: async (b) => {
-				stored = { ...stored, ...(b as Record<string, number>) };
-			},
-			read: async () => stored,
-		});
-		expect(geo).toMatchObject({ lat: 50.436712, lng: 7.704746, precision: "Hausnummer", source: "OpenStreetMap", verified: true });
+		// Ohne Hausnummer: straßengenau – wird gesetzt und als solches gemeldet.
+		// (Korrektur 09.11.: Die UI zieht für dieselbe Adresse 50.4109821/7.6811256, OSM liegt ≈ 15 m daneben.)
+		const street = await ensureCoordinates({ address: { city: "Hillscheid", street: "Am Scheid", zip_code: "56204" }, current: {}, fetchFn: osm(false), ...store() });
+		expect(street).toMatchObject({ lat: 50.410912, lng: 7.680946, precision: "Straße (keine Hausnummer)", source: "OpenStreetMap", verified: true });
+		expect(street.note).toMatch(/straßengenau/);
+		expect(coordinatesLine(street)).toMatch(/Genauigkeit Straße \(keine Hausnummer\)\) – Nur straßengenau/);
+
+		// Mit Hausnummer gefragt, OpenStreetMap kennt sie nicht → nicht als „Hausnummer“ ausgeben
+		const unknownNumber = await ensureCoordinates({ address: { city: "Hillscheid", house_number: "3", street: "Am Scheid", zip_code: "56204" }, current: {}, fetchFn: osm(false), ...store() });
+		expect(unknownNumber).toMatchObject({ precision: "Straße (Hausnummer in OpenStreetMap nicht gefunden)", verified: true });
+
+		const exact = await ensureCoordinates({ address: { city: "Hillscheid", house_number: "3", street: "Am Scheid", zip_code: "56204" }, current: {}, fetchFn: osm(true), ...store() });
+		expect(exact).toMatchObject({ precision: "Hausnummer", source: "OpenStreetMap", verified: true });
+		expect(exact.note).toBeUndefined();
+
+		// Vom Projekt übernommene Koordinaten werden als solche ausgewiesen
+		const fromProject = await ensureCoordinates({ current: {}, provided: { lat: 50.4109821, lng: 7.6811256 }, providedSource: "Projekt", ...store() });
+		expect(fromProject).toMatchObject({ lat: 50.4109821, lng: 7.6811256, source: "Projekt", verified: true });
 	});
 
 	it("lng haftet nicht → nicht verifiziert", async () => {
@@ -347,5 +351,185 @@ describe("update_project – interne Notiz, Unterzeile", () => {
 		);
 		expect(stored.sub_headline).toBe("Direkt an der A48");
 		expect(out.result).toMatchObject({ changed: ["sub_headline", "note"], not_applied: ["note"] });
+	});
+});
+
+describe("create_project – Team-How-to", () => {
+	const input = { city: "Düsseldorf", house_number: "12", marketing_type: "RENT" as const, name: "Logistikhalle in (40) Düsseldorf", street: "Kappeler Straße", zip_code: "40597" };
+
+	function world() {
+		const stored: Record<string, unknown> = {};
+		const links: unknown[] = [];
+		let task: Record<string, unknown> = {};
+		const { client, calls } = fakeClient({
+			createProject: (p) => {
+				Object.assign(stored, p);
+				return { id: 700 };
+			},
+			createTask: (t) => {
+				task = t as Record<string, unknown>;
+				return { id: 78 };
+			},
+			getContact: (id) => (id === 111 ? { company: "Goodman Germany GmbH", id: 111, name: "Goodman Germany GmbH" } : { company: "Goodman Germany GmbH", id: 222, name: "Stefan Prange" }),
+			// GET liefert note nicht zurück (live 09.11.) und kennt die Adresse – Propstack hat selbst geokodiert
+			getProject: () => {
+				const { note: _note, ...rest } = stored;
+				return { ...rest, broker: { id: 347158 }, id: 700, lat: 51.2, lng: 6.8 };
+			},
+			updateProject: (_id, p) => {
+				const body = p as { relationships_attributes?: { internal_name: string; related_client_id: number }[] };
+				if (!body.relationships_attributes) return Object.assign(stored, p);
+				const key = JSON.stringify(body.relationships_attributes[0]);
+				if (links.includes(key)) throw new Error('Propstack-Anfrage fehlgeschlagen (400): ["Relationships project ist bereits mit dem Kontakt verbunden"]');
+				links.push(key);
+				return {};
+			},
+		});
+		return { calls, client, links, stored, task: () => task };
+	}
+
+	it("Ansprechpartner als verknüpfter Kontakt, Provision per Vorgabe, interne Notiz strukturiert und in der Prüfaufgabe", async () => {
+		const w = world();
+		const out = await createProject(
+			{ client: w.client, db: fakeDb().db, now: NOW, user: USER },
+			{
+				...input,
+				commission: "provisionsfrei",
+				contact_person_id: 222,
+				description_note: "Logistikpark mit drei Hallen und insgesamt 30.000 m² Hallenfläche.",
+				furnishing_note: "- 30 Rampentore\n- LED-Beleuchtung",
+				internal_commission: "Tischregel 50/50",
+				internal_rents: "Halle 6,80 €/m², Büro 12,80 €/m²",
+				location_note: "Autobahnen:\nA46: ca. 2 km",
+				mandate: "kein Alleinmandat",
+				owner_contact_id: 111,
+				source_link: "https://example.org/expose.pdf",
+				sub_headline: "Direkt an der A46",
+			},
+		);
+		expect(w.stored).toMatchObject({ courtage: "Provisionsfrei", courtage_note: "Die Anmietung erfolgt provisionsfrei für den Mieter.", title: "Logistikhalle in (40) Düsseldorf" });
+		expect(String(w.stored.note).split("\n")).toEqual([
+			"Angelegt über Claude (Propstack MCP) von Florian Brimmers am 2026-10-16.",
+			"Exposé/Website: https://example.org/expose.pdf",
+			"Mandat: kein Alleinmandat",
+			"Mietpreise: Halle 6,80 €/m², Büro 12,80 €/m²",
+			"Provision intern: Tischregel 50/50",
+		]);
+		expect(w.links).toEqual([
+			JSON.stringify({ internal_name: "owner", related_client_id: 111 }),
+			JSON.stringify({ internal_name: "partner", name: "Ansprechpartner", related_client_id: 222 }),
+		]);
+		expect(out.result).toMatchObject({
+			contact_person: { id: 222, linked: true, name: "Stefan Prange" },
+			not_verifiable: ["note"],
+			owner: { id: 111, linked: true },
+		});
+		expect((out.result as { howto_not_provided?: string[] }).howto_not_provided).toBeUndefined();
+		expect((out.result as { ui_steps: string[] }).ui_steps.join(" ")).toMatch(/Einheitenliste im Exposé anzeigen/);
+		// Prüfaufgabe: Notiz zur Kontrolle (Propstack liefert sie nicht zurück), UI-Schritte, beide Verknüpfungen
+		const body = String(w.task().body);
+		expect(body).toMatch(/Ansprechpartner: Stefan Prange \(222\)/);
+		expect(body).toMatch(/Interne Notiz – so gesendet.*Mandat: kein Alleinmandat/);
+		expect(body).toMatch(/Einheitenliste im Exposé anzeigen/);
+	});
+
+	it("meldet, was laut How-to fehlt, und Hinweise zu Texten", async () => {
+		const w = world();
+		const out = await createProject(
+			{ client: w.client, db: fakeDb().db, now: NOW, user: USER },
+			{ ...input, location_note: "Verkehrsgünstig an der Kappeler Straße gelegen.", name: "Logistikhalle Düsseldorf" },
+		);
+		const result = out.result as { howto_not_provided: string[]; text_warnings: string[] };
+		expect(result.howto_not_provided).toEqual(
+			expect.arrayContaining(["Eigentümer", "Interne Notiz: Exposé-/Website-Link", "Interne Notiz: Mandat", "Interne Notiz: Mietpreise", "Unterzeile (z. B. „Direkt an der A40“)", "Provision", "Projektbeschreibung", "Ausstattung"]),
+		);
+		expect(result.text_warnings.join(" ")).toMatch(/Lage: keine Entfernungen in km/);
+		expect(result.text_warnings.join(" ")).toMatch(/Lage: nennt die Straße „Kappeler Straße“/);
+		expect(result.text_warnings.join(" ")).toMatch(/Überschrift ohne „\(40\)“/);
+		expect(String(w.task().body)).toMatch(/Nicht angegeben \(laut How-to wichtig\): Eigentümer/);
+	});
+
+	it("weist Texte gegen die Team-Regeln vor dem Anlegen ab", async () => {
+		const w = world();
+		const deps = { client: w.client, db: fakeDb().db, now: NOW, user: USER };
+		await expect(createProject(deps, { ...input, description_note: "Ein Projekt der Goodman Germany GmbH.", owner_contact_id: 111 })).rejects.toThrow(/nennt den Eigentümer „Goodman Germany GmbH“/);
+		await expect(createProject(deps, { ...input, description_note: "Miete 6,80 €/m² zzgl. Nebenkosten." })).rejects.toThrow(/enthält einen Preis \(„6,80 €“\)/);
+		await expect(createProject(deps, { ...input, furnishing_note: "LED-Beleuchtung, Sprinkler, 30 Rampen, Hallenhöhe 10,5 m" })).rejects.toThrow(/Ausstattung: bitte als Aufzählung/);
+		await expect(createProject(deps, { ...input, name: "Logistikhalle in (50) Düsseldorf" })).rejects.toThrow(/\(50\) passt nicht zur PLZ 40597 – richtig wäre \(40\)/);
+		await expect(createProject(deps, { ...input, commission: "staffel", marketing_type: "BUY" })).rejects.toThrow(/commission gilt nur für Miete/);
+		expect(w.calls.some((c) => c.method === "createProject")).toBe(false);
+		// Preis im Text nur auf ausdrückliche Ansage
+		const ok = await createProject(deps, { ...input, description_note: "Miete 6,80 €/m² zzgl. Nebenkosten.", public_price_confirmed: true });
+		expect(ok.result).toMatchObject({ created: true });
+	});
+
+	it("Staffel-Vorgabe: Provisionshinweis mit den vier Standardsätzen, Außenprovision bleibt frei", async () => {
+		const w = world();
+		await createProject({ client: w.client, db: fakeDb().db, now: NOW, user: USER }, { ...input, commission: "staffel" });
+		expect(w.stored.courtage).toBeUndefined();
+		const lines = String(w.stored.courtage_note).split("\n");
+		expect(lines).toHaveLength(4);
+		expect(lines[0]).toBe("Bei Mietverträgen mit einer Laufzeit von weniger als fünf (5) Jahren beträgt der Provisionsanspruch zwei (2) Nettokaltmieten zzgl. MwSt.");
+		expect(lines[3]).toMatch(/ab zehn \(10\) Jahren .* vier \(4\) Nettokaltmieten zzgl\. MwSt\.$/);
+	});
+});
+
+describe("update_project – Schutz der internen Notiz, Hinweis auf die Einheiten", () => {
+	it("hängt nicht an, wenn Propstack die vorhandene Notiz nicht zurückliefert (würde sie überschreiben)", async () => {
+		const { client, calls } = fakeClient({ getProject: () => ({ city: "Hillscheid", id: 1, name: "P", street: "Am Scheid", zip_code: "56204" }) });
+		await expect(updateProject({ client, db: fakeDb().db, now: NOW, user: USER }, { id: 1, note_append: "Exposé: https://example.org" })).rejects.toThrow(/nicht zurück – anhängen würde sie überschreiben/);
+		expect(calls.some((c) => c.method === "updateProject")).toBe(false);
+	});
+
+	it("geänderte Texte: Regeln greifen, Ergebnis nennt den Weg zu den Einheiten", async () => {
+		const stored: Record<string, unknown> = { city: "Hillscheid", for_rent: true, id: 5, name: "P", street: "Am Scheid", zip_code: "56204" };
+		const { client } = fakeClient({
+			getProject: () => ({ ...stored }),
+			updateProject: (_id, p) => Object.assign(stored, p),
+		});
+		const deps = { client, db: fakeDb().db, now: NOW, user: USER };
+		await expect(updateProject(deps, { furnishing_note: "LED, Sprinkler, Rampen", id: 5 })).rejects.toThrow(/Aufzählung/);
+		const out = await updateProject(deps, { commission: "provisionsfrei", furnishing_note: "- LED\n- Sprinkler", id: 5 });
+		expect(stored).toMatchObject({ courtage: "Provisionsfrei", furnishing_note: "- LED\n- Sprinkler" });
+		expect(String((out.result as { units_hint: string }).units_hint)).toMatch(/object_filter \{project_id: 5\}/);
+	});
+});
+
+describe("set_project_owner – Ansprechpartner", () => {
+	it("role=contact_person verknüpft als Partner mit Bezeichnung; Gegenprobe bestätigt", async () => {
+		const sent: unknown[] = [];
+		const { client } = fakeClient({
+			getUnit: () => ({ id: 9, title: "Halle" }),
+			updateUnit: (_id, p) => {
+				sent.push(p);
+				if (sent.length > 1) throw new Error('Propstack-Anfrage fehlgeschlagen (400): ["Relationships property ist bereits mit dem Kontakt verbunden"]');
+				return {};
+			},
+		});
+		const out = await setProjectOwner({ client, db: fakeDb().db, user: USER }, { contact_id: 222, object_id: 9, role: "contact_person" });
+		expect(sent[0]).toEqual({ relationships_attributes: [{ internal_name: "partner", name: "Ansprechpartner", related_client_id: 222 }] });
+		expect(out.result).toMatchObject({ contact: { id: 222 }, linked: true, role: "Ansprechpartner" });
+	});
+});
+
+describe("add_images – Titel", () => {
+	const fetchFn = (async () => new Response(null, { headers: { "content-type": "image/jpeg" }, status: 200 })) as unknown as typeof fetch;
+
+	it("gibt Titel an Propstack weiter; Anzahl muss passen", async () => {
+		const sent: unknown[] = [];
+		const { client } = fakeClient({
+			createImage: (i) => {
+				sent.push(i);
+				return { id: 1 };
+			},
+			getProject: () => ({ id: 7 }),
+		});
+		const deps = { client, db: fakeDb().db, fetchFn, user: USER };
+		await addImages(deps, { project_id: 7, titles: ["Außenansicht", "Halle innen"], urls: ["https://x.de/a.jpg", "https://x.de/b.jpg"] });
+		expect(sent).toEqual([
+			{ imageable_id: 7, imageable_type: "Project", remote_photo_url: "https://x.de/a.jpg", title: "Außenansicht" },
+			{ imageable_id: 7, imageable_type: "Project", remote_photo_url: "https://x.de/b.jpg", title: "Halle innen" },
+		]);
+		await expect(addImages(deps, { project_id: 7, titles: ["nur einer"], urls: ["https://x.de/a.jpg", "https://x.de/b.jpg"] })).rejects.toThrow(/genau so viele/);
 	});
 });

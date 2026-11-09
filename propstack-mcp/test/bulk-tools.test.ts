@@ -179,6 +179,67 @@ describe("apply_plan / undo_plan", () => {
 	});
 });
 
+describe("Objekte: Texte und Provision übertragen (Ersatz für „Daten auf Einheiten übertragen“)", () => {
+	function unitWorld() {
+		const units = new Map<number, Record<string, unknown>>([
+			[1, { courtage: null, courtage_note: null, furnishing_note: "alt", id: 1, marketing_type: "RENT", title: "Unit 1" }],
+			[2, { courtage: "Provisionsfrei", courtage_note: null, furnishing_note: "- LED\n- Sprinkler", id: 2, marketing_type: "RENT", title: "Unit 2" }],
+		]);
+		const puts: { id: number; payload: Record<string, unknown> }[] = [];
+		const makeClient = () => {
+			let used = 0;
+			return {
+				getUnit: async (id: number) => (used++, { custom_fields: {}, id, title: units.get(id)!.title }),
+				listCustomFieldGroups: async () => (used++, page([])),
+				get requestsUsed() {
+					return used;
+				},
+				searchUnits: async (q: Query) => {
+					used++;
+					const ids = (q.property_ids as number[] | undefined) ?? [...units.keys()];
+					return page(ids.filter((i) => units.has(i)).map((i) => Object.fromEntries(Object.entries(units.get(i)!).map(([k, v]) => [k, k === "id" ? v : { label: k, value: v }]))));
+				},
+				updateUnit: async (id: number, payload: Record<string, unknown>) => {
+					used++;
+					puts.push({ id, payload });
+					Object.assign(units.get(id)!, payload);
+					return {};
+				},
+			} as unknown as PropstackClient;
+		};
+		return { makeClient, puts, units };
+	}
+
+	it("plant per Projekt-Filter, prüft die Texte vorab, schreibt nur Abweichungen, Undo stellt den alten Text her", async () => {
+		const world = unitWorld();
+		const store = new MemoryBulkStore();
+		const { db } = fakeDb();
+		const deps = () => ({ client: world.makeClient(), db, now: () => T0, store, user: USER });
+		// Verstoß gegen die Team-Regeln fällt beim Planen auf, nicht erst beim Ausführen
+		await expect(
+			planBulk(deps(), { changes: { furnishing_note: "LED, Sprinkler, Rampen" }, description: "Ausstattung übertragen", entity: "objects", object_filter: { project_id: 7 } }),
+		).rejects.toThrow(/Aufzählung/);
+		await expect(planBulk(deps(), { changes: { courtage: "Provisionsfrei" }, description: "xxxxx", entity: "contacts", ids: [1] })).rejects.toThrow(/nicht möglich: courtage/);
+
+		const out = await planBulk(deps(), {
+			changes: { commission: "provisionsfrei", furnishing_note: "- LED\n- Sprinkler" },
+			description: "Provision und Ausstattung vom Projekt übertragen",
+			entity: "objects",
+			object_filter: { project_id: 7 },
+		});
+		const planId = (out.result as { plan_id: string }).plan_id;
+		const applied = (await applyPlan(deps(), { plan_id: planId })).result as Record<string, unknown>;
+		expect(applied).toMatchObject({ done: 2, finished: true });
+		expect(world.puts).toEqual([
+			{ id: 1, payload: { courtage: "Provisionsfrei", courtage_note: "Die Anmietung erfolgt provisionsfrei für den Mieter.", furnishing_note: "- LED\n- Sprinkler" } },
+			{ id: 2, payload: { courtage_note: "Die Anmietung erfolgt provisionsfrei für den Mieter." } },
+		]);
+		world.puts.length = 0;
+		await undoPlan(deps(), { plan_id: planId });
+		expect(world.units.get(1)).toMatchObject({ courtage: null, courtage_note: null, furnishing_note: "alt" });
+	});
+});
+
 describe("undoInput", () => {
 	const current = (values: Record<string, unknown>, tags: number[], custom: Record<string, unknown> = {}) => ({
 		custom: (k: string) => custom[k],

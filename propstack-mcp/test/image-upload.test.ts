@@ -40,9 +40,12 @@ function grant(overrides: Partial<UploadGrant> = {}): UploadGrant {
 	return { brokerId: 347158, email: USER.email, expiresAt: Date.now() + 600_000, name: USER.name, remaining: 3, target: { id: 6265636, type: "Property" }, ...overrides };
 }
 
-function upload(token: string, files: { name: string; bytes: Uint8Array }[], field = "image[photo]") {
+function upload(token: string, files: { name: string; bytes: Uint8Array; title?: string }[], field = "image[photo]") {
 	const form = new FormData();
-	for (const f of files) form.append(field, new File([f.bytes], f.name));
+	for (const f of files) {
+		form.append(field, new File([f.bytes], f.name));
+		if (f.title !== undefined) form.append("title", f.title);
+	}
 	return new Request(`https://propstack-mcp.kromeichpartner.workers.dev/upload/images/${token}`, { body: form, method: "POST" });
 }
 
@@ -72,11 +75,11 @@ describe("Upload-Endpunkt", () => {
 		const { kv, store } = fakeKv();
 		store.set(`img-upload:${token}`, JSON.stringify(g));
 		const { db, rows, updates } = fakeDb();
-		const sent: { type: string; id: number; name: string; size: number }[] = [];
+		const sent: { type: string; id: number; name: string; size: number; title?: string }[] = [];
 		const createClient = () =>
 			({
-				uploadImage: async (type: string, id: number, photo: Blob, name: string) => {
-					sent.push({ id, name, size: photo.size, type });
+				uploadImage: async (type: string, id: number, photo: Blob, name: string, title?: string) => {
+					sent.push({ id, name, size: photo.size, title, type });
 					return { id: 900 + sent.length };
 				},
 			}) as unknown as PropstackClient;
@@ -93,6 +96,36 @@ describe("Upload-Endpunkt", () => {
 		expect(JSON.parse(s.store.get(`img-upload:${token}`)!).remaining).toBe(1);
 		expect(s.rows[0][3]).toBe("image_upload");
 		expect(s.updates[0][0]).toBe("done");
+	});
+
+	it("Bildtitel je Datei (How-to: Bilder müssen benannt sein); kein Titel aus dem Dateinamen", async () => {
+		const s = await setup();
+		const res = await handleImageUpload(
+			upload(token, [{ bytes: JPEG, name: "goodman_halle_01.jpg", title: " Außenansicht " }, { bytes: PNG, name: "IMG_0002.png", title: "Halle innen" }]),
+			s.env,
+			{ createClient: s.createClient },
+		);
+		expect(res.status).toBe(200);
+		expect(s.sent.map((x) => x.title)).toEqual(["Außenansicht", "Halle innen"]);
+		expect(await res.json()).toMatchObject({ images: [{ image_id: 901, title: "Außenansicht" }, { image_id: 902, title: "Halle innen" }] });
+
+		// ohne Titel: hochgeladen, aber mit Hinweis – der Dateiname wird nicht zum Titel
+		const plain = await setup();
+		const untitled = await handleImageUpload(upload(token, [{ bytes: JPEG, name: "goodman_halle_01.jpg" }]), plain.env, { createClient: plain.createClient });
+		expect(plain.sent[0].title).toBeUndefined();
+		expect(String(((await untitled.json()) as { note: string }).note)).toMatch(/Ohne Titel hochgeladen/);
+
+		// Anzahl Titel ≠ Anzahl Dateien → nichts hochladen
+		const uneven = await setup();
+		const form = new FormData();
+		form.append("image[photo]", new File([JPEG], "a.jpg"));
+		form.append("image[photo]", new File([JPEG], "b.jpg"));
+		form.append("title", "Außenansicht");
+		const bad = await handleImageUpload(new Request(`https://propstack-mcp.kromeichpartner.workers.dev/upload/images/${token}`, { body: form, method: "POST" }), uneven.env, {
+			createClient: uneven.createClient,
+		});
+		expect(bad.status).toBe(400);
+		expect(uneven.sent).toEqual([]);
 	});
 
 	it("letztes Kontingent löscht die Adresse; danach 404", async () => {
