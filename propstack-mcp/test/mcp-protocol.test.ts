@@ -39,6 +39,7 @@ describe("MCP-Protokoll", () => {
 			"aggregate",
 			"get_contact",
 			"get_object",
+			"get_project",
 			"list_fields",
 			"list_reference",
 			"list_tags",
@@ -100,6 +101,63 @@ describe("MCP-Protokoll", () => {
 		expect(audits[0][3]).toBe("get_contact");
 	});
 
+	it("IDs als Ziffern-Text werden angenommen (Clients mit veralteter Tool-Liste), das Schema bleibt integer", async () => {
+		const seen: unknown[] = [];
+		const { client } = await connect({
+			getContact: async (id: number) => {
+				seen.push(id);
+				return { id, name: "Anna" };
+			},
+			listBrokers: async () => [],
+		});
+		const { tools } = await client.listTools();
+		expect((tools.find((t) => t.name === "get_contact")!.inputSchema.properties as Record<string, { type: string }>).id.type).toBe("integer");
+		expect((await client.callTool({ arguments: { id: "5" }, name: "get_contact" })).isError).toBeFalsy();
+		expect(seen).toEqual([5]);
+		// alles andere bleibt streng
+		for (const bad of ["5.000", "abc", true, -1]) {
+			expect((await client.callTool({ arguments: { id: bad }, name: "get_contact" })).isError).toBe(true);
+		}
+		expect(seen).toEqual([5]);
+	});
+
+	it("get_project: gekürzte Projektdaten mit Einheiten und Bildtiteln; Diagnose liefert nur Feldnamen, keine Werte", async () => {
+		const project = {
+			city: "Hillscheid",
+			courtage: "Provisionsfrei",
+			description_note: "Beschreibung",
+			id: 604473,
+			images: [{ id: 1, is_floorplan: false, title: "Außenansicht", url: "https://geheim.example/bild.jpg" }, { id: 2, is_floorplan: true, title: null }],
+			lat: 50.4109821,
+			lng: 7.6811256,
+			name: "BTS-Logistikhalle in (56) Hillscheid",
+			status: { color: "#123", label: "Vertrieb" },
+			sub_headline: "Direkt an der A48",
+			title: { label: "Überschrift", value: "Logistikhalle in (56) Hillscheid" },
+		};
+		const { client } = await connect({
+			getProject: async () => project,
+			listBrokers: async () => [],
+			searchUnits: async () => ({ rows: [{ id: 6282819, status: { id: 1, name: "Vermarktung" }, title: "Halle", unit_id: "Unit 1" }], total: 1 }),
+		});
+		const detail = JSON.parse(((await client.callTool({ arguments: { id: 604473 }, name: "get_project" })).content as { text: string }[])[0].text);
+		expect(detail).toMatchObject({
+			images: [{ id: 1, title: "Außenansicht" }, { floorplan: true, id: 2 }],
+			status: "Vertrieb",
+			sub_headline: "Direkt an der A48",
+			title: "Logistikhalle in (56) Hillscheid",
+			unit_count: 1,
+			units: [{ id: 6282819, status: "Vermarktung", unit_id: "Unit 1" }],
+		});
+		expect(JSON.stringify(detail)).not.toContain("geheim.example");
+		const diagnose = ((await client.callTool({ arguments: { diagnose: "field_names", id: 604473 }, name: "get_project" })).content as { text: string }[])[0].text;
+		expect(JSON.parse(diagnose).field_names).toMatchObject({ lat: "number", status: "Objekt{color, label}", sub_headline: "string", title: "„Überschrift“ (string)" });
+		expect(JSON.parse(diagnose).field_names.images).toMatch(/^Liste\[2\] von \{id, is_floorplan, title, url\}$/);
+		// keine Werte
+		expect(diagnose).not.toContain("Hillscheid");
+		expect(diagnose).not.toContain("Provisionsfrei");
+	});
+
 	it("Schreib-Tools: genau zwölf, nicht readOnly, Updates als überschreibend markiert, kein Löschen", async () => {
 		const server = new McpServer({ name: "test", version: "0" });
 		const ctx = { env: {} as Env, props: () => ({ brokerId: 1, email: "t@kromeichpartner.de", name: "T" }) };
@@ -135,5 +193,17 @@ describe("MCP-Protokoll", () => {
 		// Feld-Mapping: berechnete/abgeleitete Felder und öffentliche Mietfelder nicht anbieten
 		for (const field of ["property_space_value", "object_type", "total_rent"]) expect(objectFields).not.toContain(field);
 		expect(objectFields).toEqual(expect.arrayContaining(["industrial_area", "total_floor_space", "hall_height", "rented", "price_on_inquiry", "bemerkung_append", "public_price_confirmed"]));
+		// Team-How-to: wichtige Felder als eigene Parameter; Einheiten im Projekt brauchen weder Adresse noch Überschrift
+		expect(objectFields).toEqual(
+			expect.arrayContaining(["dock_doors", "ground_level_doors", "hall_divisible_from", "mezzanine_area", "car_parking", "truck_parking", "wgk", "lighting", "sprinkler", "heating", "certification", "internal_rent_hall", "active", "commission", "source_link", "mandate", "owner_contact_id", "contact_person_id"]),
+		);
+		expect(createObject.inputSchema.required).toEqual(["marketing_type", "rs_type"]);
+		const props = createObject.inputSchema.properties as Record<string, { type?: string }>;
+		expect(props.dock_doors.type).toBe("integer");
+		expect(props.active.type).toBe("boolean");
+		// Verknüpfen nur über create_* und set_project_owner – nicht über update_object
+		expect(Object.keys(tools.find((t) => t.name === "update_object")!.inputSchema.properties ?? {})).not.toContain("contact_person_id");
+		expect(Object.keys(tools.find((t) => t.name === "set_project_owner")!.inputSchema.properties ?? {})).toContain("role");
+		expect(tools.find((t) => t.name === "create_project")!.description).toMatch(/mindestens zwei getrennt vermietbare Einheiten/);
 	});
 });

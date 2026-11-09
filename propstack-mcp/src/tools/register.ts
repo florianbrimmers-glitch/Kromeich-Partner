@@ -8,6 +8,9 @@ import {
 	aggregateInput,
 	getContact,
 	getObject,
+	getObjectInput,
+	getProject,
+	getProjectInput,
 	listFields,
 	listFieldsInput,
 	listReference,
@@ -48,6 +51,7 @@ import {
 	updateProjectInput,
 } from "./project-tools";
 import { type ZodRawShape, z } from "zod";
+import { id } from "./params";
 
 export interface ToolContext {
 	env: Env;
@@ -128,7 +132,7 @@ export function registerReadTools(server: McpServer, ctx: ToolContext): void {
 	register(
 		"get_contact",
 		"Einen Kontakt mit Details abrufen: Kontaktdaten, Adressen, Betreuer, Merkmale, befüllte Custom-Felder, DSGVO-Status. Sensible Daten wie Ausweis- und Steuernummer oder Geburtsdaten werden nicht ausgegeben.",
-		{ id: z.number().int().positive().describe("Propstack-Kontakt-ID") },
+		{ id: id.describe("Propstack-Kontakt-ID") },
 		getContact,
 	);
 	register(
@@ -139,9 +143,15 @@ export function registerReadTools(server: McpServer, ctx: ToolContext): void {
 	);
 	register(
 		"get_object",
-		"Ein Objekt mit Details abrufen: Adresse, Eckdaten, Status, Betreuer, Projekt, Merkmale, Beschreibungstexte (gekürzt) und befüllte Custom-Felder.",
-		{ id: z.number().int().positive().describe("Propstack-Objekt-ID") },
+		"Ein Objekt mit Details abrufen: Adresse, Eckdaten, Status, Betreuer, Projekt, Merkmale, Beschreibungstexte (gekürzt), befüllte Custom-Felder und Bilder mit Titel (zum Prüfen, ob sie benannt sind).",
+		getObjectInput,
 		getObject,
+	);
+	register(
+		"get_project",
+		"Ein Projekt mit Details abrufen: Name, Überschrift, Unterzeile, Adresse, Koordinaten, Provision, Exposé-Texte (gekürzt), Bilder mit Titel, Links und die Einheiten des Projekts (ID, Einheitennummer, Status). Zum Prüfen vor und nach Änderungen.",
+		getProjectInput,
+		getProject,
 	);
 	register(
 		"search_deals",
@@ -206,8 +216,10 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
 	};
 
 	const objectRules =
-		"Regeln (Propstack-Feld-Mapping): Interne Preise jederzeit in custom_fields intern_mietpreis_*. ÖFFENTLICHE Preise (price, base_rent, mietpreis_*) nur, wenn der Nutzer es ausdrücklich ansagt oder auf Nachfrage bestätigt – dann public_price_confirmed: true; sonst „Preis auf Anfrage“. Beschreibungstexte sind exposé-sichtbar; Interna, Konditionen, Eigentümer und offene Punkte nur in bemerkung_append. provisionspflichtig nie setzen. Kritische Felder (rs_category, Flächen, Hallenhöhe, Bodentragkraft, Status, rented, Betreuer) werden einzeln geschrieben und zurückgelesen; not_applied/not_verifiable im Ergebnis dem Nutzer melden.";
+		"Regeln (Team-How-to und Feld-Mapping): Einheiten im Projekt übernehmen Adresse, Überschrift, Beschreibung, Lage, Ausstattung, Provision und Koordinaten vom Projekt – dort nur unit_id, Objektart, Flächen, Ausstattungsfelder und Abweichungen angeben. Die im How-to genannten Felder haben eigene Parameter (teilbar ab, Mezzanine, Stellplätze, Rampentore, ebenerdige Tore, WGK, Beleuchtung, Sprinkler, Heizung, Zertifizierung). Mietpreise intern in internal_rent_*; ÖFFENTLICHE Preise (price, base_rent, mietpreis_*, Preise in Texten) nur, wenn der Nutzer es ausdrücklich ansagt oder auf Nachfrage bestätigt – dann public_price_confirmed: true; sonst „Preis auf Anfrage“. Exposé-Texte ohne Eigentümernamen, Adresse und Preise, Ausstattung als Liste – Verstöße werden abgewiesen. Interna in source_link, mandate, internal_commission und bemerkung_append. provisionspflichtig nie setzen. Kritische Felder (rs_category, Flächen, Hallenhöhe, Bodentragkraft, Status, rented, Betreuer) werden einzeln geschrieben und zurückgelesen. Aus dem Ergebnis dem Nutzer melden: not_applied, not_verifiable, write_errors, text_warnings und howto_not_provided (was laut How-to wichtig ist, aber fehlt – nachfragen oder im Exposé nachsehen).";
 	const rules = `Betreuer wird immer der angemeldete Nutzer. Testdaten immer mit test=true anlegen (Merkmal ${TEST_TAG}). Es gibt keine Lösch-Funktion.`;
+	const commissionRules =
+		"Provision: commission=provisionsfrei oder staffel setzt die Standardtexte. Feste Regeln (Wissensdatenbank, Stand 09/2026): Mileway immer provisionsfrei; Scheren Logistik provisionspflichtig, auch wenn deren Exposé „provisionsfrei“ nennt.";
 	register(
 		"create_contact",
 		`Kontakt (Person) in Propstack anlegen. Vorher automatische Dublettenprüfung: gleiche E-Mail blockiert immer, ohne persönliche E-Mail blockieren gleiche Mobilnummer oder gleicher Name + Firma; allgemeine Adressen (info@ …) und gleiche Festnetznummern erzeugen nur Warnungen. Bei Dublette nichts anlegen, sondern den Nutzer fragen und ggf. update_contact nutzen. ${rules}`,
@@ -222,59 +234,59 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
 		true,
 		updateContact,
 	);
+	const review = "Danach entsteht automatisch eine Prüfaufgabe an Lena (bei test=true an dich), fällig am nächsten Werktag 9:00 – mit Link, allen Lücken und den Schritten, die nur in Propstack selbst gehen.";
 	register(
 		"create_object",
-		`Objekt (Einheit) in Propstack anlegen. Vorher Dublettenprüfung über Adresse bzw. Geokoordinaten + Vermarktungsart + Einheit (blockiert); gleiche Adresse mit anderer Vermarktungsart oder Einheit ist nur ein Hinweis. ${objectRules} ${rules}`,
+		`Objekt (Einzelobjekt oder Einheit eines Projekts) in Propstack anlegen. Einzelobjekt: eine einzelne vermietbare Fläche – im Zweifel Einzelobjekt statt Projekt. Vorher Dublettenprüfung über Adresse bzw. Geokoordinaten + Vermarktungsart + Einheit (blockiert); gleiche Adresse mit anderer Vermarktungsart oder Einheit ist nur ein Hinweis. Eigentümer (owner_contact_id) und Ansprechpartner (contact_person_id) werden verknüpft. ${objectRules} ${commissionRules} ${review} Bei Einheiten im Projekt entsteht eine eigene Aufgabe nur bei Problemen. ${rules}`,
 		createObjectInput,
 		false,
 		createObject,
 	);
 	register(
 		"update_object",
-		`Vorhandenes Objekt ändern: Eckdaten, Status, Vermietet, Flächen, Texte, interne Bemerkung (angehängt), Custom-Felder. Nur geänderte Werte werden geschrieben, der vorherige Stand wird gesichert. Bei Adress-/Einheiten-/Vermarktungsänderung erneute Dublettenprüfung. ${objectRules}`,
+		`Vorhandenes Objekt ändern: Eckdaten, Status, Vermietet, Aktiv, Flächen, Ausstattungsfelder, Provision, Texte, interne Bemerkung (angehängt), Custom-Felder, Koordinaten (lat+lng). Nur geänderte Werte werden geschrieben, der vorherige Stand wird gesichert. Bei Adress-/Einheiten-/Vermarktungsänderung erneute Dublettenprüfung. Eigentümer/Ansprechpartner: set_project_owner. ${objectRules} ${commissionRules}`,
 		updateObjectInput,
 		true,
 		updateObject,
 	);
-	const review = "Danach entsteht automatisch eine Prüfaufgabe an Lena (bei test=true an dich), fällig am nächsten Werktag 9:00 – mit Link und allen Lücken.";
 	register(
 		"create_project",
-		`Projekt (Standort) in Propstack anlegen – für mehrere Einheiten an einem Standort oder ein Objekt mit Projektkontext. Vorher Dublettenprüfung über die Adresse. Eigentümer optional direkt verknüpfen (owner_contact_id, Kontakt aus dem eigenen Shop). Offene Punkte über review_notes (Projekte haben kein internes Notizfeld). Danach Einheiten mit create_object + project_id. ${review} ${rules}`,
+		`Projekt (Standort mit Einheiten) in Propstack anlegen – nur wenn es tatsächlich mindestens zwei getrennt vermietbare Einheiten gibt; eine einzelne Fläche ist ein Einzelobjekt (create_object ohne project_id). Vorher Dublettenprüfung über die Adresse. Nach Team-How-to: Name „Logistikhalle in (XX) Ort“ (Überschrift gleich), Unterzeile, interne Notiz (source_link, mandate, internal_rents, internal_commission, developer_project_name), Eigentümer und Ansprechpartner verknüpfen, Provision, Projektbeschreibung, Lage, Ausstattung. Exposé-Texte ohne Eigentümernamen, Adresse und Preise – Verstöße werden abgewiesen. ${commissionRules} Danach die Einheiten mit create_object + project_id. ${review} Aus dem Ergebnis dem Nutzer melden: not_applied, text_warnings, howto_not_provided, ui_steps. ${rules}`,
 		createProjectInput,
 		false,
 		createProject,
 	);
 	register(
 		"update_project",
-		"Vorhandenes Projekt ändern: Name, Marketingname, Adresse, Provision (courtage/courtage_note), Exposé-Texte, Adresse ausblenden, Koordinaten (lat+lng, Stufen-Trick). Nur geänderte Werte werden geschrieben, der vorherige Stand wird gesichert, verworfene Felder einzeln nachgesetzt. Bei Adressänderung Dublettenprüfung. Eigentümer: set_project_owner. Es gibt keine Lösch-Funktion.",
+		`Vorhandenes Projekt ändern: Name, Überschrift, Unterzeile, Adresse, Provision (commission bzw. courtage/courtage_note), Exposé-Texte, Adresse ausblenden, Koordinaten (lat+lng, Stufen-Trick). Nur geänderte Werte werden geschrieben, der vorherige Stand wird gesichert, verworfene Felder einzeln nachgesetzt. Bei Adressänderung Dublettenprüfung. Geänderte Texte und Provision kommen NICHT von selbst an den Einheiten an – danach laut units_hint übertragen. Eigentümer/Ansprechpartner: set_project_owner. ${commissionRules} Es gibt keine Lösch-Funktion.`,
 		updateProjectInput,
 		true,
 		updateProject,
 	);
 	register(
 		"set_project_owner",
-		"Eigentümer (Kontakt aus dem eigenen Shop) mit einem Projekt (project_id) oder einer Einheit (object_id) verknüpfen. Vorhandene Verknüpfungen bleiben bestehen. Ergebnis linked: true/false/„nicht prüfbar“.",
+		"Kontakt (aus dem eigenen Shop) mit einem Projekt (project_id) oder einer Einheit (object_id) verknüpfen – als Eigentümer (Standard) oder mit role=contact_person als Ansprechpartner. Vorhandene Verknüpfungen bleiben bestehen. Ergebnis linked: true/false/„nicht prüfbar“.",
 		setProjectOwnerInput,
 		false,
 		setProjectOwner,
 	);
 	register(
 		"add_images",
-		"Bilder per öffentlicher https-URL an ein Objekt oder Projekt hängen (Propstack lädt sie selbst). Jede URL wird vorher geprüft (erreichbar, wirklich ein Bild). Das erste Bild eines Objekts wird Titelbild – bestes Außenfoto zuerst. Bilder aus dem Chat-Upload gehen NICHT, nur URLs. Bildrechte und Firmenschriftzüge beachten.",
+		"Bilder per öffentlicher https-URL an ein Objekt oder Projekt hängen (Propstack lädt sie selbst). Jede URL wird vorher geprüft (erreichbar, wirklich ein Bild). Mit titles benennen (z. B. „Außenansicht“) – Bilder müssen in Propstack benannt sein. Das erste Bild eines Objekts wird Titelbild – bestes Außenfoto zuerst. Allgemeine Bilder (Außenansicht des Standorts) gehören ans Projekt. Bilder aus dem Chat-Upload gehen NICHT, nur URLs – dafür image_upload_url. Keine Firmenschriftzüge, Bildrechte beachten.",
 		addImagesInput,
 		false,
 		addImages,
 	);
 	register(
 		"image_upload_url",
-		"Bilder als DATEI hochladen (Claude Code / Cowork): liefert eine Einmal-Upload-Adresse für ein Objekt oder Projekt (15 min gültig, an dich und dieses Ziel gebunden). Danach die Dateien selbst per curl hochladen: curl -sS -F \"image[photo]=@bild1.jpg\" -F \"image[photo]=@bild2.jpg\" \"<upload_url>\" – Reihenfolge = Reihenfolge in Propstack, das erste Bild wird Titelbild. Die curl-Antwort enthält die Bild-IDs; dem Nutzer melden. JPEG/PNG/WebP, max. 15 MB je Bild. Für Bilder, die nur als URL vorliegen: add_images.",
+		"Bilder als DATEI hochladen (Claude Code / Cowork): liefert eine Einmal-Upload-Adresse für ein Objekt oder Projekt (15 min gültig, an dich und dieses Ziel gebunden). Danach die Dateien selbst per curl hochladen, je Bild mit Titel: curl -sS -F \"image[photo]=@bild1.jpg\" -F \"title=Außenansicht\" -F \"image[photo]=@bild2.jpg\" -F \"title=Halle innen\" \"<upload_url>\" – Reihenfolge = Reihenfolge in Propstack, das erste Bild wird Titelbild. Bilder müssen benannt sein (kein Firmen- oder Eigentümername im Titel), keine Firmenschriftzüge; allgemeine Bilder ans Projekt, Grundrisse danach in Propstack kennzeichnen. Die curl-Antwort enthält die Bild-IDs; dem Nutzer melden. JPEG/PNG/WebP, max. 15 MB je Bild. Für Bilder, die nur als URL vorliegen: add_images.",
 		imageUploadUrlInput,
 		false,
 		imageUploadUrl,
 	);
 	register(
 		"plan",
-		`Massenänderung PLANEN (ändert noch nichts): Kontakte oder Objekte per ID-Liste oder Filter (wie search_contacts/search_objects) auswählen, Änderung festlegen – Kontakte: Merkmale hinzufügen/entfernen, Betreuer, Quelle, Kontaktstatus, Custom-Felder; Objekte: Status, vermietet, Custom-Felder (keine Merkmale). Liefert plan_id, Anzahl und Vorschau; max. ${MAX_PLAN_ITEMS} Datensätze. Danach dem Nutzer die Vorschau zeigen und ausdrücklich bestätigen lassen – erst dann apply_plan. Die plan_id verfällt nach 10 Minuten.`,
+		`Massenänderung PLANEN (ändert noch nichts): Kontakte oder Objekte per ID-Liste oder Filter (wie search_contacts/search_objects) auswählen, Änderung festlegen – Kontakte: Merkmale hinzufügen/entfernen, Betreuer, Quelle, Kontaktstatus, Custom-Felder; Objekte: Status, vermietet, Provision und Exposé-Texte (z. B. vom Projekt auf alle Einheiten übertragen: object_filter {project_id}), Custom-Felder (keine Merkmale). Liefert plan_id, Anzahl und Vorschau; max. ${MAX_PLAN_ITEMS} Datensätze. Danach dem Nutzer die Vorschau zeigen und ausdrücklich bestätigen lassen – erst dann apply_plan. Die plan_id verfällt nach 10 Minuten.`,
 		planBulkInput,
 		false,
 		planBulk,

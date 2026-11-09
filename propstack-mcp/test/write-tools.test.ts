@@ -180,6 +180,22 @@ function fakeClient(impl: Record<string, (...args: unknown[]) => unknown>) {
 						{ field_type: "Number", name: "mietpreis_hallenflache" },
 						{ field_type: "Number", name: "intern_mietpreis_hallenflache" },
 						{ field_type: "String", name: "bemerkung" },
+						// Felder aus dem Team-How-to (Typen wie live, 09.11.2026)
+						{ field_type: "Number", name: "lagerflache_teilbar_ab", unit: "sqm" },
+						{ field_type: "Number", name: "buroflache_teilbar_ab", unit: "sqm" },
+						{ field_type: "Number", name: "mezzanineflache_gesamt", unit: "sqm" },
+						{ field_type: "Number", name: "mezzanineflache_verfugbar", unit: "sqm" },
+						{ field_type: "Number", name: "mezzanineflache_teilbar_ab", unit: "sqm" },
+						{ field_type: "Number", name: "stellplatze_verfugbar" },
+						{ field_type: "Number", name: "lkw_stellplatze_gesamt" },
+						{ field_type: "String", name: "ramepntore" },
+						{ field_type: "Number", name: "anzahl_rampentore_2" },
+						{ field_type: "String", name: "wgk" },
+						{ field_type: "String", name: "sprinkleranlage" },
+						{ field_type: "String", name: "heizungsart_halle" },
+						{ field_type: "String", name: "zertifizierung" },
+						{ field_type: "Number", name: "intern_mietpreis_buro", unit: "euro" },
+						{ field_type: "Number", name: "intern_mietpreis_mezzanine", unit: "euro" },
 						{ custom_options: [{ id: 1, name: "Ja" }, { id: 2, name: "Nein" }], field_type: "Dropdown", name: "spekulative_entwicklung" },
 						{ custom_options: [{ id: 7, name: "Aktiv" }, { id: 8, name: "Inaktiv" }], field_type: "Multiselect", name: "aktiv" },
 					],
@@ -452,7 +468,9 @@ describe("create_object / update_object", () => {
 			hallenhohe: 10.5,
 			spekulative_entwicklung: 1,
 		});
-		expect(unit.puts).toEqual([{ rs_category: "HALL" }, { industrial_area: 5863 }, { property_status_id: 163672 }, { broker_id: 347158 }]);
+		// Gesamtfläche = Halle + Mezzanine (How-to), wenn nicht angegeben
+		expect(unit.puts).toEqual([{ rs_category: "HALL" }, { industrial_area: 5863 }, { property_status_id: 163672 }, { broker_id: 347158 }, { total_floor_space: 5863 }]);
+		expect(out.result).toMatchObject({ derived: ["total_floor_space = Hallenfläche + Mezzaninefläche"] });
 		expect(out.result).toMatchObject({ created: true, id: 900, title: "MCP Test Halle" });
 		expect((out.result as { not_applied?: string[] }).not_applied).toBeUndefined();
 		expect((out.result as { not_verifiable?: string[] }).not_verifiable).toBeUndefined();
@@ -688,6 +706,267 @@ describe("create_object / update_object", () => {
 		const out = await updateObject(deps, { id: 900, title: "SCHLE99" });
 		expect(out.result).toMatchObject({ updated: false });
 		expect(calls.some((c) => c.method === "updateUnit")).toBe(false);
+	});
+});
+
+describe("create_object / update_object – Team-How-to", () => {
+	const sleep = async () => {};
+	const standalone = { city: "Herford", house_number: "8", marketing_type: "RENT" as const, rs_type: "INDUSTRY", street: "Röntgenstraße", title: "Logistikhalle in (32) Herford", zip_code: "32052" };
+	const PROJECT = {
+		city: "Hillscheid",
+		courtage: "Provisionsfrei",
+		courtage_note: "Die Anmietung erfolgt provisionsfrei für den Mieter.",
+		description_note: "Built-to-Suit-Logistikimmobilie mit ca. 30.000 m² Hallenfläche.",
+		furnishing_note: "- 30 Verladestellen\n- LED",
+		id: 604473,
+		lat: 50.4109821,
+		lng: 7.6811256,
+		location_note: "Autobahnen:\nA48: ca. 5,6 km",
+		name: "BTS-Logistikhalle in (56) Hillscheid",
+		street: "Am Scheid",
+		title: "Logistikhalle in (56) Hillscheid",
+		zip_code: "56204",
+	};
+
+	/** Simuliertes Objekt: speichert alles, kennt Verknüpfungen (lehnt Doppelte ab) und Koordinaten. */
+	function world(project: Record<string, unknown> = PROJECT) {
+		const stored: Record<string, unknown> = {};
+		const custom: Record<string, unknown> = {};
+		const coords: Record<string, number> = {};
+		const links: string[] = [];
+		const puts: Record<string, unknown>[] = [];
+		let posted: Record<string, unknown> = {};
+		let task: Record<string, unknown> | undefined;
+		const apply = (payload: Record<string, unknown>) => {
+			for (const [key, value] of Object.entries(payload)) {
+				if (key === "partial_custom_fields") Object.assign(custom, value);
+				else if (key === "lat" || key === "lng") coords[key] = value as number;
+				else if (key !== "relationships_attributes") stored[key] = value;
+			}
+		};
+		const { client, calls } = fakeClient({
+			createTask: (t) => {
+				task = t as Record<string, unknown>;
+				return { id: 4711 };
+			},
+			createUnit: (payload) => {
+				posted = payload as Record<string, unknown>;
+				apply(posted);
+				return { id: 900 };
+			},
+			getContact: (id) => (id === 111 ? { company: "JJW Hillscheid Grundbesitz GmbH", id: 111, name: "JJW Hillscheid Grundbesitz GmbH" } : { id: 222, name: "Tobias Jung" }),
+			getProject: () => project,
+			getUnit: () => ({
+				broker: stored.broker_id ? { id: stored.broker_id } : null,
+				custom_fields: Object.fromEntries(Object.entries(custom).map(([k, v]) => [k, { pretty_value: String(v), value: v }])),
+				id: 900,
+				property_groups: ((stored.group_ids as number[]) ?? []).map((id) => ({ id })),
+				status: stored.property_status_id ? { id: stored.property_status_id } : null,
+				title: stored.title,
+				...coords,
+			}),
+			searchUnits: (q) => {
+				if (!(q as Query).expand) return page([]);
+				const row: Record<string, unknown> = { id: { label: "ID", value: 900 } };
+				for (const [k, v] of Object.entries(stored)) row[k] = { label: k, value: v };
+				return page([row]);
+			},
+			updateUnit: (_id, payload) => {
+				const body = payload as { relationships_attributes?: unknown[] };
+				puts.push(body as Record<string, unknown>);
+				if (body.relationships_attributes) {
+					const key = JSON.stringify(body.relationships_attributes[0]);
+					if (links.includes(key)) throw new Error('Propstack-Anfrage fehlgeschlagen (400): ["Relationships property ist bereits mit dem Kontakt verbunden"]');
+					links.push(key);
+					return {};
+				}
+				apply(body as Record<string, unknown>);
+				return {};
+			},
+		});
+		return { calls, client, coords, custom, links, posted: () => posted, puts, stored, task: () => task };
+	}
+
+	it("Einheit im Projekt: Adresse, Überschrift, Beschreibung, Lage, Ausstattung, Provision und Koordinaten kommen vom Projekt", async () => {
+		const w = world();
+		const out = await createObject(
+			{ client: w.client, db: fakeDb().db, now: NOW, sleep, user: USER },
+			{ industrial_area: 10000, marketing_type: "RENT", project_id: 604473, rs_category: "HALL", rs_type: "INDUSTRY", unit_id: "Unit 1" },
+		);
+		expect(w.posted()).toMatchObject({
+			city: "Hillscheid",
+			courtage: "Provisionsfrei",
+			courtage_note: "Die Anmietung erfolgt provisionsfrei für den Mieter.",
+			description_note: PROJECT.description_note,
+			furnishing_note: PROJECT.furnishing_note,
+			location_note: PROJECT.location_note,
+			street: "Am Scheid",
+			title: "Logistikhalle in (56) Hillscheid",
+			unit_id: "Unit 1",
+			zip_code: "56204",
+		});
+		expect(out.result).toMatchObject({
+			coordinates: { lat: 50.4109821, lng: 7.6811256, source: "Projekt", verified: true },
+			inherited_from_project: ["address", "title", "description_note", "location_note", "furnishing_note", "courtage", "courtage_note"],
+			review_task: { covered_by: "Prüfaufgabe des Projekts 604473" },
+		});
+		// Lücken laut How-to stehen im Ergebnis, auch ohne eigene Prüfaufgabe
+		expect((out.result as { howto_not_provided: string[] }).howto_not_provided).toEqual(expect.arrayContaining(["Eigentümer", "Hallenhöhe (m UKB)", "Rampentore", "Verfügbar ab"]));
+		expect((out.result as { howto_not_provided: string[] }).howto_not_provided).not.toContain("Provision");
+		expect((out.result as { howto_not_provided: string[] }).howto_not_provided).not.toContain("Lage");
+	});
+
+	it("Einheit im Projekt braucht eine Einheitennummer; eigene Provision schlägt die des Projekts", async () => {
+		const w = world();
+		const deps = { client: w.client, db: fakeDb().db, now: NOW, sleep, user: USER };
+		await expect(createObject(deps, { marketing_type: "RENT", project_id: 604473, rs_type: "INDUSTRY" })).rejects.toThrow(/unit_id/);
+		await createObject(deps, { commission: "staffel", marketing_type: "RENT", project_id: 604473, rs_type: "INDUSTRY", unit_id: "Unit 2" });
+		expect(w.posted().courtage).toBeUndefined();
+		expect(String(w.posted().courtage_note)).toMatch(/^Bei Mietverträgen mit einer Laufzeit von weniger als fünf/);
+	});
+
+	it("Einzelobjekt ohne Pflichtangaben wird abgewiesen", async () => {
+		const w = world();
+		await expect(createObject({ client: w.client, db: fakeDb().db, now: NOW, sleep, user: USER }, { marketing_type: "RENT", rs_type: "INDUSTRY", title: "Halle" })).rejects.toThrow(
+			/Pflichtangaben fehlen: street, zip_code, city/,
+		);
+	});
+
+	it("wichtige Felder aus dem How-to landen in den Feldern, die das Team in Propstack sieht", async () => {
+		const w = world();
+		const out = await createObject(
+			{ client: w.client, db: fakeDb().db, now: NOW, sleep, user: USER },
+			{
+				...standalone,
+				active: true,
+				car_parking: 400,
+				certification: "DGNB Gold",
+				dock_doors: 10,
+				ground_level_doors: 1,
+				hall_divisible_from: 5000,
+				heating: "Wärmepumpe",
+				industrial_area: 10000,
+				internal_rent_hall: 6.8,
+				lighting: "LED",
+				mezzanine_area: 800,
+				sprinkler: "vorhanden",
+				truck_parking: 12,
+				wgk: "WGK 1–3",
+			},
+		);
+		expect(w.posted().partial_custom_fields).toMatchObject({
+			aktiv: [7],
+			anzahl_rampentore_2: 1,
+			beleuchtung: "LED",
+			beleuchtung_halle: "LED",
+			heizungsart_halle: "Wärmepumpe",
+			intern_mietpreis_hallenflache: 6.8,
+			lagerflache_teilbar_ab: 5000,
+			lkw_stellplatze_gesamt: 12,
+			mezzanineflache_gesamt: 800,
+			mezzanineflache_verfugbar: 800,
+			ramepntore: "10", // Textfeld in Propstack
+			sprinkleranlage: "vorhanden",
+			status_logistik: "Aktiv",
+			stellplatze_verfugbar: 400,
+			wgk: "WGK 1–3",
+			zertifizierung: "DGNB Gold",
+		});
+		// Gesamtfläche = Halle + Mezzanine
+		expect(w.stored.total_floor_space).toBe(10800);
+		expect((out.result as { not_applied?: string[] }).not_applied).toBeUndefined();
+		const missing = (out.result as { howto_not_provided: string[] }).howto_not_provided;
+		for (const present of ["Rampentore", "Ebenerdige Tore", "Beleuchtung", "Mietpreise (intern)", "Hallenfläche teilbar ab"]) expect(missing).not.toContain(present);
+		expect(missing).toEqual(expect.arrayContaining(["Eigentümer", "Interne Notiz: Exposé-/Website-Link", "Mezzaninefläche teilbar ab", "Grundstücksfläche"]));
+	});
+
+	it("How-to-Parameter und dasselbe Custom-Feld gleichzeitig → abgewiesen; aktiv und vermietet widersprechen sich", async () => {
+		const w = world();
+		const deps = { client: w.client, db: fakeDb().db, now: NOW, sleep, user: USER };
+		await expect(createObject(deps, { ...standalone, custom_fields: { ramepntore: "9" }, dock_doors: 10 })).rejects.toThrow(/dock_doors und custom_fields\.ramepntore gleichzeitig/);
+		await expect(createObject(deps, { ...standalone, active: true, rented: true })).rejects.toThrow(/widersprechen sich/);
+		expect(w.calls.some((c) => c.method === "createUnit")).toBe(false);
+	});
+
+	it("Eigentümer und Ansprechpartner werden verknüpft; interne Notiz strukturiert in die Bemerkung; Prüfaufgabe nennt Lücken", async () => {
+		const w = world();
+		const out = await createObject(
+			{ client: w.client, db: fakeDb().db, now: NOW, sleep, user: USER },
+			{ ...standalone, contact_person_id: 222, internal_commission: "Tischregel 50/50", mandate: "Alleinmandat", owner_contact_id: 111, source_link: "https://example.org/expose.pdf" },
+		);
+		expect(w.links).toEqual([
+			JSON.stringify({ internal_name: "owner", related_client_id: 111 }),
+			JSON.stringify({ internal_name: "partner", name: "Ansprechpartner", related_client_id: 222 }),
+		]);
+		expect(out.result).toMatchObject({ contact_person: { id: 222, linked: true, name: "Tobias Jung" }, owner: { id: 111, linked: true } });
+		expect(String((w.posted().partial_custom_fields as Record<string, unknown>).bemerkung).split("\n")).toEqual([
+			"Angelegt über Claude (Propstack MCP) von Florian Brimmers am 2026-10-14.",
+			"Exposé/Website: https://example.org/expose.pdf",
+			"Mandat: Alleinmandat",
+			"Provision intern: Tischregel 50/50",
+		]);
+		// Der Ansprechpartner steht NICHT mehr als ID im Custom-Feld (stand im Exposé-Risiko, Handanlagen nutzen es nicht)
+		expect(w.posted().partial_custom_fields).not.toHaveProperty("ansprechpartner_vermietung");
+		const body = String(w.task()!.body);
+		expect(body).toMatch(/Eigentümer: JJW Hillscheid Grundbesitz GmbH \(111\)/);
+		expect(body).toMatch(/Ansprechpartner: Tobias Jung \(222\)/);
+		expect(body).toMatch(/Nicht angegeben \(laut How-to wichtig\)/);
+		expect(body).toMatch(/Wesentlicher Energieträger/);
+	});
+
+	it("Ansprechpartner = Eigentümer: nur einmal verknüpfen", async () => {
+		const w = world();
+		const out = await createObject({ client: w.client, db: fakeDb().db, now: NOW, sleep, user: USER }, { ...standalone, contact_person_id: 111, owner_contact_id: 111 });
+		expect(w.links).toEqual([JSON.stringify({ internal_name: "owner", related_client_id: 111 })]);
+		expect(out.result).toMatchObject({ contact_person: { linked: true, note: expect.stringMatching(/als Eigentümer verknüpft/) } });
+	});
+
+	it("Texte: Eigentümername, Preis und Komma-Kette werden abgewiesen; Übernommenes vom Projekt nur gemeldet", async () => {
+		const w = world({ ...PROJECT, description_note: "Ein Projekt der JJW Hillscheid Grundbesitz GmbH, Miete 6,80 €/m²." });
+		const deps = { client: w.client, db: fakeDb().db, now: NOW, sleep, user: USER };
+		await expect(createObject(deps, { ...standalone, description_note: "Halle der JJW Hillscheid Grundbesitz GmbH.", owner_contact_id: 111 })).rejects.toThrow(/nennt den Eigentümer/);
+		await expect(createObject(deps, { ...standalone, description_note: "Für 6,80 €/m² zu mieten." })).rejects.toThrow(/enthält einen Preis/);
+		await expect(createObject(deps, { ...standalone, furnishing_note: "LED, Sprinkler, Rampen" })).rejects.toThrow(/Aufzählung/);
+		await expect(createObject(deps, { ...standalone, title: "Logistikhalle in (33) Herford" })).rejects.toThrow(/\(33\) passt nicht zur PLZ 32052/);
+		expect(w.calls.some((c) => c.method === "createUnit")).toBe(false);
+		// Alttext des Projekts blockiert die Einheit nicht, wird aber gemeldet
+		const out = await createObject(deps, { marketing_type: "RENT", owner_contact_id: 111, project_id: 604473, rs_type: "INDUSTRY", unit_id: "Unit 3" });
+		const warnings = (out.result as { text_warnings: string[] }).text_warnings.join(" ");
+		expect(warnings).toMatch(/Vom Projekt übernommen – Beschreibung: nennt den Eigentümer/);
+		expect(warnings).toMatch(/Vom Projekt übernommen – Beschreibung: enthält einen Preis/);
+	});
+
+	it("update_object: nur Koordinaten ändern funktioniert (vorher fälschlich als „nichts geändert“ abgebrochen)", async () => {
+		const w = world();
+		Object.assign(w.stored, { marketing_type: "RENT", title: "Halle" });
+		const { db, updates } = fakeDb();
+		const out = await updateObject({ client: w.client, db, now: NOW, sleep, user: USER }, { id: 900, lat: 50.4109821, lng: 7.6811256 });
+		expect(w.coords).toEqual({ lat: 50.4109821, lng: 7.6811256 });
+		expect(out.result).toMatchObject({ changed: ["lat/lng"], coordinates: { source: "angegeben", verified: true }, updated: true });
+		expect(updates[0]?.[0]).toBe("done");
+	});
+
+	it("update_object: How-to-Felder und Aktiv nur bei echter Änderung; interne Angaben werden an die Bemerkung angehängt", async () => {
+		const w = world();
+		Object.assign(w.stored, { marketing_type: "RENT", rented: false, title: "Halle" });
+		Object.assign(w.custom, { bemerkung: "Alt", ramepntore: "10" });
+		const deps = { client: w.client, db: fakeDb().db, now: NOW, sleep, user: USER };
+		const out = await updateObject(deps, { active: true, dock_doors: 10, ground_level_doors: 2, id: 900, source_link: "https://example.org/expose.pdf" });
+		expect(w.puts).toEqual([
+			{
+				partial_custom_fields: {
+					aktiv: [7],
+					anzahl_rampentore_2: 2,
+					bemerkung: "Alt\n\nErgänzt über Claude (Propstack MCP) von Florian Brimmers am 2026-10-14.\nExposé/Website: https://example.org/expose.pdf",
+					status_logistik: "Aktiv",
+				},
+			},
+		]);
+		expect((out.result as { changed: string[] }).changed).toEqual(expect.arrayContaining(["custom_fields.anzahl_rampentore_2", "bemerkung (angehängt)"]));
+		// Geänderter Text gegen die Regeln → abgewiesen, unveränderter Alttext bleibt unberührt
+		await expect(updateObject(deps, { description_note: "Miete 6,80 € je m²", id: 900 })).rejects.toThrow(/enthält einen Preis/);
+		const hint = await updateObject(deps, { id: 900, industrial_area: 9000 });
+		expect((hint.result as { warnings: string[] }).warnings.join(" ")).toMatch(/Gesamtfläche/);
 	});
 });
 

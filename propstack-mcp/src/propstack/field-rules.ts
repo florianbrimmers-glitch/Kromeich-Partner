@@ -201,15 +201,16 @@ export type RentState = "available" | "rented" | "unknown";
  * Custom-Feld-Werte, die aus Standardfeldern folgen. Explizit übergebene Custom-Felder haben Vorrang.
  * rent = available: *_verfugbar = Fläche. rent = rented: *_verfugbar (Text) = „X m² (vermietet)“.
  * flags: zusätzlich status_logistik und aktiv setzen (beim Anlegen bzw. wenn rented oder Status geändert wird).
- * „Aktiv“ NUR bei Status Vermarktung und nicht vermietet (marketable) – sonst „Inaktiv“, damit Objekte in
+ * „Aktiv“ NUR bei Status Vermarktung/Reserviert und nicht vermietet (marketable) – sonst „Inaktiv“, damit Objekte in
  * Akquise/Vorbereitung nicht in Automatisierungen (Exposéversand, Webseite) landen.
+ * active: ausdrückliche Ansage (How-to: „Aktiv hinterlegen, wenn wir das Objekt anbieten können“) – hat Vorrang.
  * Ablauf laut Team-Prozess: vermietete Einheit → status_logistik Inaktiv, aktiv Inaktiv, Fläche „(vermietet)“.
  */
 export function mirroredCustomFields(
 	fields: Raw,
 	defs: Map<string, FieldDef>,
 	explicit: Raw | undefined,
-	options: { rent: RentState; flags: boolean; marketable: boolean; priceOnInquiry: boolean },
+	options: { rent: RentState; flags: boolean; marketable: boolean; priceOnInquiry: boolean; active?: boolean },
 ): Raw {
 	const out: Raw = {};
 	const free = (key: string) => defs.has(key) && !(explicit && key in explicit) && !BLOCKED_OBJECT_FIELDS[key];
@@ -228,7 +229,7 @@ export function mirroredCustomFields(
 		if (options.rent === "rented") for (const key of targets.available) put(key, value, " (vermietet)");
 	}
 	if (options.flags) {
-		const active = options.rent === "available" && options.marketable;
+		const active = options.active ?? (options.rent === "available" && options.marketable);
 		if (free("status_logistik")) out.status_logistik = active ? "Aktiv" : "Inaktiv";
 		if (free("aktiv")) out.aktiv = [active ? "Aktiv" : "Inaktiv"];
 	}

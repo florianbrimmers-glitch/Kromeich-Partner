@@ -182,6 +182,20 @@ export function mapUnitSummary(raw: Raw) {
 	});
 }
 
+/** Bilder kurz: Titel und Kennzeichen – um zu prüfen, ob Bilder benannt und Grundrisse gekennzeichnet sind. */
+export function imageList(value: unknown, max = 40): Raw[] | undefined {
+	if (!Array.isArray(value) || !value.length) return undefined;
+	return value.slice(0, max).map((image) => {
+		const raw = (image && typeof image === "object" ? image : {}) as Raw;
+		return compact({
+			id: raw.id,
+			title: scalar(raw.title),
+			floorplan: raw.is_floorplan === true ? true : undefined,
+			private: raw.is_private === true ? true : undefined,
+		});
+	});
+}
+
 export function mapUnitDetail(raw: Raw) {
 	const images = Array.isArray(raw.images) ? raw.images.length : undefined;
 	return compact({
@@ -214,12 +228,65 @@ export function mapUnitDetail(raw: Raw) {
 		broker: idName(raw.broker),
 		project: nameOf(raw.project),
 		tags: groupNames(raw.property_groups ?? raw.groups),
-		description: truncate(raw.description_note, 1500),
-		location: truncate(raw.location_note, 800),
-		furnishing: truncate(raw.furnishing_note, 800),
+		description: truncate(raw.description_note, 2000),
+		location: truncate(raw.location_note, 1500),
+		furnishing: truncate(raw.furnishing_note, 1500),
 		other: truncate(raw.other_note, 800),
 		custom_fields: customFields(raw.custom_fields),
 		image_count: images,
+		images: imageList(raw.images),
+	});
+}
+
+// ---------- Projekte ----------
+
+const countOf = (value: unknown) => (Array.isArray(value) && value.length ? value.length : undefined);
+
+export function mapProjectDetail(raw: Raw, units?: { rows: Raw[]; total: number | null }) {
+	const status = raw.status && typeof raw.status === "object" ? scalar((raw.status as Raw).label) : scalar(raw.status);
+	return compact({
+		...pick(raw, [
+			"id",
+			"name",
+			"title",
+			"sub_headline",
+			"tagline",
+			"street",
+			"house_number",
+			"zip_code",
+			"city",
+			"lat",
+			"lng",
+			"hide_address",
+			"broker_id",
+			"for_rent",
+			"for_sale",
+			"courtage",
+			"courtage_note",
+			"construction_year",
+			"created_at",
+			"updated_at",
+		]),
+		code: scalar(raw.project_id),
+		status,
+		address: scalar(raw.address),
+		description: truncate(raw.description_note, 2000),
+		location: truncate(raw.location_note, 1500),
+		furnishing: truncate(raw.furnishing_note, 1500),
+		internal_note: truncate(raw.note, 1500),
+		warning_notice: truncate(raw.warning_notice, 500),
+		custom_fields: customFields(raw.custom_fields),
+		image_count: countOf(raw.images),
+		images: imageList(raw.images),
+		floorplan_count: countOf(raw.floorplans),
+		document_count: countOf(raw.documents),
+		links: Array.isArray(raw.links)
+			? raw.links.slice(0, 20).map((link) => compact({ title: scalar((link as Raw)?.title), url: (link as Raw)?.url }))
+			: undefined,
+		unit_count: units ? (units.total ?? units.rows.length) : undefined,
+		units: units?.rows.map((unit) =>
+			compact({ id: unit.id, unit_id: scalar(unit.unit_id), title: scalar(unit.title), status: statusName(unit), archived: unit.archived === true ? true : undefined }),
+		),
 	});
 }
 
