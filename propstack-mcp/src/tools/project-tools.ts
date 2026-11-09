@@ -7,7 +7,8 @@ import { beginWrite, finishWrite } from "../write-log";
 import { coordsOf, ensureCoordinates } from "../propstack/geo";
 import { linkOwnerTo, type OwnerResult } from "../propstack/owner";
 import { loadAll, type ToolOutput } from "./read-tools";
-import { TEST_TAG, type WriteDeps } from "./write-tools";
+import { same, TEST_TAG, type WriteDeps } from "./write-tools";
+import { validateCustomFields } from "../propstack/field-rules";
 
 // Phase 3b (Entscheidung Florian, 15.10.2026): Projekte anlegen, Eigentümer verknüpfen,
 // Bilder per URL hochladen. Regeln aus Notion-Feld-Mapping und Team-Prozess:
@@ -58,7 +59,7 @@ function matches(requested: unknown, actual: unknown): boolean {
 }
 
 /** Vergleich nach dem Write: fehlende Keys = nicht prüfbar, abweichende = nicht übernommen. */
-function compareProject(fields: Raw, actual: Raw): { missing: string[]; unverified: string[] } {
+function compareProject(fields: Raw, actual: Raw, customExpect?: Raw): { missing: string[]; unverified: string[] } {
 	const missing: string[] = [];
 	const unverified: string[] = [];
 	for (const [key, value] of Object.entries(fields)) {
@@ -66,7 +67,16 @@ function compareProject(fields: Raw, actual: Raw): { missing: string[]; unverifi
 		if (got === undefined) unverified.push(key);
 		else if (!matches(value, got)) missing.push(key);
 	}
+	const actualCustom = actual.custom_fields && typeof actual.custom_fields === "object" ? (actual.custom_fields as Raw) : undefined;
+	for (const [key, value] of Object.entries(customExpect ?? {})) {
+		if (!actualCustom || !(key in actualCustom)) unverified.push(`custom_fields.${key}`);
+		else if (!same(value, actualCustom[key])) missing.push(`custom_fields.${key}`);
+	}
 	return { missing, unverified };
+}
+
+function originNoteText(name: string, now: Date, verb: "Angelegt" | "Ergänzt"): string {
+	return `${verb} über Claude (Propstack MCP) von ${name} am ${today(now)}.`;
 }
 
 // ---------- Projekt anlegen ----------
@@ -84,7 +94,12 @@ export const createProjectInput = {
 	courtage_note: optionalText(2000).describe("Provisionshinweis, z. B. „Die Anmietung erfolgt provisionsfrei für den Mieter.“"),
 	description_note: optionalText(10000).describe(`Objektbeschreibung. ${EXPOSE_VISIBLE}`),
 	location_note: optionalText(10000).describe(`Lagebeschreibung. ${EXPOSE_VISIBLE}`),
-	furnishing_note: optionalText(10000).describe(`Ausstattung. ${EXPOSE_VISIBLE}`),
+	furnishing_note: optionalText(10000).describe(`Ausstattung als Aufzählung (eine Zeile je Punkt mit „- “). ${EXPOSE_VISIBLE}`),
+	sub_headline: optionalText(250).describe("Unterzeile fürs Exposé, z. B. „Direkt an der A40“"),
+	internal_note: optionalText(4000).describe(
+		"Interne Notiz am Projekt (nicht im Exposé): Link zum Exposé/zur Website, Mandatsart (z. B. Alleinmandat), Konditionen, Provision. Wird mit Datum und Nutzer gespeichert",
+	),
+	custom_fields: z.record(z.string(), z.unknown()).optional().describe("Projekt-Custom-Felder {schlüssel: wert}, Schlüssel über list_fields entity=projects"),
 	owner_contact_id: id.optional().describe("Eigentümer-Kontakt (eigener Shop). Wird nach dem Anlegen separat verknüpft – an den Einheiten ebenfalls angeben"),
 	lat: z.number().min(-90).max(90).optional().describe("Breitengrad, falls bekannt. Sonst übernimmt das Tool Propstacks Geokodierung oder ermittelt die Koordinaten aus der Adresse (OpenStreetMap)"),
 	lng: z.number().min(-180).max(180).optional().describe("Längengrad, falls bekannt"),
@@ -146,9 +161,13 @@ export async function createProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 		zip_code: input.zip_code,
 		...(input.marketing_type === "RENT" ? { for_rent: true } : { for_sale: true }),
 	};
-	for (const key of ["house_number", "hide_address", "courtage", "courtage_note", "description_note", "location_note", "furnishing_note"] as const) {
+	for (const key of ["house_number", "hide_address", "courtage", "courtage_note", "description_note", "location_note", "furnishing_note", "sub_headline"] as const) {
 		if (input[key] !== undefined) fields[key] = input[key];
 	}
+	// Interne Notiz: laut API-Doku Feld `note`; laut Notion früher still verworfen – das Gegenlesen zeigt es
+	fields.note = [originNoteText(user.name, now, "Angelegt"), input.internal_note].filter(Boolean).join("\n");
+	const custom = await validateCustomFields(client, "for_projects", input.custom_fields);
+	if (custom) fields.partial_custom_fields = custom.send;
 
 	const logId = await beginWrite(deps.db, {
 		action: "create",
@@ -171,19 +190,20 @@ export async function createProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 	}
 
 	// Zurücklesen; was im Sammel-Request verloren ging, einzeln nachsetzen (Feld-Mapping: Multi-Feld-Writes verlieren still)
+	const { partial_custom_fields: _custom, ...plainFields } = fields;
 	let actual = asObject(await client.getProject(projectId));
-	let { missing, unverified } = compareProject(fields, actual);
+	let { missing, unverified } = compareProject(plainFields, actual, custom?.expect);
 	const writeErrors: string[] = [];
 	if (missing.length) {
 		for (const key of missing) {
 			try {
-				await client.updateProject(projectId, { [key]: fields[key] });
+				await client.updateProject(projectId, key.startsWith("custom_fields.") ? { partial_custom_fields: { [key.slice(14)]: custom?.send[key.slice(14)] } } : { [key]: fields[key] });
 			} catch (error) {
 				writeErrors.push(`${key}: ${(error as Error).message}`);
 			}
 		}
 		actual = asObject(await client.getProject(projectId));
-		({ missing, unverified } = compareProject(fields, actual));
+		({ missing, unverified } = compareProject(plainFields, actual, custom?.expect));
 	}
 
 	const coordinates = await ensureCoordinates({
@@ -253,12 +273,13 @@ export async function createProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 // Entscheidung Florian, 16.10.: Provision, Texte und Koordinaten auch am Projekt nachträglich setzen.
 // Wie update_object: nur echte Änderungen, Snapshot vorher, Gegenlesen, Verlorenes einzeln nachsetzen.
 
-const PROJECT_TEXT_KEYS = ["name", "title", "street", "house_number", "zip_code", "city", "courtage", "courtage_note", "description_note", "location_note", "furnishing_note"] as const;
+const PROJECT_TEXT_KEYS = ["name", "title", "sub_headline", "street", "house_number", "zip_code", "city", "courtage", "courtage_note", "description_note", "location_note", "furnishing_note"] as const;
 
 export const updateProjectInput = {
 	id: id.describe("Propstack-Projekt-ID"),
 	name: optionalText(250).describe("Projektname, Format: Logistikhalle in (XX) Ort – Straße"),
 	title: optionalText(250).describe("Marketingname"),
+	sub_headline: optionalText(250).describe("Unterzeile fürs Exposé, z. B. „Direkt an der A40“"),
 	street: optionalText(200),
 	house_number: optionalText(20),
 	zip_code: z.string().trim().regex(/^\d{4,5}$/).optional(),
@@ -269,6 +290,8 @@ export const updateProjectInput = {
 	description_note: optionalText(10000).describe(`Objektbeschreibung. ${EXPOSE_VISIBLE}`),
 	location_note: optionalText(10000).describe(`Lagebeschreibung. ${EXPOSE_VISIBLE}`),
 	furnishing_note: optionalText(10000).describe(`Ausstattung. ${EXPOSE_VISIBLE}`),
+	note_append: optionalText(4000).describe("Interne Notiz ergänzen (wird mit Datum und Nutzer angehängt, vorhandener Text bleibt): Exposé-/Website-Link, Mandatsart, Konditionen, Provision"),
+	custom_fields: z.record(z.string(), z.unknown()).optional().describe("Projekt-Custom-Felder {schlüssel: wert}, Schlüssel über list_fields entity=projects; null leert"),
 	lat: z.number().min(-90).max(90).optional().describe("Breitengrad – nur zusammen mit lng; geschrieben mit dem Stufen-Trick und per Einzel-GET geprüft"),
 	lng: z.number().min(-180).max(180).optional().describe("Längengrad"),
 	allow_duplicate_reason: optionalText(500).describe("Nur falls die geänderte Adresse mit einem anderen Projekt kollidiert: Begründung"),
@@ -312,8 +335,19 @@ export async function updateProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 		}
 	}
 
+	if (input.note_append) {
+		const old = String(scalar(current.note) ?? "").trim();
+		fields.note = [old, `${originNoteText(user.name, deps.now?.() ?? new Date(), "Ergänzt")}\n${input.note_append}`].filter(Boolean).join("\n\n");
+		before.note = old;
+	}
+	const custom = await validateCustomFields(client, "for_projects", input.custom_fields);
+	if (custom) {
+		const currentCustom = (current.custom_fields ?? {}) as Raw;
+		before.custom_fields = Object.fromEntries(Object.keys(custom.send).map((k) => [k, (currentCustom[k] as Raw | undefined)?.value ?? currentCustom[k] ?? null]));
+	}
+
 	const coordsRequested = input.lat !== undefined && input.lng !== undefined;
-	if (!Object.keys(fields).length && !coordsRequested) {
+	if (!Object.keys(fields).length && !coordsRequested && !custom) {
 		return { count: 0, result: { updated: false, id: input.id, note: "Keine Änderung – alle Werte sind bereits so gesetzt." } };
 	}
 
@@ -324,14 +358,14 @@ export async function updateProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 		entity: "project",
 		entityId: input.id,
 		overrideReason,
-		request: { ...fields, ...(coordsRequested ? { lat: input.lat, lng: input.lng } : {}) },
+		request: { ...fields, ...(custom ? { partial_custom_fields: custom.send } : {}), ...(coordsRequested ? { lat: input.lat, lng: input.lng } : {}) },
 		tool: "update_project",
 		userEmail: user.email,
 		warnings: [],
 	});
-	if (Object.keys(fields).length) {
+	if (Object.keys(fields).length || custom) {
 		try {
-			await client.updateProject(input.id, fields);
+			await client.updateProject(input.id, { ...fields, ...(custom ? { partial_custom_fields: custom.send } : {}) });
 		} catch (error) {
 			await finishWrite(deps.db, logId, { error: (error as Error).message, status: "failed" });
 			throw error;
@@ -340,18 +374,21 @@ export async function updateProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 
 	// Gegenlesen; Verlorenes einzeln nachsetzen
 	let actual = asObject(await client.getProject(input.id));
-	let { missing, unverified } = compareProject(fields, actual);
+	let { missing, unverified } = compareProject(fields, actual, custom?.expect);
 	const writeErrors: string[] = [];
 	if (missing.length) {
 		for (const key of missing) {
 			try {
-				await client.updateProject(input.id, { [key]: fields[key] });
+				await client.updateProject(
+					input.id,
+					key.startsWith("custom_fields.") ? { partial_custom_fields: { [key.slice(14)]: custom?.send[key.slice(14)] } } : { [key]: fields[key] },
+				);
 			} catch (error) {
 				writeErrors.push(`${key}: ${(error as Error).message}`);
 			}
 		}
 		actual = asObject(await client.getProject(input.id));
-		({ missing, unverified } = compareProject(fields, actual));
+		({ missing, unverified } = compareProject(fields, actual, custom?.expect));
 	}
 
 	const coordinates = coordsRequested
@@ -375,7 +412,7 @@ export async function updateProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 			updated: true,
 			id: input.id,
 			name: scalar(actual.name),
-			changed: [...Object.keys(fields), ...(coordsRequested ? ["lat/lng"] : [])],
+			changed: [...Object.keys(fields), ...Object.keys(custom?.send ?? {}).map((k) => `custom_fields.${k}`), ...(coordsRequested ? ["lat/lng"] : [])],
 			coordinates,
 			not_applied: missing.length ? missing : undefined,
 			not_verifiable: unverified.length ? unverified : undefined,

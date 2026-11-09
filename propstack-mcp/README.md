@@ -100,6 +100,13 @@ Bewusste Lücken: Ein einzelner Deal per ID und die Kontakt-Status-Liste sind nu
   - Erlaubt sind JPEG, PNG und WebP, erkannt an den Datei-Bytes. Max. 15 MB je Bild, max. 20 Bilder je Adresse.
   - Ist eine Datei ungültig, wird nichts hochgeladen. Der Propstack-Key verlässt den Server nicht.
 - **API-Key:** Der Key „MCP-Server“ braucht in Propstack zusätzlich Schreibrechte für Projekte, Relationships, Bilder und Aufgaben.
+- **Rückmeldung Oguzhan (24.10.):**
+  - Projekte haben eine **interne Notiz** (`internal_note` beim Anlegen, `note_append` bei Änderungen; API-Feld `note`). Die Notion-Seite hält `note` für nicht schreibbar; das Gegenlesen meldet es, falls Propstack es verwirft.
+  - Projekte haben **`sub_headline`** (Unterzeile fürs Exposé) und **Projekt-Custom-Felder**.
+  - Einheiten im Projekt **übernehmen Lage- und Ausstattungstext** vom Projekt, wenn keine eigenen angegeben sind.
+  - **`contact_person_id`** schreibt den Ansprechpartner Vermietung (Kontakt-ID) ins Feld `ansprechpartner_vermietung`.
+  - **Koordinaten ohne Hausnummer:** OpenStreetMap kennt dann nur die Straßenmitte (Hillscheid: rund 3 km daneben). Das Tool setzt sie deshalb **nicht**, sondern meldet sie als Vorschlag. Genaue Werte kommen per `lat`/`lng`.
+  - Die Schalter „Einheiten im Exposé anzeigen“ und „Auf der Landingpage verlinken“ sind laut Notion und API-Doku nicht per API setzbar. Sie bleiben ein Handgriff in der Oberfläche.
 - **`update_project`** (Entscheidung Florian, 16.10.) arbeitet wie `update_object`: Es schreibt nur echte Änderungen, legt vorher einen Snapshot ins Write-Log und liest danach zurück. Was Propstack still verwirft, wird einzeln nachgesetzt. Koordinaten nur zusammen (lat+lng) und mit dem Stufen-Trick, bei Adressänderung mit Dublettenprüfung.
 - **Nicht enthalten:** Dokumente (PDF), Post in #objekte, Löschen. Im reinen claude.ai-Chat ohne Code-Ausführung gibt es keinen Datei-Upload, dort nur `add_images` per URL.
 

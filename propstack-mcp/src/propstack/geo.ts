@@ -109,6 +109,18 @@ export async function ensureCoordinates(options: {
 	if (!options.address) return { source: "keine", verified: false, note: "Keine Koordinaten und keine Adresse." };
 	const found = await geocode(options.address, options.fetchFn);
 	if (!found) return { source: "keine", verified: false, note: "Adresse nicht gefunden (OpenStreetMap) – Koordinaten bitte nachtragen." };
+	// Ohne Hausnummer liefert OpenStreetMap nur die Straßenmitte – live 16.10. (Hillscheid) ~3 km daneben.
+	// Nicht still setzen, sondern als Vorschlag melden.
+	if (!options.address.house_number) {
+		return {
+			lat: found.lat,
+			lng: found.lng,
+			note: `Keine Hausnummer – OpenStreetMap kennt nur die Straßenmitte (${found.lat}, ${found.lng}). Nicht gesetzt: genaue Koordinaten aus Karte/Exposé mit lat/lng angeben.`,
+			precision: found.precision,
+			source: "keine",
+			verified: false,
+		};
+	}
 	const result = await writeCoordinates(options.read, options.put, found);
 	return { ...result, precision: found.precision, source: "OpenStreetMap", note: result.error };
 }

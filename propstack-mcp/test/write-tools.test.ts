@@ -158,6 +158,7 @@ function fakeClient(impl: Record<string, (...args: unknown[]) => unknown>) {
 	const defaults: Record<string, (...args: unknown[]) => unknown> = {
 		createGroup: () => ({}),
 		createTask: () => ({ id: 4711 }),
+		getProject: () => ({ furnishing_note: "- 10 Rampen\n- LED", id: 603710, location_note: "Direkt an der A48." }),
 		listCustomFieldGroups: () =>
 			page([
 				{
@@ -611,7 +612,11 @@ describe("create_object / update_object", () => {
 		const unit = fakeUnit();
 		const { client, calls } = fakeClient(unit.impl);
 		const out = await createObject({ client, db: fakeDb().db, now: NOW, sleep, user: USER }, { ...input, project_id: 603710 });
-		expect(out.result).toMatchObject({ review_task: { covered_by: "Prüfaufgabe des Projekts 603710" } });
+		expect(out.result).toMatchObject({
+			inherited_from_project: ["location_note", "furnishing_note"],
+			review_task: { covered_by: "Prüfaufgabe des Projekts 603710" },
+		});
+		expect(unit.posted()).toMatchObject({ furnishing_note: "- 10 Rampen\n- LED", location_note: "Direkt an der A48." });
 		expect(calls.some((c) => c.method === "createTask")).toBe(false);
 	});
 
