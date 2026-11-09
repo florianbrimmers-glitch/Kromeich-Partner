@@ -196,6 +196,23 @@ export function imageList(value: unknown, max = 40): Raw[] | undefined {
 	});
 }
 
+/**
+ * Verknüpfte Kontakte (Eigentümer, Ansprechpartner) aus dem Einzel-GET der Einheit.
+ * Die Doku beschreibt die Liste nicht – deshalb vorsichtig gelesen; was nicht zuzuordnen ist, wird mit seinen Feldnamen gezeigt.
+ */
+export function relationshipList(value: unknown, max = 20): Raw[] | undefined {
+	if (!Array.isArray(value) || !value.length) return undefined;
+	return value.slice(0, max).map((entry) => {
+		const raw = (entry && typeof entry === "object" ? entry : {}) as Raw;
+		const nested = [raw.related_client, raw.client, raw.contact].find((v) => v && typeof v === "object") as Raw | undefined;
+		const id = raw.related_client_id ?? nested?.id ?? raw.client_id ?? raw.contact_id;
+		const name = scalar(nested?.name) ?? scalar(raw.related_client_name) ?? scalar(raw.client_name);
+		const role = raw.internal_name === "owner" ? "Eigentümer" : (scalar(raw.name) ?? scalar(raw.internal_name));
+		if (id === undefined && name === undefined) return { unknown_shape: Object.keys(raw).slice(0, 30) };
+		return compact({ contact_id: id, name, role });
+	});
+}
+
 export function mapUnitDetail(raw: Raw) {
 	const images = Array.isArray(raw.images) ? raw.images.length : undefined;
 	return compact({
@@ -232,6 +249,10 @@ export function mapUnitDetail(raw: Raw) {
 		location: truncate(raw.location_note, 1500),
 		furnishing: truncate(raw.furnishing_note, 1500),
 		other: truncate(raw.other_note, 800),
+		internal_note: truncate(raw.note, 1500),
+		contacts: relationshipList(raw.relationships),
+		energy_source: scalar(raw.firing_types),
+		heating_type: scalar(raw.heating_type),
 		custom_fields: customFields(raw.custom_fields),
 		image_count: images,
 		images: imageList(raw.images),

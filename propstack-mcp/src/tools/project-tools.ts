@@ -254,6 +254,7 @@ export async function createProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 	}
 
 	const coordinates = await ensureCoordinates({
+		sleep: deps.sleep,
 		address: input,
 		current: coordsOf(actual),
 		fetchFn: deps.fetchFn,
@@ -491,6 +492,7 @@ export async function updateProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 
 	const coordinates = coordsRequested
 		? await ensureCoordinates({
+				sleep: deps.sleep,
 				current: coordsOf(actual),
 				provided: { lat: input.lat, lng: input.lng },
 				put: (body) => client.updateProject(input.id, body),

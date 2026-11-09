@@ -140,3 +140,29 @@ describe("Mapper kürzen und schützen", () => {
 		expect(customFields({ a: { value: "" }, b: { value: [] } })).toBeUndefined();
 	});
 });
+
+describe("Objekt-Detail: interne Notiz, verknüpfte Kontakte, Energie", async () => {
+	const { mapUnitDetail, relationshipList } = await import("../src/propstack/mappers");
+
+	it("zeigt Notiz, Eigentümer/Ansprechpartner und Energieträger; Unbekanntes mit Feldnamen statt still zu verschwinden", () => {
+		const detail = mapUnitDetail({
+			firing_types: { label: "Wesentlicher Energieträger", value: "GAS" },
+			id: 1,
+			note: { label: "Notiz", value: "Exposé: https://example.org" },
+			relationships: [
+				{ internal_name: "owner", related_client: { id: 111, name: "Eigentümer GmbH" }, related_client_id: 111 },
+				{ internal_name: "partner", name: "Ansprechpartner", related_client_id: 222 },
+			],
+		});
+		expect(detail).toMatchObject({
+			contacts: [
+				{ contact_id: 111, name: "Eigentümer GmbH", role: "Eigentümer" },
+				{ contact_id: 222, role: "Ansprechpartner" },
+			],
+			energy_source: "GAS",
+			internal_note: "Exposé: https://example.org",
+		});
+		expect(relationshipList([{ foo: 1, bar: 2 }])).toEqual([{ unknown_shape: ["foo", "bar"] }]);
+		expect(relationshipList([])).toBeUndefined();
+	});
+});
