@@ -54,6 +54,7 @@ type Client = Pick<
 	| "listContactSources"
 	| "listProjects"
 	| "getProject"
+	| "getProjectNewFormat"
 >;
 
 const SORT_ORDER = z.enum(["asc", "desc"]).optional();
@@ -352,7 +353,21 @@ export const getProjectInput = { id: id.describe("Propstack-Projekt-ID"), diagno
 
 export async function getProject(client: Client, input: DiagnoseInput): Promise<ToolOutput> {
 	const raw = asObject(await client.getProject(input.id));
-	if (input.diagnose) return { count: 1, result: { entity: "project", id: input.id, field_names: fieldShapes(raw, input.diagnose_key) } };
+	if (input.diagnose) {
+		const fields = fieldShapes(raw, input.diagnose_key);
+		// Liefert Propstack mit new=1 (wie bei Einheiten) mehr oder anderes? Nur die Abweichungen zeigen.
+		let different: Record<string, string> | undefined;
+		try {
+			const other = fieldShapes(asObject(await client.getProjectNewFormat(input.id)), input.diagnose_key);
+			different = Object.fromEntries(Object.entries(other).filter(([key, shape]) => fields[key] !== shape));
+		} catch {
+			// Format nicht verfügbar → ohne Vergleich
+		}
+		return {
+			count: 1,
+			result: { entity: "project", id: input.id, field_names: fields, only_with_new_format: different && Object.keys(different).length ? different : undefined },
+		};
+	}
 	const units = await client.searchUnits({ page: 1, per: 100, project_id: input.id });
 	const detail = mapProjectDetail(raw, units);
 	await resolveContactNames(client, detail.contacts);

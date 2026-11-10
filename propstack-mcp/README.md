@@ -133,8 +133,7 @@ Quelle: „Objekte in Propstack anlegen“ und „Projekte in Propstack anlegen�
 | „Daten auf Einheiten übertragen“ nach Projektänderung | `update_project` nennt den Weg (`units_hint`): `plan` mit `object_filter {project_id}` und Texten/Provision – mit Vorschau und Undo |
 | Bilder benennen, keine Schriftzüge, Grundrisse kennzeichnen | Titel beim Upload (`title` je Bild bzw. `titles`). `get_object`/`get_project` zeigen die Titel. Grundriss-Kennzeichen und Schriftzüge bleiben Handarbeit |
 | „Mietprojekt“ | `marketing_type: RENT` setzt `for_rent` |
-| „Auf der Landing Page auf die jeweiligen Einheiten verlinken“ | `show_units_on_landing_page` (Feldname aus der Diagnose, nicht in der Doku). Beim Anlegen standardmäßig an; übernimmt Propstack es nicht, steht es in `not_applied` |
-| „Einheitenliste im Exposé anzeigen“ | API-Feld unbekannt. Steht als Handgriff in der Prüfaufgabe und im Ergebnis (`ui_steps`) |
+| „Einheitenliste im Exposé anzeigen“, „Auf der Landing Page auf die jeweiligen Einheiten verlinken“ | Der Projekt-GET führt dafür nur **ein** Feld: `show_units_on_landing_page` (aus der Diagnose, nicht in der Doku). Es lässt sich setzen und gegenlesen (live 10.11. am Testprojekt). `create_project` setzt es standardmäßig, `update_project` nachträglich. Welchem der beiden Schalter es entspricht, zeigt nur die Oberfläche – die Prüfaufgabe bittet deshalb, beide zu kontrollieren (`ui_steps`) |
 
 - **Was fehlt, wird gemeldet:** Jedes Anlegen liefert `howto_not_provided` (laut How-to wichtig, aber nicht angegeben) und `text_warnings`. Beides steht auch in der Prüfaufgabe.
 - **Projekt oder Einzelobjekt:** Projekt nur bei mindestens zwei getrennt vermietbaren Einheiten, im Zweifel Einzelobjekt (Wissensdatenbank, Abschnitt 3).

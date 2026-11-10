@@ -240,7 +240,7 @@ export function projectNotProvided(input: Raw, fields: Raw): string[] {
 
 /** Schritte, die nur in der Propstack-Oberfläche gehen – stehen in der Prüfaufgabe. */
 export const PROJECT_UI_STEPS = [
-	"In Propstack aktivieren: „Einheitenliste im Exposé anzeigen“ und „Auf der Landing Page auf die jeweiligen Einheiten verlinken“ (über den Connector nicht möglich).",
+	"In Propstack prüfen, dass beide Schalter aktiv sind: „Einheitenliste im Exposé anzeigen“ und „Auf der Landing Page auf die jeweiligen Einheiten verlinken“. Der Connector setzt nur den Schalter für die Einheiten auf der Landing-Page.",
 	"Bilder: benannt (z. B. „Außenansicht“), Grundrisse gekennzeichnet, keine Firmenschriftzüge; allgemeine Bilder am Projekt „Auf Einheiten vererben“.",
 	"Landing-Page-Vorschau ansehen.",
 ];

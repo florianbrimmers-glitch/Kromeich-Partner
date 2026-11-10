@@ -188,6 +188,14 @@ export class PropstackClient {
 		return this.get(`/projects/${id}`);
 	}
 
+	/**
+	 * GET /v1/projects/:id?new=1 – nur für die Diagnose: Bei Einheiten liefert new=1 ein ausführlicheres Format
+	 * (u. a. das Feld „Notiz“). Ob das auch für Projekte gilt, steht nicht in der Doku.
+	 */
+	async getProjectNewFormat(id: number): Promise<unknown> {
+		return this.get(`/projects/${id}?new=1`);
+	}
+
 
 	// ---------- Schreiben (Phase 3) – nur Anlegen/Ändern, keine Löschmethoden ----------
 
