@@ -50,7 +50,7 @@
    "description_note": "Suchen Sie passende Flächen, um Ihr Business zwischen Deutschland und der Schweiz auszubauen? An diesem Standort finden Sie vielseitige Lösungen und werden Teil einer erfolgreichen Community mit über 100 Unternehmen aus verschiedenen Branchen. Die Gewerbeimmobilie liegt in einem gut erschlossenen Gewerbepark und umfasst ein Bürogebäude mit fünf Vollgeschossen und insgesamt ca. 5.000 m², die flexibel teilbar sind. Die unteren Etagen stammen aus dem Jahr 1970, die oberen aus 2003. Ein Ausbau des Glasfasernetzes ist geplant, um die Konnektivität weiter zu verbessern. Ab dem 01.02.2027 steht zudem eine Hallen- und Produktionsfläche von ca. 1.566 m² zur Verfügung. Die Kalthalle verfügt über eine Hallenhöhe von 8,20 m und zwei Verladerampen für LKW – ideal für Produktion und Lager. Vereinbaren Sie einen Besichtigungstermin und überzeugen Sie sich vor Ort von den Vorteilen dieses Standorts."
   },
   "613126": {
-   "location_note": "Die Flächen befinden sich im Norden von Leipzig in einem etablierten Gewerbeumfeld. Der Standort ist an das Autobahnkreuz Leipzig-Mitte mit der Autobahn A 14 und der Bundesstraße B 2 angebunden.\n\nAutobahnen:\n- A 14 (Anschlussstelle Leipzig-Nord): ca. 1,5 km\n\nBundesstraßen:\n- B 6: ca. 5,2 km\n- B 2: ca. 7,2 km\n\nÖPNV:\n- Bushaltestelle GVZ Nord, Porschestraße: ca. 0,3 km\n- Bahnhof Leipzig-Wahren: ca. 7,9 km\n\nHäfen:\n- Hafen Halle (Saale): ca. 34 km\n\nFlughäfen:\n- Flughafen Leipzig/Halle: ca. 5,9 km",
+   "location_note": "Die Flächen befinden sich im Norden von Leipzig in einem etablierten Gewerbeumfeld. Der Standort ist an das Autobahnkreuz Leipzig-Mitte mit der Autobahn A 14 und der Bundesstraße B 2 angebunden.\n\nAutobahnen:\n- A 14 (Anschlussstelle Leipzig-Nord): ca. 1,5 km\n\nBundesstraßen:\n- B 6: ca. 5,2 km\n- B 2: ca. 7,2 km\n\nÖPNV:\n- Bushaltestelle GVZ Nord, Porschestraße: ca. 0,3 km\n- Bahnhof Leipzig/Halle Flughafen: ca. 5,9 km\n\nHäfen:\n- Hafen Halle (Saale): ca. 34 km\n\nFlughäfen:\n- Flughafen Leipzig/Halle: ca. 5,9 km",
    "furnishing_note": "- Ausreichend Parkplätze"
   },
   "613127": {
@@ -222,13 +222,13 @@
   "6373975": {
    "project_id": 613126,
    "unit_id": "Unit F",
-   "location_note": "Die Flächen befinden sich im Norden von Leipzig in einem etablierten Gewerbeumfeld. Der Standort ist an das Autobahnkreuz Leipzig-Mitte mit der Autobahn A 14 und der Bundesstraße B 2 angebunden.\n\nAutobahnen:\n- A 14 (Anschlussstelle Leipzig-Nord): ca. 1,5 km\n\nBundesstraßen:\n- B 6: ca. 5,2 km\n- B 2: ca. 7,2 km\n\nÖPNV:\n- Bushaltestelle GVZ Nord, Porschestraße: ca. 0,3 km\n- Bahnhof Leipzig-Wahren: ca. 7,9 km\n\nHäfen:\n- Hafen Halle (Saale): ca. 34 km\n\nFlughäfen:\n- Flughafen Leipzig/Halle: ca. 5,9 km",
+   "location_note": "Die Flächen befinden sich im Norden von Leipzig in einem etablierten Gewerbeumfeld. Der Standort ist an das Autobahnkreuz Leipzig-Mitte mit der Autobahn A 14 und der Bundesstraße B 2 angebunden.\n\nAutobahnen:\n- A 14 (Anschlussstelle Leipzig-Nord): ca. 1,5 km\n\nBundesstraßen:\n- B 6: ca. 5,2 km\n- B 2: ca. 7,2 km\n\nÖPNV:\n- Bushaltestelle GVZ Nord, Porschestraße: ca. 0,3 km\n- Bahnhof Leipzig/Halle Flughafen: ca. 5,9 km\n\nHäfen:\n- Hafen Halle (Saale): ca. 34 km\n\nFlughäfen:\n- Flughafen Leipzig/Halle: ca. 5,9 km",
    "furnishing_note": "- Ausreichend Parkplätze"
   },
   "6373977": {
    "project_id": 613126,
    "unit_id": "Unit D",
-   "location_note": "Die Flächen befinden sich im Norden von Leipzig in einem etablierten Gewerbeumfeld. Der Standort ist an das Autobahnkreuz Leipzig-Mitte mit der Autobahn A 14 und der Bundesstraße B 2 angebunden.\n\nAutobahnen:\n- A 14 (Anschlussstelle Leipzig-Nord): ca. 1,5 km\n\nBundesstraßen:\n- B 6: ca. 5,2 km\n- B 2: ca. 7,2 km\n\nÖPNV:\n- Bushaltestelle GVZ Nord, Porschestraße: ca. 0,3 km\n- Bahnhof Leipzig-Wahren: ca. 7,9 km\n\nHäfen:\n- Hafen Halle (Saale): ca. 34 km\n\nFlughäfen:\n- Flughafen Leipzig/Halle: ca. 5,9 km",
+   "location_note": "Die Flächen befinden sich im Norden von Leipzig in einem etablierten Gewerbeumfeld. Der Standort ist an das Autobahnkreuz Leipzig-Mitte mit der Autobahn A 14 und der Bundesstraße B 2 angebunden.\n\nAutobahnen:\n- A 14 (Anschlussstelle Leipzig-Nord): ca. 1,5 km\n\nBundesstraßen:\n- B 6: ca. 5,2 km\n- B 2: ca. 7,2 km\n\nÖPNV:\n- Bushaltestelle GVZ Nord, Porschestraße: ca. 0,3 km\n- Bahnhof Leipzig/Halle Flughafen: ca. 5,9 km\n\nHäfen:\n- Hafen Halle (Saale): ca. 34 km\n\nFlughäfen:\n- Flughafen Leipzig/Halle: ca. 5,9 km",
    "furnishing_note": "- Ausreichend Parkplätze"
   },
   "6373980": {

@@ -148,9 +148,10 @@ out geom;"""
  node(around:1500,{lat},{lon})[railway=tram_stop][name];);
 out body;"""
     els = overpass(f"{pid}_oepnv", q)
-    rail = [e for e in els if e["tags"].get("railway") in ("station", "halt") and e["tags"].get("station") not in ("subway", "light_rail_disused") and e["tags"].get("usage") != "tourism" and "disused" not in e["tags"]]
+    # ohne U-Bahn, Park- und Museumsbahnen: die verdrängen sonst echte Bahnhöfe aus der Auswahl (Leipzig, Parkeisenbahn Auensee)
+    rail = [e for e in els if e["tags"].get("railway") in ("station", "halt") and e["tags"].get("station") not in ("subway", "miniature", "light_rail_disused", "funicular", "monorail") and e["tags"].get("usage") not in ("tourism", "leisure") and "disused" not in e["tags"]]
     stops = [e for e in els if e["tags"].get("highway") == "bus_stop" or e["tags"].get("railway") == "tram_stop"]
-    rail = sorted(rail, key=lambda e: air(o, (e["lat"], e["lon"])))[:5]
+    rail = sorted(rail, key=lambda e: air(o, (e["lat"], e["lon"])))[:12]
     stops = sorted(stops, key=lambda e: air(o, (e["lat"], e["lon"])))[:6]
     km = road_km(f"{pid}_osrm_oepnv", o, [(e["lat"], e["lon"]) for e in rail + stops])
     rr = [{"name": e["tags"]["name"], "art": e["tags"].get("railway"), "station": e["tags"].get("station"), "km": d} for e, d in zip(rail, km[:len(rail)]) if d is not None]

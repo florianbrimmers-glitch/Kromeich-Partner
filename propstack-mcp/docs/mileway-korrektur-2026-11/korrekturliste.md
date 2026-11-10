@@ -19,6 +19,12 @@
 > - **Namen der Gewerbeparks** („Forum Radefeld“, „Hansepark“) bleiben in den Beschreibungen (Entscheidung 5).
 > - **Bergkamen:** „Bahnhof Werne an der Lippe“ statt der Kurzform „Werne a d Lippe“.
 > - Geschützte Bindestriche aus dem Seitentext (Aachen) sind jetzt normale Bindestriche.
+> - **Leipzig:** „Bahnhof Leipzig/Halle Flughafen: ca. 5,9 km“ statt „Bahnhof Leipzig-Wahren: ca. 7,9 km“. Der Vorschlag war hier falsch: Die Rechnung prüfte nur die fünf Bahnhöfe mit der kürzesten Luftlinie, und drei davon waren Haltepunkte der Parkeisenbahn am Auensee. Eine Gegenprobe mit zwölf Kandidaten ohne Park- und Museumsbahnen bestätigt die übrigen 14 Standorte.
+>
+> Grenzen der Lagetexte:
+> - Unter „ÖPNV“ stehen die nächste Bushaltestelle (bis 1,5 km) und der nächste Bahnhof oder Haltepunkt der Eisenbahn. Stadtbahn- und Straßenbahnhaltestellen, die weiter als 1,5 km entfernt sind, fehlen – zum Beispiel die Linie 16 in Wesseling.
+> - Weitere Autobahnen stehen nur dabei, wenn ihre Anschlussstelle unter den acht nächstgelegenen liegt und höchstens 10 km Fahrstrecke entfernt ist. Die Liste ist dort nicht zwingend vollständig.
+> - Entfernungen zu Häfen sind auf einen Kilometer nicht genau (gemessen bis zu einem Punkt im Hafengebiet).
 >
 > Aufgefallen und nicht geändert:
 > - **Aachen, Halle 2:** Die Hallenhöhe 10 m stammt von der Seite der Gesamtliegenschaft und gehört dort zum Hochregallager von Halle 1. Die Unterseite von Halle 2 nennt keine Höhe. Sie nennt „Rampenandienung“; das Feld „Rampentore“ der Einheit ist leer.

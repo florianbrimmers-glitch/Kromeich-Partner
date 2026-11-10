@@ -92,10 +92,40 @@
     "km": 5.887
    },
    {
+    "name": "Neuss Allerheiligen",
+    "art": "halt",
+    "station": null,
+    "km": 9.2849
+   },
+   {
     "name": "Köln-Worringen",
     "art": "station",
     "station": null,
     "km": 9.5417
+   },
+   {
+    "name": "Köln-Blumenberg",
+    "art": "halt",
+    "station": null,
+    "km": 13.1507
+   },
+   {
+    "name": "Düsseldorf-Garath",
+    "art": "halt",
+    "station": null,
+    "km": 24.7927
+   },
+   {
+    "name": "Düsseldorf-Hellerhof",
+    "art": "halt",
+    "station": null,
+    "km": 26.46
+   },
+   {
+    "name": "Langenfeld (Rheinl)-Berghausen",
+    "art": "halt",
+    "station": null,
+    "km": 28.6738
    }
   ],
   "bus": [
@@ -306,6 +336,24 @@
     "art": "station",
     "station": "light_rail",
     "km": 12.0453
+   },
+   {
+    "name": "Brühl-Kierberg",
+    "art": "halt",
+    "station": null,
+    "km": 13.402299999999999
+   },
+   {
+    "name": "Porz-Wahn",
+    "art": "station",
+    "station": null,
+    "km": 26.6312
+   },
+   {
+    "name": "Spich",
+    "art": "halt",
+    "station": null,
+    "km": 29.8097
    }
   ],
   "bus": [
@@ -526,10 +574,52 @@
     "km": 3.3469
    },
    {
+    "name": "Dortmund-Marten",
+    "art": "station",
+    "station": null,
+    "km": 4.231
+   },
+   {
     "name": "Dortmund-Lütgendortmund",
     "art": "halt",
     "station": null,
     "km": 4.4001
+   },
+   {
+    "name": "Dortmund Rahm",
+    "art": "halt",
+    "station": null,
+    "km": 5.158
+   },
+   {
+    "name": "Dortmund-Marten Süd",
+    "art": "halt",
+    "station": null,
+    "km": 5.5921
+   },
+   {
+    "name": "Dortmund-Somborn",
+    "art": "halt",
+    "station": null,
+    "km": 5.9684
+   },
+   {
+    "name": "Dortmund-Westerfilde",
+    "art": "halt",
+    "station": null,
+    "km": 6.0648
+   },
+   {
+    "name": "Dortmund Germania",
+    "art": "halt",
+    "station": null,
+    "km": 6.2503
+   },
+   {
+    "name": "Dortmund-Kley",
+    "art": "halt",
+    "station": null,
+    "km": 8.4687
    }
   ],
   "bus": [
@@ -1159,6 +1249,48 @@
     "art": "halt",
     "station": null,
     "km": 6.6636999999999995
+   },
+   {
+    "name": "Eddersheim",
+    "art": "halt",
+    "station": null,
+    "km": 8.1217
+   },
+   {
+    "name": "Frankfurt-Höchst Farbwerke",
+    "art": "halt",
+    "station": null,
+    "km": 8.2941
+   },
+   {
+    "name": "Kelsterbach",
+    "art": "station",
+    "station": null,
+    "km": 10.2569
+   },
+   {
+    "name": "Unterliederbach",
+    "art": "halt",
+    "station": null,
+    "km": 10.3164
+   },
+   {
+    "name": "Liederbach Süd",
+    "art": "halt",
+    "station": null,
+    "km": 11.4335
+   },
+   {
+    "name": "Liederbach",
+    "art": "station",
+    "station": null,
+    "km": 12.441799999999999
+   },
+   {
+    "name": "Kelkheim-Münster",
+    "art": "halt",
+    "station": null,
+    "km": 15.4903
    }
   ],
   "bus": [
@@ -1371,6 +1503,30 @@
     "km": 5.152399999999999
    },
    {
+    "name": "Aachen Schanz",
+    "art": "halt",
+    "station": null,
+    "km": 6.3865
+   },
+   {
+    "name": "Aachen West",
+    "art": "station",
+    "station": null,
+    "km": 6.7795
+   },
+   {
+    "name": "Stolberg Mühlener Bahnhof",
+    "art": "halt",
+    "station": null,
+    "km": 9.7592
+   },
+   {
+    "name": "Stolberg Schneidmühle",
+    "art": "halt",
+    "station": null,
+    "km": 9.9456
+   },
+   {
     "name": "Forschungsflugplatz Würselen-Merzbrück",
     "art": "halt",
     "station": null,
@@ -1378,9 +1534,27 @@
    },
    {
     "name": "Stolberg (Rheinl) Hbf",
+    "art": "halt",
+    "station": null,
+    "km": 10.3947
+   },
+   {
+    "name": "Stolberg (Rheinl) Hbf",
+    "art": "halt",
+    "station": null,
+    "km": 10.4336
+   },
+   {
+    "name": "Stolberg (Rheinl) Hbf",
     "art": "station",
     "station": null,
     "km": 10.4535
+   },
+   {
+    "name": "Eschweiler-St.Jöris",
+    "art": "station",
+    "station": null,
+    "km": 13.5447
    }
   ],
   "bus": [
@@ -1795,6 +1969,24 @@
     "art": "station",
     "station": "light_rail",
     "km": 6.3248
+   },
+   {
+    "name": "Nettelnburg",
+    "art": "halt",
+    "station": "light_rail",
+    "km": 7.7217
+   },
+   {
+    "name": "Allermöhe",
+    "art": "halt",
+    "station": "light_rail",
+    "km": 8.8758
+   },
+   {
+    "name": "Mittlerer Landweg",
+    "art": "halt",
+    "station": "light_rail",
+    "km": 9.8596
    }
   ],
   "bus": [
@@ -2201,6 +2393,48 @@
     "art": "station",
     "station": null,
     "km": 6.1111
+   },
+   {
+    "name": "Singen (Hohentwiel)",
+    "art": "station",
+    "station": null,
+    "km": 6.4405
+   },
+   {
+    "name": "Thayngen",
+    "art": "station",
+    "station": null,
+    "km": 7.3937
+   },
+   {
+    "name": "Singen Industriegebiet",
+    "art": "halt",
+    "station": null,
+    "km": 8.197700000000001
+   },
+   {
+    "name": "Hemishofen",
+    "art": "station",
+    "station": null,
+    "km": 9.3382
+   },
+   {
+    "name": "Diessenhofen",
+    "art": "station",
+    "station": null,
+    "km": 11.938
+   },
+   {
+    "name": "St. Katharinental",
+    "art": "halt",
+    "station": null,
+    "km": 12.7054
+   },
+   {
+    "name": "Schlattingen",
+    "art": "station",
+    "station": null,
+    "km": 14.6084
    }
   ],
   "bus": [
@@ -2405,16 +2639,46 @@
   ],
   "bahn": [
    {
+    "name": "Leipzig/Halle Flughafen",
+    "art": "station",
+    "station": null,
+    "km": 5.940300000000001
+   },
+   {
+    "name": "Leipzig Slevogtstraße",
+    "art": "halt",
+    "station": null,
+    "km": 6.9008
+   },
+   {
+    "name": "Schkeuditz",
+    "art": "station",
+    "station": null,
+    "km": 7.6123
+   },
+   {
     "name": "Leipzig-Wahren",
     "art": "station",
     "station": null,
     "km": 7.8505
    },
    {
-    "name": "Hp Elsteraue",
+    "name": "Leipzig Messe",
     "art": "halt",
-    "station": "miniature",
-    "km": 8.3864
+    "station": null,
+    "km": 7.9702
+   },
+   {
+    "name": "Leipzig-Möckern",
+    "art": "halt",
+    "station": null,
+    "km": 8.429799999999998
+   },
+   {
+    "name": "Leipzig Coppiplatz",
+    "art": "halt",
+    "station": null,
+    "km": 8.6085
    },
    {
     "name": "Leipzig-Lützschena",
@@ -2423,16 +2687,28 @@
     "km": 8.6945
    },
    {
-    "name": "Bf Auensee",
-    "art": "station",
-    "station": "miniature",
-    "km": 9.3675
+    "name": "Leipzig Olbrichtstraße",
+    "art": "halt",
+    "station": null,
+    "km": 8.8367
    },
    {
-    "name": "Hp Gustav-Esche-Straße",
-    "art": "halt",
-    "station": "miniature",
-    "km": 9.482700000000001
+    "name": "Leipzig Messe",
+    "art": "station",
+    "station": null,
+    "km": 9.0871
+   },
+   {
+    "name": "Leipzig-Leutzsch",
+    "art": "station",
+    "station": null,
+    "km": 11.8267
+   },
+   {
+    "name": "Rackwitz (Leipzig)",
+    "art": "station",
+    "station": null,
+    "km": 12.9964
    }
   ],
   "bus": [
@@ -2639,16 +2915,58 @@
     "km": 6.407100000000001
    },
    {
+    "name": "Ellental",
+    "art": "halt",
+    "station": null,
+    "km": 7.1829
+   },
+   {
     "name": "Marbach (Neckar)",
     "art": "station",
     "station": null,
     "km": 7.2983
    },
    {
+    "name": "Besigheim",
+    "art": "halt",
+    "station": null,
+    "km": 8.669799999999999
+   },
+   {
+    "name": "Walheim (Württemberg)",
+    "art": "station",
+    "station": null,
+    "km": 10.577
+   },
+   {
+    "name": "Erdmannhausen",
+    "art": "halt",
+    "station": null,
+    "km": 10.9892
+   },
+   {
     "name": "Favoritepark",
     "art": "halt",
     "station": null,
     "km": 12.098600000000001
+   },
+   {
+    "name": "Tamm (Württemberg)",
+    "art": "station",
+    "station": null,
+    "km": 12.3619
+   },
+   {
+    "name": "Asperg",
+    "art": "station",
+    "station": null,
+    "km": 12.9635
+   },
+   {
+    "name": "Ludwigsburg",
+    "art": "station",
+    "station": null,
+    "km": 13.498299999999999
    }
   ],
   "bus": [
@@ -2885,6 +3203,48 @@
     "art": "station",
     "station": null,
     "km": 8.066600000000001
+   },
+   {
+    "name": "Köln Trimbornstraße",
+    "art": "halt",
+    "station": null,
+    "km": 8.4005
+   },
+   {
+    "name": "Rösrath-Stümpen",
+    "art": "halt",
+    "station": null,
+    "km": 8.6712
+   },
+   {
+    "name": "Köln-Mülheim",
+    "art": "station",
+    "station": null,
+    "km": 9.099
+   },
+   {
+    "name": "Köln-Buchforst",
+    "art": "halt",
+    "station": null,
+    "km": 9.380600000000001
+   },
+   {
+    "name": "Porz-Wahn",
+    "art": "station",
+    "station": null,
+    "km": 9.9116
+   },
+   {
+    "name": "Sürth Bahnhof",
+    "art": "station",
+    "station": "light_rail",
+    "km": 17.6745
+   },
+   {
+    "name": "Michaelshoven",
+    "art": "station",
+    "station": "light_rail",
+    "km": 17.7385
    }
   ],
   "bus": [
@@ -3117,10 +3477,52 @@
     "km": 7.1449
    },
    {
+    "name": "Düsseldorf Volksgarten",
+    "art": "halt",
+    "station": null,
+    "km": 7.7461
+   },
+   {
+    "name": "Düsseldorf-Friedrichstadt",
+    "art": "halt",
+    "station": null,
+    "km": 8.1859
+   },
+   {
     "name": "Düsseldorf Völklinger Straße",
     "art": "halt",
     "station": null,
     "km": 8.5411
+   },
+   {
+    "name": "Düsseldorf-Oberbilk",
+    "art": "halt",
+    "station": null,
+    "km": 8.8798
+   },
+   {
+    "name": "Düsseldorf-Hamm",
+    "art": "halt",
+    "station": null,
+    "km": 9.5525
+   },
+   {
+    "name": "Düsseldorf-Eller Süd",
+    "art": "halt",
+    "station": null,
+    "km": 9.8894
+   },
+   {
+    "name": "Neuss Süd",
+    "art": "halt",
+    "station": null,
+    "km": 10.521600000000001
+   },
+   {
+    "name": "Neuss Rheinparkcenter",
+    "art": "halt",
+    "station": null,
+    "km": 10.6025
    }
   ],
   "bus": [
