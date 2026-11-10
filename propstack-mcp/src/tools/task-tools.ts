@@ -213,8 +213,10 @@ export async function createTask(deps: TaskDeps, input: z.infer<z.ZodObject<type
 	}
 
 	const title = `${input.test ? "[MCP-TEST] " : ""}${input.title}`;
+	// In Propstack erscheint als Ersteller der Nutzer des API-Keys – deshalb steht im Text, von wem die Aufgabe kommt
+	const stamp = `Angelegt über Claude (Propstack MCP) von ${user.name} am ${berlinDate(now)}.`;
 	const task: Raw = {
-		body: taskBodyHtml(input.body),
+		body: `${taskBodyHtml(input.body)}<p>${escapeHtml(stamp)}</p>`,
 		broker_id: assigneeId,
 		due_date: withBerlinOffset(due),
 		is_reminder: true,

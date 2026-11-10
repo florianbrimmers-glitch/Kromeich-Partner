@@ -112,7 +112,8 @@ describe("create_task", () => {
 			{ assignee_id: 254958, body: BODY, contact_ids: [17475856], due_date: "2026-11-11", object_ids: [2777862, 2778565, 2777862], project_ids: [613128], title: "Entscheidung: alte Mileway-Datensätze" },
 		);
 		expect(sent()).toEqual({
-			body: taskBodyHtml(BODY),
+			// der Text endet mit dem Absender: in Propstack steht als Ersteller sonst nur der Nutzer des API-Keys
+			body: `${taskBodyHtml(BODY)}<p>Angelegt über Claude (Propstack MCP) von Florian Brimmers am 2026-11-10.</p>`,
 			broker_id: 254958,
 			client_ids: [17475856],
 			due_date: "2026-11-11T09:00:00+01:00",
@@ -146,9 +147,10 @@ describe("create_task", () => {
 	});
 
 	it("ohne Angaben: an den Nutzer selbst, fällig am nächsten Werktag 9:00", async () => {
-		const { client, sent } = fakeClient({ getTask: () => ({ body: "<p>Rückruf</p>", broker_id: 347158, due_date: "2026-10-19T09:00:00+02:00", title: "Kunde zurückrufen" }) });
+		const stamped = "<p>Rückruf</p><p>Angelegt über Claude (Propstack MCP) von Florian Brimmers am 2026-10-16.</p>";
+		const { client, sent } = fakeClient({ getTask: () => ({ body: stamped, broker_id: 347158, due_date: "2026-10-19T09:00:00+02:00", title: "Kunde zurückrufen" }) });
 		const out = await createTask({ client, db: fakeDb().db, now: () => new Date("2026-10-16T10:00:00Z"), user: USER }, { body: "Rückruf", title: "Kunde zurückrufen" });
-		expect(sent()).toEqual({ body: "<p>Rückruf</p>", broker_id: 347158, due_date: "2026-10-19T09:00:00+02:00", is_reminder: true, title: "Kunde zurückrufen" }); // Fr → Mo, Sommerzeit
+		expect(sent()).toEqual({ body: stamped, broker_id: 347158, due_date: "2026-10-19T09:00:00+02:00", is_reminder: true, title: "Kunde zurückrufen" }); // Fr → Mo, Sommerzeit
 		expect(out.result).toMatchObject({ assigned_to: "Florian Brimmers", due: "2026-10-19 09:00", id: 501 });
 		expect(out.result).not.toHaveProperty("linked");
 		expect(out.result).not.toHaveProperty("not_applied");
@@ -223,7 +225,7 @@ describe("create_task", () => {
 
 	it("Gegenlesen: Abweichungen und Unprüfbares werden gemeldet, mit Feldnamen statt Werten", async () => {
 		// Propstack hat den Empfänger nicht übernommen und liefert die Verknüpfungen in unbekannter Form
-		const first = fakeClient({ getTask: () => ({ body: "<p>Text</p>", broker_id: 347158, due_date: "2026-11-11T09:00:00+01:00", geheim: "Wert", title: "Titel der Aufgabe" }) });
+		const first = fakeClient({ getTask: () => ({ body: "<p>Text</p><p>Angelegt über Claude (Propstack MCP) von Florian Brimmers am 2026-11-10.</p>", broker_id: 347158, due_date: "2026-11-11T09:00:00+01:00", geheim: "Wert", title: "Titel der Aufgabe" }) });
 		const db1 = fakeDb();
 		const out = await createTask({ client: first.client, db: db1.db, now: NOW, user: USER }, { assignee_id: 254958, body: "Text", due_date: "2026-11-11", object_ids: [5], title: "Titel der Aufgabe" });
 		expect(out.result).toMatchObject({
