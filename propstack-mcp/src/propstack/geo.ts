@@ -24,12 +24,16 @@ export interface CoordinateResult {
 	note?: string;
 }
 
-// Propstack speichert den Längengrad nicht verlässlich genauer als vier Nachkommastellen (live 10.11.,
-// Projekt 613378: 7.6886 statt des sechsstelligen Zielwerts, auch nach zwei Durchgängen). Vier Stellen sind
-// rund 7 m – für die Lage einer Halle richtig. Als gesetzt gilt deshalb alles innerhalb von 0,0001°.
+// Der exakte Längengrad kommt bei Propstack teils verzögert an. Live 10.11., Projekt 613378: nach zwei
+// Durchgängen und auch 35 s später stand im Einzel-GET noch die vierstellige Stufe 7.6886; Stunden später –
+// ohne weiteren Schreibzugriff – der exakte Wert 7.688554. Gespeichert wird also exakt, nur das Gegenlesen
+// hinkt. (Die Erklärung aus v0.9.5, Propstack speichere nur vier Stellen, war falsch.) Darauf zu warten
+// sprengt einen Tool-Aufruf. Vier Stellen sind rund 7 m – für die Lage einer Halle richtig. Als gesetzt gilt
+// deshalb alles innerhalb von 0,0001°; das Ergebnis sagt dazu, dass noch der Zwischenwert zu lesen war.
 const TOLERANCE = 0.0001; // ≈ 7 m (Länge) bzw. 11 m (Breite)
 const EXACT = 0.00002; // ≈ 2 m
-export const ROUNDED_NOTE = "Propstack hat die Koordinaten auf vier Nachkommastellen gespeichert (Abweichung unter 10 m).";
+export const ROUNDED_NOTE =
+	"Beim Gegenlesen stand noch der auf vier Nachkommastellen gerundete Zwischenwert (Abweichung unter 10 m). Der exakte Wert kommt bei Propstack teils verzögert an.";
 
 export function close(a: unknown, b: number): boolean {
 	return typeof a === "number" && Number.isFinite(a) && Math.abs(a - b) <= TOLERANCE;
@@ -163,7 +167,7 @@ export async function ensureCoordinates(options: {
 	const found = await geocode(options.address, options.fetchFn);
 	if (!found) return { source: "keine", verified: false, note: "Adresse nicht gefunden (OpenStreetMap) – Koordinaten bitte nachtragen." };
 	const { rounded, ...result } = await writeCoordinates(options.read, options.put, found, options.sleep);
-	// Bei straßengenauen Treffern ist die Rundung belanglos – dort zählt der Hinweis auf die Genauigkeit
+	// Bei straßengenauen Treffern ist der Zwischenwert belanglos – dort zählt der Hinweis auf die Genauigkeit
 	return { ...result, precision: found.precision, source: "OpenStreetMap", note: result.error ?? (found.exact ? (rounded ? ROUNDED_NOTE : undefined) : STREET_LEVEL_NOTE) };
 }
 

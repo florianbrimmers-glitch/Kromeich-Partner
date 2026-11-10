@@ -316,13 +316,13 @@ describe("Koordinaten (Notion-Korrektur 34)", async () => {
 		expect(lngPuts).toBe(10);
 	});
 
-	it("Propstack speichert lng nur auf vier Nachkommastellen: gilt als gesetzt (≈ 3,5 m), kein Fehlalarm, kein zweiter Durchgang (live 10.11., Projekt 613378)", async () => {
+	it("Gegenlesen zeigt noch die vierstellige Stufe (der exakte lng kommt verzögert an): gilt als gesetzt (≈ 3,5 m), kein Fehlalarm, kein zweiter Durchgang (live 10.11., Projekt 613378)", async () => {
 		let stored: Record<string, number> = {};
 		let puts = 0;
 		const put = async (b: unknown) => {
 			puts++;
 			const body = b as Record<string, number>;
-			// der exakte Wert (sechs Stellen) wird verworfen, die vierstellige Stufe bleibt
+			// der exakte Wert (sechs Stellen) ist beim Gegenlesen noch nicht zu sehen, die vierstellige Stufe steht noch da
 			if ("lng" in body && String(body.lng).split(".")[1]?.length > 4) return;
 			stored = { ...stored, ...body };
 		};
@@ -331,7 +331,10 @@ describe("Koordinaten (Notion-Korrektur 34)", async () => {
 		expect(puts).toBe(6);
 		const result = await ensureCoordinates({ current: {}, provided: { lat: 50.411816, lng: 7.688649 }, put, read: async () => stored, sleep: async () => {} });
 		expect(result).toMatchObject({ lng: 7.6886, source: "angegeben", verified: true });
-		expect(result.note).toMatch(/vier Nachkommastellen/);
+		// der Hinweis behauptet nicht, Propstack habe gerundet gespeichert (das war die falsche Erklärung aus v0.9.5)
+		expect(result.note).toMatch(/Beim Gegenlesen stand noch .* Zwischenwert/);
+		expect(result.note).toMatch(/verzögert/);
+		expect(result.note).not.toMatch(/gespeichert/);
 		// 85 m daneben (zwei Stellen) bleibt ein Befund
 		expect((await writeCoordinates(async () => ({ lat: 50.411816, lng: 7.69 }), async () => {}, { lat: 50.411816, lng: 7.688649 }, async () => {})).verified).toBe(false);
 	});
