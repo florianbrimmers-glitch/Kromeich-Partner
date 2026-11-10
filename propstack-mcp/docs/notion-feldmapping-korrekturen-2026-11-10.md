@@ -2,7 +2,7 @@
 
 Dieser Text gehört als neuer Abschnitt ans Ende der Notion-Seite „🔧 Propstack API – Feld-Mapping (Logistik)“.
 
-**Stand 10.11.2026: nicht eingetragen.** Der Notion-Workspace hat sein Kontingent an freien Blöcken verbraucht. Neue Abschnitte lassen sich erst anlegen, wenn der Tarif erweitert oder an anderer Stelle Inhalt gelöscht wurde.
+**Stand 10.11.2026: nicht eingetragen.** Der Notion-Workspace hat sein Kontingent an freien Blöcken verbraucht. Löschen hilft dabei nicht: Notion zählt alle jemals erzeugten Blöcke, nicht die vorhandenen (Notion-Hilfe „Understanding block usage“). Neue Abschnitte lassen sich erst anlegen, wenn der Workspace auf einen bezahlten Tarif wechselt oder nur noch ein Mitglied hat (weitere Personen als Gäste).
 
 Bereits in Notion stehen Kurzhinweise direkt an den überholten Stellen. Das ging, weil Text in bestehenden Absätzen keine neuen Blöcke braucht:
 
@@ -10,11 +10,9 @@ Bereits in Notion stehen Kurzhinweise direkt an den überholten Stellen. Das gin
 - Korrektur 4 (`note`): Überschrift und Text, dazu die Wiederholung in Korrektur 23
 - Korrektur 6 (Bilder): `image[title]`
 - Korrektur 24 (`relationships`): Überschrift und Text
-- Korrektur 29 (Provision): Absatz „Die Provisions-Provenienz …“
+- Korrektur 29 (Provision): Vermerk, dass die Regel am 10.11.2026 bestätigt wurde
 - Korrektur 31 (`unit_id`)
 - Korrektur 34 (Koordinaten): Ergänzung zum Gegenlesen
-
-Nicht ändern ließ sich die Tabellenzeile `provision_interne_notiz` in Korrektur 29. Dort steht weiter „setzen“; der Absatz direkt darunter trägt den Hinweis.
 
 Alles ab der Trennlinie unverändert nach Notion übernehmen.
 
@@ -52,7 +50,7 @@ Die Korrekturen 12 und 27 beschreiben den GET **ohne** den Parameter; der wurde 
 - Interne Angaben gehören nach `note`. Das How-to nennt für die Internen Notizen: Link zum Exposé bzw. zur Website, Mandat, Mietpreise, Provisionsregelungen, Projektname des Entwicklers.
 - Einheit: per `?new=1` lesen, anhängen, zurückschreiben.
 - Projekt: `note` nur beim Anlegen setzen. An einem bestehenden Projekt würde ein PUT den vorhandenen Text ungesehen überschreiben.
-- Ob `bemerkung` daneben als Lauf-Nachweis bestehen bleibt, ist noch nicht entschieden (Stand 10.11.2026).
+- `bemerkung` ist nur noch Änderungsprotokoll (Entscheidung Florian Brimmers, 10.11.2026): der Eintrag „Angelegt …“ und Vermerke, was geändert wurde und warum. Das Team liest das Feld kaum — nichts hineinschreiben, was jemand lesen muss. Offene Punkte gehören in die Prüfaufgabe.
 
 ### 46. `relationships` ist lesbar — an Einheit und Projekt
 
@@ -62,11 +60,13 @@ Die Korrekturen 12 und 27 beschreiben den GET **ohne** den Parameter; der wurde 
 - Am **Projekt** hinkt die Liste: Eine frisch gesetzte Verknüpfung erschien dort erst nach dem nächsten Speichern des Projekts. Zeigt die Liste die Verknüpfung nicht, als Gegenprobe denselben PUT noch einmal senden — die Ablehnung „bereits mit dem Kontakt verbunden“ bestätigt sie, ohne dass etwas doppelt entsteht.
 - Der Umweg über die paginierte Liste `GET /v1/relationships` (Korrektur 24) ist für die Prüfung eines einzelnen Datensatzes nicht mehr nötig.
 
-### 47. `show_units_on_landing_page` ist per API setzbar
+### 47. `show_units_on_landing_page` ist der Schalter „Einheitenliste im Exposé anzeigen“
 
-Der Projekt-GET führt das Feld `show_units_on_landing_page` (Boolean). Es lässt sich flach im `project`-Objekt setzen und im GET gegenlesen. Belegt per PUT an Projekt **603710** (vorher nicht gesetzt, danach `true`); Projekt **613378** wurde per POST mit `true` angelegt und liefert `true`. Zusammen mit `for_rent` („Mietprojekt“) sind damit zwei Projekt-Schalter aus dem How-to per API erreichbar.
+Der Projekt-GET führt das Feld `show_units_on_landing_page` (Boolean). Es lässt sich flach im `project`-Objekt setzen und im GET gegenlesen. Belegt per PUT an Projekt **603710** (vorher nicht gesetzt, danach `true`); Projekt **613378** wurde per POST mit `true` angelegt und liefert `true`.
 
-Offen: Der GET kennt nur dieses eine Feld. Ob es in der Oberfläche „Einheitenliste im Exposé anzeigen“ oder „Auf der Landing Page auf die jeweiligen Einheiten verlinken“ umschaltet, ist noch nicht gegengeprüft. Bis dahin beide Schalter nach dem Anlegen in der Oberfläche kontrollieren.
+Abgleich mit der Oberfläche (Florian Brimmers, 10.11.2026, Projekt 613378, Feld `true`): „Einheitenliste im Exposé anzeigen“ war **an**, „Auf der Landing Page auf die jeweiligen Einheiten verlinken“ war **aus**. Der Feldname führt also in die Irre — das Feld steuert die Einheitenliste im Exposé. Für die Verlinkung auf der Landing Page liefert der Projekt-GET kein Feld; dieser Schalter bleibt Handarbeit in der Oberfläche.
+
+Damit sind zwei der drei Projekt-Schalter aus dem How-to per API erreichbar: „Mietprojekt“ (`for_rent`) und „Einheitenliste im Exposé anzeigen“. Achtung bei Altbestand: Projekte aus früheren API-Läufen tragen `for_rent: false`, obwohl sie vermietet werden (gesehen an Projekt 613122).
 
 ### 48. Koordinaten: Der exakte `lng` kann verzögert ankommen — und Bestandskoordinaten sind kein Maßstab
 
@@ -95,17 +95,19 @@ Der 400er `Einheitennummer ist bereits vergeben` ist damit nicht bestritten, nur
 
 **Regel:** Einheitennummern innerhalb eines Projekts eindeutig vergeben; projektlose Einzelobjekte weiter ohne `unit_id`. Für eine Dublettenprüfung taugt `unit_id` nur zusammen mit `project_id`.
 
-### 51. Streng nach How-to — Provisionsregelungen stehen in den Internen Notizen
+### 51. Streng nach How-to — und für die Provisionsfelder gilt Korrektur 29 weiter
 
 Vorgabe von Florian Brimmers (10.11.2026) nach einer Rückmeldung von Oguzhan: Anlage und Pflege halten sich streng an die Team-How-tos „Objekte in Propstack anlegen“ und „Projekte in Propstack anlegen“ (Drive: K & P → Allgemein → Knowledge Sharing → Propstack).
 
-Das berührt Korrektur 29:
+Für die Provisions-Custom-Felder hat Florian Brimmers am selben Tag entschieden: **Korrektur 29 ist richtig und gilt weiter.**
 
-- Provisionsregelungen (Tischregel, Vereinbarungen, Sonderfälle) gehören laut How-to in die **Internen Notizen** (`note`, Korrektur 45), nicht nach `provision_interne_notiz`. Dort standen aus API-Läufen Berichte statt Regelungen, zum Beispiel an Einheit 6373961: „Provisionsfrei: Mileway ist immer provisionsfrei (Vorgabe Florian Brimmers); Mileway-Seite: 'Provisionsfrei'.“
-- Der MCP sperrt deshalb `provision_interne_notiz`, `provision_intern` und `provision` (nur `null` zum Leeren). Die Außenprovision steht wie im How-to in `courtage` und `courtage_note`.
-- `provision_extern` nennt das How-to nicht. Ob das Feld weiter befüllt werden soll, ist offen; der MCP setzt es nicht von sich aus.
+- `provision_extern` setzen — „Provisionsfrei“ bzw. „provisionspflichtig für den Mieter“. Der MCP leitet das Feld selbst aus der Provisionsaussage ab, auch wenn die Einheit die Provision vom Projekt übernimmt. Bei Kauf bleibt es leer.
+- `provision_interne_notiz` setzen — Herkunft der Aussage und Sonderregeln, **kurz**: „Provisionsfrei bestätigt (Eigentümer, TT.MM.JJJJ)“, „Tischregel, gedeckelt bei 3 NKM“. Kein Bericht über den Lauf. Im MCP kommt der Wert aus dem Parameter `internal_commission`.
+- Dieselbe Regelung steht laut How-to zusätzlich in den **Internen Notizen** (`note`, Korrektur 45). Der MCP schreibt beide Stellen aus der einen Angabe.
+- `provision` und `provision_intern` nicht anfangen, `provisionspflichtig` nie setzen — unverändert.
+- Zwischenstand, der nicht mehr gilt: Der MCP hatte `provision_interne_notiz` in Version 0.9.6 für einige Stunden gesperrt (Fehldeutung von „streng nach How-to“). Seit 0.9.8 ist das Feld wieder frei.
 
-Die Sperre der drei Felder ist die Auslegung der Vorgabe beim Bau des MCP. Soll eines davon doch gepflegt werden: hier vermerken und im MCP wieder freigeben.
+Das How-to nennt für provisionspflichtige Objekte nur den Provisionshinweis (die Staffel), keinen Text für die Außenprovision. Wechselt ein Objekt von „Provisionsfrei“ auf die Staffel, weist der MCP das ab, bis `courtage` mit angegeben ist — sonst stünde im Exposé weiter „Provisionsfrei“.
 
 Was der MCP aus dem How-to außerdem erzwingt — Verstöße werden abgewiesen, nicht nur gemeldet:
 
@@ -117,7 +119,7 @@ Was der MCP aus dem How-to außerdem erzwingt — Verstöße werden abgewiesen, 
 ### 52. Offene Punkte — nicht gemessen
 
 - GET **ohne** `?new=1`: ob `note` und `relationships` dort weiterhin fehlen (so wurden die Korrekturen 4 und 24 gemessen)
-- welcher Schalter der Oberfläche hinter `show_units_on_landing_page` liegt (Korrektur 47); der Weg zurück auf `false` ist ebenfalls ungetestet
+- Gegenprobe zu Korrektur 47: ein Projekt mit `show_units_on_landing_page: false` in der Oberfläche ansehen; der Weg zurück auf `false` ist ebenfalls ungetestet
 - Reichweite des `unit_id`-400ers (Korrektur 50)
 - `title` bei Bildern über `remote_photo_url` und das Grundriss-Kennzeichen (`is_floorplan`) beim Upload
 - `firing_types` (Oberfläche: „Wesentlicher Energieträger“) steht im GET mit `?new=1`; die zulässigen Werte sind unbekannt, das Feld bleibt Handarbeit

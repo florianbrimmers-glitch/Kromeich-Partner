@@ -31,7 +31,7 @@ export const commissionParam = z
 	.enum(["provisionsfrei", "staffel"])
 	.optional()
 	.describe(
-		"Provision nach Team-Standard (nur Miete). provisionsfrei: Außenprovision „Provisionsfrei“ + Hinweis „Die Anmietung erfolgt provisionsfrei für den Mieter.“ · staffel (provisionspflichtig): Provisionshinweis mit der Standard-Staffel (2 / 3 / 3,5 / 4 Nettokaltmieten je nach Laufzeit). Eigene Texte in courtage/courtage_note haben Vorrang. Feste Regeln je Eigentümer aus der Wissensdatenbank beachten",
+		"Provision nach Team-Standard (nur Miete). provisionsfrei: Außenprovision „Provisionsfrei“ + Hinweis „Die Anmietung erfolgt provisionsfrei für den Mieter.“ · staffel (provisionspflichtig): Provisionshinweis mit der Standard-Staffel (2 / 3 / 3,5 / 4 Nettokaltmieten je nach Laufzeit). Eigene Texte in courtage/courtage_note haben Vorrang. Am Objekt folgt daraus auch das Feld „Provision extern“ („Provisionsfrei“ bzw. „provisionspflichtig für den Mieter“). Feste Regeln je Eigentümer aus der Wissensdatenbank beachten",
 	);
 
 /** Felder, die aus der Provisions-Vorgabe folgen (ausdrücklich angegebene Texte haben Vorrang). */
@@ -54,6 +54,70 @@ export function commissionFields(
 	return out;
 }
 
+// ---------- Provisions-Custom-Felder (Feldgruppe „Webseite“) ----------
+// Notion-Feld-Mapping, Korrektur 29 – am 10.11.2026 von Florian bestätigt („Hier ist die Notion-Regel richtig“):
+// Die Provision gehört vollständig auf jede Einheit, courtage allein reicht nicht.
+//   provision_extern        setzen – die nach außen sichtbare Aussage
+//   provision_interne_notiz setzen – Herkunft der Aussage und Sonderregeln, kurz
+//   provisionspflichtig     nie setzen (bricht eine Automatisierung)
+//   provision, provision_intern  ungenutzt – nicht anfangen
+// (v0.9.6 hatte provision_interne_notiz gesperrt – das war eine Fehldeutung von „streng nach How-to“.)
+
+export const PROVISION_EXTERN = { free: "Provisionsfrei", paid: "provisionspflichtig für den Mieter" };
+
+const FREE_TEXT = /^\s*provisionsfrei\b/i;
+const PAID_TEXT = /^\s*provisionspflichtig\b/i;
+
+/** Aussage für „Provision extern“ aus dem, was im Exposé steht; undefined = nicht eindeutig. */
+export function provisionExtern(input: { commission?: unknown; courtage?: unknown; courtage_note?: unknown; marketing_type?: unknown }): string | undefined {
+	// Die Formulierung „für den Mieter“ passt nur zur Miete
+	if (input.marketing_type === "BUY") return undefined;
+	const courtage = typeof input.courtage === "string" ? input.courtage : "";
+	const note = typeof input.courtage_note === "string" ? input.courtage_note : "";
+	if (FREE_TEXT.test(courtage)) return PROVISION_EXTERN.free;
+	if (PAID_TEXT.test(courtage)) return PROVISION_EXTERN.paid;
+	if (input.commission === "provisionsfrei") return PROVISION_EXTERN.free;
+	if (input.commission === "staffel") return PROVISION_EXTERN.paid;
+	if (!courtage.trim()) {
+		if (/Provisionsanspruch/i.test(note)) return PROVISION_EXTERN.paid;
+		if (/provisionsfrei/i.test(note)) return PROVISION_EXTERN.free;
+	}
+	return undefined;
+}
+
+/**
+ * Custom-Felder, die aus der Provision folgen. explicit (custom_fields des Aufrufs) hat Vorrang;
+ * internal_commission und custom_fields.provision_interne_notiz zugleich ist ein Widerspruch.
+ */
+export function provisionCustomFields(
+	input: { commission?: unknown; courtage?: unknown; courtage_note?: unknown; internal_commission?: unknown; marketing_type?: unknown },
+	defs: Map<string, FieldDef>,
+	explicit: Raw | undefined,
+): Raw {
+	const out: Raw = {};
+	const given = (key: string) => Boolean(explicit && key in explicit);
+	const internal = typeof input.internal_commission === "string" ? input.internal_commission.trim() : "";
+	if (internal) {
+		if (given("provision_interne_notiz")) {
+			throw new PropstackError("internal_commission und custom_fields.provision_interne_notiz gleichzeitig angegeben – bitte nur eines verwenden.", 400);
+		}
+		if (defs.has("provision_interne_notiz")) out.provision_interne_notiz = internal;
+	}
+	if (defs.has("provision_extern") && !given("provision_extern")) {
+		const statement = provisionExtern(input);
+		if (statement) out.provision_extern = statement;
+	}
+	return out;
+}
+
+/** Wechsel auf die Staffel, während im Exposé noch „Provisionsfrei“ steht → Widerspruch, den nur der Nutzer auflösen kann. */
+export function staleFreeCourtage(commission: unknown, explicitCourtage: unknown, currentCourtage: unknown): boolean {
+	return commission === "staffel" && explicitCourtage === undefined && typeof currentCourtage === "string" && FREE_TEXT.test(currentCourtage);
+}
+
+export const STALE_FREE_COURTAGE =
+	"Die Außenprovision steht auf „Provisionsfrei“ – das widerspricht der Staffel. Bitte courtage mit angeben (z. B. „Provisionspflichtig“); das How-to nennt für provisionspflichtige Objekte keinen Text für die Außenprovision.";
+
 // ---------- Interne Notiz ----------
 
 export const internalNoteShape = {
@@ -65,7 +129,9 @@ export const internalNoteShape = {
 		.optional()
 		.describe("Interne Notiz: Link zum Exposé oder zur Website"),
 	mandate: optionalText(300).describe("Interne Notiz: Mandat, z. B. „Alleinmandat von <Makler>“ oder „kein Alleinmandat“"),
-	internal_commission: optionalText(1000).describe("Interne Notiz: Provisionsregelung – Tischregel, Vereinbarungen, Höhe. Nur die Regelung, kein Bericht"),
+	internal_commission: optionalText(1000).describe(
+		"Provisionsregelung intern, kurz: Herkunft der Provisionsaussage und Sonderregeln – z. B. „Provisionsfrei bestätigt (Eigentümer, 10.11.2026)“, „Tischregel, gedeckelt bei 3 NKM“, „muss angefragt werden“. Steht in der internen Notiz (How-to) und am Objekt zusätzlich im Feld „Provision interne Notiz“ (Feld-Mapping). Nur die Regelung, kein Bericht",
+	),
 	developer_project_name: optionalText(200).describe("Interne Notiz: Projektname des Entwicklers"),
 };
 
@@ -181,8 +247,12 @@ export function objectNotProvided(input: Raw, fields: Raw, options: { inProject:
 	if (!options.inProject) {
 		need(input.source_link !== undefined, "Interne Notiz: Exposé-/Website-Link");
 		need(input.mandate !== undefined, "Interne Notiz: Mandat");
-		need(input.internal_commission !== undefined, "Interne Notiz: Provisionsregelung");
 	}
+	// Feld-Mapping, Korrektur 29: die Provision gehört vollständig auf jede Einheit – auch im Projekt
+	need(
+		input.internal_commission !== undefined || Boolean(options.explicit && "provision_interne_notiz" in options.explicit),
+		"Provisionsregelung intern (Herkunft der Provisionsaussage, Sonderregeln)",
+	);
 	if (fields.marketing_type === "RENT") {
 		need(has("internal_rent_hall") || has("internal_rent_office") || has("internal_rent_mezzanine"), "Mietpreise (intern)");
 	}
@@ -240,7 +310,7 @@ export function projectNotProvided(input: Raw, fields: Raw): string[] {
 
 /** Schritte, die nur in der Propstack-Oberfläche gehen – stehen in der Prüfaufgabe. */
 export const PROJECT_UI_STEPS = [
-	"In Propstack prüfen, dass beide Schalter aktiv sind: „Einheitenliste im Exposé anzeigen“ und „Auf der Landing Page auf die jeweiligen Einheiten verlinken“. Der Connector setzt nur den Schalter für die Einheiten auf der Landing-Page.",
+	"In Propstack einschalten: „Auf der Landing Page auf die jeweiligen Einheiten verlinken“ – diesen Schalter erreicht der Connector nicht. „Mietprojekt“ und „Einheitenliste im Exposé anzeigen“ setzt der Connector; bitte kurz gegenprüfen.",
 	"Bilder: benannt (z. B. „Außenansicht“), Grundrisse gekennzeichnet, keine Firmenschriftzüge; allgemeine Bilder am Projekt „Auf Einheiten vererben“.",
 	"Landing-Page-Vorschau ansehen.",
 ];

@@ -7,6 +7,8 @@ import {
 	checkExposeTexts,
 	checkZipPrefix,
 	commissionFields,
+	staleFreeCourtage,
+	STALE_FREE_COURTAGE,
 	commissionParam,
 	imageTitleProblem,
 	internalNoteLines,
@@ -125,7 +127,11 @@ export const createProjectInput = {
 	location_note: optionalText(10000).describe(`${TEXT_RULES.location}. ${EXPOSE_VISIBLE}`),
 	furnishing_note: optionalText(10000).describe(`${TEXT_RULES.furnishing}. ${EXPOSE_VISIBLE}`),
 	sub_headline: optionalText(250).describe("Unterzeile fürs Exposé: das stärkste Lageargument in wenigen Worten, z. B. „Direkt an der A40“"),
-	show_units_on_landing_page: flag.optional().describe("Einheiten auf der Landing-Page des Projekts zeigen und verlinken. Standard: ja (How-to: muss aktiviert sein)"),
+	show_units_on_landing_page: flag
+		.optional()
+		.describe(
+			"Schalter „Einheitenliste im Exposé anzeigen“ (API-Feld show_units_on_landing_page; Abgleich mit der Oberfläche am 10.11.2026). Standard: an (How-to: muss aktiviert sein). Den zweiten Schalter „Auf der Landing Page auf die jeweiligen Einheiten verlinken“ erreicht der Connector nicht – er steht als Schritt in ui_steps und in der Prüfaufgabe",
+		),
 	public_price_confirmed: publicPriceConfirmed,
 	...internalNoteShape,
 	internal_rents: optionalText(1000).describe("Interne Notiz: Mietpreise, z. B. „Halle 6,80 €/m², Büro 12,80 €/m²“ – nie in Preisfelder oder Exposé-Texte"),
@@ -188,7 +194,9 @@ export async function createProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 		country: "DEU",
 		name,
 		street: input.street,
-		// How-to „Webseite & Landing-Page“: Einheiten auf der Landing-Page verlinken – Feldname aus der Diagnose (10.11.)
+		// How-to „Webseite & Landing-Page“. Feldname aus der Diagnose; Abgleich mit der Oberfläche (613378, 10.11.):
+		// Feld true ↔ „Einheitenliste im Exposé anzeigen“ an, während „Auf der Landing Page auf die jeweiligen
+		// Einheiten verlinken“ aus war – für diesen zweiten Schalter liefert der GET kein Feld.
 		show_units_on_landing_page: input.show_units_on_landing_page ?? true,
 		title: input.title ?? name,
 		zip_code: input.zip_code,
@@ -360,7 +368,10 @@ export const updateProjectInput = {
 	zip_code: z.string().trim().regex(/^\d{4,5}$/).optional(),
 	city: optionalText(100),
 	hide_address: z.boolean().optional().describe("Adresse im Exposé ausblenden"),
-	show_units_on_landing_page: flag.optional().describe("Einheiten auf der Landing-Page des Projekts zeigen und verlinken (How-to: muss aktiviert sein)"),
+	show_units_on_landing_page: flag
+		.optional()
+		.describe("Schalter „Einheitenliste im Exposé anzeigen“ (API-Feld show_units_on_landing_page; Abgleich mit der Oberfläche am 10.11.2026) – laut How-to an. „Auf der Landing Page auf die jeweiligen Einheiten verlinken“ geht nur in der Oberfläche"),
+	for_rent: flag.optional().describe("Schalter „Mietprojekt“ – laut How-to bei Vermietung an"),
 	commission: commissionParam,
 	courtage: optionalText(200).describe("Außenprovision fürs Exposé, z. B. „Provisionsfrei“"),
 	courtage_note: optionalText(2000).describe("Provisionshinweis"),
@@ -385,8 +396,13 @@ export async function updateProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 	const currentText = (key: string) => String(scalar(current[key]) ?? "");
 
 	const requested: Raw = {};
-	for (const key of [...PROJECT_TEXT_KEYS, "hide_address", "show_units_on_landing_page"] as const) if (input[key] !== undefined) requested[key] = input[key];
-	Object.assign(requested, commissionFields(input.commission, scalar(current.for_rent) === false ? "BUY" : "RENT", input));
+	for (const key of [...PROJECT_TEXT_KEYS, "hide_address", "show_units_on_landing_page", "for_rent"] as const) if (input[key] !== undefined) requested[key] = input[key];
+	// Kaufprojekt nur, wenn „Verkauf“ ausdrücklich gesetzt ist. Ein fehlender Schalter „Mietprojekt“ allein heißt
+	// nichts: Projekte aus älteren Läufen tragen ihn nicht, obwohl sie vermietet werden (Befund 10.11., 613122).
+	const forRent = requested.for_rent ?? scalar(current.for_rent);
+	const marketingType = forRent !== true && scalar(current.for_sale) === true ? "BUY" : "RENT";
+	Object.assign(requested, commissionFields(input.commission, marketingType, input));
+	if (staleFreeCourtage(input.commission, input.courtage, scalar(current.courtage))) throw new PropstackError(STALE_FREE_COURTAGE, 400);
 	const fields: Raw = {};
 	const before: Raw = {};
 	for (const [key, value] of Object.entries(requested)) {
