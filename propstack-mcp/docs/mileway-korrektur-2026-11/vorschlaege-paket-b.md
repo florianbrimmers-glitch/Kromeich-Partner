@@ -1,6 +1,8 @@
 # Paket B – Vorschläge für die 15 Mileway-Standorte
 
-Stand 10.11.2026. Noch nichts davon ist in Propstack geschrieben. Alle Texte stehen im Exposé – deshalb erst nach deinem Ok.
+Stand 10.11.2026: **umgesetzt.** Dieses Dokument zeigt den Vorschlag, wie er zur Freigabe vorlag. Die tatsächlich geschriebenen Texte stehen in `plan-b.json`, die Abweichungen vom Vorschlag im Kopf von `korrekturliste.md`.
+
+Entscheidungen von Florian Brimmers am 10.11.2026: 1 ja · 2 „Gesamtfläche ist bei uns Halle plus Mezzanine“ (Hallenfläche deshalb 4.115 m²) · 3 ja · 4 ja · 5 nein, die Namen bleiben · 6 (Köln, Rampentore) offen.
 
 ## So sind die Zahlen entstanden
 

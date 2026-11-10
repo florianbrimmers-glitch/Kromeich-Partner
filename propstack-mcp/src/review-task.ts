@@ -9,7 +9,7 @@ import { beginWrite, finishWrite } from "./write-log";
 export const REVIEWER = { brokerId: 254958, name: "Lena Klinnert" };
 export const CRM_BASE = "https://crm.propstack.de/app/portfolio";
 
-function escapeHtml(text: string): string {
+export function escapeHtml(text: string): string {
 	return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 

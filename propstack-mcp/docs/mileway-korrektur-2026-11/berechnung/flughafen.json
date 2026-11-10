@@ -1,0 +1,158 @@
+[
+ {
+  "name": "Flughafen Düsseldorf",
+  "gross": true,
+  "lat": 51.2781696,
+  "lon": 6.7668377
+ },
+ {
+  "name": "Flughafen Köln/Bonn",
+  "gross": true,
+  "lat": 50.8790802,
+  "lon": 7.1193621
+ },
+ {
+  "name": "Flughafen Frankfurt am Main",
+  "gross": true,
+  "lat": 50.051299,
+  "lon": 8.5717548
+ },
+ {
+  "name": "Flughafen München",
+  "gross": true,
+  "lat": 48.3537694,
+  "lon": 11.7861263
+ },
+ {
+  "name": "Flughafen Nürnberg",
+  "gross": true,
+  "lat": 49.4939999,
+  "lon": 11.0782003
+ },
+ {
+  "name": "Flughafen Stuttgart",
+  "gross": true,
+  "lat": 48.6904461,
+  "lon": 9.1926989
+ },
+ {
+  "name": "Flughafen Hamburg",
+  "gross": true,
+  "lat": 53.6326466,
+  "lon": 10.0066778
+ },
+ {
+  "name": "Flughafen Leipzig/Halle",
+  "gross": true,
+  "lat": 51.4233121,
+  "lon": 12.2236458
+ },
+ {
+  "name": "Flughafen Hannover",
+  "gross": true,
+  "lat": 52.461455,
+  "lon": 9.6867449
+ },
+ {
+  "name": "Flughafen Berlin Brandenburg",
+  "gross": true,
+  "lat": 52.3657974,
+  "lon": 13.4888906
+ },
+ {
+  "name": "Flughafen Zürich",
+  "gross": true,
+  "lat": 47.4493634,
+  "lon": 8.5626334
+ },
+ {
+  "name": "Flughafen Dortmund",
+  "gross": false,
+  "lat": 51.5169073,
+  "lon": 7.6097179
+ },
+ {
+  "name": "Flughafen Münster/Osnabrück",
+  "gross": false,
+  "lat": 52.1342179,
+  "lon": 7.6829214
+ },
+ {
+  "name": "Flughafen Paderborn/Lippstadt",
+  "gross": false,
+  "lat": 51.6105441,
+  "lon": 8.620562
+ },
+ {
+  "name": "Flughafen Bremen",
+  "gross": false,
+  "lat": 53.0453419,
+  "lon": 8.7896417
+ },
+ {
+  "name": "Flughafen Friedrichshafen",
+  "gross": false,
+  "lat": 47.6714081,
+  "lon": 9.5114977
+ },
+ {
+  "name": "Flughafen Memmingen",
+  "gross": false,
+  "lat": 47.9888241,
+  "lon": 10.2350723
+ },
+ {
+  "name": "Flughafen Karlsruhe/Baden-Baden",
+  "gross": false,
+  "lat": 48.7787136,
+  "lon": 8.0819713
+ },
+ {
+  "name": "Flughafen Maastricht Aachen",
+  "gross": false,
+  "lat": 50.9124991,
+  "lon": 5.7713205
+ },
+ {
+  "name": "Flughafen Niederrhein (Weeze)",
+  "gross": false,
+  "lat": 51.6031019,
+  "lon": 6.1433899
+ },
+ {
+  "name": "Flughafen Dresden",
+  "gross": false,
+  "lat": 51.1342993,
+  "lon": 13.7694808
+ },
+ {
+  "name": "Flughafen Erfurt-Weimar",
+  "gross": false,
+  "lat": 50.9792722,
+  "lon": 10.9586469
+ },
+ {
+  "name": "Flughafen Lübeck",
+  "gross": false,
+  "lat": 53.804929,
+  "lon": 10.7126079
+ },
+ {
+  "name": "Flughafen Frankfurt-Hahn",
+  "gross": false,
+  "lat": 49.9446334,
+  "lon": 7.2612103
+ },
+ {
+  "name": "EuroAirport Basel-Mulhouse",
+  "gross": false,
+  "lat": 47.6032369,
+  "lon": 7.5243481
+ },
+ {
+  "name": "Flughafen Linz",
+  "gross": false,
+  "lat": 48.236375,
+  "lon": 14.1877134
+ }
+]
