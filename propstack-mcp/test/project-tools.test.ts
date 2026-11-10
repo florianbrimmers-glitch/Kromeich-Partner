@@ -492,6 +492,8 @@ describe("create_project – Team-How-to", () => {
 		expect((out.result as { not_verifiable?: string[] }).not_verifiable).toBeUndefined();
 		expect((out.result as { howto_not_provided?: string[] }).howto_not_provided).toBeUndefined();
 		expect((out.result as { ui_steps: string[] }).ui_steps.join(" ")).toMatch(/Einheitenliste im Exposé anzeigen/);
+		// Abgleich mit der Oberfläche (10.11.2026): der Connector erreicht nur „Einheitenliste im Exposé anzeigen“
+		expect((out.result as { ui_steps: string[] }).ui_steps[0]).toMatch(/In Propstack einschalten: „Auf der Landing Page auf die jeweiligen Einheiten verlinken“ – diesen Schalter erreicht der Connector nicht/);
 		// Prüfaufgabe: UI-Schritte und beide Verknüpfungen
 		const body = String(w.task().body);
 		expect(body).toMatch(/Ansprechpartner: Stefan Prange \(222\)/);
@@ -658,6 +660,38 @@ describe("add_images – Titel", () => {
 		// Dateiname statt Titel wird abgewiesen (How-to: Bilder müssen benannt sein)
 		await expect(addImages(deps, { project_id: 7, titles: ["IMG_0001"], urls: ["https://x.de/a.jpg"] })).rejects.toThrow(/Dateiname, kein Titel/);
 		expect(sent).toHaveLength(2);
+	});
+});
+
+describe("update_project – Schalter „Mietprojekt“ und Provision (Projekte aus älteren Läufen)", () => {
+	it("setzt „Mietprojekt“ nachträglich; fehlt der Schalter, ist es deshalb noch kein Kaufprojekt", async () => {
+		// Befund 10.11.2026, Projekt 613122: vermietet, aber „Mietprojekt“ aus
+		const stored: Record<string, unknown> = { city: "Dormagen", for_rent: false, id: 7, name: "Logistikhalle in (41) Dormagen", street: "Hamburger Straße", zip_code: "41540" };
+		const { client } = fakeClient({ getProject: () => ({ ...stored }), updateProject: (_id, p) => Object.assign(stored, p) });
+		const deps = { client, db: fakeDb().db, now: NOW, user: USER };
+		const out = await updateProject(deps, { commission: "provisionsfrei", for_rent: true, id: 7 });
+		expect(stored).toMatchObject({ courtage: "Provisionsfrei", courtage_note: "Die Anmietung erfolgt provisionsfrei für den Mieter.", for_rent: true });
+		expect((out.result as { changed: string[] }).changed).toEqual(expect.arrayContaining(["for_rent", "courtage", "courtage_note"]));
+
+		// auch ohne den Schalter anzufassen gilt die Provisions-Vorgabe
+		Object.assign(stored, { courtage: undefined, courtage_note: undefined, for_rent: false });
+		await updateProject(deps, { commission: "provisionsfrei", id: 7 });
+		expect(stored.courtage).toBe("Provisionsfrei");
+
+		// ausdrücklich Verkauf → die Standardtexte für Mietverträge passen nicht
+		const sale = fakeClient({ getProject: () => ({ ...stored, courtage: undefined, for_rent: false, for_sale: true }), updateProject: () => ({}) });
+		await expect(updateProject({ client: sale.client, db: fakeDb().db, now: NOW, user: USER }, { commission: "staffel", id: 7 })).rejects.toThrow(/commission gilt nur für Miete/);
+	});
+
+	it("Staffel bei stehendem „Provisionsfrei“ wird abgewiesen, bis die Außenprovision mit angegeben ist", async () => {
+		const stored: Record<string, unknown> = { city: "Dormagen", courtage: "Provisionsfrei", for_rent: true, id: 7, name: "Logistikhalle in (41) Dormagen", street: "Hamburger Straße", zip_code: "41540" };
+		const { client, calls } = fakeClient({ getProject: () => ({ ...stored }), updateProject: (_id, p) => Object.assign(stored, p) });
+		const deps = { client, db: fakeDb().db, now: NOW, user: USER };
+		await expect(updateProject(deps, { commission: "staffel", id: 7 })).rejects.toThrow(/widerspricht der Staffel/);
+		expect(calls.some((c) => c.method === "updateProject")).toBe(false);
+		await updateProject(deps, { commission: "staffel", courtage: "Provisionspflichtig", id: 7 });
+		expect(stored.courtage).toBe("Provisionspflichtig");
+		expect(String(stored.courtage_note).split("\n")).toHaveLength(4);
 	});
 });
 

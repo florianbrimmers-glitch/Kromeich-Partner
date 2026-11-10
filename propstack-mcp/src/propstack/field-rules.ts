@@ -29,11 +29,10 @@ export const BLOCKED_OBJECT_FIELDS: Record<string, string> = {
 	provisionspflichtig: "nie setzen – jeder Wert bricht eine bestehende Automatisierung (nur null zum Leeren erlaubt)",
 	mezzanineflache: "trägt die Einheit Euro – Fläche wird zum Geldbetrag. Stattdessen mezzanineflache_gesamt / mezzanineflache_verfugbar",
 	bemerkung: "nicht direkt überschreiben – bemerkung_append verwenden (vorhandene Bemerkung bleibt erhalten)",
-	// Streng nach How-to (Vorgabe Oguzhan/Florian, 10.11.2026): Provisionsregelungen stehen in den internen Notizen,
-	// die Außenprovision in courtage. In diesen Feldern standen bisher „Berichte“ aus API-Läufen.
-	provision_interne_notiz: "laut How-to gehören Provisionsregelungen in die interne Notiz – internal_commission verwenden",
-	provision_intern: "laut How-to gehören Provisionsregelungen in die interne Notiz – internal_commission verwenden",
-	provision: "Außenprovision über commission bzw. courtage/courtage_note setzen",
+	// Notion-Feld-Mapping, Korrektur 29 (am 10.11.2026 von Florian bestätigt): provision_extern und
+	// provision_interne_notiz werden gesetzt, diese beiden sind im Bestand ungenutzt – nicht anfangen.
+	provision_intern: "laut Feld-Mapping (Korrektur 29) ungenutzt – nicht anfangen. Interne Provisionsregelung über internal_commission (schreibt „Provision interne Notiz“ und die interne Notiz)",
+	provision: "laut Feld-Mapping (Korrektur 29) ungenutzt – nicht anfangen. Außenprovision über commission bzw. courtage/courtage_note („Provision extern“ folgt daraus)",
 };
 
 const BLOCK_EVEN_NULL = new Set(["bemerkung"]);

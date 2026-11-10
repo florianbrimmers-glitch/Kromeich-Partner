@@ -180,22 +180,75 @@ describe("Bildtitel", () => {
 	});
 });
 
-describe("Provisionsfelder (streng nach How-to)", async () => {
+describe("Provisionsfelder (Feld-Mapping, Korrektur 29 – von Florian am 10.11.2026 bestätigt)", async () => {
 	const { validateCustomFields } = await import("../src/propstack/field-rules");
+	const { provisionCustomFields, provisionExtern, staleFreeCourtage } = await import("../src/propstack/howto");
 	const client = {
 		listCustomFieldGroups: async () => ({
-			rows: [{ custom_fields: [{ field_type: "String", name: "provision_interne_notiz" }, { field_type: "String", name: "provision_intern" }, { field_type: "String", name: "provision_extern" }] }],
+			rows: [
+				{
+					custom_fields: [
+						{ field_type: "String", name: "provision_interne_notiz" },
+						{ field_type: "String", name: "provision_intern" },
+						{ field_type: "String", name: "provision_extern" },
+						{ field_type: "String", name: "provision" },
+					],
+				},
+			],
 			total: 1,
 		}),
 	};
 
-	it("Provisionsregelungen gehören in die interne Notiz – die Custom-Felder dafür nimmt der Connector nicht an (Leeren bleibt möglich)", async () => {
-		await expect(validateCustomFields(client, "for_properties", { provision_interne_notiz: "Provisionsfrei: Mileway ist immer provisionsfrei (Vorgabe …)" })).rejects.toThrow(
-			/"provision_interne_notiz" gesperrt: laut How-to gehören Provisionsregelungen in die interne Notiz – internal_commission/,
-		);
-		await expect(validateCustomFields(client, "for_properties", { provision_intern: "Tischregel" })).rejects.toThrow(/gesperrt/);
-		expect(await validateCustomFields(client, "for_properties", { provision_interne_notiz: null })).toEqual({ expect: { provision_interne_notiz: null }, send: { provision_interne_notiz: null } });
-		// provision_extern pflegt der Bestand über die Oberfläche – bleibt erlaubt
+	it("provision_extern und provision_interne_notiz sind erlaubt; provision und provision_intern bleiben gesperrt (ungenutzt – nicht anfangen)", async () => {
+		// v0.9.6 hatte provision_interne_notiz gesperrt – eine Fehldeutung von „streng nach How-to“
+		expect((await validateCustomFields(client, "for_properties", { provision_interne_notiz: "Tischregel, gedeckelt bei 3 NKM" }))?.send).toEqual({
+			provision_interne_notiz: "Tischregel, gedeckelt bei 3 NKM",
+		});
 		expect((await validateCustomFields(client, "for_properties", { provision_extern: "Provisionsfrei" }))?.send).toEqual({ provision_extern: "Provisionsfrei" });
+		await expect(validateCustomFields(client, "for_properties", { provision_intern: "Tischregel" })).rejects.toThrow(/"provision_intern" gesperrt: laut Feld-Mapping \(Korrektur 29\) ungenutzt/);
+		await expect(validateCustomFields(client, "for_properties", { provision: "3 NKM" })).rejects.toThrow(/gesperrt/);
+		// Leeren bleibt möglich
+		expect(await validateCustomFields(client, "for_properties", { provision_intern: null })).toEqual({ expect: { provision_intern: null }, send: { provision_intern: null } });
+	});
+
+	it("„Provision extern“ folgt aus dem, was im Exposé steht; bei Kauf und bei unklarer Aussage bleibt das Feld leer", () => {
+		expect(provisionExtern({ commission: "provisionsfrei" })).toBe("Provisionsfrei");
+		expect(provisionExtern({ commission: "staffel" })).toBe("provisionspflichtig für den Mieter");
+		// vom Projekt übernommene Außenprovision
+		expect(provisionExtern({ courtage: "Provisionsfrei" })).toBe("Provisionsfrei");
+		expect(provisionExtern({ courtage: " provisionspflichtig " })).toBe("provisionspflichtig für den Mieter");
+		// ein ausdrücklich angegebener Text schlägt die Vorgabe
+		expect(provisionExtern({ commission: "provisionsfrei", courtage: "Provisionspflichtig" })).toBe("provisionspflichtig für den Mieter");
+		// nur der Provisionshinweis ist da (Staffel bzw. Standardsatz)
+		expect(provisionExtern({ courtage_note: "Bei Mietverträgen mit einer Laufzeit von weniger als fünf (5) Jahren beträgt der Provisionsanspruch zwei (2) Nettokaltmieten zzgl. MwSt." })).toBe(
+			"provisionspflichtig für den Mieter",
+		);
+		expect(provisionExtern({ courtage_note: "Die Anmietung erfolgt provisionsfrei für den Mieter." })).toBe("Provisionsfrei");
+		// „für den Mieter“ passt nicht zum Kauf; freier Text ohne klare Aussage wird nicht gedeutet
+		expect(provisionExtern({ courtage: "Provisionspflichtig", marketing_type: "BUY" })).toBeUndefined();
+		expect(provisionExtern({ courtage: "3,5 % zzgl. USt." })).toBeUndefined();
+		expect(provisionExtern({})).toBeUndefined();
+	});
+
+	it("Custom-Felder aus der Provision: ausdrückliche Angabe hat Vorrang, doppelte Angabe ist ein Widerspruch", () => {
+		const defs = new Map([
+			["provision_extern", { name: "provision_extern", type: "String" }],
+			["provision_interne_notiz", { name: "provision_interne_notiz", type: "String" }],
+		]) as never;
+		expect(provisionCustomFields({ commission: "provisionsfrei", internal_commission: " Mileway immer provisionsfrei (Wissensdatenbank) " }, defs, undefined)).toEqual({
+			provision_extern: "Provisionsfrei",
+			provision_interne_notiz: "Mileway immer provisionsfrei (Wissensdatenbank)",
+		});
+		expect(provisionCustomFields({ commission: "provisionsfrei" }, defs, { provision_extern: "Provisionsfrei für Mieter" })).toEqual({});
+		expect(() => provisionCustomFields({ internal_commission: "a" }, defs, { provision_interne_notiz: "b" })).toThrow(/gleichzeitig angegeben/);
+		// gibt es das Feld in Propstack nicht (mehr), wird nichts erfunden
+		expect(provisionCustomFields({ commission: "staffel", internal_commission: "a" }, new Map() as never, undefined)).toEqual({});
+	});
+
+	it("Wechsel auf die Staffel bei stehendem „Provisionsfrei“ ist ein Widerspruch", () => {
+		expect(staleFreeCourtage("staffel", undefined, "Provisionsfrei")).toBe(true);
+		expect(staleFreeCourtage("staffel", "Provisionspflichtig", "Provisionsfrei")).toBe(false);
+		expect(staleFreeCourtage("staffel", undefined, null)).toBe(false);
+		expect(staleFreeCourtage("provisionsfrei", undefined, "Provisionsfrei")).toBe(false);
 	});
 });

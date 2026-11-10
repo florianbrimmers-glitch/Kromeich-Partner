@@ -211,6 +211,11 @@ function fakeClient(impl: Record<string, (...args: unknown[]) => unknown>) {
 						{ field_type: "String", name: "zertifizierung" },
 						{ field_type: "Number", name: "intern_mietpreis_buro", unit: "euro" },
 						{ field_type: "Number", name: "intern_mietpreis_mezzanine", unit: "euro" },
+						// Provisionsfelder der Feldgruppe „Webseite“ (Feld-Mapping, Korrektur 29; Typen wie live)
+						{ field_type: "String", name: "provision_extern" },
+						{ field_type: "String", name: "provision_interne_notiz" },
+						{ field_type: "String", name: "provision_intern" },
+						{ field_type: "String", name: "provision" },
 						{ custom_options: [{ id: 1, name: "Ja" }, { id: 2, name: "Nein" }], field_type: "Dropdown", name: "spekulative_entwicklung" },
 						{ custom_options: [{ id: 7, name: "Aktiv" }, { id: 8, name: "Inaktiv" }], field_type: "Multiselect", name: "aktiv" },
 					],
@@ -922,6 +927,8 @@ describe("create_object / update_object – Team-How-to", () => {
 			"Provision intern: Tischregel 50/50",
 		]);
 		expect((w.posted().partial_custom_fields as Record<string, unknown>).bemerkung).toBe("Angelegt über Claude (Propstack MCP) von Florian Brimmers am 2026-10-14.");
+		// … und zusätzlich im Feld „Provision interne Notiz“ (Feld-Mapping, Korrektur 29)
+		expect((w.posted().partial_custom_fields as Record<string, unknown>).provision_interne_notiz).toBe("Tischregel 50/50");
 		expect((out.result as { not_applied?: string[]; internal_note_hint?: string }).not_applied).toBeUndefined();
 		expect((out.result as { internal_note_hint?: string }).internal_note_hint).toBeUndefined();
 		// Der Ansprechpartner steht NICHT mehr als ID im Custom-Feld (stand im Exposé-Risiko, Handanlagen nutzen es nicht)
@@ -933,17 +940,80 @@ describe("create_object / update_object – Team-How-to", () => {
 		expect(body).toMatch(/Wesentlicher Energieträger/);
 	});
 
-	it("übernimmt Propstack die interne Notiz nicht, landet der Text in der Bemerkung – nichts geht verloren", async () => {
+	it("übernimmt Propstack die interne Notiz nicht: kein Ausweichen ins Feld „Bemerkung“ – der Text steht im Hinweis und in der Prüfaufgabe", async () => {
 		const w = world(PROJECT, { dropNote: true });
 		const out = await createObject({ client: w.client, db: fakeDb().db, now: NOW, sleep, user: USER }, { ...standalone, mandate: "Alleinmandat" });
-		expect(w.puts).toEqual(
-			expect.arrayContaining([
-				{ note: "Angelegt über Claude (Propstack MCP) von Florian Brimmers am 2026-10-14.\nMandat: Alleinmandat" }, // einzeln nachgesetzt
-				{ partial_custom_fields: { bemerkung: "Angelegt über Claude (Propstack MCP) von Florian Brimmers am 2026-10-14.\nMandat: Alleinmandat" } },
-			]),
+		// einzeln nachgesetzt …
+		expect(w.puts).toEqual(expect.arrayContaining([{ note: "Angelegt über Claude (Propstack MCP) von Florian Brimmers am 2026-10-14.\nMandat: Alleinmandat" }]));
+		// … aber nie in die Bemerkung geschrieben: dort stehen nur Änderungsvermerke, das Feld liest kaum jemand
+		// (Entscheidung Florian, 10.11.2026)
+		expect(w.puts.some((p) => "partial_custom_fields" in p)).toBe(false);
+		expect(w.custom.bemerkung).toBe("Angelegt über Claude (Propstack MCP) von Florian Brimmers am 2026-10-14.");
+		const result = out.result as { internal_note_hint: string; not_applied: string[] };
+		expect(result.internal_note_hint).toMatch(/nicht übernommen – bitte von Hand unter „Interne Notizen“ eintragen:\nMandat: Alleinmandat/);
+		expect(result.not_applied).toContain("note");
+		// der Text geht nicht verloren: er steht in der Prüfaufgabe
+		expect(String(w.task()!.body)).toMatch(/Mandat: Alleinmandat/);
+	});
+
+	it("Provision gehört vollständig auf jede Einheit (Feld-Mapping, Korrektur 29): „Provision extern“ und „Provision interne Notiz“", async () => {
+		const w = world();
+		const out = await createObject(
+			{ client: w.client, db: fakeDb().db, now: NOW, sleep, user: USER },
+			{ ...standalone, commission: "provisionsfrei", internal_commission: "Provisionsfrei bestätigt (Eigentümer, 10.11.2026)" },
 		);
-		expect((out.result as { internal_note_hint: string }).internal_note_hint).toMatch(/steht stattdessen im Feld „Bemerkung“/);
-		expect((out.result as { not_applied?: string[] }).not_applied).toBeUndefined();
+		const custom = w.posted().partial_custom_fields as Record<string, unknown>;
+		expect(custom).toMatchObject({ provision_extern: "Provisionsfrei", provision_interne_notiz: "Provisionsfrei bestätigt (Eigentümer, 10.11.2026)" });
+		// nie gesetzt: bricht eine Automatisierung bzw. ist im Bestand ungenutzt
+		for (const key of ["provisionspflichtig", "provision", "provision_intern"]) expect(custom).not.toHaveProperty(key);
+		// die Regelung steht auch in der internen Notiz (How-to)
+		expect(String(w.posted().note)).toMatch(/Provision intern: Provisionsfrei bestätigt \(Eigentümer, 10\.11\.2026\)/);
+		const result = out.result as { howto_not_provided: string[]; mirrored_custom_fields: string[] };
+		expect(result.howto_not_provided).not.toContain("Provisionsregelung intern (Herkunft der Provisionsaussage, Sonderregeln)");
+		expect(result.mirrored_custom_fields).toEqual(expect.arrayContaining(["provision_extern", "provision_interne_notiz"]));
+	});
+
+	it("Staffel → „provisionspflichtig für den Mieter“; eine Einheit im Projekt übernimmt die Aussage des Projekts; Kauf bleibt unberührt", async () => {
+		const deps = (w: ReturnType<typeof world>) => ({ client: w.client, db: fakeDb().db, now: NOW, sleep, user: USER });
+		const scale = world();
+		await createObject(deps(scale), { ...standalone, commission: "staffel" });
+		expect((scale.posted().partial_custom_fields as Record<string, unknown>).provision_extern).toBe("provisionspflichtig für den Mieter");
+
+		// Einheit im Projekt: die Provision kommt vom Projekt („Provisionsfrei“) – das Custom-Feld folgt
+		const inProject = world();
+		const unit = await createObject(deps(inProject), { industrial_area: 10000, marketing_type: "RENT", project_id: 604473, rs_type: "INDUSTRY", unit_id: "Unit 1" });
+		expect((inProject.posted().partial_custom_fields as Record<string, unknown>).provision_extern).toBe("Provisionsfrei");
+		// fehlt die interne Regelung, steht das unter „nicht angegeben“ – auch bei Einheiten im Projekt
+		expect((unit.result as { howto_not_provided: string[] }).howto_not_provided).toContain("Provisionsregelung intern (Herkunft der Provisionsaussage, Sonderregeln)");
+
+		// Kauf: „für den Mieter“ passt nicht → das Feld bleibt leer
+		const sale = world();
+		await createObject(deps(sale), { ...standalone, courtage: "Provisionspflichtig", marketing_type: "BUY" });
+		expect(sale.posted().partial_custom_fields).not.toHaveProperty("provision_extern");
+	});
+
+	it("update_object: geänderte Provision zieht „Provision extern“ nach; Staffel bei stehendem „Provisionsfrei“ wird abgewiesen", async () => {
+		const w = world();
+		Object.assign(w.stored, { courtage: "Provisionsfrei", marketing_type: "RENT", title: "Halle" });
+		Object.assign(w.custom, { provision_extern: "Provisionsfrei" });
+		const deps = { client: w.client, db: fakeDb().db, now: NOW, sleep, user: USER };
+		// das How-to nennt für provisionspflichtige Objekte keinen Text für die Außenprovision → der Nutzer muss ihn ansagen
+		await expect(updateObject(deps, { commission: "staffel", id: 900 })).rejects.toThrow(/widerspricht der Staffel/);
+		expect(w.puts).toEqual([]);
+
+		const out = await updateObject(deps, { commission: "staffel", courtage: "Provisionspflichtig", id: 900, internal_commission: "Tischregel, gedeckelt bei 3 NKM" });
+		expect(w.stored.courtage).toBe("Provisionspflichtig");
+		expect(w.custom).toMatchObject({ provision_extern: "provisionspflichtig für den Mieter", provision_interne_notiz: "Tischregel, gedeckelt bei 3 NKM" });
+		expect(String(w.stored.note)).toMatch(/Provision intern: Tischregel, gedeckelt bei 3 NKM/);
+		expect((out.result as { changed: string[] }).changed).toEqual(expect.arrayContaining(["custom_fields.provision_extern", "custom_fields.provision_interne_notiz"]));
+
+		// ohne Änderung an der Provision bleibt „Provision extern“ unberührt
+		w.puts.length = 0;
+		await updateObject(deps, { free_from: "sofort", id: 900 });
+		expect(w.puts).toEqual([{ free_from: "sofort" }]);
+
+		// internal_commission und das Custom-Feld zugleich: Widerspruch
+		await expect(updateObject(deps, { custom_fields: { provision_interne_notiz: "x" }, id: 900, internal_commission: "y" })).rejects.toThrow(/gleichzeitig angegeben/);
 	});
 
 	it("Verknüpfungen an Einheiten werden gegengelesen (relationships im Einzel-GET) – ohne zweiten Schreibversuch", async () => {

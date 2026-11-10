@@ -20,6 +20,9 @@ import {
 	checkExposeTexts,
 	checkZipPrefix,
 	commissionFields,
+	provisionCustomFields,
+	staleFreeCourtage,
+	STALE_FREE_COURTAGE,
 	commissionParam,
 	EXPOSE_TEXT_KEYS,
 	howtoCustomFields,
@@ -485,8 +488,11 @@ export async function updateContact(deps: WriteDeps, input: z.infer<z.ZodObject<
 //   ausdrücklich angesagt bzw. auf Nachfrage bestätigt); interne Preise (intern_*) immer. Sonst price_on_inquiry.
 // - Interne Notizen (How-to: Link, Mandat, Provisionsregelung …) in das Feld note („Notiz“): Es ist über
 //   GET ?new=1 lesbar und trägt bei Bestandsobjekten genau diese Inhalte (live 09.11., Objekt 5220033).
-//   Übernimmt Propstack es nicht, landet der Text ersatzweise im Custom-Feld bemerkung. Arbeitsvermerke
-//   (bemerkung_append) bleiben im Custom-Feld. Beschreibungstexte sind exposé-sichtbar.
+//   Beschreibungstexte sind exposé-sichtbar.
+// - Custom-Feld bemerkung: nur Änderungsprotokoll („Angelegt …“ und Änderungsvermerke). Entscheidung Florian,
+//   10.11.2026: Das Feld liest im Team kaum jemand – nichts hineinschreiben, was jemand lesen muss. Offene
+//   Punkte gehören in die Prüfaufgabe, Fachliches in die interne Notiz. Kein Ausweichen der Notiz dorthin.
+// - Provisions-Custom-Felder (provision_extern, provision_interne_notiz) nach Feld-Mapping, Korrektur 29.
 // - Einheiten im Projekt übernehmen Adresse, Überschrift, Beschreibung, Lage, Ausstattung, Provision und
 //   Koordinaten vom Projekt (How-to „Projekte anlegen“: „werden normalerweise automatisch vom Projekt gezogen“).
 
@@ -552,7 +558,9 @@ const objectFieldsShape = {
 	location_note: optionalText(10000).describe(`${TEXT_RULES.location}. ${EXPOSE_VISIBLE}`),
 	furnishing_note: optionalText(10000).describe(`${TEXT_RULES.furnishing}. ${EXPOSE_VISIBLE}`),
 	other_note: optionalText(10000).describe(`Sonstiges. ${EXPOSE_VISIBLE} – keine Konditionen, Eigentümer, Kundennamen, Adresse oder offenen Punkte`),
-	bemerkung_append: optionalText(4000).describe("Arbeitsvermerk im Custom-Feld „Bemerkung“ (nicht im Exposé): offene Punkte, abgeleitete Werte – wird mit Datum und Nutzer angehängt"),
+	bemerkung_append: optionalText(4000).describe(
+		"Änderungsvermerk im Custom-Feld „Bemerkung“ (nicht im Exposé): nur was geändert wurde und warum – wird mit Datum und Nutzer angehängt. Das Feld liest im Team kaum jemand: nichts hineinschreiben, was jemand lesen muss. Offene Punkte dem Nutzer melden (sie stehen auch in der Prüfaufgabe), Fachliches in die interne Notiz",
+	),
 	internal_note: optionalText(4000).describe(
 		"Interne Notiz (Propstack-Feld „Notiz“ = „Interne Notizen“ im How-to, nicht im Exposé): Freitext zusätzlich zu source_link, mandate, internal_commission, developer_project_name. Beim Ändern wird angehängt (mit Datum und Nutzer), nie ersetzt",
 	),
@@ -569,7 +577,7 @@ const objectFieldsShape = {
 		.record(z.string(), z.unknown())
 		.optional()
 		.describe(
-			"Weitere Custom-Felder {schlüssel: wert}, Schlüssel über list_fields entity=objects. Zahlen als nackte Zahl mit Dezimalpunkt (10.5, nie \"10,5\" oder \"6.417 m²\"), Auswahlfelder per Name oder Option-ID, null leert. Gesperrt: provisionspflichtig, mezzanineflache, bemerkung. mietpreis_* sind öffentlich → nur mit public_price_confirmed",
+			"Weitere Custom-Felder {schlüssel: wert}, Schlüssel über list_fields entity=objects. Zahlen als nackte Zahl mit Dezimalpunkt (10.5, nie \"10,5\" oder \"6.417 m²\"), Auswahlfelder per Name oder Option-ID, null leert. Gesperrt: provisionspflichtig, provision, provision_intern, mezzanineflache, bemerkung. provision_extern und provision_interne_notiz folgen aus commission/courtage bzw. internal_commission und müssen nicht hier stehen. mietpreis_* sind öffentlich → nur mit public_price_confirmed",
 		),
 };
 
@@ -663,23 +671,25 @@ function gapNote(missing: string[], unverified: string[], writeErrors: string[])
 }
 
 /**
- * Interne Notiz, die Propstack nicht übernommen hat: einzeln nachsetzen; hält sie auch dann nicht,
- * den Text ins Custom-Feld bemerkung schreiben – es geht nichts verloren. Liefert ggf. einen Hinweis.
+ * Interne Notiz, die Propstack nicht übernommen hat: einzeln nachsetzen. Hält sie auch dann nicht, bleibt
+ * „note“ unter not_applied stehen, und der Hinweis nennt den Text zum Eintragen von Hand – er steht damit
+ * auch in der Prüfaufgabe. Kein Ausweichen ins Feld „Bemerkung“ (Entscheidung Florian, 10.11.2026: dort
+ * stehen nur Änderungsvermerke, das Feld liest kaum jemand).
+ * manualText: der neue Teil der Notiz (beim Ändern nur die Ergänzung, nicht der Altbestand).
  */
-async function settleInternalNote(client: PropstackClient, unitId: number, note: string, bemerkung: string, missing: string[]): Promise<string | undefined> {
+async function settleInternalNote(client: PropstackClient, unitId: number, note: string, manualText: string, missing: string[]): Promise<string | undefined> {
 	const index = missing.indexOf("note");
 	if (index < 0) return undefined;
+	const byHand = `bitte von Hand unter „Interne Notizen“ eintragen:\n${manualText}`;
 	try {
 		await client.updateUnit(unitId, { note });
 		if (same(note, (((await client.getUnit(unitId)) ?? {}) as Raw).note)) {
 			missing.splice(index, 1);
 			return undefined;
 		}
-		await client.updateUnit(unitId, { partial_custom_fields: { bemerkung } });
-		missing.splice(index, 1);
-		return "Propstack hat die interne Notiz nicht übernommen – der Text steht stattdessen im Feld „Bemerkung“.";
+		return `Propstack hat die interne Notiz nicht übernommen – ${byHand}`;
 	} catch (error) {
-		return `Interne Notiz nicht gespeichert: ${(error as Error).message}`;
+		return `Interne Notiz nicht gespeichert (${(error as Error).message}) – ${byHand}`;
 	}
 }
 
@@ -808,6 +818,12 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	const rent = fields.rented === true ? "rented" : "available";
 	const howto = howtoCustomFields(input, defs, input.custom_fields, rent);
 	const explicit: Raw = { ...howto, ...input.custom_fields };
+	// Provision vollständig auf jede Einheit (Feld-Mapping, Korrektur 29) – auch wenn sie vom Projekt übernommen ist
+	const provision = provisionCustomFields(
+		{ commission: input.commission, courtage: fields.courtage, courtage_note: fields.courtage_note, internal_commission: input.internal_commission, marketing_type: input.marketing_type },
+		defs,
+		input.custom_fields,
+	);
 	const mirrored = mirroredCustomFields(fields, defs, explicit, {
 		active: input.active,
 		flags: true,
@@ -819,10 +835,11 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	if (input.test && defs.get("kein_automatischer_exposeversand")?.type === "Boolean" && !("kein_automatischer_exposeversand" in explicit)) {
 		mirrored.kein_automatischer_exposeversand = true;
 	}
-	const custom = await validateCustomFields(client, "for_properties", { ...mirrored, ...explicit }, defs, {
+	const custom = await validateCustomFields(client, "for_properties", { ...mirrored, ...provision, ...explicit }, defs, {
 		publicPriceConfirmed: input.public_price_confirmed === true,
 	});
-	// Interne Notiz (How-to) ins Feld „Notiz“; Arbeitsvermerke bleiben im Custom-Feld bemerkung
+	// Interne Notiz (How-to) ins Feld „Notiz“. Das Custom-Feld bemerkung ist nur Änderungsprotokoll:
+	// der Eintrag „Angelegt …“ und ggf. ein Änderungsvermerk
 	const noteLines = [...internalNoteLines(input), ...(input.internal_note ? [input.internal_note] : [])];
 	if (noteLines.length) fields.note = [originNote(user, now, "Angelegt"), ...noteLines].join("\n");
 	const bemerkung = [originNote(user, now, "Angelegt"), input.bemerkung_append].filter(Boolean).join("\n");
@@ -864,7 +881,7 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	const { missing, unverified } = verifyObject(state, fields, customExpect);
 	const groups = groupIdsOfUnit(state);
 	for (const tag of tags) if (!groups.includes(tag)) missing.push(`tag ${TEST_TAG}`);
-	const noteHint = noteLines.length ? await settleInternalNote(client, newId, String(fields.note), [bemerkung, ...noteLines].join("\n"), missing) : undefined;
+	const noteHint = noteLines.length ? await settleInternalNote(client, newId, String(fields.note), noteLines.join("\n"), missing) : undefined;
 
 	// Koordinaten (Stufen-Trick, Kontrolle per Einzel-GET): angegeben > Projekt (gleiche Adresse) > Propstack > OpenStreetMap
 	const given = input.lat !== undefined && input.lng !== undefined;
@@ -956,7 +973,7 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 			coordinates,
 			inherited_from_project: inherited.length ? inherited : undefined,
 			derived: derived.length ? derived : undefined,
-			mirrored_custom_fields: Object.keys(mirrored).length ? Object.keys(mirrored) : undefined,
+			mirrored_custom_fields: Object.keys(mirrored).length || Object.keys(provision).length ? [...Object.keys(mirrored), ...Object.keys(provision)] : undefined,
 			warnings: dedupe.warnings.length ? dedupe.warnings : undefined,
 			text_warnings: textWarnings.length ? textWarnings : undefined,
 			howto_not_provided: notProvided.length ? notProvided : undefined,
@@ -993,6 +1010,7 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 		requested.price_on_inquiry = false;
 	}
 	Object.assign(requested, commissionFields(input.commission, marketingType, input));
+	if (staleFreeCourtage(input.commission, input.courtage, scalar(currentValue("courtage")))) throw new PropstackError(STALE_FREE_COURTAGE, 400);
 
 	// Nur echte Änderungen schreiben; nicht lesbare Felder werden vorsichtshalber geschrieben
 	const fields: Raw = {};
@@ -1067,6 +1085,19 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	}
 	const howto = howtoCustomFields(input, defs, input.custom_fields, rentState);
 	const explicit: Raw = { ...howto, ...input.custom_fields };
+	// „Provision extern“ nur anfassen, wenn die Provision in diesem Aufruf geändert wird – dann aus dem Stand danach
+	const commissionTouched = input.commission !== undefined || input.courtage !== undefined || input.courtage_note !== undefined;
+	const provision = provisionCustomFields(
+		{
+			commission: input.commission,
+			courtage: commissionTouched ? (requested.courtage ?? scalar(currentValue("courtage"))) : undefined,
+			courtage_note: commissionTouched ? (requested.courtage_note ?? scalar(currentValue("courtage_note"))) : undefined,
+			internal_commission: input.internal_commission,
+			marketing_type: marketingType,
+		},
+		defs,
+		input.custom_fields,
+	);
 	const mirrored = Object.fromEntries(
 		Object.entries({
 			...mirroredCustomFields(areaSource, defs, explicit, {
@@ -1077,6 +1108,7 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 				rent: rentState,
 			}),
 			...howto,
+			...provision,
 		}).filter(([key, value]) => {
 			const actual = unitCustomValue(current, key);
 			return actual === UNVERIFIABLE || !same(value, actual);
@@ -1170,9 +1202,8 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	const state = await readUnit(client, input.id);
 	const { missing, unverified } = verifyObject(state, fields, customExpect);
 	if (noteAddition) {
-		// Ersatzweg: aktuellen Stand der Bemerkung (nach diesem Update) plus die neue Notiz
-		const bemerkungNow = String(scalar(unitCustomValue(state, "bemerkung") === UNVERIFIABLE ? "" : unitCustomValue(state, "bemerkung")) ?? "").trim();
-		const hint = await settleInternalNote(client, input.id, String(fields.note), [bemerkungNow, noteAddition].filter(Boolean).join("\n\n"), missing);
+		// Hält die Notiz auch einzeln gesetzt nicht: Hinweis mit dem Text zum Eintragen von Hand
+		const hint = await settleInternalNote(client, input.id, String(fields.note), noteAddition, missing);
 		if (hint) notes.push(hint);
 	}
 	// Koordinaten nur, wenn ausdrücklich angegeben (Stufen-Trick, Kontrolle per Einzel-GET)
