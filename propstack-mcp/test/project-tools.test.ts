@@ -447,6 +447,8 @@ describe("create_project – Team-How-to", () => {
 			},
 		);
 		expect(w.stored).toMatchObject({ courtage: "Provisionsfrei", courtage_note: "Die Anmietung erfolgt provisionsfrei für den Mieter.", title: "Logistikhalle in (40) Düsseldorf" });
+		// How-to „Webseite & Landing-Page“: Mietprojekt und Einheiten auf der Landing-Page
+		expect(w.stored).toMatchObject({ for_rent: true, show_units_on_landing_page: true });
 		expect(String(w.stored.note).split("\n")).toEqual([
 			"Angelegt über Claude (Propstack MCP) von Florian Brimmers am 2026-10-16.",
 			"Exposé/Website: https://example.org/expose.pdf",
@@ -569,6 +571,24 @@ describe("set_project_owner – Ansprechpartner", () => {
 		expect(sent).toHaveLength(1);
 	});
 
+	it("Projekt: Verknüpfung wird am Projekt-GET gegengelesen (relationships) – ohne zweiten Schreibversuch; schon verknüpft → nichts schreiben", async () => {
+		let links = [{ client_id: 111, internal_name: "owner", name: null }];
+		const sent: unknown[] = [];
+		const { client } = fakeClient({
+			getProject: () => ({ id: 603710, name: "P", relationships: links }),
+			updateProject: (_id, p) => {
+				sent.push(p);
+				links = [...links, { client_id: 222, internal_name: "partner", name: null }];
+				return {};
+			},
+		});
+		const deps = { client, db: fakeDb().db, user: USER };
+		expect((await setProjectOwner(deps, { contact_id: 222, project_id: 603710, role: "contact_person" })).result).toMatchObject({ linked: true, role: "Ansprechpartner" });
+		expect(sent).toEqual([{ relationships_attributes: [{ internal_name: "partner", related_client_id: 222 }] }]);
+		expect((await setProjectOwner(deps, { contact_id: 111, project_id: 603710 })).result).toMatchObject({ already_linked: true, linked: true });
+		expect(sent).toHaveLength(1);
+	});
+
 	it("verlangt Propstack eine Bezeichnung, wird einmal mit „Ansprechpartner“ wiederholt", async () => {
 		const sent: { relationships_attributes: Record<string, unknown>[] }[] = [];
 		const { client } = fakeClient({
@@ -606,5 +626,32 @@ describe("add_images – Titel", () => {
 			{ imageable_id: 7, imageable_type: "Project", remote_photo_url: "https://x.de/b.jpg", title: "Halle innen" },
 		]);
 		await expect(addImages(deps, { project_id: 7, titles: ["nur einer"], urls: ["https://x.de/a.jpg", "https://x.de/b.jpg"] })).rejects.toThrow(/genau so viele/);
+	});
+});
+
+describe("Schalter „Einheiten auf der Landing-Page“", () => {
+	it("create_project meldet es, wenn Propstack den Schalter nicht übernimmt; update_project setzt ihn nachträglich", async () => {
+		const stored: Record<string, unknown> = {};
+		const { client } = fakeClient({
+			createProject: (p) => {
+				const { show_units_on_landing_page: _dropped, ...rest } = p as Record<string, unknown>;
+				Object.assign(stored, rest);
+				return { id: 801 };
+			},
+			getProject: () => ({ ...stored, broker: { id: 347158 }, id: 801, lat: 51.2, lng: 6.8, show_units_on_landing_page: stored.show_units_on_landing_page ?? null }),
+			updateProject: (_id, p) => {
+				// Einzel-PUT wird ebenfalls verworfen – nur ein späterer Aufruf (Flag unten) sitzt
+				if (stored.accept) Object.assign(stored, p);
+				return {};
+			},
+		});
+		const deps = { client, db: fakeDb().db, now: NOW, user: USER };
+		const created = await createProject(deps, { city: "Düsseldorf", marketing_type: "RENT", name: "Logistikhalle in (40) Düsseldorf", street: "Kappeler Straße", zip_code: "40597" });
+		expect((created.result as { not_applied: string[] }).not_applied).toContain("show_units_on_landing_page");
+		stored.accept = true;
+		const updated = await updateProject(deps, { id: 801, show_units_on_landing_page: true });
+		expect(updated.result).toMatchObject({ changed: ["show_units_on_landing_page"], updated: true });
+		expect((updated.result as { not_applied?: string[] }).not_applied).toBeUndefined();
+		expect(stored.show_units_on_landing_page).toBe(true);
 	});
 });

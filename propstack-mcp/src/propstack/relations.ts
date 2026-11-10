@@ -9,9 +9,10 @@ import type { PropstackClient } from "../propstack-client";
 // deshalb ohne name; nur wenn Propstack einen verlangt, mit „Ansprechpartner“.
 //
 // Prüfung:
-// - Einheiten: Der Einzel-GET liefert relationships [{internal_name, client_id}] → direkt gegenlesen.
-// - Projekte (und falls die Liste fehlt): Gegenprobe. Ein zweiter, gleicher Aufruf wird mit „bereits mit dem
-//   Kontakt verbunden“ abgelehnt – das bestätigt die Verknüpfung, ohne dass etwas doppelt entsteht.
+// - Der Einzel-GET von Einheit und Projekt liefert relationships [{internal_name, client_id}] → direkt
+//   gegenlesen (live 09./10.11.: Einheit 6274457, Projekt 603710).
+// - Zeigt die Liste die Verknüpfung (noch) nicht oder fehlt sie: Gegenprobe. Ein zweiter, gleicher Aufruf wird
+//   mit „bereits mit dem Kontakt verbunden“ abgelehnt – das bestätigt die Verknüpfung, ohne dass etwas doppelt entsteht.
 
 type Raw = Record<string, unknown>;
 
@@ -41,13 +42,14 @@ export function relationBody(contactId: number, role: RelationRole, withLabel = 
 	};
 }
 
-type LinkClient = Pick<PropstackClient, "updateProject" | "updateUnit"> & Partial<Pick<PropstackClient, "getUnit">>;
+type LinkClient = Pick<PropstackClient, "updateProject" | "updateUnit"> & Partial<Pick<PropstackClient, "getUnit" | "getProject">>;
 
-/** Ist der Kontakt in dieser Rolle an der Einheit verknüpft? undefined = Propstack liefert die Liste nicht. */
-async function unitHasLink(client: LinkClient, unitId: number, contactId: number, role: RelationRole): Promise<boolean | undefined> {
-	if (!client.getUnit) return undefined;
+/** Ist der Kontakt in dieser Rolle verknüpft? undefined = Propstack liefert die Liste nicht. */
+async function hasLink(client: LinkClient, target: RelationTarget, contactId: number, role: RelationRole): Promise<boolean | undefined> {
+	const read = target.type === "object" ? client.getUnit : client.getProject;
+	if (!read) return undefined;
 	try {
-		const list = ((await client.getUnit(unitId)) as Raw | null)?.relationships;
+		const list = ((await read.call(client, target.id)) as Raw | null)?.relationships;
 		if (!Array.isArray(list)) return undefined;
 		return list.some((entry) => (entry as Raw)?.internal_name === INTERNAL_NAME[role] && Number((entry as Raw)?.client_id) === contactId);
 	} catch {
@@ -66,8 +68,7 @@ export async function linkContact(
 		const body = relationBody(contactId, role, withLabel);
 		return target.type === "project" ? client.updateProject(target.id, body) : client.updateUnit(target.id, body);
 	};
-	const readable = target.type === "object";
-	if (readable && !options.fresh && (await unitHasLink(client, target.id, contactId, role)) === true) return { already: true, linked: true };
+	if (!options.fresh && (await hasLink(client, target, contactId, role)) === true) return { already: true, linked: true };
 
 	try {
 		try {
@@ -92,7 +93,7 @@ export async function linkContact(
 		return { error: message, linked: false };
 	}
 
-	if (readable && (await unitHasLink(client, target.id, contactId, role)) === true) return { linked: true };
+	if ((await hasLink(client, target, contactId, role)) === true) return { linked: true };
 	try {
 		await attach();
 		// Zweiter Aufruf angenommen → Propstack hat die erste Verknüpfung nicht gespeichert oder lässt Doppelte zu

@@ -131,18 +131,26 @@ describe("MCP-Protokoll", () => {
 			lat: 50.4109821,
 			lng: 7.6811256,
 			name: "BTS-Logistikhalle in (56) Hillscheid",
+			relationships: [{ client_id: 111, id: 1, internal_name: "owner", name: null }, { client_id: 222, id: 2, internal_name: "partner", name: null }],
+			show_units_on_landing_page: true,
 			status: { color: "#123", label: "Vertrieb" },
 			sub_headline: "Direkt an der A48",
 			title: { label: "Überschrift", value: "Logistikhalle in (56) Hillscheid" },
 		};
 		const { client } = await connect({
+			getContact: async (id: number) => ({ id, name: id === 111 ? "Eigentümer GmbH" : "Anna Ansprech" }),
 			getProject: async () => project,
 			listBrokers: async () => [],
 			searchUnits: async () => ({ rows: [{ id: 6282819, status: { id: 1, name: "Vermarktung" }, title: "Halle", unit_id: "Unit 1" }], total: 1 }),
 		});
 		const detail = JSON.parse(((await client.callTool({ arguments: { id: 604473 }, name: "get_project" })).content as { text: string }[])[0].text);
 		expect(detail).toMatchObject({
+			contacts: [
+				{ contact_id: 111, name: "Eigentümer GmbH", role: "Eigentümer" },
+				{ contact_id: 222, name: "Anna Ansprech", role: "Ansprechpartner" },
+			],
 			images: [{ id: 1, title: "Außenansicht" }, { floorplan: true, id: 2 }],
+			show_units_on_landing_page: true,
 			status: "Vertrieb",
 			sub_headline: "Direkt an der A48",
 			title: "Logistikhalle in (56) Hillscheid",
