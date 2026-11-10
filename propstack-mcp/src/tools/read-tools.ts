@@ -329,7 +329,17 @@ export async function getObject(client: Client, input: DiagnoseInput): Promise<T
 			result: { entity: "object", id: input.id, field_names: detail, only_in_list_channel: Object.keys(list).length ? list : undefined },
 		};
 	}
-	return { count: 1, result: mapUnitDetail(asObject(mergedUnit(state))) };
+	const detail = mapUnitDetail(asObject(mergedUnit(state)));
+	// Verknüpfte Kontakte: Propstack liefert nur die ID – Namen nachladen (höchstens fünf)
+	for (const contact of (detail.contacts ?? []).slice(0, 5)) {
+		if (contact.name !== undefined || typeof contact.contact_id !== "number") continue;
+		try {
+			contact.name = scalar(asObject(await client.getContact(contact.contact_id)).name);
+		} catch {
+			// Kontakt nicht lesbar → ohne Namen ausgeben
+		}
+	}
+	return { count: 1, result: detail };
 }
 
 // ---------- Projekte ----------

@@ -483,7 +483,10 @@ export async function updateContact(deps: WriteDeps, input: z.infer<z.ZodObject<
 // - object_type leitet Propstack aus rs_type ab → nicht anbieten.
 // - Öffentliche Preise (price, base_rent, mietpreis_*) nur mit public_price_confirmed (Nutzer hat es
 //   ausdrücklich angesagt bzw. auf Nachfrage bestätigt); interne Preise (intern_*) immer. Sonst price_on_inquiry.
-// - Interne Notizen in das Custom-Feld bemerkung; Beschreibungstexte sind exposé-sichtbar.
+// - Interne Notizen (How-to: Link, Mandat, Provisionsregelung …) in das Feld note („Notiz“): Es ist über
+//   GET ?new=1 lesbar und trägt bei Bestandsobjekten genau diese Inhalte (live 09.11., Objekt 5220033).
+//   Übernimmt Propstack es nicht, landet der Text ersatzweise im Custom-Feld bemerkung. Arbeitsvermerke
+//   (bemerkung_append) bleiben im Custom-Feld. Beschreibungstexte sind exposé-sichtbar.
 // - Einheiten im Projekt übernehmen Adresse, Überschrift, Beschreibung, Lage, Ausstattung, Provision und
 //   Koordinaten vom Projekt (How-to „Projekte anlegen“: „werden normalerweise automatisch vom Projekt gezogen“).
 
@@ -549,7 +552,10 @@ const objectFieldsShape = {
 	location_note: optionalText(10000).describe(`${TEXT_RULES.location}. ${EXPOSE_VISIBLE}`),
 	furnishing_note: optionalText(10000).describe(`${TEXT_RULES.furnishing}. ${EXPOSE_VISIBLE}`),
 	other_note: optionalText(10000).describe(`Sonstiges. ${EXPOSE_VISIBLE} – keine Konditionen, Eigentümer, Kundennamen, Adresse oder offenen Punkte`),
-	bemerkung_append: optionalText(4000).describe("Interne Bemerkung (Custom-Feld bemerkung, nicht im Exposé): offene Punkte, abgeleitete Werte, Sonstiges – wird mit Datum und Nutzer angehängt"),
+	bemerkung_append: optionalText(4000).describe("Arbeitsvermerk im Custom-Feld „Bemerkung“ (nicht im Exposé): offene Punkte, abgeleitete Werte – wird mit Datum und Nutzer angehängt"),
+	internal_note: optionalText(4000).describe(
+		"Interne Notiz (Propstack-Feld „Notiz“ = „Interne Notizen“ im How-to, nicht im Exposé): Freitext zusätzlich zu source_link, mandate, internal_commission, developer_project_name. Beim Ändern wird angehängt (mit Datum und Nutzer), nie ersetzt",
+	),
 	...internalNoteShape,
 	...howtoObjectShape,
 	lat: z
@@ -654,6 +660,27 @@ function gapNote(missing: string[], unverified: string[], writeErrors: string[])
 	if (missing.length) parts.push("Propstack hat einige Felder nicht übernommen (not_applied) – bitte in Propstack prüfen.");
 	if (unverified.length) parts.push("Einige Felder liefert Propstack nicht zurück und konnten deshalb nicht gegengeprüft werden (not_verifiable).");
 	return parts.length ? parts.join(" ") : undefined;
+}
+
+/**
+ * Interne Notiz, die Propstack nicht übernommen hat: einzeln nachsetzen; hält sie auch dann nicht,
+ * den Text ins Custom-Feld bemerkung schreiben – es geht nichts verloren. Liefert ggf. einen Hinweis.
+ */
+async function settleInternalNote(client: PropstackClient, unitId: number, note: string, bemerkung: string, missing: string[]): Promise<string | undefined> {
+	const index = missing.indexOf("note");
+	if (index < 0) return undefined;
+	try {
+		await client.updateUnit(unitId, { note });
+		if (same(note, (((await client.getUnit(unitId)) ?? {}) as Raw).note)) {
+			missing.splice(index, 1);
+			return undefined;
+		}
+		await client.updateUnit(unitId, { partial_custom_fields: { bemerkung } });
+		missing.splice(index, 1);
+		return "Propstack hat die interne Notiz nicht übernommen – der Text steht stattdessen im Feld „Bemerkung“.";
+	} catch (error) {
+		return `Interne Notiz nicht gespeichert: ${(error as Error).message}`;
+	}
 }
 
 export const createObjectInput = {
@@ -794,7 +821,10 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	const custom = await validateCustomFields(client, "for_properties", { ...mirrored, ...explicit }, defs, {
 		publicPriceConfirmed: input.public_price_confirmed === true,
 	});
-	const bemerkung = [originNote(user, now, "Angelegt"), ...internalNoteLines(input), input.bemerkung_append].filter(Boolean).join("\n");
+	// Interne Notiz (How-to) ins Feld „Notiz“; Arbeitsvermerke bleiben im Custom-Feld bemerkung
+	const noteLines = [...internalNoteLines(input), ...(input.internal_note ? [input.internal_note] : [])];
+	if (noteLines.length) fields.note = [originNote(user, now, "Angelegt"), ...noteLines].join("\n");
+	const bemerkung = [originNote(user, now, "Angelegt"), input.bemerkung_append].filter(Boolean).join("\n");
 	const customSend: Raw = { ...(custom?.send ?? {}), bemerkung };
 	const customExpect: Raw = { ...(custom?.expect ?? {}), bemerkung };
 	const tags = input.test ? [await ensureTestTag(client, "for_properties")] : [];
@@ -833,6 +863,7 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	const { missing, unverified } = verifyObject(state, fields, customExpect);
 	const groups = groupIdsOfUnit(state);
 	for (const tag of tags) if (!groups.includes(tag)) missing.push(`tag ${TEST_TAG}`);
+	const noteHint = noteLines.length ? await settleInternalNote(client, newId, String(fields.note), [bemerkung, ...noteLines].join("\n"), missing) : undefined;
 
 	// Koordinaten (Stufen-Trick, Kontrolle per Einzel-GET): angegeben > Projekt (gleiche Adresse) > Propstack > OpenStreetMap
 	const given = input.lat !== undefined && input.lng !== undefined;
@@ -852,14 +883,14 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 
 	// Eigentümer und Ansprechpartner an der Einheit (How-to „Ansprechpartner“; Entscheidung Florian, 16.10.)
 	const target = { id: newId, type: "object" as const };
-	const ownerResult = owner ? await linkContact(client, target, owner.id, "owner") : undefined;
+	const ownerResult = owner ? await linkContact(client, target, owner.id, "owner", { fresh: true }) : undefined;
 	if (ownerResult?.error) writeErrors.push(`Eigentümer: ${ownerResult.error}`);
 	else if (ownerResult && ownerResult.linked !== true) missing.push("owner (nicht prüfbar)");
 	let contactResult: RelationResult | undefined;
 	if (contactPerson) {
 		contactResult = sameContact
 			? { already: true, linked: ownerResult?.linked ?? false, note: "Ansprechpartner ist der Eigentümer – als Eigentümer verknüpft." }
-			: await linkContact(client, target, contactPerson.id, "contact_person");
+			: await linkContact(client, target, contactPerson.id, "contact_person", { fresh: true });
 		if (contactResult.error) writeErrors.push(`Ansprechpartner: ${contactResult.error}`);
 		else if (contactResult.linked !== true && !sameContact) missing.push("contact_person (nicht prüfbar)");
 	}
@@ -895,6 +926,7 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 					...(writeErrors.length ? [`Fehler: ${writeErrors.join("; ")}`] : []),
 					...(notProvided.length ? [`Nicht angegeben (laut How-to wichtig): ${notProvided.join(", ")}`] : []),
 					...textWarnings.map((w) => `Texthinweis: ${w}`),
+					...(noteHint ? [`Hinweis: ${noteHint}`] : []),
 					"Prüfen: Stammdaten, Flächen (inkl. Custom-Felder), Texte (kein Eigentümer, keine Adresse, keine Preise), Provision, Bilder.",
 					...OBJECT_UI_STEPS,
 				],
@@ -927,6 +959,7 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 			warnings: dedupe.warnings.length ? dedupe.warnings : undefined,
 			text_warnings: textWarnings.length ? textWarnings : undefined,
 			howto_not_provided: notProvided.length ? notProvided : undefined,
+			internal_note_hint: noteHint,
 			ui_steps: input.project_id ? undefined : OBJECT_UI_STEPS,
 			not_applied: missing.length ? missing : undefined,
 			not_verifiable: unverified.length ? unverified : undefined,
@@ -1059,7 +1092,20 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 		const actual = unitCustomValue(current, key);
 		customBefore[key] = actual === UNVERIFIABLE ? "nicht lesbar" : rawValue(actual);
 	}
-	const appendLines = [...internalNoteLines(input), input.bemerkung_append].filter(Boolean);
+	// Interne Notiz („Notiz“): anhängen, nie ersetzen – nur wenn der vorhandene Text lesbar ist
+	const noteAppend = [...internalNoteLines(input), ...(input.internal_note ? [input.internal_note] : [])];
+	let noteAddition: string | undefined;
+	if (noteAppend.length) {
+		const old = unitValue(current, "note");
+		if (old === UNVERIFIABLE) {
+			throw new PropstackError("Die vorhandene interne Notiz konnte nicht gelesen werden – nichts geändert, damit sie nicht überschrieben wird.", 0);
+		}
+		const oldText = String(scalar(old) ?? "").trim();
+		noteAddition = `${originNote(user, now, "Ergänzt")}\n${noteAppend.join("\n")}`;
+		fields.note = [oldText, noteAddition].filter(Boolean).join("\n\n");
+		before.note = oldText;
+	}
+	const appendLines = [input.bemerkung_append].filter(Boolean);
 	if (appendLines.length) {
 		const old = unitCustomValue(current, "bemerkung");
 		if (old === UNVERIFIABLE) {
@@ -1120,6 +1166,12 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 
 	const state = await readUnit(client, input.id);
 	const { missing, unverified } = verifyObject(state, fields, customExpect);
+	if (noteAddition) {
+		// Ersatzweg: aktuellen Stand der Bemerkung (nach diesem Update) plus die neue Notiz
+		const bemerkungNow = String(scalar(unitCustomValue(state, "bemerkung") === UNVERIFIABLE ? "" : unitCustomValue(state, "bemerkung")) ?? "").trim();
+		const hint = await settleInternalNote(client, input.id, String(fields.note), [bemerkungNow, noteAddition].filter(Boolean).join("\n\n"), missing);
+		if (hint) notes.push(hint);
+	}
 	// Koordinaten nur, wenn ausdrücklich angegeben (Stufen-Trick, Kontrolle per Einzel-GET)
 	let coordinates: Awaited<ReturnType<typeof ensureCoordinates>> | undefined;
 	if (coordsRequested) {
@@ -1146,7 +1198,7 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 			id: input.id,
 			title: scalar(state.row?.title ?? state.detail.title),
 			changed: [
-				...Object.keys(fields).map(fieldLabel),
+				...Object.keys(fields).map((k) => (k === "note" ? "internal_note (angehängt)" : fieldLabel(k))),
 				...Object.keys(customSend).map((k) => (k === "bemerkung" && appendLines.length ? "bemerkung (angehängt)" : `custom_fields.${k}`)),
 				...(coordsRequested ? ["lat/lng"] : []),
 			],

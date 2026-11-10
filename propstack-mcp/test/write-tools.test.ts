@@ -744,7 +744,7 @@ describe("create_object / update_object – Team-How-to", () => {
 	};
 
 	/** Simuliertes Objekt: speichert alles, kennt Verknüpfungen (lehnt Doppelte ab) und Koordinaten. */
-	function world(project: Record<string, unknown> = PROJECT) {
+	function world(project: Record<string, unknown> = PROJECT, options: { dropNote?: boolean; showLinks?: boolean } = {}) {
 		const stored: Record<string, unknown> = {};
 		const custom: Record<string, unknown> = {};
 		const coords: Record<string, number> = {};
@@ -775,15 +775,17 @@ describe("create_object / update_object – Team-How-to", () => {
 				broker: stored.broker_id ? { id: stored.broker_id } : null,
 				custom_fields: Object.fromEntries(Object.entries(custom).map(([k, v]) => [k, { pretty_value: String(v), value: v }])),
 				id: 900,
+				note: options.dropNote ? null : (stored.note ?? null),
 				property_groups: ((stored.group_ids as number[]) ?? []).map((id) => ({ id })),
+				relationships: options.showLinks ? links.map((l) => ({ client_id: (JSON.parse(l) as { related_client_id: number }).related_client_id, internal_name: (JSON.parse(l) as { internal_name: string }).internal_name, name: null })) : undefined,
 				status: stored.property_status_id ? { id: stored.property_status_id } : null,
 				title: stored.title,
 				...coords,
 			}),
 			searchUnits: (q) => {
 				if (!(q as Query).expand) return page([]);
-				const row: Record<string, unknown> = { id: { label: "ID", value: 900 } };
-				for (const [k, v] of Object.entries(stored)) row[k] = { label: k, value: v };
+				const row: Record<string, unknown> = { id: { label: "ID", value: 900 }, note: { label: "Notiz", value: null } };
+				for (const [k, v] of Object.entries(stored)) row[k] = { label: k, value: k === "note" && options.dropNote ? null : v };
 				return page([row]);
 			},
 			updateUnit: (_id, payload) => {
@@ -909,17 +911,19 @@ describe("create_object / update_object – Team-How-to", () => {
 			{ client: w.client, db: fakeDb().db, now: NOW, sleep, user: USER },
 			{ ...standalone, contact_person_id: 222, internal_commission: "Tischregel 50/50", mandate: "Alleinmandat", owner_contact_id: 111, source_link: "https://example.org/expose.pdf" },
 		);
-		expect(w.links).toEqual([
-			JSON.stringify({ internal_name: "owner", related_client_id: 111 }),
-			JSON.stringify({ internal_name: "partner", name: "Ansprechpartner", related_client_id: 222 }),
-		]);
+		// wie von Hand hinterlegt: verknüpfter Kontakt ohne Bezeichnung
+		expect(w.links).toEqual([JSON.stringify({ internal_name: "owner", related_client_id: 111 }), JSON.stringify({ internal_name: "partner", related_client_id: 222 })]);
 		expect(out.result).toMatchObject({ contact_person: { id: 222, linked: true, name: "Tobias Jung" }, owner: { id: 111, linked: true } });
-		expect(String((w.posted().partial_custom_fields as Record<string, unknown>).bemerkung).split("\n")).toEqual([
+		// Interne Notiz ins Feld „Notiz“ (= „Interne Notizen“ im How-to); die Bemerkung trägt nur den Herkunftsvermerk
+		expect(String(w.posted().note).split("\n")).toEqual([
 			"Angelegt über Claude (Propstack MCP) von Florian Brimmers am 2026-10-14.",
 			"Exposé/Website: https://example.org/expose.pdf",
 			"Mandat: Alleinmandat",
 			"Provision intern: Tischregel 50/50",
 		]);
+		expect((w.posted().partial_custom_fields as Record<string, unknown>).bemerkung).toBe("Angelegt über Claude (Propstack MCP) von Florian Brimmers am 2026-10-14.");
+		expect((out.result as { not_applied?: string[]; internal_note_hint?: string }).not_applied).toBeUndefined();
+		expect((out.result as { internal_note_hint?: string }).internal_note_hint).toBeUndefined();
 		// Der Ansprechpartner steht NICHT mehr als ID im Custom-Feld (stand im Exposé-Risiko, Handanlagen nutzen es nicht)
 		expect(w.posted().partial_custom_fields).not.toHaveProperty("ansprechpartner_vermietung");
 		const body = String(w.task()!.body);
@@ -927,6 +931,27 @@ describe("create_object / update_object – Team-How-to", () => {
 		expect(body).toMatch(/Ansprechpartner: Tobias Jung \(222\)/);
 		expect(body).toMatch(/Nicht angegeben \(laut How-to wichtig\)/);
 		expect(body).toMatch(/Wesentlicher Energieträger/);
+	});
+
+	it("übernimmt Propstack die interne Notiz nicht, landet der Text in der Bemerkung – nichts geht verloren", async () => {
+		const w = world(PROJECT, { dropNote: true });
+		const out = await createObject({ client: w.client, db: fakeDb().db, now: NOW, sleep, user: USER }, { ...standalone, mandate: "Alleinmandat" });
+		expect(w.puts).toEqual(
+			expect.arrayContaining([
+				{ note: "Angelegt über Claude (Propstack MCP) von Florian Brimmers am 2026-10-14.\nMandat: Alleinmandat" }, // einzeln nachgesetzt
+				{ partial_custom_fields: { bemerkung: "Angelegt über Claude (Propstack MCP) von Florian Brimmers am 2026-10-14.\nMandat: Alleinmandat" } },
+			]),
+		);
+		expect((out.result as { internal_note_hint: string }).internal_note_hint).toMatch(/steht stattdessen im Feld „Bemerkung“/);
+		expect((out.result as { not_applied?: string[] }).not_applied).toBeUndefined();
+	});
+
+	it("Verknüpfungen an Einheiten werden gegengelesen (relationships im Einzel-GET) – ohne zweiten Schreibversuch", async () => {
+		const w = world(PROJECT, { showLinks: true });
+		const out = await createObject({ client: w.client, db: fakeDb().db, now: NOW, sleep, user: USER }, { ...standalone, contact_person_id: 222, owner_contact_id: 111 });
+		expect(out.result).toMatchObject({ contact_person: { linked: true }, owner: { linked: true } });
+		// je Rolle genau ein PUT – keine Gegenprobe nötig
+		expect(w.puts.filter((p) => "relationships_attributes" in p)).toHaveLength(2);
 	});
 
 	it("Ansprechpartner = Eigentümer: nur einmal verknüpfen", async () => {
@@ -964,20 +989,18 @@ describe("create_object / update_object – Team-How-to", () => {
 	it("update_object: How-to-Felder und Aktiv nur bei echter Änderung; interne Angaben werden an die Bemerkung angehängt", async () => {
 		const w = world();
 		Object.assign(w.stored, { marketing_type: "RENT", rented: false, title: "Halle" });
+		Object.assign(w.stored, { note: "Tippgeber: 25 %" });
 		Object.assign(w.custom, { bemerkung: "Alt", ramepntore: "10" });
 		const deps = { client: w.client, db: fakeDb().db, now: NOW, sleep, user: USER };
 		const out = await updateObject(deps, { active: true, dock_doors: 10, ground_level_doors: 2, id: 900, source_link: "https://example.org/expose.pdf" });
 		expect(w.puts).toEqual([
 			{
-				partial_custom_fields: {
-					aktiv: [7],
-					anzahl_rampentore_2: 2,
-					bemerkung: "Alt\n\nErgänzt über Claude (Propstack MCP) von Florian Brimmers am 2026-10-14.\nExposé/Website: https://example.org/expose.pdf",
-					status_logistik: "Aktiv",
-				},
+				// vorhandene Notiz bleibt, Neues wird angehängt; die Bemerkung wird nicht angefasst
+				note: "Tippgeber: 25 %\n\nErgänzt über Claude (Propstack MCP) von Florian Brimmers am 2026-10-14.\nExposé/Website: https://example.org/expose.pdf",
+				partial_custom_fields: { aktiv: [7], anzahl_rampentore_2: 2, status_logistik: "Aktiv" },
 			},
 		]);
-		expect((out.result as { changed: string[] }).changed).toEqual(expect.arrayContaining(["custom_fields.anzahl_rampentore_2", "bemerkung (angehängt)"]));
+		expect((out.result as { changed: string[] }).changed).toEqual(expect.arrayContaining(["custom_fields.anzahl_rampentore_2", "internal_note (angehängt)"]));
 		// Geänderter Text gegen die Regeln → abgewiesen, unveränderter Alttext bleibt unberührt
 		await expect(updateObject(deps, { description_note: "Miete 6,80 € je m²", id: 900 })).rejects.toThrow(/enthält einen Preis/);
 		const hint = await updateObject(deps, { id: 900, industrial_area: 9000 });

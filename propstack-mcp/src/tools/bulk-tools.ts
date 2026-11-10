@@ -384,7 +384,7 @@ export function undoInput(
 	}
 
 	for (const [key, old] of Object.entries(before)) {
-		if (key === "tag_ids" || key === "custom_fields" || key === "description") continue;
+		if (key === "tag_ids" || key === "custom_fields" || key === "description" || key === "note") continue;
 		if (!(key in after)) continue;
 		const inputKey = entity === "contacts" ? (CONTACT_INPUT_KEY[key] ?? key) : key;
 		if (old === "nicht lesbar") {

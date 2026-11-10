@@ -207,7 +207,7 @@ export function relationshipList(value: unknown, max = 20): Raw[] | undefined {
 		const nested = [raw.related_client, raw.client, raw.contact].find((v) => v && typeof v === "object") as Raw | undefined;
 		const id = raw.related_client_id ?? nested?.id ?? raw.client_id ?? raw.contact_id;
 		const name = scalar(nested?.name) ?? scalar(raw.related_client_name) ?? scalar(raw.client_name);
-		const role = raw.internal_name === "owner" ? "Eigentümer" : (scalar(raw.name) ?? scalar(raw.internal_name));
+		const role = raw.internal_name === "owner" ? "Eigentümer" : (scalar(raw.name) ?? (raw.internal_name === "partner" ? "Ansprechpartner" : scalar(raw.internal_name)));
 		if (id === undefined && name === undefined) return { unknown_shape: Object.keys(raw).slice(0, 30) };
 		return compact({ contact_id: id, name, role });
 	});
