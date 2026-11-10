@@ -6,6 +6,7 @@ import {
 	COMMISSION_SCALE,
 	commissionFields,
 	howtoCustomFields,
+	imageTitleProblem,
 	internalNoteLines,
 	objectNotProvided,
 	ownerNamesOf,
@@ -52,13 +53,30 @@ describe("Exposé-Texte", () => {
 		expect(checkExposeTexts({ description_note: "Halle, Büro, Mezzanine und Rampen sind vorhanden." }).errors).toEqual([]);
 	});
 
-	it("Lage ohne km und Straße im Text sind Hinweise, keine Fehler", () => {
-		const out = checkExposeTexts({ location_note: "Gute Lage an der Röntgenstr. im Gewerbegebiet." }, { street: "Röntgenstraße" });
-		expect(out.errors).toEqual([]);
-		expect(out.warnings).toEqual([expect.stringMatching(/keine Entfernungen in km/), expect.stringMatching(/nennt die Straße „Röntgenstraße“/)]);
-		expect(checkExposeTexts({ location_note: "Autobahnen:\nA2: ca. 0,2 km" }, { street: "Röntgenstraße" }).warnings).toEqual([]);
-		// sehr kurze Straßennamen werden nicht geprüft (zu viele Zufallstreffer)
-		expect(checkExposeTexts({ description_note: "Lage am See." }, { street: "Am See" }).warnings).toEqual([]);
+	it("Lage: ohne km abgewiesen, Entfernungen als Kette abgewiesen, Liste in Ordnung (streng nach How-to)", () => {
+		expect(checkExposeTexts({ location_note: "Gute Lage im Gewerbegebiet mit schneller Anbindung." }).errors[0]).toMatch(/es fehlen die Entfernungen in km.*nichts schätzen/);
+		expect(checkExposeTexts({ location_note: "Entfernungen: A59 ca. 0,2 km; Flughafen ca. 7 km; Hafen ca. 6 km." }).errors[0]).toMatch(/als Liste/);
+		expect(checkExposeTexts({ location_note: "Kurze Einordnung.\n\nAutobahnen:\nA2: ca. 0,2 km\nA30: ca. 17 km" })).toEqual({ errors: [], warnings: [] });
+		expect(checkExposeTexts({ location_note: "Autobahnen:\nA2: ca. 0,2 km" })).toEqual({ errors: [], warnings: [] });
+	});
+
+	it("Adresse im Text: genannte Straße wird abgewiesen, in der Überschrift nur gemeldet; „am Hafen“ im Fließtext ist keine Adresse", () => {
+		for (const text of ["Die Halle an der Röntgenstraße 8 bietet viel Platz.", "Zufahrt über die Röntgenstr. möglich.", "Im Gewerbegebiet „Röntgenstrasse“ gelegen."]) {
+			expect(checkExposeTexts({ description_note: text }, { street: "Röntgenstraße" }).errors[0]).toMatch(/nennt die Straße „Röntgenstraße“ – die Adresse darf/);
+		}
+		expect(checkExposeTexts({ furnishing_note: "- Zufahrt über Am Scheid" }, { street: "Am Scheid" }).errors).toHaveLength(1);
+		// Überschrift: Hinweis statt Fehler
+		expect(checkExposeTexts({ title: "Logistikhalle in (51) Köln – Hansestraße 61-63" }, { street: "Hansestraße" })).toEqual({
+			errors: [],
+			warnings: [expect.stringMatching(/Überschrift: nennt die Straße/)],
+		});
+		// Präposition im Fließtext ist keine Adresse – nur ein Hinweis zum Prüfen
+		const loose = checkExposeTexts({ description_note: "Die Halle liegt direkt am Hafen." }, { street: "Am Hafen" });
+		expect(loose.errors).toEqual([]);
+		expect(loose.warnings).toHaveLength(1);
+		// andere Straße oder sehr kurzer Straßenname: kein Befund
+		expect(checkExposeTexts({ description_note: "Nahe der Kölner Straße." }, { street: "Röntgenstraße" })).toEqual({ errors: [], warnings: [] });
+		expect(checkExposeTexts({ description_note: "Lage am See." }, { street: "Am See" })).toEqual({ errors: [], warnings: [] });
 	});
 
 	it("leere und nicht-textliche Werte (z. B. null beim Rückgängigmachen) werden übergangen", () => {
@@ -73,11 +91,12 @@ describe("Exposé-Texte", () => {
 });
 
 describe("(XX) in Überschrift und Name", () => {
-	it("falsche Ziffern sind ein Fehler, fehlende ein Hinweis", () => {
+	it("falsche Ziffern sind immer ein Fehler; fehlende bei eigener Angabe ein Fehler, bei Übernommenem ein Hinweis", () => {
 		expect(checkZipPrefix("Überschrift", "Logistikhalle in (56) Hillscheid", "56204")).toEqual({});
 		expect(checkZipPrefix("Überschrift", "Logistikhalle in (50) Hillscheid", "56204").error).toMatch(/richtig wäre \(56\)/);
-		expect(checkZipPrefix("Überschrift", "Build-to-Suit Logistikstandort", "56204").warning).toMatch(/ohne „\(56\)“/);
-		expect(checkZipPrefix("Projektname", "Logistikhalle Hillscheid", "56204", false)).toEqual({});
+		expect(checkZipPrefix("Überschrift", "Logistikhalle in (50) Hillscheid", "56204", "warn").error).toMatch(/richtig wäre \(56\)/);
+		expect(checkZipPrefix("Überschrift", "Build-to-Suit Logistikstandort", "56204").error).toMatch(/ohne „\(56\)“/);
+		expect(checkZipPrefix("Überschrift", "Build-to-Suit Logistikstandort", "56204", "warn")).toEqual({ warning: expect.stringMatching(/ohne „\(56\)“/) });
 		expect(checkZipPrefix("Überschrift", undefined, "56204")).toEqual({});
 	});
 });
@@ -146,5 +165,37 @@ describe("Was laut How-to fehlt", () => {
 		expect(projectNotProvided({ marketing_type: "RENT" }, {})).toEqual(expect.arrayContaining(["Eigentümer", "Interne Notiz: Mietpreise", "Unterzeile (z. B. „Direkt an der A40“)", "Lage"]));
 		expect(projectNotProvided({ marketing_type: "BUY" }, {})).not.toContain("Interne Notiz: Mietpreise");
 		expect(internalNoteLines({ developer_project_name: "Panattoni Park", mandate: "Alleinmandat von XY" })).toEqual(["Mandat: Alleinmandat von XY", "Projektname Entwickler: Panattoni Park"]);
+	});
+});
+
+describe("Bildtitel", () => {
+	it("Titel ist Pflicht und muss ein Name sein, kein Dateiname", () => {
+		for (const good of ["Außenansicht", "Halle innen", "Köln 1", "Lageplan"]) expect(imageTitleProblem(good)).toBeUndefined();
+		expect(imageTitleProblem("")).toMatch(/fehlt/);
+		expect(imageTitleProblem(undefined)).toMatch(/fehlt/);
+		expect(imageTitleProblem("IMG_0001")).toMatch(/Dateiname/);
+		expect(imageTitleProblem("aussen.jpg")).toMatch(/Dateiname/);
+		expect(imageTitleProblem("12")).toMatch(/kein Titel/);
+		expect(imageTitleProblem("x".repeat(101))).toMatch(/länger/);
+	});
+});
+
+describe("Provisionsfelder (streng nach How-to)", async () => {
+	const { validateCustomFields } = await import("../src/propstack/field-rules");
+	const client = {
+		listCustomFieldGroups: async () => ({
+			rows: [{ custom_fields: [{ field_type: "String", name: "provision_interne_notiz" }, { field_type: "String", name: "provision_intern" }, { field_type: "String", name: "provision_extern" }] }],
+			total: 1,
+		}),
+	};
+
+	it("Provisionsregelungen gehören in die interne Notiz – die Custom-Felder dafür nimmt der Connector nicht an (Leeren bleibt möglich)", async () => {
+		await expect(validateCustomFields(client, "for_properties", { provision_interne_notiz: "Provisionsfrei: Mileway ist immer provisionsfrei (Vorgabe …)" })).rejects.toThrow(
+			/"provision_interne_notiz" gesperrt: laut How-to gehören Provisionsregelungen in die interne Notiz – internal_commission/,
+		);
+		await expect(validateCustomFields(client, "for_properties", { provision_intern: "Tischregel" })).rejects.toThrow(/gesperrt/);
+		expect(await validateCustomFields(client, "for_properties", { provision_interne_notiz: null })).toEqual({ expect: { provision_interne_notiz: null }, send: { provision_interne_notiz: null } });
+		// provision_extern pflegt der Bestand über die Oberfläche – bleibt erlaubt
+		expect((await validateCustomFields(client, "for_properties", { provision_extern: "Provisionsfrei" }))?.send).toEqual({ provision_extern: "Provisionsfrei" });
 	});
 });

@@ -8,6 +8,7 @@ import {
 	checkZipPrefix,
 	commissionFields,
 	commissionParam,
+	imageTitleProblem,
 	internalNoteLines,
 	internalNoteShape,
 	ownerNamesOf,
@@ -207,11 +208,12 @@ export async function createProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 	});
 	throwOnTextErrors(findings);
 	const textWarnings = [...findings.warnings];
-	const nameCheck = checkZipPrefix("Projektname", input.name, input.zip_code, false);
-	const titleCheck = checkZipPrefix("Überschrift", input.title ?? input.name, input.zip_code);
-	const formatError = nameCheck.error ?? titleCheck.error;
+	// How-to: Name „Logistikfläche in (PLZ) Ort“, Überschrift = Name inkl. der ersten beiden PLZ-Ziffern, intern und extern gleich
+	const formatError = checkZipPrefix("Projektname", input.name, input.zip_code).error ?? checkZipPrefix("Überschrift", input.title ?? input.name, input.zip_code).error;
 	if (formatError) throw new PropstackError(formatError, 400);
-	if (titleCheck.warning) textWarnings.push(titleCheck.warning);
+	if (input.title !== undefined && input.title !== input.name) {
+		textWarnings.push("Überschrift weicht vom Projektnamen ab – laut How-to sollen interner und externer Name gleich sein.");
+	}
 
 	// Interne Notiz (How-to: Exposé-Link, Mandat, Mietpreise, Provisionsregelung, Projektname des Entwicklers)
 	const noteLines = [...internalNoteLines(input), ...(input.internal_note ? [input.internal_note] : [])];
@@ -255,6 +257,9 @@ export async function createProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 		actual = asObject(await client.getProject(projectId));
 		({ missing, unverified } = compareProject(plainFields, actual, custom?.expect));
 	}
+	// Die interne Notiz speichert Propstack (in der Oberfläche bestätigt, Projekt 613378, 10.11.2026), der GET
+	// liefert sie aber nie zurück – das ist bekannt und kein Befund je Anlage.
+	unverified = unverified.filter((key) => key !== "note");
 
 	const coordinates = await ensureCoordinates({
 		sleep: deps.sleep,
@@ -288,7 +293,6 @@ export async function createProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 	});
 
 	const notProvided = projectNotProvided(input, fields);
-	const noteUnverified = unverified.includes("note");
 	const review = await createReviewTask(client, deps.db, {
 		lines: [
 			`Projekt ${projectId}: ${name}`,
@@ -303,9 +307,6 @@ export async function createProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 			...(notProvided.length ? [`Nicht angegeben (laut How-to wichtig): ${notProvided.join(", ")}`] : []),
 			...textWarnings.map((w) => `Texthinweis: ${w}`),
 			...(input.review_notes ?? []).map((n) => `Offen: ${n}`),
-			...(noteUnverified && noteLines.length
-				? ["Interne Notiz – so gesendet; Propstack liefert sie nicht zurück, bitte im Projekt unter „Interne Notizen“ kontrollieren:", ...noteLines.map((l) => `· ${l}`)]
-				: []),
 			"Prüfen: Adresse/Koordinaten, Texte (kein Eigentümer, keine Adresse, keine Preise), Provision, Einheiten.",
 			...PROJECT_UI_STEPS,
 		],
@@ -404,11 +405,8 @@ export async function updateProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 	});
 	throwOnTextErrors(findings);
 	const warnings = [...findings.warnings];
-	const nameCheck = checkZipPrefix("Projektname", fields.name, zip, false);
-	const titleCheck = checkZipPrefix("Überschrift", fields.title, zip);
-	const formatError = nameCheck.error ?? titleCheck.error;
+	const formatError = checkZipPrefix("Projektname", fields.name, zip).error ?? checkZipPrefix("Überschrift", fields.title, zip).error;
 	if (formatError) throw new PropstackError(formatError, 400);
-	if (titleCheck.warning) warnings.push(titleCheck.warning);
 
 	// Adresse geändert → Kollision mit anderem Projekt prüfen
 	let overrideReason: string | null = null;
@@ -453,6 +451,8 @@ export async function updateProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 	if (!Object.keys(fields).length && !coordsRequested && !custom) {
 		return { count: 0, result: { updated: false, id: input.id, note: "Keine Änderung – alle Werte sind bereits so gesetzt." } };
 	}
+	// Auch Koordinaten gehören in den Snapshot (Write-Log: Stand vorher)
+	if (coordsRequested) Object.assign(before, { lat: coordsOf(current).lat ?? null, lng: coordsOf(current).lng ?? null });
 
 	const logId = await beginWrite(deps.db, {
 		action: "update",
@@ -593,9 +593,9 @@ export const addImagesInput = {
 		.describe("Öffentliche Bild-URLs (https). Reihenfolge = Reihenfolge in Propstack; das erste Bild eines Objekts wird Titelbild – bestes Außenfoto zuerst"),
 	titles: z
 		.array(z.string().trim().min(1).max(100))
+		.min(1)
 		.max(10)
-		.optional()
-		.describe("Bildtitel in derselben Reihenfolge wie urls, z. B. „Außenansicht“ – Bilder müssen in Propstack benannt sein. Kein Firmen- oder Eigentümername"),
+		.describe("Pflicht: je Bild ein Titel in derselben Reihenfolge wie urls, z. B. „Außenansicht“ (How-to: Bilder müssen in Propstack benannt sein). Kein Dateiname, kein Firmen- oder Eigentümername"),
 };
 
 // Neutraler Client-Name – keine Firmen- oder Personendaten an fremde Server.
@@ -631,9 +631,11 @@ export async function addImages(
 	if ((input.object_id === undefined) === (input.project_id === undefined)) {
 		throw new PropstackError("Genau eins von object_id oder project_id angeben.", 400);
 	}
-	if (input.titles && input.titles.length !== input.urls.length) {
+	if (input.titles.length !== input.urls.length) {
 		throw new PropstackError(`titles braucht genau so viele Einträge wie urls (${input.urls.length}).`, 400);
 	}
+	const titleProblems = input.titles.map(imageTitleProblem).filter(Boolean);
+	if (titleProblems.length) throw new PropstackError(`Bildtitel ungültig: ${titleProblems.join("; ")}.`, 400);
 	const target = input.object_id !== undefined ? { id: input.object_id, type: "Property" } : { id: input.project_id!, type: "Project" };
 
 	// Ziel muss existieren (404 statt verwaister Bilder)
@@ -645,7 +647,7 @@ export async function addImages(
 	for (const [index, url] of input.urls.entries()) {
 		const problem = await checkImageUrl(url, deps.fetchFn);
 		if (problem) rejected.push({ reason: problem, url });
-		else valid.push({ title: input.titles?.[index], url });
+		else valid.push({ title: input.titles[index], url });
 	}
 	if (!valid.length) {
 		return { count: 0, result: { uploaded: 0, rejected, note: "Kein Bild hochgeladen – keine der URLs ist ein erreichbares Bild." } };
@@ -689,7 +691,7 @@ export async function addImages(
 			image_ids: uploaded.length ? uploaded : undefined,
 			rejected: rejected.length ? rejected : undefined,
 			errors: errors.length ? errors : undefined,
-			note: `${input.titles ? "" : "Bilder haben keinen Titel – in Propstack benennen (z. B. „Außenansicht“) oder mit titles erneut. "}Grundrisse in Propstack als Grundriss kennzeichnen. Bildrechte liegen beim Eigentümer/Entwickler – Portalfreigabe separat klären. Keine Firmenschriftzüge.`,
+			note: "Grundrisse in Propstack als Grundriss kennzeichnen. Bildrechte liegen beim Eigentümer/Entwickler – Portalfreigabe separat klären. Keine Firmenschriftzüge.",
 		},
 	};
 }

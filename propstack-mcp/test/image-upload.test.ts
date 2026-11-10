@@ -40,11 +40,12 @@ function grant(overrides: Partial<UploadGrant> = {}): UploadGrant {
 	return { brokerId: 347158, email: USER.email, expiresAt: Date.now() + 600_000, name: USER.name, remaining: 3, target: { id: 6265636, type: "Property" }, ...overrides };
 }
 
-function upload(token: string, files: { name: string; bytes: Uint8Array; title?: string }[], field = "image[photo]") {
+/** Jedes Bild bekommt einen Titel (Pflicht); title: null lässt ihn bewusst weg. */
+function upload(token: string, files: { name: string; bytes: Uint8Array; title?: string | null }[], field = "image[photo]") {
 	const form = new FormData();
 	for (const f of files) {
 		form.append(field, new File([f.bytes], f.name));
-		if (f.title !== undefined) form.append("title", f.title);
+		if (f.title !== null) form.append("title", f.title ?? "Außenansicht");
 	}
 	return new Request(`https://propstack-mcp.kromeichpartner.workers.dev/upload/images/${token}`, { body: form, method: "POST" });
 }
@@ -109,11 +110,15 @@ describe("Upload-Endpunkt", () => {
 		expect(s.sent.map((x) => x.title)).toEqual(["Außenansicht", "Halle innen"]);
 		expect(await res.json()).toMatchObject({ images: [{ image_id: 901, title: "Außenansicht" }, { image_id: 902, title: "Halle innen" }] });
 
-		// ohne Titel: hochgeladen, aber mit Hinweis – der Dateiname wird nicht zum Titel
+		// ohne Titel oder mit Dateinamen als Titel: nichts hochladen (How-to: Bilder müssen benannt sein)
 		const plain = await setup();
-		const untitled = await handleImageUpload(upload(token, [{ bytes: JPEG, name: "goodman_halle_01.jpg" }]), plain.env, { createClient: plain.createClient });
-		expect(plain.sent[0].title).toBeUndefined();
-		expect(String(((await untitled.json()) as { note: string }).note)).toMatch(/Ohne Titel hochgeladen/);
+		const untitled = await handleImageUpload(upload(token, [{ bytes: JPEG, name: "goodman_halle_01.jpg", title: null }]), plain.env, { createClient: plain.createClient });
+		expect(untitled.status).toBe(400);
+		expect(JSON.stringify(await untitled.json())).toMatch(/je Bild genau ein title/);
+		const fileName = await handleImageUpload(upload(token, [{ bytes: JPEG, name: "a.jpg", title: "IMG_0001" }]), plain.env, { createClient: plain.createClient });
+		expect(fileName.status).toBe(400);
+		expect(JSON.stringify(await fileName.json())).toMatch(/Dateiname, kein Titel/);
+		expect(plain.sent).toEqual([]);
 
 		// Anzahl Titel ≠ Anzahl Dateien → nichts hochladen
 		const uneven = await setup();

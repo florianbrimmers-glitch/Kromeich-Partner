@@ -204,18 +204,18 @@ describe("add_images", () => {
 		});
 		const out = await addImages(
 			{ client, db: fakeDb().db, fetchFn, user: USER },
-			{ object_id: 5, urls: ["https://x.de/ok1.jpg", "https://x.de/page.html", "https://x.de/weg.jpg", "https://x.de/ok2.jpg"] },
+			{ object_id: 5, titles: ["Außenansicht", "Seite", "Weg", "Halle innen"], urls: ["https://x.de/ok1.jpg", "https://x.de/page.html", "https://x.de/weg.jpg", "https://x.de/ok2.jpg"] },
 		);
 		expect(sent).toEqual([
-			{ imageable_id: 5, imageable_type: "Property", remote_photo_url: "https://x.de/ok1.jpg" },
-			{ imageable_id: 5, imageable_type: "Property", remote_photo_url: "https://x.de/ok2.jpg" },
+			{ imageable_id: 5, imageable_type: "Property", remote_photo_url: "https://x.de/ok1.jpg", title: "Außenansicht" },
+			{ imageable_id: 5, imageable_type: "Property", remote_photo_url: "https://x.de/ok2.jpg", title: "Halle innen" },
 		]);
 		expect(out.result).toMatchObject({ image_ids: [901, 902], rejected: [{ reason: expect.stringMatching(/kein Bild/) }, { reason: expect.stringMatching(/404/) }], uploaded: 2 });
 	});
 
 	it("genau ein Ziel", async () => {
 		const { client } = fakeClient({});
-		await expect(addImages({ client, db: fakeDb().db, fetchFn, user: USER }, { urls: ["https://x.de/ok.jpg"] })).rejects.toThrow(/Genau eins/);
+		await expect(addImages({ client, db: fakeDb().db, fetchFn, user: USER }, { titles: ["Außenansicht"], urls: ["https://x.de/ok.jpg"] })).rejects.toThrow(/Genau eins/);
 	});
 
 	it("checkImageUrl schickt User-Agent und fällt bei 405 auf GET zurück", async () => {
@@ -376,7 +376,8 @@ describe("update_project", () => {
 		expect(puts[2]).toEqual({ lat: 50.4367 });
 		expect(out.result).toMatchObject({ changed: ["courtage", "courtage_note", "lat/lng"], coordinates: { verified: true }, updated: true });
 		expect((out.result as { not_applied?: string[] }).not_applied).toBeUndefined();
-		expect(JSON.parse(rows[0][7] as string)).toEqual({ courtage: null, courtage_note: null });
+		// Snapshot vorher: auch die bisherigen Koordinaten (hier: keine)
+		expect(JSON.parse(rows[0][7] as string)).toEqual({ courtage: null, courtage_note: null, lat: null, lng: null });
 	});
 
 	it("keine Änderung → kein Write; Adresse kollidiert → blockiert", async () => {
@@ -482,15 +483,15 @@ describe("create_project – Team-How-to", () => {
 		]);
 		expect(out.result).toMatchObject({
 			contact_person: { id: 222, linked: true, name: "Stefan Prange" },
-			not_verifiable: ["note"],
 			owner: { id: 111, linked: true },
 		});
+		// Die Notiz speichert Propstack, liefert sie aber nie zurück – bekannt, kein Befund je Anlage
+		expect((out.result as { not_verifiable?: string[] }).not_verifiable).toBeUndefined();
 		expect((out.result as { howto_not_provided?: string[] }).howto_not_provided).toBeUndefined();
 		expect((out.result as { ui_steps: string[] }).ui_steps.join(" ")).toMatch(/Einheitenliste im Exposé anzeigen/);
-		// Prüfaufgabe: Notiz zur Kontrolle (Propstack liefert sie nicht zurück), UI-Schritte, beide Verknüpfungen
+		// Prüfaufgabe: UI-Schritte und beide Verknüpfungen
 		const body = String(w.task().body);
 		expect(body).toMatch(/Ansprechpartner: Stefan Prange \(222\)/);
-		expect(body).toMatch(/Interne Notiz – so gesendet.*Mandat: kein Alleinmandat/);
 		expect(body).toMatch(/Einheitenliste im Exposé anzeigen/);
 	});
 
@@ -498,15 +499,16 @@ describe("create_project – Team-How-to", () => {
 		const w = world();
 		const out = await createProject(
 			{ client: w.client, db: fakeDb().db, now: NOW, user: USER },
-			{ ...input, location_note: "Verkehrsgünstig an der Kappeler Straße gelegen.", name: "Logistikhalle Düsseldorf" },
+			{ ...input, location_note: "Autobahnen:\nA46: ca. 2 km", title: "Logistikpark in (40) Düsseldorf – Kappeler Straße" },
 		);
 		const result = out.result as { howto_not_provided: string[]; text_warnings: string[] };
 		expect(result.howto_not_provided).toEqual(
 			expect.arrayContaining(["Eigentümer", "Interne Notiz: Exposé-/Website-Link", "Interne Notiz: Mandat", "Interne Notiz: Mietpreise", "Unterzeile (z. B. „Direkt an der A40“)", "Provision", "Projektbeschreibung", "Ausstattung"]),
 		);
-		expect(result.text_warnings.join(" ")).toMatch(/Lage: keine Entfernungen in km/);
-		expect(result.text_warnings.join(" ")).toMatch(/Lage: nennt die Straße „Kappeler Straße“/);
-		expect(result.text_warnings.join(" ")).toMatch(/Überschrift ohne „\(40\)“/);
+		expect(result.howto_not_provided).not.toContain("Lage");
+		// Straße in der Überschrift: Hinweis; Überschrift ≠ Name: Hinweis
+		expect(result.text_warnings.join(" ")).toMatch(/Überschrift: nennt die Straße „Kappeler Straße“/);
+		expect(result.text_warnings.join(" ")).toMatch(/Überschrift weicht vom Projektnamen ab/);
 		expect(String(w.task().body)).toMatch(/Nicht angegeben \(laut How-to wichtig\): Eigentümer/);
 	});
 
@@ -517,6 +519,10 @@ describe("create_project – Team-How-to", () => {
 		await expect(createProject(deps, { ...input, description_note: "Miete 6,80 €/m² zzgl. Nebenkosten." })).rejects.toThrow(/enthält einen Preis \(„6,80 €“\)/);
 		await expect(createProject(deps, { ...input, furnishing_note: "LED-Beleuchtung, Sprinkler, 30 Rampen, Hallenhöhe 10,5 m" })).rejects.toThrow(/Ausstattung: bitte als Aufzählung/);
 		await expect(createProject(deps, { ...input, name: "Logistikhalle in (50) Düsseldorf" })).rejects.toThrow(/\(50\) passt nicht zur PLZ 40597 – richtig wäre \(40\)/);
+		// streng nach How-to: Name ohne „(XX)“, Lage ohne km, Adresse im Text
+		await expect(createProject(deps, { ...input, name: "Logistikhalle Düsseldorf" })).rejects.toThrow(/Projektname „Logistikhalle Düsseldorf“ ohne „\(40\)“/);
+		await expect(createProject(deps, { ...input, location_note: "Verkehrsgünstig gelegen." })).rejects.toThrow(/es fehlen die Entfernungen in km/);
+		await expect(createProject(deps, { ...input, description_note: "Logistikpark an der Kappeler Straße 12." })).rejects.toThrow(/nennt die Straße „Kappeler Straße“ – die Adresse darf/);
 		await expect(createProject(deps, { ...input, commission: "staffel", marketing_type: "BUY" })).rejects.toThrow(/commission gilt nur für Miete/);
 		expect(w.calls.some((c) => c.method === "createProject")).toBe(false);
 		// Preis im Text nur auf ausdrückliche Ansage
@@ -646,6 +652,9 @@ describe("add_images – Titel", () => {
 			{ imageable_id: 7, imageable_type: "Project", remote_photo_url: "https://x.de/b.jpg", title: "Halle innen" },
 		]);
 		await expect(addImages(deps, { project_id: 7, titles: ["nur einer"], urls: ["https://x.de/a.jpg", "https://x.de/b.jpg"] })).rejects.toThrow(/genau so viele/);
+		// Dateiname statt Titel wird abgewiesen (How-to: Bilder müssen benannt sein)
+		await expect(addImages(deps, { project_id: 7, titles: ["IMG_0001"], urls: ["https://x.de/a.jpg"] })).rejects.toThrow(/Dateiname, kein Titel/);
+		expect(sent).toHaveLength(2);
 	});
 });
 
