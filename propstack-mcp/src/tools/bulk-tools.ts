@@ -5,6 +5,7 @@ import { contactFilterShape, objectFilterShape } from "../propstack/filters";
 import { validateCustomFields } from "../propstack/field-rules";
 import { checkExposeTexts, commissionParam, throwOnTextErrors } from "../propstack/howto";
 import { scalar } from "../propstack/mappers";
+import { areaNumber, MEZZANINE_KEY } from "../propstack/areas";
 import { readUnit, UNVERIFIABLE, unitCustomValue, unitValue } from "../propstack/unit-state";
 import { id } from "./params";
 import { selectContacts, selectObjects, type ToolOutput } from "./read-tools";
@@ -386,6 +387,20 @@ export function undoInput(
 	for (const [key, old] of Object.entries(before)) {
 		if (key === "tag_ids" || key === "custom_fields" || key === "description" || key === "note") continue;
 		if (!(key in after)) continue;
+		// Die Gesamtfläche wird nie zurückgeschrieben: update_object rechnet sie aus Hallenfläche + Mezzanine neu.
+		// Stand vorher ein anderer Wert (z. B. inklusive Büro), kommt er bewusst nicht wieder – das wird gemeldet.
+		if (entity === "objects" && key === "total_floor_space") {
+			const hall = areaNumber(current.value("industrial_area"));
+			if (hall !== undefined && hall > 0) {
+				const customOld = (before.custom_fields ?? {}) as Raw;
+				const mezzanine = MEZZANINE_KEY in customOld ? areaNumber(customOld[MEZZANINE_KEY]) : areaNumber(current.custom(MEZZANINE_KEY));
+				const was = areaNumber(old);
+				if (was === undefined || Math.abs(was - (hall + (mezzanine ?? 0))) > 0.005) {
+					skipped.push(`total_floor_space (wird aus Hallenfläche + Mezzanine gerechnet${was !== undefined ? `, vorher ${was} m²` : ""})`);
+				}
+				continue;
+			}
+		}
 		const inputKey = entity === "contacts" ? (CONTACT_INPUT_KEY[key] ?? key) : key;
 		if (old === "nicht lesbar") {
 			skipped.push(`${inputKey} (vorheriger Wert unbekannt)`);
