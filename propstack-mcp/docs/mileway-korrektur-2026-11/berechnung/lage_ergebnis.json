@@ -1,0 +1,3247 @@
+{
+ "613122": {
+  "city": "Dormagen",
+  "street": "Hamburger Straße",
+  "autobahn": [
+   {
+    "ref": "A 57",
+    "name": "Dormagen",
+    "km": 1.0949,
+    "nr": "25"
+   },
+   {
+    "ref": "A 57",
+    "name": "Köln-Worringen",
+    "km": 6.044,
+    "nr": "26"
+   },
+   {
+    "ref": "A 57",
+    "name": "Dreieck Neuss-Süd",
+    "km": 8.542200000000001,
+    "nr": "24"
+   },
+   {
+    "ref": "A 46",
+    "name": "Dreieck Neuss-Süd",
+    "km": 9.579799999999999,
+    "nr": "21"
+   },
+   {
+    "ref": "A 46",
+    "name": "Neuss-Uedesheim",
+    "km": 10.5387,
+    "nr": "22"
+   },
+   {
+    "ref": "A 59",
+    "name": "Kreuz Monheim-Süd",
+    "km": 27.3188,
+    "nr": "26"
+   },
+   {
+    "ref": "A 59",
+    "name": "Richrath",
+    "km": 27.5299,
+    "nr": "24"
+   },
+   {
+    "ref": "A 59",
+    "name": "Monheim",
+    "km": 29.2464,
+    "nr": "25"
+   }
+  ],
+  "bundesstrasse": [
+   {
+    "ref": "B 9",
+    "km": 3.6328
+   },
+   {
+    "ref": "B 477",
+    "km": 11.3233
+   },
+   {
+    "ref": "B 228",
+    "km": 23.0555
+   }
+  ],
+  "bahn": [
+   {
+    "name": "Dormagen",
+    "art": "station",
+    "station": null,
+    "km": 1.7888
+   },
+   {
+    "name": "Dormagen Chempark",
+    "art": "halt",
+    "station": null,
+    "km": 3.4904
+   },
+   {
+    "name": "Dormagen Chempark",
+    "art": "halt",
+    "station": null,
+    "km": 3.5643000000000002
+   },
+   {
+    "name": "Nievenheim",
+    "art": "station",
+    "station": null,
+    "km": 5.887
+   },
+   {
+    "name": "Köln-Worringen",
+    "art": "station",
+    "station": null,
+    "km": 9.5417
+   }
+  ],
+  "bus": [
+   {
+    "name": "Alte Heerstraße",
+    "art": "bus",
+    "km": 0.7212000000000001
+   },
+   {
+    "name": "Alte Heerstraße",
+    "art": "bus",
+    "km": 0.7219
+   },
+   {
+    "name": "Alte Heerstraße",
+    "art": "bus",
+    "km": 0.7545
+   },
+   {
+    "name": "Alte Heerstraße",
+    "art": "bus",
+    "km": 0.9056000000000001
+   },
+   {
+    "name": "Heesenstraße/Top West",
+    "art": "bus",
+    "km": 1.2187999999999999
+   },
+   {
+    "name": "Heesenstraße/Top West",
+    "art": "bus",
+    "km": 1.2308
+   }
+  ],
+  "flughafen": [
+   {
+    "name": "Flughafen Düsseldorf",
+    "gross": true,
+    "lat": 51.2781696,
+    "lon": 6.7668377,
+    "km": 26.5935
+   },
+   {
+    "name": "Flughafen Köln/Bonn",
+    "gross": true,
+    "lat": 50.8790802,
+    "lon": 7.1193621,
+    "km": 45.1364
+   },
+   {
+    "name": "Flughafen Dortmund",
+    "gross": false,
+    "lat": 51.5169073,
+    "lon": 7.6097179,
+    "km": 95.9752
+   },
+   {
+    "name": "Flughafen Niederrhein (Weeze)",
+    "gross": false,
+    "lat": 51.6031019,
+    "lon": 6.1433899,
+    "km": 97.0733
+   },
+   {
+    "name": "Flughafen Maastricht Aachen",
+    "gross": false,
+    "lat": 50.9124991,
+    "lon": 5.7713205,
+    "km": 102.27669999999999
+   },
+   {
+    "name": "Flughafen Münster/Osnabrück",
+    "gross": false,
+    "lat": 52.1342179,
+    "lon": 7.6829214,
+    "km": 167.1111
+   }
+  ],
+  "hafen": [
+   {
+    "name": "Hafen Neuss",
+    "gross": false,
+    "lat": 51.2124,
+    "lon": 6.7141,
+    "km": 17.4181
+   },
+   {
+    "name": "Hafen Düsseldorf",
+    "gross": false,
+    "lat": 51.2170292,
+    "lon": 6.7335758,
+    "km": 20.339599999999997
+   },
+   {
+    "name": "Hafen Köln-Niehl",
+    "gross": false,
+    "lat": 50.9792423,
+    "lon": 6.9769677,
+    "km": 21.861900000000002
+   },
+   {
+    "name": "Hafen Krefeld",
+    "gross": false,
+    "lat": 51.3409846,
+    "lon": 6.6668807,
+    "km": 39.0571
+   },
+   {
+    "name": "Hafen Köln-Godorf",
+    "gross": false,
+    "lat": 50.8514459,
+    "lon": 6.9900919,
+    "km": 39.2503
+   },
+   {
+    "name": "Hafen Duisburg (duisport)",
+    "gross": false,
+    "lat": 51.4609562,
+    "lon": 6.7829436,
+    "km": 62.643800000000006
+   }
+  ]
+ },
+ "613115": {
+  "city": "Wesseling",
+  "street": "Widdiger Straße",
+  "autobahn": [
+   {
+    "ref": "A 555",
+    "name": "Wesseling",
+    "km": 0.7005,
+    "nr": "5"
+   },
+   {
+    "ref": "A 555",
+    "name": "Köln-Godorf",
+    "km": 5.7546,
+    "nr": "4"
+   },
+   {
+    "ref": "A 553",
+    "name": "Brühl-Ost",
+    "km": 6.390899999999999,
+    "nr": "4"
+   },
+   {
+    "ref": "A 555",
+    "name": "Bornheim (Rhld)",
+    "km": 6.4065,
+    "nr": "6"
+   },
+   {
+    "ref": "A 553",
+    "name": "Brühl / Bornheim",
+    "km": 7.9701,
+    "nr": "3"
+   },
+   {
+    "ref": "A 555",
+    "name": "Köln-Rodenkirchen",
+    "km": 8.1275,
+    "nr": "3"
+   },
+   {
+    "ref": "A 555",
+    "name": "Kreuz Bonn-Nord",
+    "km": 9.2105,
+    "nr": "7"
+   }
+  ],
+  "bundesstrasse": [
+   {
+    "ref": "B 51",
+    "km": 10.302
+   },
+   {
+    "ref": "B 8",
+    "km": 27.1985
+   }
+  ],
+  "bahn": [
+   {
+    "name": "Sechtem",
+    "art": "station",
+    "station": null,
+    "km": 4.2993999999999994
+   },
+   {
+    "name": "Brühl",
+    "art": "station",
+    "station": null,
+    "km": 8.079
+   },
+   {
+    "name": "Roisdorf",
+    "art": "station",
+    "station": null,
+    "km": 8.7049
+   },
+   {
+    "name": "Sürth Bahnhof",
+    "art": "station",
+    "station": "light_rail",
+    "km": 10.3861
+   },
+   {
+    "name": "Michaelshoven",
+    "art": "station",
+    "station": "light_rail",
+    "km": 12.0453
+   }
+  ],
+  "bus": [
+   {
+    "name": "Akademie Eichholz",
+    "art": "bus",
+    "km": 0.2206
+   },
+   {
+    "name": "Herseler Straße",
+    "art": "bus",
+    "km": 0.2302
+   },
+   {
+    "name": "Herseler Straße",
+    "art": "bus",
+    "km": 0.25839999999999996
+   },
+   {
+    "name": "Akademie Eichholz",
+    "art": "bus",
+    "km": 0.2681
+   },
+   {
+    "name": "Wilhelm-Busch-Straße",
+    "art": "bus",
+    "km": 0.717
+   },
+   {
+    "name": "Wilhelm-Busch-Straße",
+    "art": "bus",
+    "km": 0.7231000000000001
+   }
+  ],
+  "flughafen": [
+   {
+    "name": "Flughafen Köln/Bonn",
+    "gross": true,
+    "lat": 50.8790802,
+    "lon": 7.1193621,
+    "km": 24.7862
+   },
+   {
+    "name": "Flughafen Düsseldorf",
+    "gross": true,
+    "lat": 51.2781696,
+    "lon": 6.7668377,
+    "km": 74.92
+   },
+   {
+    "name": "Flughafen Maastricht Aachen",
+    "gross": false,
+    "lat": 50.9124991,
+    "lon": 5.7713205,
+    "km": 108.8762
+   },
+   {
+    "name": "Flughafen Dortmund",
+    "gross": false,
+    "lat": 51.5169073,
+    "lon": 7.6097179,
+    "km": 115.2176
+   },
+   {
+    "name": "Flughafen Niederrhein (Weeze)",
+    "gross": false,
+    "lat": 51.6031019,
+    "lon": 6.1433899,
+    "km": 139.2635
+   },
+   {
+    "name": "Flughafen Frankfurt-Hahn",
+    "gross": false,
+    "lat": 49.9446334,
+    "lon": 7.2612103,
+    "km": 144.92079999999999
+   }
+  ],
+  "hafen": [
+   {
+    "name": "Hafen Köln-Godorf",
+    "gross": false,
+    "lat": 50.8514459,
+    "lon": 6.9900919,
+    "km": 7.9256
+   },
+   {
+    "name": "Hafen Bonn",
+    "gross": false,
+    "lat": 50.758824,
+    "lon": 7.0898454,
+    "km": 12.5329
+   },
+   {
+    "name": "Hafen Köln-Niehl",
+    "gross": false,
+    "lat": 50.9792423,
+    "lon": 6.9769677,
+    "km": 22.7455
+   },
+   {
+    "name": "Hafen Neuss",
+    "gross": false,
+    "lat": 51.2124,
+    "lon": 6.7141,
+    "km": 59.6083
+   },
+   {
+    "name": "Hafen Düsseldorf",
+    "gross": false,
+    "lat": 51.2170292,
+    "lon": 6.7335758,
+    "km": 62.5297
+   },
+   {
+    "name": "Hafen Krefeld",
+    "gross": false,
+    "lat": 51.3409846,
+    "lon": 6.6668807,
+    "km": 81.24730000000001
+   }
+  ]
+ },
+ "613116": {
+  "city": "Castrop-Rauxel",
+  "street": "Merklinder Straße",
+  "autobahn": [
+   {
+    "ref": "A 40",
+    "name": "Dortmund-Lütgendortmund",
+    "km": 3.5408000000000004,
+    "nr": "40"
+   },
+   {
+    "ref": "A 45",
+    "name": "Dortmund-Hafen",
+    "km": 4.376600000000001,
+    "nr": "4"
+   },
+   {
+    "ref": "A 42",
+    "name": "Castrop-Rauxel",
+    "km": 4.6339,
+    "nr": "26"
+   },
+   {
+    "ref": "A 45",
+    "name": "Kreuz Castrop-Rauxel-Ost",
+    "km": 5.0469,
+    "nr": "3"
+   },
+   {
+    "ref": "A 40",
+    "name": "Bochum-Werne",
+    "km": 5.9338,
+    "nr": "39"
+   },
+   {
+    "ref": "A 40",
+    "name": "Dortmund-Kley",
+    "km": 6.1549,
+    "nr": "41"
+   },
+   {
+    "ref": "A 45",
+    "name": "Rastplatz Westerfilde",
+    "km": 7.309699999999999,
+    "nr": null
+   },
+   {
+    "ref": "A 45",
+    "name": "Rastplatz Kirchlinde",
+    "km": 7.7105,
+    "nr": null
+   }
+  ],
+  "bundesstrasse": [
+   {
+    "ref": "B 235",
+    "km": 0.8839
+   },
+   {
+    "ref": "B 226",
+    "km": 8.2751
+   },
+   {
+    "ref": "B 54",
+    "km": 10.8857
+   },
+   {
+    "ref": "B 1",
+    "km": 11.668899999999999
+   }
+  ],
+  "bahn": [
+   {
+    "name": "Castrop-Rauxel Merklinde",
+    "art": "halt",
+    "station": null,
+    "km": 0.4718
+   },
+   {
+    "name": "Dortmund-Bövinghausen",
+    "art": "station",
+    "station": null,
+    "km": 1.0511
+   },
+   {
+    "name": "Dortmund-Lütgendortmund Nord",
+    "art": "halt",
+    "station": null,
+    "km": 3.2076
+   },
+   {
+    "name": "Castrop-Rauxel Süd",
+    "art": "halt",
+    "station": null,
+    "km": 3.3469
+   },
+   {
+    "name": "Dortmund-Lütgendortmund",
+    "art": "halt",
+    "station": null,
+    "km": 4.4001
+   }
+  ],
+  "bus": [
+   {
+    "name": "Johannesstraße",
+    "art": "bus",
+    "km": 0.689
+   },
+   {
+    "name": "Johannesstraße",
+    "art": "bus",
+    "km": 0.79
+   },
+   {
+    "name": "Bövinghausen Bahnhof",
+    "art": "bus",
+    "km": 0.8463999999999999
+   },
+   {
+    "name": "Bövinghausen Bahnhof",
+    "art": "bus",
+    "km": 0.8535
+   },
+   {
+    "name": "Lotharstraße",
+    "art": "bus",
+    "km": 1.2721
+   },
+   {
+    "name": "Lotharstraße",
+    "art": "bus",
+    "km": 1.2883
+   }
+  ],
+  "flughafen": [
+   {
+    "name": "Flughafen Dortmund",
+    "gross": false,
+    "lat": 51.5169073,
+    "lon": 7.6097179,
+    "km": 24.959
+   },
+   {
+    "name": "Flughafen Düsseldorf",
+    "gross": true,
+    "lat": 51.2781696,
+    "lon": 6.7668377,
+    "km": 54.945
+   },
+   {
+    "name": "Flughafen Köln/Bonn",
+    "gross": true,
+    "lat": 50.8790802,
+    "lon": 7.1193621,
+    "km": 93.3836
+   },
+   {
+    "name": "Flughafen Münster/Osnabrück",
+    "gross": false,
+    "lat": 52.1342179,
+    "lon": 7.6829214,
+    "km": 98.319
+   },
+   {
+    "name": "Flughafen Niederrhein (Weeze)",
+    "gross": false,
+    "lat": 51.6031019,
+    "lon": 6.1433899,
+    "km": 104.5342
+   },
+   {
+    "name": "Flughafen Paderborn/Lippstadt",
+    "gross": false,
+    "lat": 51.6105441,
+    "lon": 8.620562,
+    "km": 105.6392
+   }
+  ],
+  "hafen": [
+   {
+    "name": "Hafen Dortmund",
+    "gross": false,
+    "lat": 51.5289,
+    "lon": 7.447,
+    "km": 10.0624
+   },
+   {
+    "name": "Hafen Herne",
+    "gross": false,
+    "lat": 51.5477467,
+    "lon": 7.1517419,
+    "km": 18.0723
+   },
+   {
+    "name": "Hafen Lünen",
+    "gross": false,
+    "lat": 51.6023106,
+    "lon": 7.4953509,
+    "km": 22.0326
+   },
+   {
+    "name": "Hafen Hamm",
+    "gross": false,
+    "lat": 51.6797,
+    "lon": 7.7933,
+    "km": 45.7985
+   },
+   {
+    "name": "Hafen Duisburg (duisport)",
+    "gross": false,
+    "lat": 51.4609562,
+    "lon": 6.7829436,
+    "km": 49.7815
+   },
+   {
+    "name": "Hafen Krefeld",
+    "gross": false,
+    "lat": 51.3409846,
+    "lon": 6.6668807,
+    "km": 61.5099
+   }
+  ]
+ },
+ "613117": {
+  "city": "Melle",
+  "street": "Betonstraße",
+  "autobahn": [
+   {
+    "ref": "A 30",
+    "name": "Melle-West",
+    "km": 4.206300000000001,
+    "nr": "23"
+   },
+   {
+    "ref": "A 30",
+    "name": "Melle-Ost",
+    "km": 6.6096,
+    "nr": "24"
+   },
+   {
+    "ref": "A 30",
+    "name": "Gesmold",
+    "km": 6.7317,
+    "nr": "22"
+   },
+   {
+    "ref": "A 30",
+    "name": "Riemsloh",
+    "km": 11.2224,
+    "nr": "25"
+   },
+   {
+    "ref": "A 30",
+    "name": "Bruchmühlen",
+    "km": 14.771600000000001,
+    "nr": "26"
+   },
+   {
+    "ref": "A 30",
+    "name": "Bissendorf",
+    "km": 15.942,
+    "nr": "21"
+   },
+   {
+    "ref": "A 33",
+    "name": "Borgloh/Kloster Oesede",
+    "km": 28.1343,
+    "nr": "11"
+   }
+  ],
+  "bundesstrasse": [],
+  "bahn": [
+   {
+    "name": "Melle",
+    "art": "station",
+    "station": null,
+    "km": 4.235
+   },
+   {
+    "name": "Westerhausen",
+    "art": "halt",
+    "station": null,
+    "km": 4.4162
+   },
+   {
+    "name": "Wissingen",
+    "art": "station",
+    "station": null,
+    "km": 10.1911
+   }
+  ],
+  "bus": [
+   {
+    "name": "Oldendorf, Betonstraße",
+    "art": "bus",
+    "km": 0.15619999999999998
+   },
+   {
+    "name": "Oldendorfer Heide",
+    "art": "bus",
+    "km": 0.4675
+   },
+   {
+    "name": "Oldendorfer Heide",
+    "art": "bus",
+    "km": 0.4676
+   },
+   {
+    "name": "Gelbe Riede",
+    "art": "bus",
+    "km": 0.7235
+   },
+   {
+    "name": "Föckinghausen, Gelbe Riede",
+    "art": "bus",
+    "km": 0.7235
+   },
+   {
+    "name": "Friedhof",
+    "art": "bus",
+    "km": 1.4846
+   }
+  ],
+  "flughafen": [
+   {
+    "name": "Flughafen Münster/Osnabrück",
+    "gross": false,
+    "lat": 52.1342179,
+    "lon": 7.6829214,
+    "km": 58.3045
+   },
+   {
+    "name": "Flughafen Paderborn/Lippstadt",
+    "gross": false,
+    "lat": 51.6105441,
+    "lon": 8.620562,
+    "km": 92.84389999999999
+   },
+   {
+    "name": "Flughafen Hannover",
+    "gross": true,
+    "lat": 52.461455,
+    "lon": 9.6867449,
+    "km": 123.4789
+   },
+   {
+    "name": "Flughafen Dortmund",
+    "gross": false,
+    "lat": 51.5169073,
+    "lon": 7.6097179,
+    "km": 133.2543
+   },
+   {
+    "name": "Flughafen Bremen",
+    "gross": false,
+    "lat": 53.0453419,
+    "lon": 8.7896417,
+    "km": 155.07739999999998
+   },
+   {
+    "name": "Flughafen Düsseldorf",
+    "gross": true,
+    "lat": 51.2781696,
+    "lon": 6.7668377,
+    "km": 194.1129
+   }
+  ],
+  "hafen": [
+   {
+    "name": "Hafen Osnabrück",
+    "gross": false,
+    "lat": 52.2949847,
+    "lon": 8.02655,
+    "km": 29.9947
+   },
+   {
+    "name": "Hafen Minden",
+    "gross": false,
+    "lat": 52.2978606,
+    "lon": 8.8611086,
+    "km": 55.570699999999995
+   },
+   {
+    "name": "Hafen Münster",
+    "gross": false,
+    "lat": 51.9513746,
+    "lon": 7.6442482,
+    "km": 80.99119999999999
+   },
+   {
+    "name": "Hafen Hamm",
+    "gross": false,
+    "lat": 51.6797,
+    "lon": 7.7933,
+    "km": 123.3966
+   },
+   {
+    "name": "Hafen Lünen",
+    "gross": false,
+    "lat": 51.6023106,
+    "lon": 7.4953509,
+    "km": 137.754
+   },
+   {
+    "name": "Hafen Dortmund",
+    "gross": false,
+    "lat": 51.5289,
+    "lon": 7.447,
+    "km": 142.9412
+   }
+  ]
+ },
+ "613118": {
+  "city": "Weiden",
+  "street": "Am Forst",
+  "autobahn": [
+   {
+    "ref": "A 93",
+    "name": "Weiden-Nord",
+    "km": 1.716,
+    "nr": "22"
+   },
+   {
+    "ref": "A 93",
+    "name": "Altenstadt",
+    "km": 3.2233,
+    "nr": "21b"
+   },
+   {
+    "ref": "A 93",
+    "name": "Weiden-West",
+    "km": 3.7535,
+    "nr": "23"
+   },
+   {
+    "ref": "A 93",
+    "name": "Weiden-Frauenricht",
+    "km": 5.1239,
+    "nr": "24"
+   },
+   {
+    "ref": "A 93",
+    "name": "Neustadt",
+    "km": 6.1852,
+    "nr": "21a"
+   },
+   {
+    "ref": "A 93",
+    "name": "Weiden-Süd",
+    "km": 7.9098999999999995,
+    "nr": "25"
+   },
+   {
+    "ref": "A 93",
+    "name": "Windischeschenbach",
+    "km": 14.117299999999998,
+    "nr": "20"
+   },
+   {
+    "ref": "A 93",
+    "name": "Luhe-Wildenau",
+    "km": 14.4921,
+    "nr": "26"
+   }
+  ],
+  "bundesstrasse": [
+   {
+    "ref": "B 22",
+    "km": 0.5331
+   },
+   {
+    "ref": "B 15",
+    "km": 3.1758
+   },
+   {
+    "ref": "B 470",
+    "km": 4.2269
+   }
+  ],
+  "bahn": [
+   {
+    "name": "Altenstadt (Waldnaab)",
+    "art": "halt",
+    "station": null,
+    "km": 3.2685
+   },
+   {
+    "name": "Neustadt (Waldnaab)",
+    "art": "halt",
+    "station": null,
+    "km": 4.2978000000000005
+   },
+   {
+    "name": "Weiden (Oberpf)",
+    "art": "station",
+    "station": null,
+    "km": 4.5257
+   }
+  ],
+  "bus": [
+   {
+    "name": "Industriegebiet Am Forst",
+    "art": "bus",
+    "km": 0.013900000000000001
+   },
+   {
+    "name": "Industriegebiet Am Forst",
+    "art": "bus",
+    "km": 0.0349
+   },
+   {
+    "name": "Altenstadt, Max-Reger-Straße",
+    "art": "bus",
+    "km": 0.9907999999999999
+   },
+   {
+    "name": "Gh. Waldlust",
+    "art": "bus",
+    "km": 1.4901
+   },
+   {
+    "name": "Altenstadt, Mittelschule",
+    "art": "bus",
+    "km": 1.5523
+   },
+   {
+    "name": "Ulmenweg",
+    "art": "bus",
+    "km": 3.8312
+   }
+  ],
+  "flughafen": [
+   {
+    "name": "Flughafen Nürnberg",
+    "gross": true,
+    "lat": 49.4939999,
+    "lon": 11.0782003,
+    "km": 121.70219999999999
+   },
+   {
+    "name": "Flughafen München",
+    "gross": true,
+    "lat": 48.3537694,
+    "lon": 11.7861263,
+    "km": 186.0403
+   },
+   {
+    "name": "Flughafen Leipzig/Halle",
+    "gross": true,
+    "lat": 51.4233121,
+    "lon": 12.2236458,
+    "km": 242.12279999999998
+   },
+   {
+    "name": "Flughafen Erfurt-Weimar",
+    "gross": false,
+    "lat": 50.9792722,
+    "lon": 10.9586469,
+    "km": 249.0048
+   },
+   {
+    "name": "Flughafen Dresden",
+    "gross": false,
+    "lat": 51.1342993,
+    "lon": 13.7694808,
+    "km": 267.9905
+   },
+   {
+    "name": "Flughafen Linz",
+    "gross": false,
+    "lat": 48.236375,
+    "lon": 14.1877134,
+    "km": 307.4644
+   }
+  ],
+  "hafen": [
+   {
+    "name": "Hafen Regensburg",
+    "gross": false,
+    "lat": 49.0180226,
+    "lon": 12.1220987,
+    "km": 87.1553
+   },
+   {
+    "name": "Hafen Nürnberg",
+    "gross": false,
+    "lat": 49.4021,
+    "lon": 11.0532,
+    "km": 118.7572
+   },
+   {
+    "name": "Hafen Riesa",
+    "gross": false,
+    "lat": 51.318491,
+    "lon": 13.2719639,
+    "km": 259.2559
+   },
+   {
+    "name": "Hafen Halle (Saale)",
+    "gross": false,
+    "lat": 51.5262,
+    "lon": 11.9337,
+    "km": 260.5356
+   },
+   {
+    "name": "Hafen Heilbronn",
+    "gross": false,
+    "lat": 49.1611534,
+    "lon": 9.2095334,
+    "km": 267.3294
+   },
+   {
+    "name": "Hafen Plochingen",
+    "gross": false,
+    "lat": 48.7145118,
+    "lon": 9.4095778,
+    "km": 300.462
+   }
+  ]
+ },
+ "613119": {
+  "city": "Kriftel",
+  "street": "Am Holzweg",
+  "autobahn": [
+   {
+    "ref": "A 66",
+    "name": "Hattersheim-Ost",
+    "km": 0.878,
+    "nr": "12b"
+   },
+   {
+    "ref": "A 66",
+    "name": "Hattersheim-West",
+    "km": 1.5289000000000001,
+    "nr": "12a"
+   },
+   {
+    "ref": "A 66",
+    "name": "Krifteler Dreieck",
+    "km": 2.3676999999999997,
+    "nr": "13"
+   },
+   {
+    "ref": "A 66",
+    "name": "Frankfurt-Zeilsheim",
+    "km": 3.1124,
+    "nr": "14"
+   },
+   {
+    "ref": "A 66",
+    "name": "Hofheim am Taunus",
+    "km": 4.8955,
+    "nr": "11"
+   },
+   {
+    "ref": "A 66",
+    "name": "Kelkheim",
+    "km": 7.666399999999999,
+    "nr": "15"
+   },
+   {
+    "ref": "A 66",
+    "name": "Frankfurt-Höchst",
+    "km": 8.0912,
+    "nr": "16"
+   },
+   {
+    "ref": "A 3",
+    "name": "Raunheim;Mönchhof-Dreieck",
+    "km": 14.8527,
+    "nr": "48"
+   }
+  ],
+  "bundesstrasse": [
+   {
+    "ref": "B 40",
+    "km": 3.2032
+   },
+   {
+    "ref": "B 519",
+    "km": 3.8411999999999997
+   },
+   {
+    "ref": "B 43",
+    "km": 8.9796
+   },
+   {
+    "ref": "B 40a",
+    "km": 10.305
+   },
+   {
+    "ref": "B 8",
+    "km": 10.6718
+   },
+   {
+    "ref": "B 455",
+    "km": 10.774299999999998
+   }
+  ],
+  "bahn": [
+   {
+    "name": "Kriftel",
+    "art": "halt",
+    "station": null,
+    "km": 0.5181
+   },
+   {
+    "name": "Hattersheim (Main)",
+    "art": "station",
+    "station": null,
+    "km": 2.5476
+   },
+   {
+    "name": "Hofheim (Taunus)",
+    "art": "station",
+    "station": null,
+    "km": 2.759
+   },
+   {
+    "name": "Frankfurt-Zeilsheim",
+    "art": "halt",
+    "station": null,
+    "km": 6.006
+   },
+   {
+    "name": "Frankfurt am Main Sindlingen",
+    "art": "halt",
+    "station": null,
+    "km": 6.6636999999999995
+   }
+  ],
+  "bus": [
+   {
+    "name": "Hofheimer Straße",
+    "art": "bus",
+    "km": 1.2592999999999999
+   },
+   {
+    "name": "Schwimmbad/Bergstraße",
+    "art": "bus",
+    "km": 1.3313
+   },
+   {
+    "name": "Bürgerhaus",
+    "art": "bus",
+    "km": 1.3631
+   },
+   {
+    "name": "Bürgerhaus",
+    "art": "bus",
+    "km": 1.3642999999999998
+   },
+   {
+    "name": "Hofheimer Straße",
+    "art": "bus",
+    "km": 1.5855
+   },
+   {
+    "name": "Fuchstanzstraße",
+    "art": "bus",
+    "km": 1.6160999999999999
+   }
+  ],
+  "flughafen": [
+   {
+    "name": "Flughafen Frankfurt am Main",
+    "gross": true,
+    "lat": 50.051299,
+    "lon": 8.5717548,
+    "km": 11.9231
+   },
+   {
+    "name": "Flughafen Frankfurt-Hahn",
+    "gross": false,
+    "lat": 49.9446334,
+    "lon": 7.2612103,
+    "km": 107.9267
+   },
+   {
+    "name": "Flughafen Köln/Bonn",
+    "gross": true,
+    "lat": 50.8790802,
+    "lon": 7.1193621,
+    "km": 159.974
+   },
+   {
+    "name": "Flughafen Karlsruhe/Baden-Baden",
+    "gross": false,
+    "lat": 48.7787136,
+    "lon": 8.0819713,
+    "km": 181.76520000000002
+   },
+   {
+    "name": "Flughafen Stuttgart",
+    "gross": true,
+    "lat": 48.6904461,
+    "lon": 9.1926989,
+    "km": 215.0787
+   },
+   {
+    "name": "Flughafen Paderborn/Lippstadt",
+    "gross": false,
+    "lat": 51.6105441,
+    "lon": 8.620562,
+    "km": 255.8264
+   }
+  ],
+  "hafen": [
+   {
+    "name": "Osthafen Frankfurt",
+    "gross": false,
+    "lat": 50.1100315,
+    "lon": 8.7144183,
+    "km": 24.0978
+   },
+   {
+    "name": "Hafen Gustavsburg",
+    "gross": false,
+    "lat": 49.9932392,
+    "lon": 8.3143923,
+    "km": 27.8373
+   },
+   {
+    "name": "Hafen Mannheim",
+    "gross": false,
+    "lat": 49.4965612,
+    "lon": 8.4481699,
+    "km": 84.7914
+   },
+   {
+    "name": "Hafen Bonn",
+    "gross": false,
+    "lat": 50.758824,
+    "lon": 7.0898454,
+    "km": 150.8614
+   },
+   {
+    "name": "Hafen Heilbronn",
+    "gross": false,
+    "lat": 49.1611534,
+    "lon": 9.2095334,
+    "km": 152.8755
+   },
+   {
+    "name": "Hafen Köln-Godorf",
+    "gross": false,
+    "lat": 50.8514459,
+    "lon": 6.9900919,
+    "km": 177.3825
+   }
+  ]
+ },
+ "613120": {
+  "city": "Aachen",
+  "street": "Charlottenburger Allee",
+  "autobahn": [
+   {
+    "ref": "A 544",
+    "name": "Rothe Erde",
+    "km": 1.6804000000000001,
+    "nr": "2"
+   },
+   {
+    "ref": "A 544",
+    "name": "Würselen",
+    "km": 3.7599,
+    "nr": "3"
+   },
+   {
+    "ref": "A 544",
+    "name": "Kreuz Aachen",
+    "km": 4.245100000000001,
+    "nr": "4"
+   },
+   {
+    "ref": "A 4",
+    "name": "Aachen-Zentrum",
+    "km": 4.3852,
+    "nr": "3"
+   },
+   {
+    "ref": "A 44",
+    "name": "Kreuz Aachen",
+    "km": 5.42,
+    "nr": "4"
+   },
+   {
+    "ref": "A 4",
+    "name": "Rastplatz Toresberg",
+    "km": 6.597600000000001,
+    "nr": null
+   },
+   {
+    "ref": "A 44",
+    "name": "Rastplatz Am Tunnel",
+    "km": 7.6638,
+    "nr": null
+   }
+  ],
+  "bundesstrasse": [
+   {
+    "ref": "B 1",
+    "km": 3.3986
+   },
+   {
+    "ref": "B 258",
+    "km": 3.6130999999999998
+   },
+   {
+    "ref": "B 57",
+    "km": 4.3629
+   },
+   {
+    "ref": "B 1a",
+    "km": 4.6066
+   },
+   {
+    "ref": "B 264",
+    "km": 6.235
+   }
+  ],
+  "bahn": [
+   {
+    "name": "Aachen-Rothe Erde",
+    "art": "station",
+    "station": null,
+    "km": 3.7174
+   },
+   {
+    "name": "Eilendorf",
+    "art": "halt",
+    "station": null,
+    "km": 4.311
+   },
+   {
+    "name": "Aachen Hauptbahnhof",
+    "art": "station",
+    "station": null,
+    "km": 5.152399999999999
+   },
+   {
+    "name": "Forschungsflugplatz Würselen-Merzbrück",
+    "art": "halt",
+    "station": null,
+    "km": 10.337399999999999
+   },
+   {
+    "name": "Stolberg (Rheinl) Hbf",
+    "art": "station",
+    "station": null,
+    "km": 10.4535
+   }
+  ],
+  "bus": [
+   {
+    "name": "Elleter Feld",
+    "art": "bus",
+    "km": 0.1519
+   },
+   {
+    "name": "Schönebergstraße",
+    "art": "bus",
+    "km": 0.3693
+   },
+   {
+    "name": "Schönebergstraße",
+    "art": "bus",
+    "km": 0.3855
+   },
+   {
+    "name": "Haarbachtal",
+    "art": "bus",
+    "km": 0.5113
+   },
+   {
+    "name": "Hüls Friedhof",
+    "art": "bus",
+    "km": 0.8784
+   },
+   {
+    "name": "Hüls Friedhof",
+    "art": "bus",
+    "km": 0.9047999999999999
+   }
+  ],
+  "flughafen": [
+   {
+    "name": "Flughafen Maastricht Aachen",
+    "gross": false,
+    "lat": 50.9124991,
+    "lon": 5.7713205,
+    "km": 36.511300000000006
+   },
+   {
+    "name": "Flughafen Köln/Bonn",
+    "gross": true,
+    "lat": 50.8790802,
+    "lon": 7.1193621,
+    "km": 82.4363
+   },
+   {
+    "name": "Flughafen Düsseldorf",
+    "gross": true,
+    "lat": 51.2781696,
+    "lon": 6.7668377,
+    "km": 91.0755
+   },
+   {
+    "name": "Flughafen Niederrhein (Weeze)",
+    "gross": false,
+    "lat": 51.6031019,
+    "lon": 6.1433899,
+    "km": 130.8692
+   },
+   {
+    "name": "Flughafen Dortmund",
+    "gross": false,
+    "lat": 51.5169073,
+    "lon": 7.6097179,
+    "km": 160.5832
+   },
+   {
+    "name": "Flughafen Frankfurt-Hahn",
+    "gross": false,
+    "lat": 49.9446334,
+    "lon": 7.2612103,
+    "km": 203.5103
+   }
+  ],
+  "hafen": [
+   {
+    "name": "Hafen Lüttich (Trilogiport)",
+    "gross": false,
+    "lat": 50.7175,
+    "lon": 5.6753,
+    "km": 61.3692
+   },
+   {
+    "name": "Hafen Neuss",
+    "gross": false,
+    "lat": 51.2124,
+    "lon": 6.7141,
+    "km": 73.25210000000001
+   },
+   {
+    "name": "Hafen Köln-Godorf",
+    "gross": false,
+    "lat": 50.8514459,
+    "lon": 6.9900919,
+    "km": 74.2643
+   },
+   {
+    "name": "Hafen Köln-Niehl",
+    "gross": false,
+    "lat": 50.9792423,
+    "lon": 6.9769677,
+    "km": 76.31689999999999
+   },
+   {
+    "name": "Hafen Düsseldorf",
+    "gross": false,
+    "lat": 51.2170292,
+    "lon": 6.7335758,
+    "km": 78.1047
+   },
+   {
+    "name": "Hafen Bonn",
+    "gross": false,
+    "lat": 50.758824,
+    "lon": 7.0898454,
+    "km": 88.8953
+   }
+  ]
+ },
+ "613121": {
+  "city": "Bergkamen",
+  "street": "Emilie-Winkelmann-Straße",
+  "autobahn": [
+   {
+    "ref": "A 1",
+    "name": "Hamm / Bergkamen",
+    "km": 1.5794000000000001,
+    "nr": "81"
+   },
+   {
+    "ref": "A 1",
+    "name": "Rastplatz An der Landwehr",
+    "km": 4.327100000000001,
+    "nr": null
+   },
+   {
+    "ref": "A 1",
+    "name": "Rastplatz Fuchs-Eggen",
+    "km": 4.7098,
+    "nr": null
+   },
+   {
+    "ref": "A 1",
+    "name": "Hamm-Bockum / Werne",
+    "km": 7.0451999999999995,
+    "nr": "80"
+   },
+   {
+    "ref": "A 1",
+    "name": "Kamener Kreuz",
+    "km": 7.4483999999999995,
+    "nr": "82"
+   },
+   {
+    "ref": "A 2",
+    "name": "Kamener Kreuz",
+    "km": 8.1166,
+    "nr": "16"
+   }
+  ],
+  "bundesstrasse": [
+   {
+    "ref": "B 233",
+    "km": 3.8266
+   },
+   {
+    "ref": "B 54",
+    "km": 6.7603
+   }
+  ],
+  "bahn": [
+   {
+    "name": "Werne a d Lippe",
+    "art": "station",
+    "station": null,
+    "km": 6.3036
+   },
+   {
+    "name": "Nordbögge",
+    "art": "halt",
+    "station": null,
+    "km": 9.559899999999999
+   },
+   {
+    "name": "Kamen",
+    "art": "station",
+    "station": null,
+    "km": 13.4049
+   },
+   {
+    "name": "Bönen",
+    "art": "station",
+    "station": null,
+    "km": 15.620899999999999
+   }
+  ],
+  "bus": [
+   {
+    "name": "Gewerbepark",
+    "art": "bus",
+    "km": 0.3395
+   },
+   {
+    "name": "Gewerbepark",
+    "art": "bus",
+    "km": 0.36260000000000003
+   },
+   {
+    "name": "Poco",
+    "art": "bus",
+    "km": 0.7277
+   },
+   {
+    "name": "Poco",
+    "art": "bus",
+    "km": 0.7315
+   },
+   {
+    "name": "Taubenstraße",
+    "art": "bus",
+    "km": 1.0529000000000002
+   },
+   {
+    "name": "Taubenstraße",
+    "art": "bus",
+    "km": 1.105
+   }
+  ],
+  "flughafen": [
+   {
+    "name": "Flughafen Dortmund",
+    "gross": false,
+    "lat": 51.5169073,
+    "lon": 7.6097179,
+    "km": 20.842299999999998
+   },
+   {
+    "name": "Flughafen Münster/Osnabrück",
+    "gross": false,
+    "lat": 52.1342179,
+    "lon": 7.6829214,
+    "km": 62.8599
+   },
+   {
+    "name": "Flughafen Paderborn/Lippstadt",
+    "gross": false,
+    "lat": 51.6105441,
+    "lon": 8.620562,
+    "km": 86.983
+   },
+   {
+    "name": "Flughafen Düsseldorf",
+    "gross": true,
+    "lat": 51.2781696,
+    "lon": 6.7668377,
+    "km": 104.69460000000001
+   },
+   {
+    "name": "Flughafen Köln/Bonn",
+    "gross": true,
+    "lat": 50.8790802,
+    "lon": 7.1193621,
+    "km": 117.6511
+   },
+   {
+    "name": "Flughafen Niederrhein (Weeze)",
+    "gross": false,
+    "lat": 51.6031019,
+    "lon": 6.1433899,
+    "km": 138.2586
+   }
+  ],
+  "hafen": [
+   {
+    "name": "Hafen Hamm",
+    "gross": false,
+    "lat": 51.6797,
+    "lon": 7.7933,
+    "km": 10.5211
+   },
+   {
+    "name": "Hafen Lünen",
+    "gross": false,
+    "lat": 51.6023106,
+    "lon": 7.4953509,
+    "km": 15.3236
+   },
+   {
+    "name": "Hafen Dortmund",
+    "gross": false,
+    "lat": 51.5289,
+    "lon": 7.447,
+    "km": 30.5291
+   },
+   {
+    "name": "Hafen Münster",
+    "gross": false,
+    "lat": 51.9513746,
+    "lon": 7.6442482,
+    "km": 43.522400000000005
+   },
+   {
+    "name": "Hafen Herne",
+    "gross": false,
+    "lat": 51.5477467,
+    "lon": 7.1517419,
+    "km": 52.6163
+   },
+   {
+    "name": "Hafen Duisburg (duisport)",
+    "gross": false,
+    "lat": 51.4609562,
+    "lon": 6.7829436,
+    "km": 83.5059
+   }
+  ]
+ },
+ "613123": {
+  "city": "Reinbek",
+  "street": "Borsigstraße",
+  "autobahn": [
+   {
+    "ref": "A 24",
+    "name": "Reinbek",
+    "km": 4.7687,
+    "nr": "4"
+   },
+   {
+    "ref": "A 25",
+    "name": "Hamburg-Bergedorf",
+    "km": 7.3953999999999995,
+    "nr": "5"
+   },
+   {
+    "ref": "A 1",
+    "name": "Hamburg-Öjendorf",
+    "km": 7.6364,
+    "nr": "32"
+   },
+   {
+    "ref": "A 1",
+    "name": "Barsbüttel",
+    "km": 8.0788,
+    "nr": "30"
+   },
+   {
+    "ref": "A 25",
+    "name": "Hamburg-Curslack",
+    "km": 8.6344,
+    "nr": "6"
+   },
+   {
+    "ref": "A 24",
+    "name": "Kreuz Hamburg-Ost",
+    "km": 9.6501,
+    "nr": "3"
+   },
+   {
+    "ref": "A 24",
+    "name": "Rastplatz Hahnenkoppel",
+    "km": 10.079600000000001,
+    "nr": null
+   },
+   {
+    "ref": "A 1",
+    "name": "Kreuz Hamburg-Ost",
+    "km": 10.297,
+    "nr": "31"
+   }
+  ],
+  "bundesstrasse": [
+   {
+    "ref": "B 207",
+    "km": 4.8561000000000005
+   },
+   {
+    "ref": "B 5",
+    "km": 7.446899999999999
+   }
+  ],
+  "bahn": [
+   {
+    "name": "Reinbek",
+    "art": "halt",
+    "station": "light_rail",
+    "km": 2.5286
+   },
+   {
+    "name": "Wohltorf",
+    "art": "station",
+    "station": "light_rail",
+    "km": 3.4006
+   },
+   {
+    "name": "Bergedorf",
+    "art": "station",
+    "station": "light_rail",
+    "km": 5.5931999999999995
+   },
+   {
+    "name": "Hamburg-Bergedorf",
+    "art": "station",
+    "station": null,
+    "km": 5.6043
+   },
+   {
+    "name": "Aumühle",
+    "art": "station",
+    "station": "light_rail",
+    "km": 6.3248
+   }
+  ],
+  "bus": [
+   {
+    "name": "Reinbek, Borsigstraße",
+    "art": "bus",
+    "km": 0.18630000000000002
+   },
+   {
+    "name": "Reinbek, Borsigstraße",
+    "art": "bus",
+    "km": 0.19640000000000002
+   },
+   {
+    "name": "Reinbek, Dieselstraße",
+    "art": "bus",
+    "km": 0.3028
+   },
+   {
+    "name": "Reinbek, Dieselstraße",
+    "art": "bus",
+    "km": 0.3158
+   },
+   {
+    "name": "Reinbek, Liebigstraße",
+    "art": "bus",
+    "km": 0.4835
+   },
+   {
+    "name": "Reinbek, Siemensstraße",
+    "art": "bus",
+    "km": 0.5081
+   }
+  ],
+  "flughafen": [
+   {
+    "name": "Flughafen Hamburg",
+    "gross": true,
+    "lat": 53.6326466,
+    "lon": 10.0066778,
+    "km": 27.3458
+   },
+   {
+    "name": "Flughafen Lübeck",
+    "gross": false,
+    "lat": 53.804929,
+    "lon": 10.7126079,
+    "km": 64.6866
+   },
+   {
+    "name": "Flughafen Bremen",
+    "gross": false,
+    "lat": 53.0453419,
+    "lon": 8.7896417,
+    "km": 135.5637
+   },
+   {
+    "name": "Flughafen Hannover",
+    "gross": true,
+    "lat": 52.461455,
+    "lon": 9.6867449,
+    "km": 158.1245
+   },
+   {
+    "name": "Flughafen Münster/Osnabrück",
+    "gross": false,
+    "lat": 52.1342179,
+    "lon": 7.6829214,
+    "km": 273.4078
+   },
+   {
+    "name": "Flughafen Paderborn/Lippstadt",
+    "gross": false,
+    "lat": 51.6105441,
+    "lon": 8.620562,
+    "km": 314.3072
+   }
+  ],
+  "hafen": [
+   {
+    "name": "Hafen Hamburg (Burchardkai)",
+    "gross": false,
+    "lat": 53.527,
+    "lon": 9.93,
+    "km": 33.2263
+   },
+   {
+    "name": "Hafen Minden",
+    "gross": false,
+    "lat": 52.2978606,
+    "lon": 8.8611086,
+    "km": 232.5848
+   },
+   {
+    "name": "Hafen Osnabrück",
+    "gross": false,
+    "lat": 52.2949847,
+    "lon": 8.02655,
+    "km": 244.26870000000002
+   },
+   {
+    "name": "Hafen Magdeburg",
+    "gross": false,
+    "lat": 52.1987249,
+    "lon": 11.6722369,
+    "km": 292.8589
+   },
+   {
+    "name": "Hafen Münster",
+    "gross": false,
+    "lat": 51.9513746,
+    "lon": 7.6442482,
+    "km": 296.0945
+   },
+   {
+    "name": "Hafen Halle (Saale)",
+    "gross": false,
+    "lat": 51.5262,
+    "lon": 11.9337,
+    "km": 367.6689
+   }
+  ]
+ },
+ "613124": {
+  "city": "Barbing",
+  "street": "Gutenbergstraße",
+  "autobahn": [
+   {
+    "ref": "A 3",
+    "name": "Rosenhof",
+    "km": 0.418,
+    "nr": "103"
+   },
+   {
+    "ref": "A 3",
+    "name": "Neutraubling",
+    "km": 3.6493,
+    "nr": "102"
+   },
+   {
+    "ref": "A 3",
+    "name": "Regensburg-Ost",
+    "km": 7.1517,
+    "nr": "101"
+   },
+   {
+    "ref": "A 3",
+    "name": "Regensburg-Burgweinting",
+    "km": 8.819600000000001,
+    "nr": "100b"
+   },
+   {
+    "ref": "A 3",
+    "name": "Wörth an der Donau / Wiesent",
+    "km": 9.7448,
+    "nr": "104a"
+   },
+   {
+    "ref": "A 3",
+    "name": "Regensburg-Universität",
+    "km": 10.330200000000001,
+    "nr": "100a"
+   },
+   {
+    "ref": "A 93",
+    "name": "Regensburg-Nord",
+    "km": 15.6686,
+    "nr": "38"
+   },
+   {
+    "ref": "A 93",
+    "name": "Raststätte Pentling",
+    "km": 20.072599999999998,
+    "nr": null
+   }
+  ],
+  "bundesstrasse": [
+   {
+    "ref": "B 8",
+    "km": 0.418
+   },
+   {
+    "ref": "B 15",
+    "km": 8.046899999999999
+   }
+  ],
+  "bahn": [
+   {
+    "name": "Regensburg-Burgweinting",
+    "art": "halt",
+    "station": null,
+    "km": 9.2125
+   },
+   {
+    "name": "Obertraubling",
+    "art": "station",
+    "station": null,
+    "km": 9.4841
+   },
+   {
+    "name": "Köfering",
+    "art": "station",
+    "station": null,
+    "km": 10.361799999999999
+   }
+  ],
+  "bus": [
+   {
+    "name": "Unterheising Benzstraße (1)",
+    "art": "bus",
+    "km": 0.1682
+   },
+   {
+    "name": "Unterheising Benzstraße (2)",
+    "art": "bus",
+    "km": 0.1988
+   },
+   {
+    "name": "Unterheising, Industriegebiet",
+    "art": "bus",
+    "km": 0.2112
+   },
+   {
+    "name": "Unterheising, Industriegebiet",
+    "art": "bus",
+    "km": 0.2631
+   },
+   {
+    "name": "Unterheising Von-Miller-Straße (2)",
+    "art": "bus",
+    "km": 0.517
+   },
+   {
+    "name": "Unterheising Von-Miller-Straße (1)",
+    "art": "bus",
+    "km": 0.5306000000000001
+   }
+  ],
+  "flughafen": [
+   {
+    "name": "Flughafen München",
+    "gross": true,
+    "lat": 48.3537694,
+    "lon": 11.7861263,
+    "km": 113.5812
+   },
+   {
+    "name": "Flughafen Nürnberg",
+    "gross": true,
+    "lat": 49.4939999,
+    "lon": 11.0782003,
+    "km": 118.5209
+   },
+   {
+    "name": "Flughafen Linz",
+    "gross": false,
+    "lat": 48.236375,
+    "lon": 14.1877134,
+    "km": 206.94420000000002
+   },
+   {
+    "name": "Flughafen Memmingen",
+    "gross": false,
+    "lat": 47.9888241,
+    "lon": 10.2350723,
+    "km": 242.22039999999998
+   },
+   {
+    "name": "Flughafen Stuttgart",
+    "gross": true,
+    "lat": 48.6904461,
+    "lon": 9.1926989,
+    "km": 297.34479999999996
+   },
+   {
+    "name": "Flughafen Erfurt-Weimar",
+    "gross": false,
+    "lat": 50.9792722,
+    "lon": 10.9586469,
+    "km": 335.7326
+   }
+  ],
+  "hafen": [
+   {
+    "name": "Hafen Regensburg",
+    "gross": false,
+    "lat": 49.0180226,
+    "lon": 12.1220987,
+    "km": 11.8888
+   },
+   {
+    "name": "Hafen Nürnberg",
+    "gross": false,
+    "lat": 49.4021,
+    "lon": 11.0532,
+    "km": 115.9297
+   },
+   {
+    "name": "Hafen Heilbronn",
+    "gross": false,
+    "lat": 49.1611534,
+    "lon": 9.2095334,
+    "km": 264.50190000000003
+   },
+   {
+    "name": "Hafen Plochingen",
+    "gross": false,
+    "lat": 48.7145118,
+    "lon": 9.4095778,
+    "km": 291.14529999999996
+   },
+   {
+    "name": "Hafen Stuttgart",
+    "gross": false,
+    "lat": 48.7609574,
+    "lon": 9.261713,
+    "km": 303.8275
+   },
+   {
+    "name": "Hafen Riesa",
+    "gross": false,
+    "lat": 51.318491,
+    "lon": 13.2719639,
+    "km": 356.8871
+   }
+  ]
+ },
+ "613125": {
+  "city": "Gottmadingen",
+  "street": "Industriepark",
+  "autobahn": [
+   {
+    "ref": "A 81",
+    "name": "Gottmadingen",
+    "km": 3.8621,
+    "nr": "43"
+   },
+   {
+    "ref": "A 81",
+    "name": "Hilzingen",
+    "km": 5.3933,
+    "nr": "42"
+   },
+   {
+    "ref": "A 81",
+    "name": "Singen",
+    "km": 8.6105,
+    "nr": "41"
+   },
+   {
+    "ref": "A 81",
+    "name": "Kreuz Hegau",
+    "km": 12.4178,
+    "nr": "40"
+   },
+   {
+    "ref": "A 98",
+    "name": "Kreuz Hegau",
+    "km": 13.021600000000001,
+    "nr": "11"
+   }
+  ],
+  "bundesstrasse": [
+   {
+    "ref": "B 34",
+    "km": 0.223
+   },
+   {
+    "ref": "B 314",
+    "km": 5.9474
+   },
+   {
+    "ref": "B 33",
+    "km": 13.763399999999999
+   }
+  ],
+  "bahn": [
+   {
+    "name": "Gottmadingen",
+    "art": "station",
+    "station": null,
+    "km": 1.454
+   },
+   {
+    "name": "Singen Landesgartenschau",
+    "art": "halt",
+    "station": null,
+    "km": 4.5635
+   },
+   {
+    "name": "Arlen-Rielasingen",
+    "art": "station",
+    "station": null,
+    "km": 5.1893
+   },
+   {
+    "name": "Bietingen",
+    "art": "halt",
+    "station": null,
+    "km": 5.231
+   },
+   {
+    "name": "Ramsen",
+    "art": "station",
+    "station": null,
+    "km": 6.1111
+   }
+  ],
+  "bus": [
+   {
+    "name": "Gottmadingen, Industriepark West",
+    "art": "bus",
+    "km": 0.10540000000000001
+   },
+   {
+    "name": "Gottmadingen, Industriepark West",
+    "art": "bus",
+    "km": 0.10779999999999999
+   },
+   {
+    "name": "Goldbühl",
+    "art": "bus",
+    "km": 0.384
+   },
+   {
+    "name": "Goldbühl",
+    "art": "bus",
+    "km": 0.412
+   },
+   {
+    "name": "Industriepark Ost/DAK",
+    "art": "bus",
+    "km": 0.5428
+   },
+   {
+    "name": "Industriepark Ost/DAK",
+    "art": "bus",
+    "km": 0.5448999999999999
+   }
+  ],
+  "flughafen": [
+   {
+    "name": "Flughafen Zürich",
+    "gross": true,
+    "lat": 47.4493634,
+    "lon": 8.5626334,
+    "km": 52.238800000000005
+   },
+   {
+    "name": "Flughafen Friedrichshafen",
+    "gross": false,
+    "lat": 47.6714081,
+    "lon": 9.5114977,
+    "km": 75.2979
+   },
+   {
+    "name": "EuroAirport Basel-Mulhouse",
+    "gross": false,
+    "lat": 47.6032369,
+    "lon": 7.5243481,
+    "km": 118.808
+   },
+   {
+    "name": "Flughafen Stuttgart",
+    "gross": true,
+    "lat": 48.6904461,
+    "lon": 9.1926989,
+    "km": 155.39589999999998
+   },
+   {
+    "name": "Flughafen Memmingen",
+    "gross": false,
+    "lat": 47.9888241,
+    "lon": 10.2350723,
+    "km": 161.7173
+   },
+   {
+    "name": "Flughafen Karlsruhe/Baden-Baden",
+    "gross": false,
+    "lat": 48.7787136,
+    "lon": 8.0819713,
+    "km": 189.56429999999997
+   }
+  ],
+  "hafen": [
+   {
+    "name": "Rheinhafen Basel",
+    "gross": false,
+    "lat": 47.5828733,
+    "lon": 7.5876188,
+    "km": 111.50689999999999
+   },
+   {
+    "name": "Rheinhafen Weil am Rhein",
+    "gross": false,
+    "lat": 47.5998,
+    "lon": 7.5949,
+    "km": 113.4093
+   },
+   {
+    "name": "Hafen Stuttgart",
+    "gross": false,
+    "lat": 48.7609574,
+    "lon": 9.261713,
+    "km": 167.9914
+   },
+   {
+    "name": "Hafen Plochingen",
+    "gross": false,
+    "lat": 48.7145118,
+    "lon": 9.4095778,
+    "km": 175.28539999999998
+   },
+   {
+    "name": "Hafen Heilbronn",
+    "gross": false,
+    "lat": 49.1611534,
+    "lon": 9.2095334,
+    "km": 211.038
+   },
+   {
+    "name": "Hafen Mannheim",
+    "gross": false,
+    "lat": 49.4965612,
+    "lon": 8.4481699,
+    "km": 269.03679999999997
+   }
+  ]
+ },
+ "613126": {
+  "city": "Leipzig",
+  "street": "Poststraße",
+  "autobahn": [
+   {
+    "ref": "A 14",
+    "name": "Leipzig-Nord",
+    "km": 1.506,
+    "nr": "22"
+   },
+   {
+    "ref": "A 14",
+    "name": "Parkplatz Birkenwald",
+    "km": 3.2358000000000002,
+    "nr": null
+   },
+   {
+    "ref": "A 14",
+    "name": "Schkeuditz",
+    "km": 3.9328000000000003,
+    "nr": "21"
+   },
+   {
+    "ref": "A 14",
+    "name": "Leipzig-Mitte",
+    "km": 6.4288,
+    "nr": "23"
+   },
+   {
+    "ref": "A 14",
+    "name": "Leipzig-Messegelände",
+    "km": 8.9862,
+    "nr": "24"
+   },
+   {
+    "ref": "A 14",
+    "name": "Schkeuditzer Kreuz",
+    "km": 9.1445,
+    "nr": "20"
+   },
+   {
+    "ref": "A 9",
+    "name": "Schkeuditzer Kreuz",
+    "km": 9.6966,
+    "nr": "15"
+   },
+   {
+    "ref": "A 9",
+    "name": "Wiedemar",
+    "km": 10.174,
+    "nr": "14"
+   }
+  ],
+  "bundesstrasse": [
+   {
+    "ref": "B 6",
+    "km": 5.1658
+   },
+   {
+    "ref": "B 2",
+    "km": 7.1529
+   },
+   {
+    "ref": "B 186",
+    "km": 9.5509
+   },
+   {
+    "ref": "B 184",
+    "km": 10.763200000000001
+   },
+   {
+    "ref": "B 87",
+    "km": 12.9342
+   },
+   {
+    "ref": "B 181",
+    "km": 14.1199
+   }
+  ],
+  "bahn": [
+   {
+    "name": "Leipzig-Wahren",
+    "art": "station",
+    "station": null,
+    "km": 7.8505
+   },
+   {
+    "name": "Hp Elsteraue",
+    "art": "halt",
+    "station": "miniature",
+    "km": 8.3864
+   },
+   {
+    "name": "Leipzig-Lützschena",
+    "art": "halt",
+    "station": null,
+    "km": 8.6945
+   },
+   {
+    "name": "Bf Auensee",
+    "art": "station",
+    "station": "miniature",
+    "km": 9.3675
+   },
+   {
+    "name": "Hp Gustav-Esche-Straße",
+    "art": "halt",
+    "station": "miniature",
+    "km": 9.482700000000001
+   }
+  ],
+  "bus": [
+   {
+    "name": "GVZ Nord, Porschestraße",
+    "art": "bus",
+    "km": 0.2953
+   },
+   {
+    "name": "GVZ Nord, T&S",
+    "art": "bus",
+    "km": 0.3743
+   },
+   {
+    "name": "GVZ Nord, Deutsche Post AG",
+    "art": "bus",
+    "km": 0.5257000000000001
+   },
+   {
+    "name": "GVZ Nord, Deutsche Post AG",
+    "art": "bus",
+    "km": 0.5266000000000001
+   },
+   {
+    "name": "GVZ Nord, Porschestraße",
+    "art": "bus",
+    "km": 0.5545
+   },
+   {
+    "name": "GVZ Nord, T&S",
+    "art": "bus",
+    "km": 0.7192000000000001
+   }
+  ],
+  "flughafen": [
+   {
+    "name": "Flughafen Leipzig/Halle",
+    "gross": true,
+    "lat": 51.4233121,
+    "lon": 12.2236458,
+    "km": 5.940300000000001
+   },
+   {
+    "name": "Flughafen Dresden",
+    "gross": false,
+    "lat": 51.1342993,
+    "lon": 13.7694808,
+    "km": 126.525
+   },
+   {
+    "name": "Flughafen Erfurt-Weimar",
+    "gross": false,
+    "lat": 50.9792722,
+    "lon": 10.9586469,
+    "km": 162.5085
+   },
+   {
+    "name": "Flughafen Berlin Brandenburg",
+    "gross": true,
+    "lat": 52.3657974,
+    "lon": 13.4888906,
+    "km": 174.4108
+   },
+   {
+    "name": "Flughafen Hannover",
+    "gross": true,
+    "lat": 52.461455,
+    "lon": 9.6867449,
+    "km": 254.5889
+   },
+   {
+    "name": "Flughafen Nürnberg",
+    "gross": true,
+    "lat": 49.4939999,
+    "lon": 11.0782003,
+    "km": 280.8848
+   }
+  ],
+  "hafen": [
+   {
+    "name": "Hafen Halle (Saale)",
+    "gross": false,
+    "lat": 51.5262,
+    "lon": 11.9337,
+    "km": 34.301199999999994
+   },
+   {
+    "name": "Hafen Riesa",
+    "gross": false,
+    "lat": 51.318491,
+    "lon": 13.2719639,
+    "km": 81.76
+   },
+   {
+    "name": "Hafen Magdeburg",
+    "gross": false,
+    "lat": 52.1987249,
+    "lon": 11.6722369,
+    "km": 128.3425
+   },
+   {
+    "name": "Hafen Nürnberg",
+    "gross": false,
+    "lat": 49.4021,
+    "lon": 11.0532,
+    "km": 286.084
+   },
+   {
+    "name": "Hafen Minden",
+    "gross": false,
+    "lat": 52.2978606,
+    "lon": 8.8611086,
+    "km": 323.94109999999995
+   },
+   {
+    "name": "Hafen Regensburg",
+    "gross": false,
+    "lat": 49.0180226,
+    "lon": 12.1220987,
+    "km": 339.67629999999997
+   }
+  ]
+ },
+ "613127": {
+  "city": "Pleidelsheim",
+  "street": "Gottlieb-Daimler-Straße",
+  "autobahn": [
+   {
+    "ref": "A 81",
+    "name": "Pleidelsheim",
+    "km": 2.1315999999999997,
+    "nr": "14"
+   },
+   {
+    "ref": "A 81",
+    "name": "Mundelsheim",
+    "km": 7.7479,
+    "nr": "13"
+   },
+   {
+    "ref": "A 81",
+    "name": "Ludwigsburg-Nord",
+    "km": 9.0444,
+    "nr": "15"
+   },
+   {
+    "ref": "A 81",
+    "name": "Ilsfeld",
+    "km": 13.0429,
+    "nr": "12"
+   },
+   {
+    "ref": "A 81",
+    "name": "Ludwigsburg-Süd",
+    "km": 13.0892,
+    "nr": "16"
+   },
+   {
+    "ref": "A 81",
+    "name": "Stuttgart-Zuffenhausen",
+    "km": 16.7532,
+    "nr": "17"
+   },
+   {
+    "ref": "A 81",
+    "name": "Heilbronn/Untergruppenbach",
+    "km": 17.4949,
+    "nr": "11"
+   },
+   {
+    "ref": "A 81",
+    "name": "Stuttgart-Feuerbach",
+    "km": 21.872799999999998,
+    "nr": "18"
+   }
+  ],
+  "bundesstrasse": [
+   {
+    "ref": "B 27",
+    "km": 6.1959
+   },
+   {
+    "ref": "B 328",
+    "km": 8.459700000000002
+   }
+  ],
+  "bahn": [
+   {
+    "name": "Freiberg (Neckar)",
+    "art": "station",
+    "station": null,
+    "km": 4.044
+   },
+   {
+    "name": "Benningen (Neckar)",
+    "art": "station",
+    "station": null,
+    "km": 6.368600000000001
+   },
+   {
+    "name": "Bietigheim-Bissingen",
+    "art": "station",
+    "station": null,
+    "km": 6.407100000000001
+   },
+   {
+    "name": "Marbach (Neckar)",
+    "art": "station",
+    "station": null,
+    "km": 7.2983
+   },
+   {
+    "name": "Favoritepark",
+    "art": "halt",
+    "station": null,
+    "km": 12.098600000000001
+   }
+  ],
+  "bus": [
+   {
+    "name": "Robert-Bosch-Straße",
+    "art": "bus",
+    "km": 0.2704
+   },
+   {
+    "name": "Robert-Bosch-Straße",
+    "art": "bus",
+    "km": 0.3281
+   },
+   {
+    "name": "Hohenzollernstraße",
+    "art": "bus",
+    "km": 0.5557000000000001
+   },
+   {
+    "name": "Hohenzollernstraße",
+    "art": "bus",
+    "km": 0.559
+   },
+   {
+    "name": "Beihinger Straße",
+    "art": "bus",
+    "km": 0.9769
+   },
+   {
+    "name": "Beihinger Straße",
+    "art": "bus",
+    "km": 0.98
+   }
+  ],
+  "flughafen": [
+   {
+    "name": "Flughafen Stuttgart",
+    "gross": true,
+    "lat": 48.6904461,
+    "lon": 9.1926989,
+    "km": 47.8288
+   },
+   {
+    "name": "Flughafen Karlsruhe/Baden-Baden",
+    "gross": false,
+    "lat": 48.7787136,
+    "lon": 8.0819713,
+    "km": 119.6467
+   },
+   {
+    "name": "Flughafen Frankfurt am Main",
+    "gross": true,
+    "lat": 50.051299,
+    "lon": 8.5717548,
+    "km": 172.7869
+   },
+   {
+    "name": "Flughafen Memmingen",
+    "gross": false,
+    "lat": 47.9888241,
+    "lon": 10.2350723,
+    "km": 193.05470000000003
+   },
+   {
+    "name": "Flughafen Nürnberg",
+    "gross": true,
+    "lat": 49.4939999,
+    "lon": 11.0782003,
+    "km": 201.4775
+   },
+   {
+    "name": "Flughafen Friedrichshafen",
+    "gross": false,
+    "lat": 47.6714081,
+    "lon": 9.5114977,
+    "km": 230.4966
+   }
+  ],
+  "hafen": [
+   {
+    "name": "Hafen Stuttgart",
+    "gross": false,
+    "lat": 48.7609574,
+    "lon": 9.261713,
+    "km": 34.1604
+   },
+   {
+    "name": "Hafen Heilbronn",
+    "gross": false,
+    "lat": 49.1611534,
+    "lon": 9.2095334,
+    "km": 36.0116
+   },
+   {
+    "name": "Hafen Plochingen",
+    "gross": false,
+    "lat": 48.7145118,
+    "lon": 9.4095778,
+    "km": 47.4527
+   },
+   {
+    "name": "Hafen Mannheim",
+    "gross": false,
+    "lat": 49.4965612,
+    "lon": 8.4481699,
+    "km": 110.6191
+   },
+   {
+    "name": "Hafen Gustavsburg",
+    "gross": false,
+    "lat": 49.9932392,
+    "lon": 8.3143923,
+    "km": 176.39079999999998
+   },
+   {
+    "name": "Osthafen Frankfurt",
+    "gross": false,
+    "lat": 50.1100315,
+    "lon": 8.7144183,
+    "km": 185.75179999999997
+   }
+  ]
+ },
+ "613128": {
+  "city": "Köln",
+  "street": "Hansestraße",
+  "autobahn": [
+   {
+    "ref": "A 59",
+    "name": "Rath",
+    "km": 0.5567000000000001,
+    "nr": "32"
+   },
+   {
+    "ref": "A 559",
+    "name": "Köln-Gremberghoven",
+    "km": 0.6815,
+    "nr": "2"
+   },
+   {
+    "ref": "A 559",
+    "name": "Dreieck Porz",
+    "km": 3.3846,
+    "nr": "33"
+   },
+   {
+    "ref": "A 559",
+    "name": "Kreuz Köln-Gremberg",
+    "km": 4.1363,
+    "nr": "1"
+   },
+   {
+    "ref": "A 3",
+    "name": "Königsforst",
+    "km": 4.3761,
+    "nr": "29"
+   },
+   {
+    "ref": "A 4",
+    "name": "Kreuz Köln-Gremberg",
+    "km": 4.5098,
+    "nr": "14"
+   },
+   {
+    "ref": "A 3",
+    "name": "Dreieck Köln-Heumar",
+    "km": 6.9183,
+    "nr": "28"
+   },
+   {
+    "ref": "A 4",
+    "name": "Dreieck Köln-Heumar",
+    "km": 7.3928,
+    "nr": "15"
+   }
+  ],
+  "bundesstrasse": [
+   {
+    "ref": "B 8",
+    "km": 1.6125999999999998
+   },
+   {
+    "ref": "B 55a",
+    "km": 7.0738
+   },
+   {
+    "ref": "B 55",
+    "km": 8.2694
+   },
+   {
+    "ref": "B 506",
+    "km": 8.6169
+   },
+   {
+    "ref": "B 265",
+    "km": 12.0871
+   },
+   {
+    "ref": "B 51",
+    "km": 12.6336
+   },
+   {
+    "ref": "B 9",
+    "km": 12.6336
+   }
+  ],
+  "bahn": [
+   {
+    "name": "Köln Airport-Businesspark",
+    "art": "halt",
+    "station": null,
+    "km": 2.283
+   },
+   {
+    "name": "Köln Steinstraße",
+    "art": "halt",
+    "station": null,
+    "km": 2.3011999999999997
+   },
+   {
+    "name": "Köln Frankfurter Straße",
+    "art": "station",
+    "station": null,
+    "km": 2.5551999999999997
+   },
+   {
+    "name": "Porz (Rhein)",
+    "art": "halt",
+    "station": null,
+    "km": 4.2793
+   },
+   {
+    "name": "Köln/Bonn Flughafen",
+    "art": "station",
+    "station": null,
+    "km": 8.066600000000001
+   }
+  ],
+  "bus": [
+   {
+    "name": "Maarhäuser Weg",
+    "art": "bus",
+    "km": 0.31360000000000005
+   },
+   {
+    "name": "Maarhäuser Weg",
+    "art": "bus",
+    "km": 0.3486
+   },
+   {
+    "name": "Hansestraße",
+    "art": "bus",
+    "km": 0.4043
+   },
+   {
+    "name": "Hansestraße",
+    "art": "bus",
+    "km": 0.4561
+   },
+   {
+    "name": "Maarhäuser Weg",
+    "art": "bus",
+    "km": 0.4671
+   },
+   {
+    "name": "Maarhäuser Weg",
+    "art": "bus",
+    "km": 0.4717
+   }
+  ],
+  "flughafen": [
+   {
+    "name": "Flughafen Köln/Bonn",
+    "gross": true,
+    "lat": 50.8790802,
+    "lon": 7.1193621,
+    "km": 8.066600000000001
+   },
+   {
+    "name": "Flughafen Düsseldorf",
+    "gross": true,
+    "lat": 51.2781696,
+    "lon": 6.7668377,
+    "km": 58.969199999999994
+   },
+   {
+    "name": "Flughafen Dortmund",
+    "gross": false,
+    "lat": 51.5169073,
+    "lon": 7.6097179,
+    "km": 99.2668
+   },
+   {
+    "name": "Flughafen Maastricht Aachen",
+    "gross": false,
+    "lat": 50.9124991,
+    "lon": 5.7713205,
+    "km": 108.6969
+   },
+   {
+    "name": "Flughafen Niederrhein (Weeze)",
+    "gross": false,
+    "lat": 51.6031019,
+    "lon": 6.1433899,
+    "km": 134.1116
+   },
+   {
+    "name": "Flughafen Frankfurt-Hahn",
+    "gross": false,
+    "lat": 49.9446334,
+    "lon": 7.2612103,
+    "km": 164.84920000000002
+   }
+  ],
+  "hafen": [
+   {
+    "name": "Hafen Köln-Niehl",
+    "gross": false,
+    "lat": 50.9792423,
+    "lon": 6.9769677,
+    "km": 15.0963
+   },
+   {
+    "name": "Hafen Köln-Godorf",
+    "gross": false,
+    "lat": 50.8514459,
+    "lon": 6.9900919,
+    "km": 17.830299999999998
+   },
+   {
+    "name": "Hafen Bonn",
+    "gross": false,
+    "lat": 50.758824,
+    "lon": 7.0898454,
+    "km": 32.461400000000005
+   },
+   {
+    "name": "Hafen Düsseldorf",
+    "gross": false,
+    "lat": 51.2170292,
+    "lon": 6.7335758,
+    "km": 52.633300000000006
+   },
+   {
+    "name": "Hafen Neuss",
+    "gross": false,
+    "lat": 51.2124,
+    "lon": 6.7141,
+    "km": 53.056
+   },
+   {
+    "name": "Hafen Krefeld",
+    "gross": false,
+    "lat": 51.3409846,
+    "lon": 6.6668807,
+    "km": 71.5228
+   }
+  ]
+ },
+ "613129": {
+  "city": "Neuss",
+  "street": "Fuggerstraße",
+  "autobahn": [
+   {
+    "ref": "A 46",
+    "name": "Neuss-Uedesheim",
+    "km": 1.1076,
+    "nr": "22"
+   },
+   {
+    "ref": "A 46",
+    "name": "Dreieck Neuss-Süd",
+    "km": 2.4248000000000003,
+    "nr": "21"
+   },
+   {
+    "ref": "A 57",
+    "name": "Dreieck Neuss-Süd",
+    "km": 3.1418000000000004,
+    "nr": "24"
+   },
+   {
+    "ref": "A 57",
+    "name": "Neuss - Norf",
+    "km": 3.7929,
+    "nr": "23"
+   },
+   {
+    "ref": "A 46",
+    "name": "Düsseldorf-Bilk",
+    "km": 4.2733,
+    "nr": "23"
+   },
+   {
+    "ref": "A 57",
+    "name": "Neuss-Norf",
+    "km": 4.34,
+    "nr": "23"
+   },
+   {
+    "ref": "A 46",
+    "name": "Düsseldorf-Wersten",
+    "km": 6.4843,
+    "nr": "24"
+   },
+   {
+    "ref": "A 57",
+    "name": "Neuss-Hafen",
+    "km": 6.9418,
+    "nr": "22"
+   }
+  ],
+  "bundesstrasse": [
+   {
+    "ref": "B 9",
+    "km": 0.6498999999999999
+   },
+   {
+    "ref": "B 326",
+    "km": 6.5043
+   },
+   {
+    "ref": "B 1",
+    "km": 7.0882
+   },
+   {
+    "ref": "B 8",
+    "km": 8.1213
+   },
+   {
+    "ref": "B 477",
+    "km": 9.9205
+   },
+   {
+    "ref": "B 230",
+    "km": 12.8958
+   },
+   {
+    "ref": "B 228",
+    "km": 13.410200000000001
+   }
+  ],
+  "bahn": [
+   {
+    "name": "Neuss Allerheiligen",
+    "art": "halt",
+    "station": null,
+    "km": 2.7793
+   },
+   {
+    "name": "Norf",
+    "art": "station",
+    "station": null,
+    "km": 5.1166
+   },
+   {
+    "name": "Nievenheim",
+    "art": "station",
+    "station": null,
+    "km": 5.7779
+   },
+   {
+    "name": "Düsseldorf-Bilk",
+    "art": "halt",
+    "station": null,
+    "km": 7.1449
+   },
+   {
+    "name": "Düsseldorf Völklinger Straße",
+    "art": "halt",
+    "station": null,
+    "km": 8.5411
+   }
+  ],
+  "bus": [
+   {
+    "name": "Fuggerstraße",
+    "art": "bus",
+    "km": 0.31160000000000004
+   },
+   {
+    "name": "Fuggerstraße",
+    "art": "bus",
+    "km": 0.4477
+   },
+   {
+    "name": "Stüttgen",
+    "art": "bus",
+    "km": 0.6317
+   },
+   {
+    "name": "Stüttgen",
+    "art": "bus",
+    "km": 0.6397
+   },
+   {
+    "name": "Stüttgen",
+    "art": "bus",
+    "km": 0.7554
+   },
+   {
+    "name": "Stüttgen",
+    "art": "bus",
+    "km": 0.7592000000000001
+   }
+  ],
+  "flughafen": [
+   {
+    "name": "Flughafen Düsseldorf",
+    "gross": true,
+    "lat": 51.2781696,
+    "lon": 6.7668377,
+    "km": 17.3079
+   },
+   {
+    "name": "Flughafen Köln/Bonn",
+    "gross": true,
+    "lat": 50.8790802,
+    "lon": 7.1193621,
+    "km": 55.6127
+   },
+   {
+    "name": "Flughafen Dortmund",
+    "gross": false,
+    "lat": 51.5169073,
+    "lon": 7.6097179,
+    "km": 86.68960000000001
+   },
+   {
+    "name": "Flughafen Niederrhein (Weeze)",
+    "gross": false,
+    "lat": 51.6031019,
+    "lon": 6.1433899,
+    "km": 90.8325
+   },
+   {
+    "name": "Flughafen Maastricht Aachen",
+    "gross": false,
+    "lat": 50.9124991,
+    "lon": 5.7713205,
+    "km": 96.0359
+   },
+   {
+    "name": "Flughafen Münster/Osnabrück",
+    "gross": false,
+    "lat": 52.1342179,
+    "lon": 7.6829214,
+    "km": 157.8254
+   }
+  ],
+  "hafen": [
+   {
+    "name": "Hafen Düsseldorf",
+    "gross": false,
+    "lat": 51.2170292,
+    "lon": 6.7335758,
+    "km": 11.0539
+   },
+   {
+    "name": "Hafen Neuss",
+    "gross": false,
+    "lat": 51.2124,
+    "lon": 6.7141,
+    "km": 11.177299999999999
+   },
+   {
+    "name": "Hafen Krefeld",
+    "gross": false,
+    "lat": 51.3409846,
+    "lon": 6.6668807,
+    "km": 32.816300000000005
+   },
+   {
+    "name": "Hafen Köln-Niehl",
+    "gross": false,
+    "lat": 50.9792423,
+    "lon": 6.9769677,
+    "km": 32.9288
+   },
+   {
+    "name": "Hafen Duisburg (duisport)",
+    "gross": false,
+    "lat": 51.4609562,
+    "lon": 6.7829436,
+    "km": 40.373599999999996
+   },
+   {
+    "name": "Hafen Köln-Godorf",
+    "gross": false,
+    "lat": 50.8514459,
+    "lon": 6.9900919,
+    "km": 50.3172
+   }
+  ]
+ }
+}

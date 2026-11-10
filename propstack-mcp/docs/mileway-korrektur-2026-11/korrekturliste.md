@@ -1,19 +1,40 @@
 # Korrekturliste: Mileway-Lauf vom 09.11.2026
 
-> **Stand 10.11.2026, abends: Paket A ist umgesetzt** (Freigabe Florian Brimmers: „so machen“).
-> 15 Projekte, 26 Einheiten und die Einheit in Ratingen wurden über den Connector korrigiert, 26 Eigentümer verknüpft.
-> Ein Kontroll-Lesen aller 42 Datensätze ergab keine Abweichung vom Plan; Halle, Büro, Status, Beschreibung und Lage sind unverändert.
+> **Stand 10.11.2026, später Nachmittag: Paket A und Paket B sind umgesetzt.**
 >
-> Abweichungen von der Liste unten:
-> - **Ratingen (6373992):** Überschrift nicht geändert. Die beiden älteren Einheiten desselben Projekts (5766717, 5766719) tragen dasselbe Muster „– Aircom Parc, A5 (995 m²)“; nur eine von dreien umzustellen hätte sie uneinheitlich gemacht. Provisionshinweis, Gesamtfläche und interne Notiz sind gesetzt.
+> **Paket A** (Freigabe Florian Brimmers: „so machen“): 15 Projekte, 26 Einheiten und die Einheit in Ratingen über den Connector korrigiert, 26 Eigentümer verknüpft.
+> Ein Kontroll-Lesen aller 42 Datensätze ergab keine Abweichung vom Plan.
+>
+> **Paket B** (Freigabe: „1. ja“ mit den Entscheidungen 2 bis 6):
+> - 15 Projekte und 26 Einheiten haben Lage und Ausstattung als Liste; die Lage nennt berechnete Fahrstrecken statt Luftlinie.
+> - 6 Projekte und 18 Einheiten haben eine bereinigte Beschreibung: Adresse gestrichen, ein Tippfehler behoben, fünf abgeschnittene Texte vervollständigt, Straßenname im Vorspann durch die Einheitennummer ersetzt.
+> - Felder: Wesseling (Hallenfläche 4.115 m², Mezzanine 1.050 m²), Aachen Halle 1 (Hallenfläche 2.399 m², Mezzanine 1.375 m², Rampentore 6, ebenerdige Tore 1), Gottmadingen Halle 239 (Hallenhöhe 8,2 m, Rampentore 2), Pleidelsheim (Baujahr 1991).
+> - Ratingen: Alle drei Einheiten des Projekts (6373992, 5766717, 5766719) heißen jetzt wie das Projekt „Gewerbepark in (40) Ratingen“.
+> - Kontrolle doppelt: Jeder gesendete Text wurde Zeichen für Zeichen mit `plan-b.json` verglichen. Danach wurden alle 44 Datensätze unabhängig neu gelesen und mit dem Plan und dem Stand nach Paket A verglichen. Keine Abweichung; was nicht geändert werden sollte, ist unverändert.
+>
+> Abweichungen vom Vorschlag in `vorschlaege-paket-b.md`:
+> - **Aachen, Halle 2 (6373959):** Der Vorschlag hätte Beschreibung und Ausstattung von Halle 1 (Zonen mit 1.200 m², Mezzanine, sechs Rampen) auch an Halle 2 geschrieben. Das wäre falsch gewesen, der Text gilt nur für Halle 1. Halle 2 hat jetzt den Text ihrer eigenen Mileway-Unterseite. Am Projekt tragen die drei Zonen-Zeilen den Zusatz „Halle 1:“.
+> - **Wesseling (6373761):** Die Hallenfläche 4.115 m² ist abgeleitet (6.585 m² minus 1.420 m² Büro minus 1.050 m² Mezzanine). Seite und Broschüre von Mileway nennen dieselben Zahlen; der Fließtext nennt 2.730 + 2.435 = 5.165 m² Lager. Die Ableitung steht in der internen Notiz der Einheit, mit der Bitte, sie bei Mileway bestätigen zu lassen.
+> - **Kriftel:** „rund 2.550 m² Lagerfläche“ statt 3.050 m² (Entscheidung 4).
+> - **Namen der Gewerbeparks** („Forum Radefeld“, „Hansepark“) bleiben in den Beschreibungen (Entscheidung 5).
+> - **Bergkamen:** „Bahnhof Werne an der Lippe“ statt der Kurzform „Werne a d Lippe“.
+> - Geschützte Bindestriche aus dem Seitentext (Aachen) sind jetzt normale Bindestriche.
+>
+> Aufgefallen und nicht geändert:
+> - **Aachen, Halle 2:** Die Hallenhöhe 10 m stammt von der Seite der Gesamtliegenschaft und gehört dort zum Hochregallager von Halle 1. Die Unterseite von Halle 2 nennt keine Höhe. Sie nennt „Rampenandienung“; das Feld „Rampentore“ der Einheit ist leer.
+> - **Ratingen, D4 (5766719):** Laut Vermerk vom 09.11. bietet Mileway die Fläche nicht mehr an. Die Einheit steht weiter auf „Vermarktung“ und „Aktiv“.
+> - **Köln:** „Rampentore (vorderseitig)“ steht ohne Zahl im Text; das Feld der Einheiten B2 und A7 ist leer.
+>
+> Abweichungen bei Paket A:
+> - **Ratingen (6373992):** Überschrift zunächst nicht geändert, weil die beiden älteren Einheiten dasselbe Muster trugen. Mit Paket B für alle drei erledigt.
 > - **Rampentore:** Die Wörter bleiben im Feld (Entscheidung Florian: „deshalb gibt es doch das Feld“).
 > - **Barbing (613124):** Der Längengrad saß erst im zweiten Anlauf.
 >
 > Beim Prüfen der Namen gefunden:
 > - Fünf neue Projektnamen gibt es im Bestand schon an anderer Adresse (Wesseling, Castrop-Rauxel, Dormagen, Leipzig, Köln) – von Hand so benannt, also das Muster des How-to.
-> - Alte Datensätze ohne Titel und Fläche an derselben oder benachbarter Adresse: Köln 2777862 (Hansestraße 61-63), Neuss 2778565 (Fuggerstraße 2-6), Castrop-Rauxel 2778015 (Merklinder Straße 12). Mögliche Dubletten – nicht angefasst.
+> - Alte Datensätze vom Import am 13.01.2025 an derselben oder benachbarter Adresse: Köln 2777862 (Hansestraße 61-63), Neuss 2778565 (Fuggerstraße 2-6), Castrop-Rauxel 2778015 (Merklinder Straße 12). An keinem hängt ein Deal. Sie sind nicht angefasst; die Entscheidung geht als Vorlage per Aufgabe an Lena Klinnert (Ansage Florian, 10.11.).
 >
-> Paket B (Lage, Ausstattung, Beschreibung) liegt als Vorschlag in `vorschlaege-paket-b.md`; die exakten Texte stehen in `plan-b.json`. Davon ist nichts geschrieben.
+> Die geschriebenen Texte stehen in `plan-b.json`. Wie die Kilometer entstanden sind, zeigt der Ordner `berechnung/`: `lage_ergebnis.json` enthält je Standort alle berechneten Fahrstrecken, `lage.py` und `texte.py` die Rechnung und den Textaufbau (Stand der Arbeitskopie; die Koordinaten kamen aus dem Abruf der Projekte).
 
 Die folgende Liste zeigt den Stand vor der Korrektur (gelesen am 10.11.2026).
 
