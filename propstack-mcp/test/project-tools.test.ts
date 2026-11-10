@@ -456,7 +456,7 @@ describe("create_project – Team-How-to", () => {
 		]);
 		expect(w.links).toEqual([
 			JSON.stringify({ internal_name: "owner", related_client_id: 111 }),
-			JSON.stringify({ internal_name: "partner", name: "Ansprechpartner", related_client_id: 222 }),
+			JSON.stringify({ internal_name: "partner", related_client_id: 222 }),
 		]);
 		expect(out.result).toMatchObject({
 			contact_person: { id: 222, linked: true, name: "Stefan Prange" },
@@ -535,7 +535,7 @@ describe("update_project – Schutz der internen Notiz, Hinweis auf die Einheite
 });
 
 describe("set_project_owner – Ansprechpartner", () => {
-	it("role=contact_person verknüpft als Partner mit Bezeichnung; Gegenprobe bestätigt", async () => {
+	it("role=contact_person verknüpft als Kontakt ohne Bezeichnung (wie von Hand); Gegenprobe bestätigt", async () => {
 		const sent: unknown[] = [];
 		const { client } = fakeClient({
 			getUnit: () => ({ id: 9, title: "Halle" }),
@@ -546,8 +546,44 @@ describe("set_project_owner – Ansprechpartner", () => {
 			},
 		});
 		const out = await setProjectOwner({ client, db: fakeDb().db, user: USER }, { contact_id: 222, object_id: 9, role: "contact_person" });
-		expect(sent[0]).toEqual({ relationships_attributes: [{ internal_name: "partner", name: "Ansprechpartner", related_client_id: 222 }] });
+		expect(sent[0]).toEqual({ relationships_attributes: [{ internal_name: "partner", related_client_id: 222 }] });
 		expect(out.result).toMatchObject({ contact: { id: 222 }, linked: true, role: "Ansprechpartner" });
+	});
+
+	it("Einheit: schon verknüpft → nichts schreiben; neu verknüpft → am Einzel-GET bestätigt", async () => {
+		let links = [{ client_id: 111, internal_name: "owner", name: null }];
+		const sent: unknown[] = [];
+		const { client } = fakeClient({
+			getUnit: () => ({ id: 9, relationships: links, title: "Halle" }),
+			updateUnit: (_id, p) => {
+				sent.push(p);
+				links = [...links, { client_id: 222, internal_name: "partner", name: null }];
+				return {};
+			},
+		});
+		const deps = { client, db: fakeDb().db, user: USER };
+		expect((await setProjectOwner(deps, { contact_id: 111, object_id: 9 })).result).toMatchObject({ already_linked: true, linked: true });
+		expect(sent).toEqual([]);
+		// derselbe Kontakt in anderer Rolle zählt nicht als verknüpft
+		expect((await setProjectOwner(deps, { contact_id: 222, object_id: 9, role: "contact_person" })).result).toMatchObject({ linked: true });
+		expect(sent).toHaveLength(1);
+	});
+
+	it("verlangt Propstack eine Bezeichnung, wird einmal mit „Ansprechpartner“ wiederholt", async () => {
+		const sent: { relationships_attributes: Record<string, unknown>[] }[] = [];
+		const { client } = fakeClient({
+			getProject: () => ({ id: 1, name: "P" }),
+			updateProject: (_id, p) => {
+				const body = p as { relationships_attributes: Record<string, unknown>[] };
+				sent.push(body);
+				if (!body.relationships_attributes[0].name) throw new Error('Propstack-Anfrage fehlgeschlagen (422): {"relationships.name":["muss ausgefüllt werden"]}');
+				if (sent.length > 2) throw new Error('Propstack-Anfrage fehlgeschlagen (400): ["Relationships project ist bereits mit dem Kontakt verbunden"]');
+				return {};
+			},
+		});
+		const out = await setProjectOwner({ client, db: fakeDb().db, user: USER }, { contact_id: 222, project_id: 1, role: "contact_person" });
+		expect(sent[1].relationships_attributes[0]).toEqual({ internal_name: "partner", name: "Ansprechpartner", related_client_id: 222 });
+		expect(out.result).toMatchObject({ linked: "nicht prüfbar" }); // Gegenprobe ohne Bezeichnung scheitert an der Pflichtangabe
 	});
 });
 
