@@ -50,6 +50,7 @@ import {
 	updateProject,
 	updateProjectInput,
 } from "./project-tools";
+import { createTask, createTaskInput } from "./task-tools";
 import { type ZodRawShape, z } from "zod";
 import { id } from "./params";
 
@@ -283,6 +284,13 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
 		imageUploadUrlInput,
 		false,
 		imageUploadUrl,
+	);
+	register(
+		"create_task",
+		"Aufgabe in Propstack anlegen und einem Nutzer zuweisen – z. B. eine Entscheidungsvorlage oder eine Prüfbitte zu vorhandenen Datensätzen. Titel sagt, was zu tun oder zu entscheiden ist; Text ohne HTML, Absätze durch Leerzeile, Aufzählungen mit „- “. Die betroffenen Objekte, Projekte und Kontakte verknüpfen (object_ids, project_ids, contact_ids) – sie erscheinen an der Aufgabe und müssen existieren. Ohne assignee_id geht die Aufgabe an dich selbst, ohne due_date ist sie am nächsten Werktag 9:00 fällig. Vor dem Anlegen werden Empfänger, Fälligkeit und Verknüpfungen geprüft, danach wird gegengelesen: not_applied und not_verifiable dem Nutzer melden. Der Connector kann Aufgaben weder ändern noch löschen – den Text deshalb vorher mit dem Nutzer abstimmen, wenn er die Aufgabe nicht ausdrücklich so beauftragt hat. Testaufgaben mit test=true. Die automatischen Prüfaufgaben nach create_object/create_project entstehen weiterhin von selbst.",
+		createTaskInput,
+		false,
+		createTask,
 	);
 	register(
 		"plan",

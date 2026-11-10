@@ -171,7 +171,7 @@ describe("MCP-Protokoll", () => {
 		expect(Object.keys(byLabel.field_names)).toEqual(["title"]);
 	});
 
-	it("Schreib-Tools: genau zwölf, nicht readOnly, Updates als überschreibend markiert, kein Löschen", async () => {
+	it("Schreib-Tools: genau dreizehn, nicht readOnly, Updates als überschreibend markiert, kein Löschen", async () => {
 		const server = new McpServer({ name: "test", version: "0" });
 		const ctx = { env: {} as Env, props: () => ({ brokerId: 1, email: "t@kromeichpartner.de", name: "T" }) };
 		registerReadTools(server, ctx);
@@ -192,6 +192,7 @@ describe("MCP-Protokoll", () => {
 			["set_project_owner", false],
 			["add_images", false],
 			["image_upload_url", false],
+			["create_task", false],
 			["plan", false],
 			["apply_plan", true],
 			["undo_plan", true],
@@ -218,5 +219,10 @@ describe("MCP-Protokoll", () => {
 		expect(Object.keys(tools.find((t) => t.name === "update_object")!.inputSchema.properties ?? {})).not.toContain("contact_person_id");
 		expect(Object.keys(tools.find((t) => t.name === "set_project_owner")!.inputSchema.properties ?? {})).toContain("role");
 		expect(tools.find((t) => t.name === "create_project")!.description).toMatch(/mindestens zwei getrennt vermietbare Einheiten/);
+		// Aufgaben: nur Anlegen, mit festem Parametersatz – kein Ändern, kein Löschen, kein freier API-Aufruf
+		const task = tools.find((t) => t.name === "create_task")!;
+		expect(task.inputSchema.required).toEqual(["title", "body"]);
+		expect(Object.keys(task.inputSchema.properties ?? {}).sort()).toEqual(["assignee_id", "body", "contact_ids", "due_date", "object_ids", "project_ids", "test", "title"]);
+		expect(tools.some((t) => /update_task|complete_task|task_delete/i.test(t.name))).toBe(false);
 	});
 });

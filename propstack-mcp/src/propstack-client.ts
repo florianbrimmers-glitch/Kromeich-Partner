@@ -250,9 +250,14 @@ export class PropstackClient {
 		});
 	}
 
-	/** POST /v1/tasks (Wrapper task) – Prüfaufgaben. */
+	/** POST /v1/tasks (Wrapper task) – Prüfaufgaben und create_task. Antwort laut Doku: {id, activity_id}. */
 	async createTask(task: Record<string, unknown>): Promise<unknown> {
 		return this.send("POST", "/tasks", { task });
+	}
+
+	/** GET /v1/tasks/:id – zum Gegenlesen einer gerade angelegten Aufgabe (Doku „Aufgaben“). */
+	async getTask(id: number): Promise<unknown> {
+		return this.get(`/tasks/${id}`);
 	}
 
 	/** POST /v1/groups – nur intern für das Test-Merkmal MCP-TEST genutzt. */

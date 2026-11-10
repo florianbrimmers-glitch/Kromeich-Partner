@@ -88,6 +88,7 @@ Bewusste Lücken: Ein einzelner Deal per ID und die Kontakt-Status-Liste sind nu
 | `set_project_owner` | Kontakt (eigener Shop) mit einem Projekt oder einer Einheit verknüpfen – als Eigentümer oder mit `role: contact_person` als Ansprechpartner |
 | `add_images` | Bilder per öffentlicher https-URL an Objekt oder Projekt hängen, mit Titeln |
 | `image_upload_url` | Einmal-Adresse für den Upload von Bilddateien, mit Titeln |
+| `create_task` | Aufgabe an einen Propstack-Nutzer anlegen, z. B. eine Entscheidungsvorlage – mit verknüpften Objekten, Projekten und Kontakten |
 
 - **Projekt:** Wrapper `project`, `country` DEU, Betreuer = Nutzer. Was Propstack im Sammel-Request still verwirft, wird erkannt und **einzeln nachgesetzt**. Offene Punkte gehen über `review_notes` in die Prüfaufgabe. Testprojekte erkennt man am Namenspräfix `MCP-TEST`, weil Projekte keine Merkmale haben.
 - **Interne Notiz am Projekt (`note`):** Propstack speichert das Feld – in der Oberfläche unter „Interne Notizen“ bestätigt (Projekt 613378, 10.11.) –, liefert es im GET aber **nicht zurück**, auch nicht mit `new=1`. Die Notion-Seite hielt es deshalb für nicht schreibbar. Folge: Beim Anlegen wird die Notiz geschrieben, ohne dass das Tool sie gegenlesen kann; das gilt als bekannt und erscheint nicht als Befund. **Nachträglich anhängen geht nicht** – ohne den alten Text würde „anhängen“ ihn ersetzen. `update_project` lehnt `note_append` deshalb ab, solange der GET die Notiz nicht liefert.
@@ -109,7 +110,14 @@ Bewusste Lücken: Ein einzelner Deal per ID und die Kontakt-Status-Liste sind nu
   - Aus dem Dateinamen wird bewusst **kein** Titel gemacht: Dateien aus Exposés heißen oft nach dem Eigentümer, und der Titel steht im Exposé.
   - Erlaubt sind JPEG, PNG und WebP, erkannt an den Datei-Bytes. Max. 15 MB je Bild, max. 20 Bilder je Adresse.
   - Ist eine Datei ungültig, wird nichts hochgeladen. Der Propstack-Key verlässt den Server nicht.
-- **API-Key:** Der Key „MCP-Server“ braucht in Propstack zusätzlich Schreibrechte für Projekte, Relationships, Bilder und Aufgaben.
+- **Aufgabe von Hand (`create_task`, Ansage Florian 10.11.2026):** für Entscheidungsvorlagen und Prüfbitten zu vorhandenen Datensätzen. Es ist ein fest definiertes Tool mit acht Parametern – kein freier API-Aufruf.
+  - **Nur Anlegen.** Ändern und Löschen bietet der Connector nicht (harte Regel). Deshalb wird alles **vor** dem Schreiben geprüft: Der Empfänger muss ein Propstack-Nutzer mit aktivem Zugang sein, die Fälligkeit darf nicht in der Vergangenheit liegen, und jedes verknüpfte Objekt, Projekt und jeder Kontakt muss existieren. Fehlt etwas, entsteht keine Aufgabe.
+  - **Empfänger und Fälligkeit:** ohne `assignee_id` an den Nutzer selbst, ohne `due_date` am nächsten Werktag 9:00. Die Uhrzeit geht mit deutschem Zeitzonen-Versatz an Propstack (`…T09:00:00+01:00`), damit dort nichts geraten wird.
+  - **Text:** reiner Text, kein HTML. Je Absatz ein `<p>`, Zeilenumbrüche als `<br>`; Aufzählungen bleiben Zeilen mit „- “. Mehr Formatierung ist in Propstack nicht erprobt.
+  - **Gegenlesen:** Nach dem Anlegen liest das Tool die Aufgabe über `GET /v1/tasks/:id` zurück und vergleicht Titel, Empfänger, Fälligkeit, Text und Verknüpfungen. Abweichungen stehen in `not_applied`, Unprüfbares in `not_verifiable` (dann mit den Feldnamen der Antwort, ohne Werte).
+  - **Test:** `test: true` setzt `[MCP-TEST]` vor den Titel und schickt die Aufgabe an den Nutzer selbst.
+  - Write-Log (`tool = create_task`, fail-closed) und Audit wie bei allen Schreib-Tools.
+- **API-Key:** Der Key „MCP-Server“ braucht in Propstack zusätzlich Schreibrechte für Projekte, Relationships, Bilder und Aufgaben – und zum Gegenlesen das Leserecht für Aufgaben.
 - **`update_project`** (Entscheidung Florian, 16.10.) arbeitet wie `update_object`: Es schreibt nur echte Änderungen, legt vorher einen Snapshot ins Write-Log und liest danach zurück. Was Propstack still verwirft, wird einzeln nachgesetzt. Koordinaten nur zusammen (lat+lng) und mit dem Stufen-Trick, bei Adressänderung mit Dublettenprüfung.
 - **Nicht enthalten:** Dokumente (PDF), Post in #objekte, Löschen. Im reinen claude.ai-Chat ohne Code-Ausführung gibt es keinen Datei-Upload, dort nur `add_images` per URL.
 
