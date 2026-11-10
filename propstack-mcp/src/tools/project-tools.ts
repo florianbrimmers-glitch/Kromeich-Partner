@@ -194,9 +194,10 @@ export async function createProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 		country: "DEU",
 		name,
 		street: input.street,
-		// How-to „Webseite & Landing-Page“. Feldname aus der Diagnose; Abgleich mit der Oberfläche (613378, 10.11.):
-		// Feld true ↔ „Einheitenliste im Exposé anzeigen“ an, während „Auf der Landing Page auf die jeweiligen
-		// Einheiten verlinken“ aus war – für diesen zweiten Schalter liefert der GET kein Feld.
+		// How-to „Webseite & Landing-Page“. Feldname aus der Diagnose; Abgleich mit der Oberfläche am 10.11. in beide
+		// Richtungen: 613378 (Feld true) ↔ „Einheitenliste im Exposé anzeigen“ an, während „Auf der Landing Page auf
+		// die jeweiligen Einheiten verlinken“ aus war; 613122 (Feld nicht gesetzt) ↔ „Einheitenliste …“ aus.
+		// Für den zweiten Schalter liefert der GET kein Feld.
 		show_units_on_landing_page: input.show_units_on_landing_page ?? true,
 		title: input.title ?? name,
 		zip_code: input.zip_code,

@@ -64,7 +64,12 @@ Die Korrekturen 12 und 27 beschreiben den GET **ohne** den Parameter; der wurde 
 
 Der Projekt-GET führt das Feld `show_units_on_landing_page` (Boolean). Es lässt sich flach im `project`-Objekt setzen und im GET gegenlesen. Belegt per PUT an Projekt **603710** (vorher nicht gesetzt, danach `true`); Projekt **613378** wurde per POST mit `true` angelegt und liefert `true`.
 
-Abgleich mit der Oberfläche (Florian Brimmers, 10.11.2026, Projekt 613378, Feld `true`): „Einheitenliste im Exposé anzeigen“ war **an**, „Auf der Landing Page auf die jeweiligen Einheiten verlinken“ war **aus**. Der Feldname führt also in die Irre — das Feld steuert die Einheitenliste im Exposé. Für die Verlinkung auf der Landing Page liefert der Projekt-GET kein Feld; dieser Schalter bleibt Handarbeit in der Oberfläche.
+Abgleich mit der Oberfläche (Florian Brimmers, 10.11.2026), in beide Richtungen:
+
+- Projekt 613378, Feld `true`: „Einheitenliste im Exposé anzeigen“ war **an**, „Auf der Landing Page auf die jeweiligen Einheiten verlinken“ war **aus**.
+- Projekt 613122, Feld nicht gesetzt: „Einheitenliste im Exposé anzeigen“ war **aus**.
+
+Der Feldname führt also in die Irre — das Feld steuert die Einheitenliste im Exposé. Für die Verlinkung auf der Landing Page liefert der Projekt-GET kein Feld; dieser Schalter bleibt Handarbeit in der Oberfläche.
 
 Damit sind zwei der drei Projekt-Schalter aus dem How-to per API erreichbar: „Mietprojekt“ (`for_rent`) und „Einheitenliste im Exposé anzeigen“. Achtung bei Altbestand: Projekte aus früheren API-Läufen tragen `for_rent: false`, obwohl sie vermietet werden (gesehen an Projekt 613122).
 
@@ -119,7 +124,7 @@ Was der MCP aus dem How-to außerdem erzwingt — Verstöße werden abgewiesen, 
 ### 52. Offene Punkte — nicht gemessen
 
 - GET **ohne** `?new=1`: ob `note` und `relationships` dort weiterhin fehlen (so wurden die Korrekturen 4 und 24 gemessen)
-- Gegenprobe zu Korrektur 47: ein Projekt mit `show_units_on_landing_page: false` in der Oberfläche ansehen; der Weg zurück auf `false` ist ebenfalls ungetestet
+- Korrektur 47: der Weg zurück auf `false` ist ungetestet; `for_rent` ist in beide Richtungen getestet (Projekt 613378)
 - Reichweite des `unit_id`-400ers (Korrektur 50)
 - `title` bei Bildern über `remote_photo_url` und das Grundriss-Kennzeichen (`is_floorplan`) beim Upload
 - `firing_types` (Oberfläche: „Wesentlicher Energieträger“) steht im GET mit `?new=1`; die zulässigen Werte sind unbekannt, das Feld bleibt Handarbeit
