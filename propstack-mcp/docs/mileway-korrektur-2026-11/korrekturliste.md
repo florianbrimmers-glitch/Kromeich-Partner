@@ -38,7 +38,7 @@
 >
 > Beim Prüfen der Namen gefunden:
 > - Fünf neue Projektnamen gibt es im Bestand schon an anderer Adresse (Wesseling, Castrop-Rauxel, Dormagen, Leipzig, Köln) – von Hand so benannt, also das Muster des How-to.
-> - Alte Datensätze vom Import am 13.01.2025 an derselben oder benachbarter Adresse: Köln 2777862 (Hansestraße 61-63), Neuss 2778565 (Fuggerstraße 2-6), Castrop-Rauxel 2778015 (Merklinder Straße 12). An keinem hängt ein Deal. Sie sind nicht angefasst; die Entscheidung geht als Vorlage per Aufgabe an Lena Klinnert (Ansage Florian, 10.11.).
+> - Alte Datensätze vom Import am 13.01.2025 an derselben oder benachbarter Adresse: Köln 2777862 (Hansestraße 61-63), Neuss 2778565 (Fuggerstraße 2-6), Castrop-Rauxel 2778015 (Merklinder Straße 12). An keinem hängt ein Deal. Sie sind nicht angefasst. Die Entscheidungsvorlage liegt als Aufgabe 159643494 bei Lena Klinnert (Ansage Florian, 10.11.; fällig 11.11.2026, 9 Uhr; mit den drei Objekten und den drei neuen Projekten verknüpft).
 >
 > Die geschriebenen Texte stehen in `plan-b.json`. Wie die Kilometer entstanden sind, zeigt der Ordner `berechnung/`: `lage_ergebnis.json` enthält je Standort alle berechneten Fahrstrecken, `lage.py` und `texte.py` die Rechnung und den Textaufbau (Stand der Arbeitskopie; die Koordinaten kamen aus dem Abruf der Projekte).
 

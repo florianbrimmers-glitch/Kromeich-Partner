@@ -117,6 +117,7 @@ Bewusste Lücken: Ein einzelner Deal per ID und die Kontakt-Status-Liste sind nu
   - **Gegenlesen:** Nach dem Anlegen liest das Tool die Aufgabe über `GET /v1/tasks/:id` zurück und vergleicht Titel, Empfänger, Fälligkeit, Text und Verknüpfungen. Abweichungen stehen in `not_applied`, Unprüfbares in `not_verifiable` (dann mit den Feldnamen der Antwort, ohne Werte).
   - **Test:** `test: true` setzt `[MCP-TEST]` vor den Titel und schickt die Aufgabe an den Nutzer selbst.
   - Write-Log (`tool = create_task`, fail-closed) und Audit wie bei allen Schreib-Tools.
+  - **Live erprobt am 10.11.2026:** Probeaufgabe 159643420 und die erste echte Aufgabe 159643494 (Entscheidungsvorlage an Lena, drei Objekte und drei Projekte verknüpft). Das Gegenlesen hat Titel, Empfänger, Fälligkeit, Text und Verknüpfungen bestätigt, ohne `not_applied` und ohne `not_verifiable`.
 - **API-Key:** Der Key „MCP-Server“ braucht in Propstack zusätzlich Schreibrechte für Projekte, Relationships, Bilder und Aufgaben – und zum Gegenlesen das Leserecht für Aufgaben.
 - **`update_project`** (Entscheidung Florian, 16.10.) arbeitet wie `update_object`: Es schreibt nur echte Änderungen, legt vorher einen Snapshot ins Write-Log und liest danach zurück. Was Propstack still verwirft, wird einzeln nachgesetzt. Koordinaten nur zusammen (lat+lng) und mit dem Stufen-Trick, bei Adressänderung mit Dublettenprüfung.
 - **Nicht enthalten:** Dokumente (PDF), Post in #objekte, Löschen. Im reinen claude.ai-Chat ohne Code-Ausführung gibt es keinen Datei-Upload, dort nur `add_images` per URL.
@@ -292,6 +293,10 @@ Ohne diese Secrets wird das Deployment mit einer Warnung übersprungen. Die Work
 Claude speichert die Tool-Liste zwischen. Nach jedem Deployment, das Tools hinzufügt oder ändert:
 1. **Organisationseinstellungen → Konnektoren → Propstack → Tools → neu laden** (Org-Owner).
 2. Jede Person: **Anpassen → Konnektoren → Propstack** → Tools neu laden bzw. trennen und neu verbinden. Danach einen **neuen** Chat öffnen.
+
+Befund vom 10.11.2026 (Einführung von `create_task`):
+- Eine **laufende** Sitzung bekommt neue Tools nicht, auch nicht nach dem Neuladen im Konnektor. Konnektoren werden beim Start einer Sitzung gelesen. Geänderte Parameter vorhandener Tools kommen dagegen an, weil der Server sie prüft.
+- In einer **neuen** Sitzung ist das Tool da. Der Server kann dort unter seiner Server-ID statt unter „Propstack“ geführt sein (`mcp__<Server-ID>__create_task` statt `mcp__Propstack__create_task`). Tools deshalb per Stichwort suchen und keinen festen Namen voraussetzen.
 
 ### 6. Connector in Claude eintragen
 
