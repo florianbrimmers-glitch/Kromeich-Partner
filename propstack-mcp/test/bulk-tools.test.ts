@@ -289,4 +289,30 @@ describe("undoInput", () => {
 		expect(out.input).toEqual({ free_from: null, id: 9 });
 		expect(out.skipped).toEqual(["rented (vorheriger Wert unbekannt)"]);
 	});
+
+	it("Gesamtfläche wird beim Undo nicht zurückgeschrieben, sondern neu gerechnet", () => {
+		// Der Plan hat die Mezzanine geändert; update_object hat die Gesamtfläche mitgezogen
+		const now = current({ industrial_area: 5000, total_floor_space: 6000 }, [], { mezzanineflache_gesamt: { value: 1000 } });
+		const changes = { custom_fields: { mezzanineflache_gesamt: 1000 } };
+		const consistent = undoInput(
+			"objects",
+			item({ custom_fields: { mezzanineflache_gesamt: 800 }, total_floor_space: 5800 }, { custom_fields: { mezzanineflache_gesamt: 1000 }, total_floor_space: 6000 }),
+			changes,
+			now,
+		);
+		expect(consistent.input).toEqual({ custom_fields: { mezzanineflache_gesamt: 800 }, id: 9 });
+		expect(consistent.skipped).toEqual([]);
+		// Vorher stand eine Gesamtfläche inklusive Büro: Die kommt bewusst nicht wieder, und das wird gemeldet
+		const legacy = undoInput(
+			"objects",
+			item({ custom_fields: { mezzanineflache_gesamt: 800 }, total_floor_space: 6400 }, { custom_fields: { mezzanineflache_gesamt: 1000 }, total_floor_space: 6000 }),
+			changes,
+			now,
+		);
+		expect(legacy.input).toEqual({ custom_fields: { mezzanineflache_gesamt: 800 }, id: 9 });
+		expect(legacy.skipped).toEqual(["total_floor_space (wird aus Hallenfläche + Mezzanine gerechnet, vorher 6400 m²)"]);
+		// Ohne Hallenfläche gilt die Regel nicht – dann wird der alte Wert normal zurückgesetzt
+		const office = undoInput("objects", item({ total_floor_space: 199 }, { total_floor_space: 250 }), {}, current({ total_floor_space: 250 }, []));
+		expect(office.input).toEqual({ id: 9, total_floor_space: 199 });
+	});
 });

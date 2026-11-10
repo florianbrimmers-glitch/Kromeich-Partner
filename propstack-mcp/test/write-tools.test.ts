@@ -505,12 +505,13 @@ describe("create_object / update_object", () => {
 		const { client } = fakeClient(unit.impl);
 		const out = await createObject(
 			{ client, db: fakeDb().db, now: NOW, sleep, user: USER },
-			{ ...input, custom_fields: { lagerflache: 4800 }, hall_height: 10, industrial_area: 5000, total_floor_space: 5400, usable_floor_space: 400 },
+			{ ...input, custom_fields: { lagerflache: 4800 }, hall_height: 10, industrial_area: 5000, usable_floor_space: 400 },
 		);
 		expect(unit.posted().partial_custom_fields).toMatchObject({
 			buroflache: 400,
-			gebaudeflache_gesamt: 5400,
-			gebaudeflache_verfugbar: 5400,
+			// Gesamtfläche = Halle (+ Mezzanine), die 400 m² Büro zählen nicht mit
+			gebaudeflache_gesamt: 5000,
+			gebaudeflache_verfugbar: 5000,
 			hallenhohe: 10,
 			lagerflache: 4800, // explizit übergeben hat Vorrang
 			lagerflache_gesamt: 5000,
@@ -519,6 +520,26 @@ describe("create_object / update_object", () => {
 		});
 		expect(unit.posted().partial_custom_fields).not.toHaveProperty("mezzanineflache");
 		expect((out.result as { not_applied?: string[] }).not_applied).toBeUndefined();
+	});
+
+	it("Gesamtfläche beim Anlegen: immer gerechnet, eine mitgegebene Summe inklusive Büro wird abgewiesen", async () => {
+		const unit = fakeUnit();
+		const { client } = fakeClient(unit.impl);
+		const deps = { client, db: fakeDb().db, now: NOW, sleep, user: USER };
+		// So entstand der Fehler im Mileway-Lauf vom 09.11.2026: Halle + Büro als Gesamtfläche
+		await expect(createObject(deps, { ...input, industrial_area: 5000, total_floor_space: 5400, usable_floor_space: 400 })).rejects.toThrow(
+			/Die Gesamtfläche rechnet der Connector immer selbst: Hallenfläche 5\.000 m² \+ Mezzanine 0 m² = 5\.000 m² \(ohne Büro\)\. Angegeben waren 5\.400 m²/,
+		);
+		expect(unit.posted()).toEqual({}); // nichts angelegt
+		// Der richtige Wert darf mitkommen (ältere Tool-Listen schicken ihn noch)
+		const out = await createObject(deps, { ...input, industrial_area: 5000, total_floor_space: 5000, usable_floor_space: 400 });
+		expect(unit.stored.total_floor_space).toBe(5000);
+		expect((out.result as { derived?: string[] }).derived).toBeUndefined();
+		// Ohne Hallenfläche gilt die Regel nicht, z. B. bei einer reinen Bürofläche
+		const office = fakeUnit();
+		const officeClient = fakeClient(office.impl).client;
+		await createObject({ ...deps, client: officeClient }, { ...input, rs_type: "OFFICE", total_floor_space: 199, usable_floor_space: 199 });
+		expect(office.stored.total_floor_space).toBe(199);
 	});
 
 	it("vermietet anlegen: Fläche „(vermietet)“, free_from, status_logistik/aktiv Inaktiv (Team-Prozess)", async () => {
@@ -712,8 +733,16 @@ describe("create_object / update_object", () => {
 		Object.assign(unit.custom, { lagerflache: 5000 });
 		const { client } = fakeClient(unit.impl);
 		const out = await updateObject({ client, db: fakeDb().db, now: NOW, sleep, user: USER }, { id: 900, industrial_area: 5000 });
-		expect(unit.puts).toEqual([{ partial_custom_fields: { lagerflache_gesamt: 5000, lagerflache_verfugbar: "5.000 m²" } }]);
+		// Die fehlende Gesamtfläche wird dabei gleich mitgerechnet (Halle + Mezzanine) und gespiegelt
+		expect(unit.puts).toEqual([
+			{ partial_custom_fields: { gebaudeflache_gesamt: 5000, gebaudeflache_verfugbar: 5000, lagerflache_gesamt: 5000, lagerflache_verfugbar: "5.000 m²" } },
+			{ total_floor_space: 5000 },
+		]);
 		expect(out.result).toMatchObject({ updated: true });
+		// Zweiter Aufruf mit denselben Werten: nichts mehr zu schreiben
+		const again = unit.puts.length;
+		await updateObject({ client, db: fakeDb().db, now: NOW, sleep, user: USER }, { id: 900, industrial_area: 5000 });
+		expect(unit.puts.length).toBe(again);
 	});
 
 	it("update_object: Kaufpreis bei Mietobjekt abgewiesen, keine Änderung → kein Write", async () => {
@@ -1081,8 +1110,61 @@ describe("create_object / update_object – Team-How-to", () => {
 		expect((out.result as { changed: string[] }).changed).toEqual(expect.arrayContaining(["custom_fields.anzahl_rampentore_2", "internal_note (angehängt)"]));
 		// Geänderter Text gegen die Regeln → abgewiesen, unveränderter Alttext bleibt unberührt
 		await expect(updateObject(deps, { description_note: "Miete 6,80 € je m²", id: 900 })).rejects.toThrow(/enthält einen Preis/);
-		const hint = await updateObject(deps, { id: 900, industrial_area: 9000 });
-		expect((hint.result as { warnings: string[] }).warnings.join(" ")).toMatch(/Gesamtfläche/);
+		// Hallenfläche geändert → die Gesamtfläche wird neu gerechnet, nicht nur angemahnt
+		const recalculated = await updateObject(deps, { id: 900, industrial_area: 9000 });
+		expect(w.stored).toMatchObject({ industrial_area: 9000, total_floor_space: 9000 });
+		expect((recalculated.result as { changed: string[] }).changed).toEqual(expect.arrayContaining(["industrial_area", "total_floor_space"]));
+	});
+
+	it("Gesamtfläche wird immer aus Halle + Mezzanine gerechnet (Ansage Florian, 10.11.2026)", async () => {
+		const w = world();
+		// Altbestand wie im Mileway-Lauf: Büro in der Gesamtfläche, Mezzanine als Text im Custom-Feld
+		Object.assign(w.stored, { industrial_area: 5165, marketing_type: "RENT", rented: false, title: "Halle", total_floor_space: 6585 });
+		Object.assign(w.custom, { mezzanineflache_gesamt: "1.050 m²" });
+		const deps = { client: w.client, db: fakeDb().db, now: NOW, sleep, user: USER };
+
+		// 1) Nur etwas anderes geändert: Flächen bleiben unberührt, der Widerspruch wird gemeldet
+		const untouched = await updateObject(deps, { ground_level_doors: 2, id: 900 });
+		expect(w.stored.total_floor_space).toBe(6585);
+		expect((untouched.result as { warnings: string[] }).warnings.join(" ")).toMatch(/Gesamtfläche \(6\.585 m²\) ist nicht Hallenfläche \+ Mezzanine \(6\.215 m²\)/);
+
+		// 2) Ein abweichender Wert wird abgewiesen, nichts geschrieben
+		const putsBefore = w.puts.length;
+		await expect(updateObject(deps, { id: 900, total_floor_space: 6585 })).rejects.toThrow(
+			/rechnet der Connector immer selbst: Hallenfläche 5\.165 m² \+ Mezzanine 1\.050 m² = 6\.215 m²/,
+		);
+		expect(w.puts.length).toBe(putsBefore);
+
+		// 3) Hallenfläche gesetzt → Gesamtfläche = neue Halle + gespeicherte Mezzanine
+		const hall = await updateObject(deps, { id: 900, industrial_area: 4115 });
+		expect(w.stored).toMatchObject({ industrial_area: 4115, total_floor_space: 5165 });
+		expect((hall.result as { changed: string[] }).changed).toEqual(expect.arrayContaining(["industrial_area", "total_floor_space"]));
+		expect(w.custom).toMatchObject({ gebaudeflache_gesamt: 5165 });
+
+		// 4) Mezzanine gesetzt → Gesamtfläche = gespeicherte Halle + neue Mezzanine
+		await updateObject(deps, { id: 900, mezzanine_area: 1375 });
+		expect(w.stored.total_floor_space).toBe(5490);
+
+		// 5) Der gerechnete Wert darf mitgegeben werden – so lässt sich ein Altbestand sofort berichtigen
+		w.stored.total_floor_space = 9999;
+		await updateObject(deps, { id: 900, total_floor_space: 5490 });
+		expect(w.stored.total_floor_space).toBe(5490);
+
+		// 6) Mezzanine über custom_fields geleert → Gesamtfläche = Halle
+		await updateObject(deps, { custom_fields: { mezzanineflache_gesamt: null }, id: 900 });
+		expect(w.stored.total_floor_space).toBe(4115);
+
+		// 7) Steht im Mezzanine-Feld ein Text statt einer Zahl, wird nicht gerechnet, sondern nachgefragt
+		w.custom.mezzanineflache_gesamt = "ca. 1.000 m²";
+		const before = w.puts.length;
+		await expect(updateObject(deps, { id: 900, industrial_area: 4200 })).rejects.toThrow(/gespeicherte Mezzaninefläche \(„ca\. 1\.000 m²“\) ist keine lesbare Zahl/);
+		expect(w.puts.length).toBe(before);
+		// andere Änderungen gehen weiter, ohne falschen Alarm zur Gesamtfläche
+		const other = await updateObject(deps, { ground_level_doors: 3, id: 900 });
+		expect(JSON.stringify((other.result as { warnings?: string[] }).warnings ?? [])).not.toMatch(/Gesamtfläche/);
+		// mit ausdrücklicher Mezzanine wird gerechnet
+		await updateObject(deps, { id: 900, industrial_area: 4200, mezzanine_area: 1000 });
+		expect(w.stored).toMatchObject({ industrial_area: 4200, total_floor_space: 5200 });
 	});
 });
 

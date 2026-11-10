@@ -11,6 +11,7 @@ import {
 } from "../propstack/dedupe";
 import { ACTIVE_STATUSES } from "../config";
 import { PUBLIC_PRICE_HINT, type CustomOption, loadFieldDefs, mirroredCustomFields, validateCustomFields } from "../propstack/field-rules";
+import { areaNumber, computedTotal, MEZZANINE_KEY, showArea, totalDiffers } from "../propstack/areas";
 import { scalar } from "../propstack/mappers";
 import { readUnit, UNVERIFIABLE, type UnitState, unitCustomValue, unitValue } from "../propstack/unit-state";
 import { CRM_BASE, createReviewTask } from "../review-task";
@@ -537,7 +538,9 @@ const objectFieldsShape = {
 		.describe("Nur setzen, wenn der Nutzer einen ÖFFENTLICHEN Preis ausdrücklich angesagt oder auf Nachfrage bestätigt hat. Sonst vorher fragen. Wird protokolliert"),
 	price_on_inquiry: z.boolean().optional().describe("Preis auf Anfrage. Beim Anlegen automatisch true, außer ein öffentlicher Preis wird gesetzt"),
 	industrial_area: area.describe("Hallenfläche m²"),
-	total_floor_space: area.describe("Gesamtfläche m² = Hallenfläche + Mezzaninefläche, OHNE Büro. Beim Anlegen ohne Angabe so berechnet"),
+	total_floor_space: area.describe(
+		"Gesamtfläche m² – bitte WEGLASSEN: Der Connector rechnet sie immer selbst aus Hallenfläche + Mezzaninefläche (ohne Büro), beim Anlegen und bei jeder Änderung dieser Flächen. Ein abweichender Wert wird abgewiesen. Frei angebbar nur bei Objekten ohne Hallenfläche",
+	),
 	usable_floor_space: area.describe("Bürofläche m² (Standardfeld Nutzfläche)"),
 	plot_area: area.describe("Grundstücksfläche m²"),
 	hall_height: num.describe("Hallenhöhe in m UKB"),
@@ -758,9 +761,12 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	if (fields.price_on_inquiry === undefined) fields.price_on_inquiry = !publishing;
 	fields.broker_id = user.brokerId;
 	const derived: string[] = [];
-	if (fields.total_floor_space === undefined && typeof fields.industrial_area === "number") {
-		fields.total_floor_space = fields.industrial_area + (input.mezzanine_area ?? 0);
-		derived.push("total_floor_space = Hallenfläche + Mezzaninefläche");
+	// Gesamtfläche wird immer gerechnet (Halle + Mezzanine); ein abweichend mitgegebener Wert wird abgewiesen
+	const customMezzanine = input.custom_fields && MEZZANINE_KEY in input.custom_fields ? areaNumber(input.custom_fields[MEZZANINE_KEY]) : undefined;
+	const total = computedTotal(typeof fields.industrial_area === "number" ? fields.industrial_area : undefined, input.mezzanine_area ?? customMezzanine, fields.total_floor_space);
+	if (total !== undefined) {
+		if (fields.total_floor_space === undefined) derived.push("total_floor_space = Hallenfläche + Mezzaninefläche");
+		fields.total_floor_space = total;
 	}
 
 	// Kontakte vorher prüfen (404 → nichts anlegen statt Einheit ohne Eigentümer)
@@ -1012,6 +1018,41 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	Object.assign(requested, commissionFields(input.commission, marketingType, input));
 	if (staleFreeCourtage(input.commission, input.courtage, scalar(currentValue("courtage")))) throw new PropstackError(STALE_FREE_COURTAGE, 400);
 
+	// Gesamtfläche wird immer gerechnet: Hallenfläche + Mezzaninefläche – je der neue Wert aus dem Aufruf, sonst der gespeicherte.
+	// Neu geschrieben wird sie, sobald der Aufruf eine der Flächen anfasst; Altobjekte, an denen nur anderes geändert wird, bleiben unberührt.
+	const totalNotes: string[] = [];
+	{
+		const customGiven = input.custom_fields !== undefined && MEZZANINE_KEY in input.custom_fields;
+		const mezzanineGiven = input.mezzanine_area !== undefined || customGiven;
+		const mezzanineStored = unitCustomValue(current, MEZZANINE_KEY);
+		const hall = typeof requested.industrial_area === "number" ? requested.industrial_area : areaNumber(currentValue("industrial_area"));
+		const mezzanine =
+			input.mezzanine_area ?? (customGiven ? (areaNumber(input.custom_fields![MEZZANINE_KEY]) ?? 0) : mezzanineStored === UNVERIFIABLE ? undefined : areaNumber(mezzanineStored));
+		const touched = requested.industrial_area !== undefined || mezzanineGiven || requested.total_floor_space !== undefined;
+		// Steht im Feld ein Text, der keine Zahl ist („ca. 1.000 m²“), wäre die Rechnung falsch – dann lieber abweisen als die Mezzanine verlieren
+		const unreadable = !mezzanineGiven && mezzanineStored !== UNVERIFIABLE && !isEmpty(mezzanineStored) && areaNumber(mezzanineStored) === undefined;
+		if (unreadable && touched && hall !== undefined) {
+			throw new PropstackError(
+				`Die gespeicherte Mezzaninefläche („${String(scalar(mezzanineStored)).slice(0, 60)}“) ist keine lesbare Zahl – die Gesamtfläche lässt sich so nicht rechnen. Bitte mezzanine_area mit angeben.`,
+				400,
+			);
+		}
+		const computed = unreadable ? undefined : computedTotal(hall, mezzanine, requested.total_floor_space);
+		if (computed !== undefined && touched) {
+			requested.total_floor_space = computed;
+			if (!mezzanineGiven && mezzanineStored === UNVERIFIABLE) {
+				totalNotes.push(`Die gespeicherte Mezzaninefläche war nicht lesbar – Gesamtfläche = Hallenfläche (${showArea(computed)} m²) gesetzt. Bitte prüfen.`);
+			}
+		} else if (computed !== undefined) {
+			const stored = areaNumber(currentValue("total_floor_space"));
+			if (totalDiffers(stored, computed)) {
+				totalNotes.push(
+					`Gesamtfläche (${showArea(stored!)} m²) ist nicht Hallenfläche + Mezzanine (${showArea(computed)} m²). Sie wird neu gerechnet, sobald Hallen- oder Mezzaninefläche gesetzt wird – oder sofort mit total_floor_space: ${computed}.`,
+				);
+			}
+		}
+	}
+
 	// Nur echte Änderungen schreiben; nicht lesbare Felder werden vorsichtshalber geschrieben
 	const fields: Raw = {};
 	const before: Raw = {};
@@ -1034,9 +1075,7 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 		const titleCheck = checkZipPrefix("Überschrift", fields.title, String(requested.zip_code ?? currentText("zip_code")));
 		if (titleCheck.error) throw new PropstackError(titleCheck.error, 400);
 	}
-	if ("industrial_area" in fields && requested.total_floor_space === undefined) {
-		notes.push("Hallenfläche geändert, Gesamtfläche (total_floor_space = Halle + Mezzanine) nicht – bitte prüfen.");
-	}
+	notes.push(...totalNotes);
 
 	// Adresse, Einheit oder Vermarktungsart geändert → Kollision mit anderem Objekt prüfen
 	let dedupe: DedupeResult = { duplicates: [], warnings: [] };
