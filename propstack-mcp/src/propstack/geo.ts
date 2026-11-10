@@ -24,7 +24,12 @@ export interface CoordinateResult {
 	note?: string;
 }
 
-const TOLERANCE = 0.00002; // ≈ 2 m
+// Propstack speichert den Längengrad nicht verlässlich genauer als vier Nachkommastellen (live 10.11.,
+// Projekt 613378: 7.6886 statt des sechsstelligen Zielwerts, auch nach zwei Durchgängen). Vier Stellen sind
+// rund 7 m – für die Lage einer Halle richtig. Als gesetzt gilt deshalb alles innerhalb von 0,0001°.
+const TOLERANCE = 0.0001; // ≈ 7 m (Länge) bzw. 11 m (Breite)
+const EXACT = 0.00002; // ≈ 2 m
+export const ROUNDED_NOTE = "Propstack hat die Koordinaten auf vier Nachkommastellen gespeichert (Abweichung unter 10 m).";
 
 export function close(a: unknown, b: number): boolean {
 	return typeof a === "number" && Number.isFinite(a) && Math.abs(a - b) <= TOLERANCE;
@@ -102,13 +107,17 @@ export async function writeCoordinates(
 	put: (body: Partial<Coordinates>) => Promise<unknown>,
 	target: Coordinates,
 	sleep: (ms: number) => Promise<void> = defaultSleep,
-): Promise<{ verified: boolean; lat?: number; lng?: number; error?: string }> {
+): Promise<{ verified: boolean; lat?: number; lng?: number; error?: string; rounded?: boolean }> {
 	const reached = (c: Partial<Coordinates>) => close(c.lat, target.lat) && close(c.lng, target.lng);
+	const done = (c: Partial<Coordinates>) => {
+		const exact = Math.abs(Number(c.lat) - target.lat) <= EXACT && Math.abs(Number(c.lng) - target.lng) <= EXACT;
+		return { lat: c.lat, lng: c.lng, verified: true, ...(exact ? {} : { rounded: true }) };
+	};
 	try {
 		let after: Partial<Coordinates> = {};
 		for (let pass = 0; pass < 2; pass++) {
 			const current = await read();
-			if (reached(current)) return { lat: current.lat, lng: current.lng, verified: true };
+			if (reached(current)) return done(current);
 			if (!close(current.lat, target.lat)) await put({ lat: target.lat });
 			if (!close(current.lng, target.lng)) {
 				for (const digits of [1, 2, 3, 4]) {
@@ -118,7 +127,7 @@ export async function writeCoordinates(
 				await put({ lng: target.lng });
 			}
 			after = await read();
-			if (reached(after)) return { lat: after.lat, lng: after.lng, verified: true };
+			if (reached(after)) return done(after);
 			if (pass === 0) await sleep(COORDINATE_RETRY_DELAY_MS);
 		}
 		return { lat: after.lat, lng: after.lng, verified: false };
@@ -144,8 +153,8 @@ export async function ensureCoordinates(options: {
 }): Promise<CoordinateResult> {
 	const { provided, current } = options;
 	if (provided?.lat !== undefined && provided.lng !== undefined) {
-		const result = await writeCoordinates(options.read, options.put, { lat: provided.lat, lng: provided.lng }, options.sleep);
-		return { ...result, source: options.providedSource ?? "angegeben", note: result.error };
+		const { rounded, ...result } = await writeCoordinates(options.read, options.put, { lat: provided.lat, lng: provided.lng }, options.sleep);
+		return { ...result, source: options.providedSource ?? "angegeben", note: result.error ?? (rounded ? ROUNDED_NOTE : undefined) };
 	}
 	if (hasCoordinates(current)) {
 		return { lat: current.lat, lng: current.lng, source: "Propstack", verified: true };
@@ -153,8 +162,9 @@ export async function ensureCoordinates(options: {
 	if (!options.address) return { source: "keine", verified: false, note: "Keine Koordinaten und keine Adresse." };
 	const found = await geocode(options.address, options.fetchFn);
 	if (!found) return { source: "keine", verified: false, note: "Adresse nicht gefunden (OpenStreetMap) – Koordinaten bitte nachtragen." };
-	const result = await writeCoordinates(options.read, options.put, found, options.sleep);
-	return { ...result, precision: found.precision, source: "OpenStreetMap", note: result.error ?? (found.exact ? undefined : STREET_LEVEL_NOTE) };
+	const { rounded, ...result } = await writeCoordinates(options.read, options.put, found, options.sleep);
+	// Bei straßengenauen Treffern ist die Rundung belanglos – dort zählt der Hinweis auf die Genauigkeit
+	return { ...result, precision: found.precision, source: "OpenStreetMap", note: result.error ?? (found.exact ? (rounded ? ROUNDED_NOTE : undefined) : STREET_LEVEL_NOTE) };
 }
 
 /** Zeile für die Prüfaufgabe. */

@@ -316,6 +316,26 @@ describe("Koordinaten (Notion-Korrektur 34)", async () => {
 		expect(lngPuts).toBe(10);
 	});
 
+	it("Propstack speichert lng nur auf vier Nachkommastellen: gilt als gesetzt (≈ 3,5 m), kein Fehlalarm, kein zweiter Durchgang (live 10.11., Projekt 613378)", async () => {
+		let stored: Record<string, number> = {};
+		let puts = 0;
+		const put = async (b: unknown) => {
+			puts++;
+			const body = b as Record<string, number>;
+			// der exakte Wert (sechs Stellen) wird verworfen, die vierstellige Stufe bleibt
+			if ("lng" in body && String(body.lng).split(".")[1]?.length > 4) return;
+			stored = { ...stored, ...body };
+		};
+		const out = await writeCoordinates(async () => stored, put, { lat: 50.411816, lng: 7.688649 }, async () => {});
+		expect(out).toMatchObject({ lat: 50.411816, lng: 7.6886, rounded: true, verified: true });
+		expect(puts).toBe(6);
+		const result = await ensureCoordinates({ current: {}, provided: { lat: 50.411816, lng: 7.688649 }, put, read: async () => stored, sleep: async () => {} });
+		expect(result).toMatchObject({ lng: 7.6886, source: "angegeben", verified: true });
+		expect(result.note).toMatch(/vier Nachkommastellen/);
+		// 85 m daneben (zwei Stellen) bleibt ein Befund
+		expect((await writeCoordinates(async () => ({ lat: 50.411816, lng: 7.69 }), async () => {}, { lat: 50.411816, lng: 7.688649 }, async () => {})).verified).toBe(false);
+	});
+
 	it("veralteter Lesewert nach dem Schreiben: nach der Pause neu lesen, nicht noch einmal schreiben", async () => {
 		const target = { lat: 50.4109821, lng: 7.6811256 };
 		let reads = 0;

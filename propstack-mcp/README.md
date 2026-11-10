@@ -141,6 +141,7 @@ Quelle: „Objekte in Propstack anlegen“ und „Projekte in Propstack anlegen�
 - **Diagnose:** `get_object` und `get_project` mit `diagnose: "field_names"` listen die Feldnamen mit Bezeichnung und Typ, die Propstack liefert – ohne Werte. Mit `diagnose_key` (z. B. `"energie"`) nur die passenden Felder, dafür tiefer aufgeschlüsselt. Damit lassen sich Felder aus der Oberfläche finden, die die Doku nicht nennt. Befund 09.11.: Einheiten liefern `note` („Notiz“), `relationships` (verknüpfte Kontakte) und `firing_types` („Wesentlicher Energieträger“).
 - **`get_object`** zeigt deshalb auch `internal_note`, `contacts` (Eigentümer/Ansprechpartner) und `energy_source`.
 - **Koordinaten mit zweitem Durchgang:** Haftet der Wert nach dem Stufen-Trick nicht, liest das Tool nach einer Sekunde neu und wiederholt einmal (live am Projekt beobachtet).
+- **Vier Nachkommastellen reichen:** Propstack speichert den Längengrad nicht verlässlich genauer (live 10.11., Projekt 613378). Vier Stellen sind rund 7 m. Alles innerhalb von 0,0001° gilt deshalb als gesetzt; das Ergebnis nennt die gespeicherten Werte und weist auf die Rundung hin. Größere Abweichungen bleiben ein Befund (`not_applied: lat/lng`).
 - **Nachsichtige IDs:** Ziffernfolgen als Text (`"123"`) werden bei IDs und Anzahlen angenommen. Clients mit veralteter Tool-Liste schicken neue Parameter als Text.
 
 ## Phase 4: Massenänderungen (plan → apply_plan → undo_plan)
