@@ -330,8 +330,13 @@ export async function getObject(client: Client, input: DiagnoseInput): Promise<T
 		};
 	}
 	const detail = mapUnitDetail(asObject(mergedUnit(state)));
-	// Verknüpfte Kontakte: Propstack liefert nur die ID – Namen nachladen (höchstens fünf)
-	for (const contact of (detail.contacts ?? []).slice(0, 5)) {
+	await resolveContactNames(client, detail.contacts);
+	return { count: 1, result: detail };
+}
+
+/** Verknüpfte Kontakte: Propstack liefert nur die ID – Namen nachladen (höchstens fünf). */
+async function resolveContactNames(client: Client, contacts: Raw[] | undefined): Promise<void> {
+	for (const contact of (contacts ?? []).slice(0, 5)) {
 		if (contact.name !== undefined || typeof contact.contact_id !== "number") continue;
 		try {
 			contact.name = scalar(asObject(await client.getContact(contact.contact_id)).name);
@@ -339,7 +344,6 @@ export async function getObject(client: Client, input: DiagnoseInput): Promise<T
 			// Kontakt nicht lesbar → ohne Namen ausgeben
 		}
 	}
-	return { count: 1, result: detail };
 }
 
 // ---------- Projekte ----------
@@ -350,7 +354,9 @@ export async function getProject(client: Client, input: DiagnoseInput): Promise<
 	const raw = asObject(await client.getProject(input.id));
 	if (input.diagnose) return { count: 1, result: { entity: "project", id: input.id, field_names: fieldShapes(raw, input.diagnose_key) } };
 	const units = await client.searchUnits({ page: 1, per: 100, project_id: input.id });
-	return { count: 1, result: withBrokerName(mapProjectDetail(raw, units), await brokerNames(client)) };
+	const detail = mapProjectDetail(raw, units);
+	await resolveContactNames(client, detail.contacts);
+	return { count: 1, result: withBrokerName(detail, await brokerNames(client)) };
 }
 
 // ---------- Deals ----------

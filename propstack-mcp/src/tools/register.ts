@@ -149,7 +149,7 @@ export function registerReadTools(server: McpServer, ctx: ToolContext): void {
 	);
 	register(
 		"get_project",
-		"Ein Projekt mit Details abrufen: Name, Überschrift, Unterzeile, Adresse, Koordinaten, Provision, Exposé-Texte (gekürzt), Bilder mit Titel, Links und die Einheiten des Projekts (ID, Einheitennummer, Status). Zum Prüfen vor und nach Änderungen.",
+		"Ein Projekt mit Details abrufen: Name, Überschrift, Unterzeile, Adresse, Koordinaten, Provision, Exposé-Texte (gekürzt), verknüpfte Kontakte (Eigentümer, Ansprechpartner), Bilder mit Titel, Links und die Einheiten des Projekts (ID, Einheitennummer, Status). Zum Prüfen vor und nach Änderungen.",
 		getProjectInput,
 		getProject,
 	);

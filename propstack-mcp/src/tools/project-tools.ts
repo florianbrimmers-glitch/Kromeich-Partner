@@ -20,7 +20,7 @@ import { scalar } from "../propstack/mappers";
 import { linkContact, type RelationResult, type RelationRole, relationLine, ROLE_LABEL } from "../propstack/relations";
 import { CRM_BASE, createReviewTask } from "../review-task";
 import { beginWrite, finishWrite } from "../write-log";
-import { id, optionalText } from "./params";
+import { flag, id, optionalText } from "./params";
 import { loadAll, type ToolOutput } from "./read-tools";
 import { same, TEST_TAG, type WriteDeps } from "./write-tools";
 
@@ -124,6 +124,7 @@ export const createProjectInput = {
 	location_note: optionalText(10000).describe(`${TEXT_RULES.location}. ${EXPOSE_VISIBLE}`),
 	furnishing_note: optionalText(10000).describe(`${TEXT_RULES.furnishing}. ${EXPOSE_VISIBLE}`),
 	sub_headline: optionalText(250).describe("Unterzeile fürs Exposé: das stärkste Lageargument in wenigen Worten, z. B. „Direkt an der A40“"),
+	show_units_on_landing_page: flag.optional().describe("Einheiten auf der Landing-Page des Projekts zeigen und verlinken. Standard: ja (How-to: muss aktiviert sein)"),
 	public_price_confirmed: publicPriceConfirmed,
 	...internalNoteShape,
 	internal_rents: optionalText(1000).describe("Interne Notiz: Mietpreise, z. B. „Halle 6,80 €/m², Büro 12,80 €/m²“ – nie in Preisfelder oder Exposé-Texte"),
@@ -186,6 +187,8 @@ export async function createProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 		country: "DEU",
 		name,
 		street: input.street,
+		// How-to „Webseite & Landing-Page“: Einheiten auf der Landing-Page verlinken – Feldname aus der Diagnose (10.11.)
+		show_units_on_landing_page: input.show_units_on_landing_page ?? true,
 		title: input.title ?? name,
 		zip_code: input.zip_code,
 		...(input.marketing_type === "RENT" ? { for_rent: true } : { for_sale: true }),
@@ -266,14 +269,14 @@ export async function createProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 	if (!coordinates.verified && coordinates.source !== "keine") missing.push("lat/lng");
 
 	const target = { id: projectId, type: "project" as const };
-	const ownerResult = owner ? await linkContact(client, target, owner.id, "owner") : undefined;
+	const ownerResult = owner ? await linkContact(client, target, owner.id, "owner", { fresh: true }) : undefined;
 	if (ownerResult?.error) writeErrors.push(`Eigentümer: ${ownerResult.error}`);
 	const gaps = ownerResult && ownerResult.linked !== true && !ownerResult.error ? [`owner ${ownerResult.linked === false ? "nicht gefunden" : "nicht prüfbar"}`] : [];
 	let contactResult: RelationResult | undefined;
 	if (contactPerson) {
 		contactResult = sameContact
 			? { already: true, linked: ownerResult?.linked ?? false, note: "Ansprechpartner ist der Eigentümer – als Eigentümer verknüpft." }
-			: await linkContact(client, target, contactPerson.id, "contact_person");
+			: await linkContact(client, target, contactPerson.id, "contact_person", { fresh: true });
 		if (contactResult.error) writeErrors.push(`Ansprechpartner: ${contactResult.error}`);
 		else if (contactResult.linked !== true && !sameContact) gaps.push("contact_person nicht prüfbar");
 	}
@@ -356,6 +359,7 @@ export const updateProjectInput = {
 	zip_code: z.string().trim().regex(/^\d{4,5}$/).optional(),
 	city: optionalText(100),
 	hide_address: z.boolean().optional().describe("Adresse im Exposé ausblenden"),
+	show_units_on_landing_page: flag.optional().describe("Einheiten auf der Landing-Page des Projekts zeigen und verlinken (How-to: muss aktiviert sein)"),
 	commission: commissionParam,
 	courtage: optionalText(200).describe("Außenprovision fürs Exposé, z. B. „Provisionsfrei“"),
 	courtage_note: optionalText(2000).describe("Provisionshinweis"),
@@ -380,7 +384,7 @@ export async function updateProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 	const currentText = (key: string) => String(scalar(current[key]) ?? "");
 
 	const requested: Raw = {};
-	for (const key of [...PROJECT_TEXT_KEYS, "hide_address"] as const) if (input[key] !== undefined) requested[key] = input[key];
+	for (const key of [...PROJECT_TEXT_KEYS, "hide_address", "show_units_on_landing_page"] as const) if (input[key] !== undefined) requested[key] = input[key];
 	Object.assign(requested, commissionFields(input.commission, scalar(current.for_rent) === false ? "BUY" : "RENT", input));
 	const fields: Raw = {};
 	const before: Raw = {};
