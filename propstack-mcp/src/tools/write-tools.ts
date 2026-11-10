@@ -782,10 +782,11 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	throwOnTextErrors(findings);
 	const fromProjectFindings = checkExposeTexts({ ...inheritedTexts, ...(titleInherited ? { title: fields.title } : {}) }, textContext);
 	const textWarnings = [...findings.warnings, ...[...fromProjectFindings.errors, ...fromProjectFindings.warnings].map((w) => `Vom Projekt übernommen – ${w}`)];
-	const titleCheck = checkZipPrefix("Überschrift", fields.title, address.zip_code);
+	// Eigene Überschrift streng nach How-to; eine vom Projekt übernommene (Alt-)Überschrift nur melden
+	const titleCheck = checkZipPrefix("Überschrift", fields.title, address.zip_code, titleInherited ? "warn" : "strict");
 	if (titleCheck.error && !titleInherited) throw new PropstackError(titleCheck.error, 400);
-	if (titleCheck.error) textWarnings.push(`Vom Projekt übernommen – ${titleCheck.error}`);
-	if (titleCheck.warning) textWarnings.push(titleCheck.warning);
+	const titleFinding = titleCheck.error ?? titleCheck.warning;
+	if (titleFinding) textWarnings.push(`Vom Projekt übernommen – ${titleFinding}`);
 
 	const dedupe = objectDuplicates(
 		{ ...address, lat: input.lat, lng: input.lng, marketing_type: input.marketing_type, project_id: input.project_id, unit_id: input.unit_id },
@@ -1014,7 +1015,6 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	if (typeof fields.title === "string") {
 		const titleCheck = checkZipPrefix("Überschrift", fields.title, String(requested.zip_code ?? currentText("zip_code")));
 		if (titleCheck.error) throw new PropstackError(titleCheck.error, 400);
-		if (titleCheck.warning) notes.push(titleCheck.warning);
 	}
 	if ("industrial_area" in fields && requested.total_floor_space === undefined) {
 		notes.push("Hallenfläche geändert, Gesamtfläche (total_floor_space = Halle + Mezzanine) nicht – bitte prüfen.");
@@ -1123,6 +1123,8 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	if (!Object.keys(fields).length && !Object.keys(customSend).length && !coordsRequested) {
 		return { count: 0, result: { updated: false, id: input.id, note: "Keine Änderung – alle Werte sind bereits so gesetzt." } };
 	}
+	// Auch Koordinaten gehören in den Snapshot (Write-Log: Stand vorher) – wichtig bei Korrekturen an Bestandsobjekten
+	if (coordsRequested) Object.assign(before, { lat: coordsOf(current.detail).lat ?? null, lng: coordsOf(current.detail).lng ?? null });
 	deps.capture?.({
 		after: { ...Object.fromEntries(Object.entries(fields).map(([k, v]) => [fieldLabel(k), v])), ...(Object.keys(customSend).length ? { custom_fields: customSend } : {}) },
 		before,
@@ -1145,6 +1147,7 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 			...payload,
 			einzeln_nachgesetzt: Object.fromEntries(solo.map(([k, v]) => [fieldLabel(k), v])),
 			public_price_confirmed: input.public_price_confirmed,
+			...(coordsRequested ? { lat: input.lat, lng: input.lng } : {}),
 		},
 		tool: deps.logTool ?? "update_object",
 		userEmail: user.email,

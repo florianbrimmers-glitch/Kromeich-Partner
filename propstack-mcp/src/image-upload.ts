@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { writeAuditEntry } from "./audit";
 import { IMAGE_UPLOAD_MAX_BYTES, IMAGE_UPLOAD_MAX_FILES, IMAGE_UPLOAD_TTL_SECONDS, PUBLIC_BASE_URL } from "./config";
+import { imageTitleProblem } from "./propstack/howto";
 import { PropstackClient, PropstackError } from "./propstack-client";
 import { beginWrite, finishWrite } from "./write-log";
 import type { ToolOutput } from "./tools/read-tools";
@@ -19,7 +20,6 @@ const FILE_FIELDS = ["image[photo]", "photo", "file", "image", "images[]"];
 // Bildtitel je Datei, in derselben Reihenfolge (How-to: Bilder müssen in Propstack benannt sein, z. B. „Außenansicht“).
 // Bewusst kein Titel aus dem Dateinamen: Dateien aus Exposés heißen oft nach dem Eigentümer – das stünde dann im Exposé.
 const TITLE_FIELDS = ["title", "titles[]", "image[title]"];
-const TITLE_MAX = 100;
 
 type Target = { type: "Property" | "Project"; id: number };
 
@@ -141,10 +141,14 @@ export async function handleImageUpload(request: Request, env: Env, options: Upl
 	for (const field of TITLE_FIELDS) {
 		for (const value of form.getAll(field)) if (typeof value === "string") titles.push(value.replace(/\s+/g, " ").trim());
 	}
-	if (titles.length && titles.length !== files.length) {
-		return json(400, { error: `${titles.length} Titel für ${files.length} Bilder – je Bild genau ein title, in derselben Reihenfolge. Nichts hochgeladen.` });
+	// Streng nach How-to: Bilder müssen benannt sein – ohne Titel wird nichts hochgeladen
+	if (titles.length !== files.length) {
+		return json(400, {
+			error: `${titles.length} Titel für ${files.length} Bilder – je Bild genau ein title in derselben Reihenfolge, z. B. -F "image[photo]=@bild.jpg" -F "title=Außenansicht". Nichts hochgeladen.`,
+		});
 	}
-	if (titles.some((t) => !t || t.length > TITLE_MAX)) return json(400, { error: `Bildtitel leer oder länger als ${TITLE_MAX} Zeichen. Nichts hochgeladen.` });
+	const titleProblems = titles.map(imageTitleProblem).filter(Boolean);
+	if (titleProblems.length) return json(400, { error: "Nichts hochgeladen.", problems: titleProblems });
 
 	// Alles vorab prüfen – lieber nichts hochladen als die Hälfte
 	const checked: { file: File; type: string; title?: string }[] = [];
@@ -223,8 +227,6 @@ export async function handleImageUpload(request: Request, env: Env, options: Upl
 		images: uploaded,
 		errors: errors.length ? errors : undefined,
 		remaining_on_this_url: Math.max(0, remaining),
-		note: titles.length
-			? "Grundrisse in Propstack als Grundriss kennzeichnen."
-			: "Ohne Titel hochgeladen – Bilder in Propstack benennen (z. B. „Außenansicht“) oder beim nächsten Mal je Bild -F \"title=…\" mitgeben. Grundrisse als Grundriss kennzeichnen.",
+		note: "Grundrisse in Propstack als Grundriss kennzeichnen.",
 	});
 }

@@ -301,14 +301,30 @@ export interface TextFindings {
 }
 
 /**
- * Prüft exposé-sichtbare Texte. Fehler = eindeutig gegen die Team-Regeln (wird vor dem Schreiben abgewiesen),
- * Hinweise = bitte prüfen (stehen im Ergebnis und in der Prüfaufgabe).
+ * Die Straße so, wie sie geschrieben wird (Groß-/Kleinschreibung zählt, Straße/Strasse/Str. gleichwertig).
+ * „Am Hafen“ als Adresse wird erkannt, „direkt am Hafen“ im Fließtext nicht.
+ */
+function streetPattern(street: string | undefined): RegExp | undefined {
+	const trimmed = (street ?? "").trim();
+	if (trimmed.length < 5) return undefined;
+	const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+	const suffix = /(stra(?:ß|ss)e|str\.?)$/i.exec(trimmed);
+	const base = suffix ? trimmed.slice(0, suffix.index) : trimmed;
+	const body = escape(base).replace(/\s+/g, "\\s+") + (suffix ? "(?:[Ss]tra(?:ß|ss)e|[Ss]tr\\.?)" : "");
+	return new RegExp(`(?<![\\p{L}\\p{N}])${body}(?![\\p{L}\\p{N}])`, "u");
+}
+
+/**
+ * Prüft exposé-sichtbare Texte – streng nach Team-How-to (Vorgabe Oguzhan/Florian, 10.11.2026).
+ * Fehler = gegen die Regeln (wird vor dem Schreiben abgewiesen), Hinweise = bitte prüfen (stehen im
+ * Ergebnis und in der Prüfaufgabe).
  */
 export function checkExposeTexts(texts: Raw, context: TextContext = {}): TextFindings {
 	const errors: string[] = [];
 	const warnings: string[] = [];
 	const cityTokens = new Set(normalizeText(context.city).split(" "));
 	const street = normalizeStreet(context.street);
+	const exactStreet = streetPattern(context.street);
 	for (const [key, label] of Object.entries(TEXT_LABELS)) {
 		const text = texts[key];
 		if (typeof text !== "string" || !text.trim()) continue;
@@ -336,10 +352,23 @@ export function checkExposeTexts(texts: Raw, context: TextContext = {}): TextFin
 		if (key === "furnishing_note" && !text.includes("\n") && (text.match(LIST_SEPARATOR) ?? []).length >= 2) {
 			errors.push("Ausstattung: bitte als Aufzählung schreiben – eine Zeile je Punkt, beginnend mit „- “, nicht als Komma-Kette.");
 		}
-		if (key === "location_note" && !/\bkm\b/i.test(text)) {
-			warnings.push("Lage: keine Entfernungen in km – laut How-to Liste der Entfernungen zu Autobahnen, Bundesstraßen, ÖPNV, Häfen und Flughäfen.");
+		if (key === "location_note") {
+			const distances = (text.match(/\bkm\b/gi) ?? []).length;
+			if (!distances) {
+				errors.push(
+					"Lage: es fehlen die Entfernungen in km. Laut How-to stichpunktartige Liste zu Autobahnen, Bundesstraßen, ÖPNV, Häfen und Flughäfen. Sind die Entfernungen nicht belegt: Lage weglassen und als offenen Punkt melden – nichts schätzen.",
+				);
+			} else if (distances >= 2 && !text.includes("\n")) {
+				errors.push("Lage: die Entfernungen bitte als Liste schreiben – eine Zeile je Ziel, gruppiert nach Autobahnen, Bundesstraßen, ÖPNV, Häfen, Flughäfen.");
+			}
 		}
-		if (street.length >= 6 && normalizeStreet(text).includes(street)) {
+		// Adresse: in Beschreibung, Lage, Ausstattung, Sonstigem und Unterzeile ein Fehler (Rückmeldung Oguzhan);
+		// in der Überschrift nur ein Hinweis (Bestandstitel führen die Straße zur Unterscheidung)
+		const streetNamed = exactStreet?.test(text) ?? false;
+		const streetLoose = street.length >= 6 && normalizeStreet(text).includes(street);
+		if (streetNamed && key !== "title") {
+			errors.push(`${label}: nennt die Straße „${context.street}“ – die Adresse darf in Exposé-Texten nicht vorkommen.`);
+		} else if (streetNamed || streetLoose) {
 			warnings.push(`${label}: nennt die Straße „${context.street}“ – die Adresse gehört nicht in Exposé-Texte.`);
 		}
 	}
@@ -352,17 +381,33 @@ export function throwOnTextErrors(findings: TextFindings): void {
 
 /**
  * „(XX)“ in Überschrift bzw. Name = erste zwei Ziffern der PLZ (How-to: „Logistikhalle in (2-stellige PLZ) Ort“).
- * Falsche Ziffern → Fehler; fehlt die Angabe ganz → Hinweis.
+ * Falsche Ziffern → immer Fehler. Fehlt die Angabe: Fehler (strict, eigene Angabe) oder Hinweis (warn, z. B. vom
+ * Projekt übernommener Alttitel).
  */
-export function checkZipPrefix(label: string, text: unknown, zip: unknown, warnIfAbsent = true): { error?: string; warning?: string } {
+export function checkZipPrefix(label: string, text: unknown, zip: unknown, mode: "strict" | "warn" = "strict"): { error?: string; warning?: string } {
 	if (typeof text !== "string" || typeof zip !== "string" || zip.trim().length < 2) return {};
 	const expected = zip.trim().slice(0, 2);
 	const found = /\((\d{2})\)/.exec(text);
 	if (found && found[1] !== expected) {
 		return { error: `${label} „${text}“: (${found[1]}) passt nicht zur PLZ ${zip.trim()} – richtig wäre (${expected}).` };
 	}
-	if (!found && warnIfAbsent) return { warning: `${label} ohne „(${expected})“ – Format laut How-to: „Logistikhalle in (${expected}) Ort“.` };
+	if (!found) {
+		const message = `${label} „${text}“ ohne „(${expected})“ – Format laut How-to: „Logistikhalle in (${expected}) Ort“.`;
+		return mode === "strict" ? { error: message } : { warning: message };
+	}
 	return {};
+}
+
+/** Bildtitel (How-to: Bilder müssen in Propstack benannt sein, z. B. „Außenansicht“). Liefert den Mangel oder undefined. */
+export function imageTitleProblem(title: unknown): string | undefined {
+	const text = typeof title === "string" ? title.replace(/\s+/g, " ").trim() : "";
+	if (!text) return "Titel fehlt";
+	if (text.length > 100) return "Titel länger als 100 Zeichen";
+	if (!/\p{L}{3}/u.test(text)) return `„${text}“ ist kein Titel (z. B. „Außenansicht“)`;
+	if (/\.(jpe?g|png|webp|pdf)$/i.test(text) || /^(img|dsc|dscn|pxl|image|scan|screenshot)[\s_-]*\d+/i.test(text)) {
+		return `„${text}“ ist ein Dateiname, kein Titel (z. B. „Außenansicht“)`;
+	}
+	return undefined;
 }
 
 /** Name und Firma eines Kontakts für die Eigentümer-Prüfung. */

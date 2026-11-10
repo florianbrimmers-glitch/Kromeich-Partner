@@ -401,7 +401,7 @@ describe("create_object / update_object", () => {
 		marketing_type: "RENT" as const,
 		rs_type: "INDUSTRY",
 		street: "Schlebuscher Straße",
-		title: "MCP Test Halle",
+		title: "Logistikhalle in (51) Leverkusen",
 		unit_id: "Unit 9",
 		zip_code: "51381",
 	};
@@ -477,7 +477,7 @@ describe("create_object / update_object", () => {
 		const posted = unit.posted();
 		expect(posted).not.toHaveProperty("other_note");
 		expect(posted).not.toHaveProperty("object_type");
-		expect(posted).toMatchObject({ group_ids: [999], price_on_inquiry: true, title: "MCP Test Halle" });
+		expect(posted).toMatchObject({ group_ids: [999], price_on_inquiry: true, title: "Logistikhalle in (51) Leverkusen" });
 		expect(posted.partial_custom_fields).toMatchObject({
 			bemerkung: "Angelegt über Claude (Propstack MCP) von Florian Brimmers am 2026-10-14.",
 			hallenhohe: 10.5,
@@ -486,7 +486,7 @@ describe("create_object / update_object", () => {
 		// Gesamtfläche = Halle + Mezzanine (How-to), wenn nicht angegeben
 		expect(unit.puts).toEqual([{ rs_category: "HALL" }, { industrial_area: 5863 }, { property_status_id: 163672 }, { broker_id: 347158 }, { total_floor_space: 5863 }]);
 		expect(out.result).toMatchObject({ derived: ["total_floor_space = Hallenfläche + Mezzaninefläche"] });
-		expect(out.result).toMatchObject({ created: true, id: 900, title: "MCP Test Halle" });
+		expect(out.result).toMatchObject({ created: true, id: 900, title: "Logistikhalle in (51) Leverkusen" });
 		expect((out.result as { not_applied?: string[] }).not_applied).toBeUndefined();
 		expect((out.result as { not_verifiable?: string[] }).not_verifiable).toBeUndefined();
 		expect(sleeps).toContain(1500);
@@ -968,6 +968,10 @@ describe("create_object / update_object – Team-How-to", () => {
 		await expect(createObject(deps, { ...standalone, description_note: "Für 6,80 €/m² zu mieten." })).rejects.toThrow(/enthält einen Preis/);
 		await expect(createObject(deps, { ...standalone, furnishing_note: "LED, Sprinkler, Rampen" })).rejects.toThrow(/Aufzählung/);
 		await expect(createObject(deps, { ...standalone, title: "Logistikhalle in (33) Herford" })).rejects.toThrow(/\(33\) passt nicht zur PLZ 32052/);
+		// streng nach How-to: Überschrift ohne „(XX)“, Lage ohne km, Adresse im Text
+		await expect(createObject(deps, { ...standalone, title: "Moderne Logistikhalle" })).rejects.toThrow(/ohne „\(32\)“/);
+		await expect(createObject(deps, { ...standalone, location_note: "Sehr gute Anbindung." })).rejects.toThrow(/es fehlen die Entfernungen in km/);
+		await expect(createObject(deps, { ...standalone, description_note: "Halle an der Röntgenstraße 8." })).rejects.toThrow(/die Adresse darf in Exposé-Texten nicht vorkommen/);
 		expect(w.calls.some((c) => c.method === "createUnit")).toBe(false);
 		// Alttext des Projekts blockiert die Einheit nicht, wird aber gemeldet
 		const out = await createObject(deps, { marketing_type: "RENT", owner_contact_id: 111, project_id: 604473, rs_type: "INDUSTRY", unit_id: "Unit 3" });
@@ -979,9 +983,13 @@ describe("create_object / update_object – Team-How-to", () => {
 	it("update_object: nur Koordinaten ändern funktioniert (vorher fälschlich als „nichts geändert“ abgebrochen)", async () => {
 		const w = world();
 		Object.assign(w.stored, { marketing_type: "RENT", title: "Halle" });
-		const { db, updates } = fakeDb();
+		Object.assign(w.coords, { lat: 50.4367, lng: 7.7047 });
+		const { db, rows, updates } = fakeDb();
 		const out = await updateObject({ client: w.client, db, now: NOW, sleep, user: USER }, { id: 900, lat: 50.4109821, lng: 7.6811256 });
 		expect(w.coords).toEqual({ lat: 50.4109821, lng: 7.6811256 });
+		// Write-Log: Stand vorher und Anfrage enthalten die Koordinaten (Korrektur an Bestandsobjekten nachvollziehbar)
+		expect(JSON.parse(rows[0][7] as string)).toEqual({ lat: 50.4367, lng: 7.7047 });
+		expect(JSON.parse(rows[0][8] as string)).toMatchObject({ lat: 50.4109821, lng: 7.6811256 });
 		expect(out.result).toMatchObject({ changed: ["lat/lng"], coordinates: { source: "angegeben", verified: true }, updated: true });
 		expect(updates[0]?.[0]).toBe("done");
 	});
