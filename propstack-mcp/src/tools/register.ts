@@ -309,7 +309,7 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
 	);
 	register(
 		"undo_plan",
-		"Ausgeführten Plan RÜCKGÄNGIG machen (bis 7 Tage danach). Stellt je Datensatz den Stand vorher her – aber nur Felder, die seitdem niemand anders geändert hat; diese werden übersprungen und gemeldet. Bemerkungen werden nie zurückgesetzt. Läuft in Etappen wie apply_plan.",
+		"Ausgeführten Plan RÜCKGÄNGIG machen (bis 7 Tage danach). Stellt je Datensatz den Stand vorher her – aber nur Felder, die seitdem niemand anders geändert hat; diese werden übersprungen und unter problems gemeldet. Die Bemerkung (Änderungsprotokoll) wird nie zurückgesetzt: Hat die Sammeländerung dort einen Vermerk hinterlassen (z. B. beim Angleichen der Gebäudefläche), hängt undo_plan einen Vermerk über das Rückgängigmachen an. Läuft in Etappen wie apply_plan.",
 		planIdInput,
 		true,
 		undoPlan,
