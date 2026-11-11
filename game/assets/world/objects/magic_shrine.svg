@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Schrein der Magie: ein Zauber
+     Erzeugt von tools/gen_map_objects.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <ellipse cx="32" cy="57" rx="16" ry="5" fill="#000" opacity="0.40"/>
+  <rect x="18.0" y="48.0" width="28.0" height="7.0" rx="0" fill="#5e5868" stroke="#241c12" stroke-width="2.0"/>
+  <polygon points="24.0,48.0 27.0,12.0 32.0,6.0 37.0,12.0 40.0,48.0" fill="#7a7490" stroke="#241c12" stroke-width="2.0" stroke-linejoin="round"/>
+  <polygon points="24.0,48.0 27.0,12.0 32.0,6.0 32.0,48.0" fill="#9a94b0" stroke="#241c12" stroke-width="0.0" stroke-linejoin="round"/>
+  <path d="M 32 18 L 32 38 M 26 24 L 38 32 M 38 24 L 26 32" stroke="#8ad0ff" stroke-width="2.5" fill="none"/>
+</svg>

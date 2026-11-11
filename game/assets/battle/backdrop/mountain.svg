@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Kampf-Kulisse mountain (Ferne, ueber dem Gitter)
+     Erzeugt von tools/gen_battle_art.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 540 200" width="540" height="200">
+  <rect x="0" y="10" width="540" height="19" fill="#615d58" opacity="0.040"/>
+  <rect x="0" y="28" width="540" height="19" fill="#615d58" opacity="0.075"/>
+  <rect x="0" y="45" width="540" height="19" fill="#615d58" opacity="0.110"/>
+  <rect x="0" y="63" width="540" height="19" fill="#615d58" opacity="0.145"/>
+  <rect x="0" y="81" width="540" height="19" fill="#615d58" opacity="0.180"/>
+  <rect x="0" y="99" width="540" height="19" fill="#615d58" opacity="0.215"/>
+  <rect x="0" y="116" width="540" height="19" fill="#615d58" opacity="0.250"/>
+  <polygon points="0,200 0,75 77,56 154,36 231,29 309,75 386,48 463,29 540,50 540,200" fill="#2a2826" opacity="0.45"/>
+  <polygon points="0,200 0,95 60,77 120,68 180,77 240,107 300,75 360,64 420,102 480,99 540,67 540,200" fill="#2a2826" opacity="0.62"/>
+  <rect x="0" y="40" width="540" height="26" fill="#615d58" opacity="0.06"/>
+  <rect x="0" y="66" width="540" height="26" fill="#615d58" opacity="0.06"/>
+  <rect x="0" y="130" width="540" height="70" fill="#524f4b" opacity="0.35"/>
+  <polygon points="0,200 0,134 60,69 120,42 180,33 240,133 300,130 360,52 420,109 480,135 540,80 540,200" fill="#2a2826" opacity="0.85"/>
+  <polygon points="0,200 0,152 60,124 120,108 180,95 240,145 300,129 360,95 420,128 480,148 540,89 540,200" fill="#42403d" opacity="0.95"/>
+  <polygon points="256,150 297,82 338,150" fill="#524f4b" opacity="0.9"/>
+  <polygon points="284,105 297,82 311,105" fill="#cfd6dc" opacity="0.55"/>
+  <polygon points="482,150 508,107 534,150" fill="#524f4b" opacity="0.9"/>
+  <polygon points="500,122 508,107 517,122" fill="#cfd6dc" opacity="0.55"/>
+  <polygon points="279,150 308,103 336,150" fill="#524f4b" opacity="0.9"/>
+  <polygon points="298,119 308,103 317,119" fill="#cfd6dc" opacity="0.55"/>
+  <polygon points="311,150 338,106 365,150" fill="#524f4b" opacity="0.9"/>
+  <polygon points="329,121 338,106 347,121" fill="#cfd6dc" opacity="0.55"/>
+</svg>

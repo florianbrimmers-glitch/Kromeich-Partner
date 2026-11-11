@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Kampfboden forest, Variante 4
+     Erzeugt von tools/gen_battle_art.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <rect width="64" height="64" fill="#22381f"/>
+  <ellipse cx="22.1" cy="23.1" rx="20.0" ry="8.9" fill="#2e4a28" opacity="0.30"/>
+  <ellipse cx="41.4" cy="37.4" rx="18.4" ry="11.0" fill="#2e4a28" opacity="0.21"/>
+  <ellipse cx="35.7" cy="45.4" rx="13.5" ry="5.6" fill="#2e4a28" opacity="0.28"/>
+  <g stroke="#3c5c33" stroke-width="2.4" stroke-linecap="round" opacity="0.16">
+    <line x1="45.1" y1="20.7" x2="42.6" y2="12.7"/>
+    <line x1="50.1" y1="20.7" x2="52.6" y2="12.7"/>
+  </g>
+</svg>

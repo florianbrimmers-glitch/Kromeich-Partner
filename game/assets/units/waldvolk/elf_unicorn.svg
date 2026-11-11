@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Kampf-Token Einhorn (elf_unicorn), Stufe 5.
+     Generiert von tools/gen_unit_sprites.py - nicht per Hand editieren,
+     sondern den Generator anpassen und neu laufen lassen. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <ellipse cx="64.0" cy="117.0" rx="34.0" ry="7" fill="#000" opacity="0.42"/>
+  <g transform="translate(64.0,114.0) scale(0.96) translate(-64.0,-114.0)">
+  <polygon points="39.6,86.0 50.4,86.0 47.8,100.0 45.7,107.0 40.3,107.0 39.9,100.0" fill="#478647" stroke="#122312" stroke-width="2.2" stroke-linejoin="round"/>
+  <polygon points="39.6,106.0 46.4,106.0 47.1,114.0 38.9,114.0" fill="#356435" stroke="#122312" stroke-width="2.0" stroke-linejoin="round"/>
+  <polygon points="75.6,86.0 86.4,86.0 85.8,100.0 85.7,107.0 80.3,107.0 77.9,100.0" fill="#478647" stroke="#122312" stroke-width="2.2" stroke-linejoin="round"/>
+  <polygon points="79.6,106.0 86.4,106.0 87.1,114.0 78.9,114.0" fill="#356435" stroke="#122312" stroke-width="2.0" stroke-linejoin="round"/>
+  <polygon points="35.0,88.0 47.0,88.0 46.2,101.0 46.0,107.0 40.0,107.0 37.4,101.0" fill="#5eb25e" stroke="#122312" stroke-width="2.2" stroke-linejoin="round"/>
+  <polygon points="39.2,106.0 46.8,106.0 47.6,114.0 38.4,114.0" fill="#356435" stroke="#122312" stroke-width="2.0" stroke-linejoin="round"/>
+  <polygon points="79.0,88.0 91.0,88.0 88.2,101.0 86.0,107.0 80.0,107.0 79.4,101.0" fill="#5eb25e" stroke="#122312" stroke-width="2.2" stroke-linejoin="round"/>
+  <polygon points="79.2,106.0 86.8,106.0 87.6,114.0 78.4,114.0" fill="#356435" stroke="#122312" stroke-width="2.0" stroke-linejoin="round"/>
+  <path d="M 29.0 68.0 q -14.0 14 -12.0 26" fill="none" stroke="#67c367" stroke-width="7.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 26.0 77.0 Q 24.0 70.0 40.0 66.4 L 68.0 64.0 Q 85.0 64.0 87.0 75.7 Q 88.0 88.0 70.0 90.0 L 42.0 90.0 Q 25.0 89.0 26.0 77.0 Z" fill="#5eb25e" stroke="#122312" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <ellipse cx="41.0" cy="78.0" rx="13.0" ry="10.9" fill="#478647"/>
+  <ellipse cx="69.0" cy="77.0" rx="12.0" ry="10.4" fill="#a2e6a2"/>
+  <polygon points="67.5,68.0 84.5,70.0 102.5,42.0 89.5,38.0" fill="#5eb25e" stroke="#122312" stroke-width="2.2" stroke-linejoin="round"/>
+  <path d="M 80.0 46.0 q 4.8 -19.2 27.2 -4.8 l 4.8 17.6 Z" fill="#a2e6a2" stroke="#122312" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <polygon points="101.6,26.0 109.6,29.2 124.0,6.8" fill="#67c367" stroke="#122312" stroke-width="2.0" stroke-linejoin="round"/>
+  <ellipse cx="103.2" cy="35.6" rx="2.7" ry="3.2" fill="#122312"/>
+  </g>
+  <circle cx="46.0" cy="122.0" r="2.6" fill="#a2e6a2" opacity="0.75"/>
+  <circle cx="55.0" cy="122.0" r="2.6" fill="#a2e6a2" opacity="0.75"/>
+  <circle cx="64.0" cy="122.0" r="2.6" fill="#a2e6a2" opacity="0.75"/>
+  <circle cx="73.0" cy="122.0" r="2.6" fill="#a2e6a2" opacity="0.75"/>
+  <circle cx="82.0" cy="122.0" r="2.6" fill="#a2e6a2" opacity="0.75"/>
+</svg>

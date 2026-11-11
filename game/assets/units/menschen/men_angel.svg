@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Kampf-Token Engel (men_angel), Stufe 7.
+     Generiert von tools/gen_unit_sprites.py - nicht per Hand editieren,
+     sondern den Generator anpassen und neu laufen lassen. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <ellipse cx="64.0" cy="117.0" rx="38.8" ry="7" fill="#000" opacity="0.42"/>
+  <g transform="translate(64.0,114.0) scale(1.00) translate(-64.0,-114.0)">
+  <polygon points="54.0,38.0 34.3,14.0 20.2,26.0 28.6,34.0 54.0,50.0" fill="#f7e692" stroke="#27230e" stroke-width="2.0" stroke-linejoin="round"/>
+  <polygon points="54.0,43.0 20.2,24.0 10.8,36.0 19.2,44.0 54.0,55.0" fill="#f7e692" stroke="#27230e" stroke-width="2.0" stroke-linejoin="round"/>
+  <polygon points="54.0,48.0 10.8,38.0 7.0,50.0 15.5,58.0 54.0,60.0" fill="#968637" stroke="#27230e" stroke-width="2.0" stroke-linejoin="round"/>
+  <polygon points="74.0,38.0 93.7,14.0 107.8,26.0 99.4,34.0 74.0,50.0" fill="#f7e692" stroke="#27230e" stroke-width="2.0" stroke-linejoin="round"/>
+  <polygon points="74.0,43.0 107.8,24.0 117.2,36.0 108.8,44.0 74.0,55.0" fill="#f7e692" stroke="#27230e" stroke-width="2.0" stroke-linejoin="round"/>
+  <polygon points="74.0,48.0 117.2,38.0 121.0,50.0 112.5,58.0 74.0,60.0" fill="#968637" stroke="#27230e" stroke-width="2.0" stroke-linejoin="round"/>
+  <polygon points="45.5,80.0 54.5,80.0 54.5,110.0 57.5,114.0 42.5,114.0" fill="#968637" stroke="#27230e" stroke-width="2.5" stroke-linejoin="round"/>
+  <polygon points="73.5,80.0 82.5,80.0 82.5,110.0 85.5,114.0 70.5,114.0" fill="#968637" stroke="#27230e" stroke-width="2.5" stroke-linejoin="round"/>
+  <polygon points="39.0,52.0 89.0,52.0 79.0,82.0 49.0,82.0" fill="#c7b249" stroke="#27230e" stroke-width="2.5" stroke-linejoin="round"/>
+  <polygon points="52.8,56.0 75.2,56.0 71.5,74.0 56.5,74.0" fill="#f7e692" stroke="#27230e" stroke-width="1.8" stroke-linejoin="round"/>
+  <ellipse cx="64.0" cy="34.0" rx="18.0" ry="18.9" fill="#f7e692" stroke="#27230e" stroke-width="2.5"/>
+  <ellipse cx="57.7" cy="32.2" rx="2.3" ry="2.9" fill="#27230e"/>
+  <ellipse cx="70.3" cy="32.2" rx="2.3" ry="2.9" fill="#27230e"/>
+  <ellipse cx="64.0" cy="7.0" rx="18.9" ry="6.5" fill="none" stroke="#dac350" stroke-width="4"/>
+  <polygon points="92.0,60.0 100.0,58.0 104.0,16.0 95.0,18.0" fill="#c8d2dc" stroke="#27230e" stroke-width="2.0" stroke-linejoin="round"/>
+  <polygon points="87.0,60.0 105.0,57.0 106.0,65.0 88.0,68.0" fill="#dac350" stroke="#27230e" stroke-width="2.0" stroke-linejoin="round"/>
+  </g>
+  <circle cx="37.0" cy="122.0" r="2.6" fill="#f7e692" opacity="0.75"/>
+  <circle cx="46.0" cy="122.0" r="2.6" fill="#f7e692" opacity="0.75"/>
+  <circle cx="55.0" cy="122.0" r="2.6" fill="#f7e692" opacity="0.75"/>
+  <circle cx="64.0" cy="122.0" r="2.6" fill="#f7e692" opacity="0.75"/>
+  <circle cx="73.0" cy="122.0" r="2.6" fill="#f7e692" opacity="0.75"/>
+  <circle cx="82.0" cy="122.0" r="2.6" fill="#f7e692" opacity="0.75"/>
+  <circle cx="91.0" cy="122.0" r="2.6" fill="#f7e692" opacity="0.75"/>
+</svg>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Arena: Angriff oder Verteidigung
+     Erzeugt von tools/gen_map_objects.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <ellipse cx="32" cy="57" rx="23" ry="5" fill="#000" opacity="0.40"/>
+  <ellipse cx="32.0" cy="42.0" rx="24.0" ry="13.0" fill="#b3aa98" stroke="#241c12" stroke-width="2.0"/>
+  <ellipse cx="32.0" cy="40.0" rx="16.0" ry="7.0" fill="#c9b47a" stroke="#241c12" stroke-width="1.5"/>
+  <rect x="9.5" y="44.0" width="5.0" height="7.0" rx="0" fill="#3a2a18" stroke="#241c12" stroke-width="1.0"/>
+  <rect x="19.5" y="44.0" width="5.0" height="7.0" rx="0" fill="#3a2a18" stroke="#241c12" stroke-width="1.0"/>
+  <rect x="29.5" y="44.0" width="5.0" height="7.0" rx="0" fill="#3a2a18" stroke="#241c12" stroke-width="1.0"/>
+  <rect x="39.5" y="44.0" width="5.0" height="7.0" rx="0" fill="#3a2a18" stroke="#241c12" stroke-width="1.0"/>
+  <rect x="49.5" y="44.0" width="5.0" height="7.0" rx="0" fill="#3a2a18" stroke="#241c12" stroke-width="1.0"/>
+  <line x1="26.0" y1="30.0" x2="38.0" y2="42.0" stroke="#c8d2dc" stroke-width="3.0" stroke-linecap="round"/>
+  <line x1="38.0" y1="30.0" x2="26.0" y2="42.0" stroke="#c8d2dc" stroke-width="3.0" stroke-linecap="round"/>
+</svg>

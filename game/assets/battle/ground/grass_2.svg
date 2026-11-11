@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Kampfboden grass, Variante 2
+     Erzeugt von tools/gen_battle_art.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <rect width="64" height="64" fill="#2e4728"/>
+  <ellipse cx="25.2" cy="42.3" rx="13.3" ry="4.8" fill="#3c5c33" opacity="0.29"/>
+  <ellipse cx="15.2" cy="37.8" rx="25.7" ry="12.9" fill="#3c5c33" opacity="0.30"/>
+  <ellipse cx="43.7" cy="44.6" rx="15.5" ry="7.4" fill="#3c5c33" opacity="0.18"/>
+</svg>

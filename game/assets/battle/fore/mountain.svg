@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Kampf-Vordergrund mountain (unter dem Gitter)
+     Erzeugt von tools/gen_battle_art.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 540 130" width="540" height="130">
+  <defs><linearGradient id="fg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#42403d"/><stop offset="1" stop-color="#2a2826"/></linearGradient></defs>
+  <rect width="540" height="130" fill="url(#fg)"/>
+  <rect x="0" y="0" width="540" height="6" fill="#2a2826" opacity="0.6"/>
+  <polygon points="524,130 533,92 556,99 564,130" fill="#2a2826"/>
+  <polygon points="108,130 120,99 150,105 160,130" fill="#2a2826"/>
+  <polygon points="477,130 486,105 509,110 517,130" fill="#2a2826"/>
+  <polygon points="467,130 479,107 508,111 519,130" fill="#2a2826"/>
+  <polygon points="112,130 119,100 139,106 146,130" fill="#2a2826"/>
+  <polygon points="241,130 250,92 272,100 280,130" fill="#2a2826"/>
+  <polygon points="-35,130 -23,95 7,102 17,130" fill="#2a2826"/>
+  <polygon points="305,130 312,98 331,105 337,130" fill="#2a2826"/>
+  <polygon points="487,130 497,107 523,112 532,130" fill="#2a2826"/>
+</svg>

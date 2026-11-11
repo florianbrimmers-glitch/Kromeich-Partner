@@ -1,0 +1,168 @@
+{
+  "$schema_version": 1,
+  "$notes": "Helden-Skill-Baum. 8 Primary-Skills, 12 Secondary-Skills. Pro Level-Up bekommt der Held 1 Primary-Stat-Increment + 1 Secondary-Pick (2 Optionen, RNG-gesteuert ueber Seed). Equilibris-Prinzip: keine Must-Pick-Skills, alle haben sinnvolle Tradeoffs.",
+
+  "primary_skills": [
+    {
+      "id": "attack",
+      "name": "Angriff",
+      "per_level_bonus": 0.05,
+      "stat_effect": "hero_att",
+      "description": "+1 Hero-Angriff je Stufe. Erhoeht Schaden aller eigenen Stacks."
+    },
+    {
+      "id": "defense",
+      "name": "Verteidigung",
+      "per_level_bonus": 0.05,
+      "stat_effect": "hero_def",
+      "description": "+1 Hero-Verteidigung je Stufe. Reduziert Schaden von Gegner-Stacks."
+    },
+    {
+      "id": "spell_power",
+      "name": "Zauberkraft",
+      "per_level_bonus": 1,
+      "stat_effect": "hero_spell_power",
+      "description": "+1 Spell-Power. Erhoeht Schaden von Damage-Spells und Dauer von Buffs."
+    },
+    {
+      "id": "knowledge",
+      "name": "Wissen",
+      "per_level_bonus": 10,
+      "stat_effect": "hero_spell_points_max",
+      "description": "+10 max. Spell-Points. Erlaubt mehr Spells pro Kampf."
+    }
+  ],
+
+  "secondary_skills": [
+    {
+      "id": "leadership",
+      "name": "Fuehrung",
+      "tiers": [
+        { "level": 1, "effect": "morale_+1" },
+        { "level": 2, "effect": "morale_+2" },
+        { "level": 3, "effect": "morale_+3" }
+      ],
+      "conflicts_with": ["necromancy"],
+      "balance_source": "HoMM3 Leadership; Conflict mit Necromancy macht Menschen/Totenreich zu klaren Gegensaetzen."
+    },
+    {
+      "id": "necromancy",
+      "name": "Totenerweckung",
+      "tiers": [
+        { "level": 1, "effect": "raise_skeletons_10pct_of_kills" },
+        { "level": 2, "effect": "raise_skeletons_20pct_of_kills" },
+        { "level": 3, "effect": "raise_skeletons_30pct_of_kills" }
+      ],
+      "conflicts_with": ["leadership"],
+      "balance_source": "HoMM3 Necromancy. 30 Prozent statt 50 Prozent (Equilibris-Stil); Cap kommt durch Chalice-Artefakt."
+    },
+    {
+      "id": "wisdom",
+      "name": "Weisheit",
+      "tiers": [
+        { "level": 1, "effect": "learn_spells_up_to_level_2" },
+        { "level": 2, "effect": "learn_spells_up_to_level_3" },
+        { "level": 3, "effect": "learn_spells_up_to_level_4" }
+      ],
+      "balance_source": "HoMM3 Wisdom. Level-5-Spells nur mit Crown_of_Elements (relic)."
+    },
+    {
+      "id": "logistics",
+      "name": "Logistik",
+      "tiers": [
+        { "level": 1, "effect": "hero_move_+10pct" },
+        { "level": 2, "effect": "hero_move_+20pct" },
+        { "level": 3, "effect": "hero_move_+30pct" }
+      ],
+      "balance_source": "HoMM3 Logistics. Max +30 Prozent (HoMM3: +50 Prozent); Equilibris-Nerf damit Logistik nicht Pflicht ist."
+    },
+    {
+      "id": "pathfinding",
+      "name": "Wegfindung",
+      "tiers": [
+        { "level": 1, "effect": "rough_terrain_cost_-25pct" },
+        { "level": 2, "effect": "rough_terrain_cost_-50pct" },
+        { "level": 3, "effect": "rough_terrain_cost_ignored" }
+      ],
+      "balance_source": "HoMM3 Pathfinding."
+    },
+    {
+      "id": "scouting",
+      "name": "Aufklaeren",
+      "tiers": [
+        { "level": 1, "effect": "reveal_radius_+1" },
+        { "level": 2, "effect": "reveal_radius_+2" },
+        { "level": 3, "effect": "reveal_enemy_armies_in_radius" }
+      ],
+      "balance_source": "HoMM3 Scouting, leicht verstaerkt auf Stufe 3."
+    },
+    {
+      "id": "archery",
+      "name": "Bogenkampf",
+      "tiers": [
+        { "level": 1, "effect": "ranged_dmg_+10pct" },
+        { "level": 2, "effect": "ranged_dmg_+25pct" },
+        { "level": 3, "effect": "ranged_dmg_+50pct" }
+      ],
+      "balance_source": "HoMM3 Archery; identisch (Ranged-Balance kommt ueber Unit-Shots)."
+    },
+    {
+      "id": "offense",
+      "name": "Offensive",
+      "tiers": [
+        { "level": 1, "effect": "melee_dmg_+10pct" },
+        { "level": 2, "effect": "melee_dmg_+25pct" },
+        { "level": 3, "effect": "melee_dmg_+40pct" }
+      ],
+      "balance_source": "HoMM3 Offense; +40 Prozent statt +50 auf Stufe 3 (Equilibris-Nerf)."
+    },
+    {
+      "id": "armorer",
+      "name": "Ruestungskunde",
+      "tiers": [
+        { "level": 1, "effect": "dmg_taken_-5pct" },
+        { "level": 2, "effect": "dmg_taken_-10pct" },
+        { "level": 3, "effect": "dmg_taken_-15pct" }
+      ],
+      "balance_source": "HoMM3 Armorer; max -15 Prozent (HoMM3: -20 Prozent)."
+    },
+    {
+      "id": "tactics",
+      "name": "Taktik",
+      "tiers": [
+        { "level": 1, "effect": "pre_battle_move_rows_1" },
+        { "level": 2, "effect": "pre_battle_move_rows_2" },
+        { "level": 3, "effect": "pre_battle_move_rows_3" }
+      ],
+      "balance_source": "HoMM3 Tactics."
+    },
+    {
+      "id": "mysticism",
+      "name": "Mystizismus",
+      "tiers": [
+        { "level": 1, "effect": "sp_regen_per_day_+1" },
+        { "level": 2, "effect": "sp_regen_per_day_+2" },
+        { "level": 3, "effect": "sp_regen_per_day_+3" }
+      ],
+      "balance_source": "HoMM3 Mysticism."
+    },
+    {
+      "id": "estates",
+      "name": "Verwaltung",
+      "tiers": [
+        { "level": 1, "effect": "income_gold_per_day_+125" },
+        { "level": 2, "effect": "income_gold_per_day_+250" },
+        { "level": 3, "effect": "income_gold_per_day_+500" }
+      ],
+      "balance_source": "HoMM3 Estates; max +500 (HoMM3: +1000); Gold-Inflation vermeiden."
+    }
+  ],
+
+  "level_up_policy": {
+    "primary_pool_per_level": ["attack", "defense", "spell_power", "knowledge"],
+    "secondary_offer_count": 2,
+    "max_secondary_slots": 8,
+    "max_secondary_tier": 3,
+    "exp_per_level": [0, 1000, 2500, 4500, 7000, 10000, 14000, 19000, 25000, 32000]
+  }
+}

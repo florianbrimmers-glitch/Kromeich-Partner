@@ -1,0 +1,229 @@
+name: Android APK Build
+
+# Trigger:
+# - workflow_dispatch: manueller Start ueber GitHub-UI. Funktioniert nur
+#   wenn die Workflow-Datei auf dem Default-Branch (main) liegt. Solange
+#   das noch nicht der Fall ist, laeuft der Build via push-Trigger unten.
+# - push: bei jedem Push auf die aktive Feature-Branch, begrenzt auf
+#   aenderungen im game/ Verzeichnis oder am Workflow selbst, damit
+#   nicht jeder Kontakt-Import-Commit den Android-Build kostet.
+on:
+  workflow_dispatch:
+    inputs:
+      build_type:
+        description: 'debug oder release'
+        required: true
+        default: 'debug'
+        type: choice
+        options:
+          - debug
+          - release
+  push:
+    branches:
+      - 'claude/heroes-mobile-game-**'
+    paths:
+      - 'game/**'
+      - '.github/workflows/game-android-build.yml'
+
+env:
+  # Godot 4.6 stable, Standard-Edition (kein Mono). .NET-Runtime crasht
+  # stumm auf Android 15 + Snapdragon 8 Elite (Samsung S25 Ultra), auch
+  # unter 4.4.1 und 4.5. Wir bauen die APK darum komplett ohne C# - die
+  # Spiel-Logik liegt jetzt in GDScript. Die .cs-Dateien bleiben fuer
+  # Desktop-Unit-Tests und den Balance-Simulator (siehe tests/).
+  GODOT_VERSION: 4.6
+  GODOT_STATUS: stable
+
+jobs:
+  # Pflicht-Gate: jeder Push landet als APK auf latest-mobile beim Nutzer.
+  # Ohne gruene Tests wird daher gar nicht erst gebaut.
+  tests:
+    name: Headless-Tests (Gate)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cache Godot binary
+        id: godot-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/godot-bin
+          key: godot-${{ env.GODOT_VERSION }}-${{ env.GODOT_STATUS }}-linux
+      - name: Download Godot
+        if: steps.godot-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p ~/godot-bin
+          curl -sL -o ~/godot-bin/godot.zip \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-${GODOT_STATUS}/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64.zip"
+          unzip -o ~/godot-bin/godot.zip -d ~/godot-bin
+          chmod +x ~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64
+      - name: Import + Tests
+        run: |
+          GODOT=~/godot-bin/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64
+          $GODOT --headless --path game/ --import || true
+          $GODOT --headless --path game/ --import
+          $GODOT --headless --path game/ --script tools/test_core_logic.gd
+          $GODOT --headless --path game/ --script tools/test_city_screen.gd
+          $GODOT --headless --path game/ --script tools/test_save_load.gd
+          $GODOT --headless --path game/ --script tools/test_new_game.gd
+          $GODOT --headless --path game/ --script tools/test_wallet.gd
+          $GODOT --headless --path game/ --script tools/test_ai_smoke.gd
+          $GODOT --headless --path game/ --script tools/test_battle.gd
+          $GODOT --headless --path game/ --script tools/test_siege.gd
+          $GODOT --headless --path game/ --script tools/test_garrison.gd
+
+  android-apk:
+    name: Godot -> APK (arm64-v8a)
+    runs-on: ubuntu-latest
+    needs: tests
+    # contents: write -> wir publizieren die APK als GitHub-Release-Asset
+    # (siehe letzter Step). Releases zaehlen NICHT gegen die Artifact-
+    # Storage-Quota und liefern einen konstanten Download-Link, der nach
+    # jedem Build aktualisiert wird.
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      # packages: '' ist KEIN Schoenheitsfehler, sondern die Reparatur.
+      #
+      # Die Action installiert ohne diese Angabe standardmaessig
+      # "tools platform-tools". Das Paket `tools` hat Google inzwischen aus
+      # dem SDK-Repository genommen; sdkmanager meldet dann
+      # "Failed to find package 'tools'" und bricht mit Code 1 ab - der
+      # Build war rot, bevor eine einzige Zeile Spielcode angefasst wurde.
+      # Am 6.9. lief derselbe Workflow noch gruen, am 24.9. nicht mehr:
+      # eine Aenderung an Googles Seite, nicht an unserer.
+      #
+      # Was wir wirklich brauchen, steht ohnehin eine Stufe weiter unten
+      # und wird dort ausdruecklich installiert.
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: 11076708
+          packages: ''
+
+      - name: Install Android build tools
+        run: |
+          sdkmanager --install "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+          echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+
+      - name: Download Godot headless
+        run: |
+          curl -L -o godot.zip \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-${GODOT_STATUS}/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64.zip"
+          unzip -q godot.zip
+          ln -s "Godot_v${GODOT_VERSION}-${GODOT_STATUS}_linux.x86_64" godot
+
+      - name: Download Godot export templates
+        run: |
+          curl -L -o templates.zip \
+            "https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-${GODOT_STATUS}/Godot_v${GODOT_VERSION}-${GODOT_STATUS}_export_templates.tpz"
+          mkdir -p ~/.local/share/godot/export_templates
+          unzip -q templates.zip -d ./templates-extracted
+          mv ./templates-extracted/templates ~/.local/share/godot/export_templates/${GODOT_VERSION}.${GODOT_STATUS}
+
+      - name: Create debug keystore
+        run: |
+          mkdir -p ~/.android
+          keytool -keyalg RSA -genkeypair -alias androiddebugkey \
+            -keypass android -keystore ~/.android/debug.keystore \
+            -storepass android -dname "CN=Android Debug,O=Android,C=US" \
+            -validity 9999 -deststoretype pkcs12
+
+      - name: Configure Godot Editor settings for Android
+        run: |
+          mkdir -p ~/.config/godot
+          cat > ~/.config/godot/editor_settings-4.tres <<EOF
+          [gd_resource type="EditorSettings" format=3]
+          [resource]
+          export/android/android_sdk_path = "${ANDROID_HOME}"
+          export/android/java_sdk_path = "${JAVA_HOME}"
+          export/android/debug_keystore = "${HOME}/.android/debug.keystore"
+          export/android/debug_keystore_user = "androiddebugkey"
+          export/android/debug_keystore_pass = "android"
+          EOF
+
+      - name: Import project (headless)
+        working-directory: game
+        run: |
+          ../godot --headless --import || true
+          ../godot --headless --import
+
+      - name: Install Android build template (Gradle Custom Build)
+        working-directory: game
+        timeout-minutes: 3
+        run: |
+          # Godot 4.x --install-android-build-template haengt im headless-
+          # Modus. Workaround: android_source.zip aus den Export-Templates
+          # direkt nach android/build/ entpacken.
+          TEMPLATE_DIR="$HOME/.local/share/godot/export_templates/${GODOT_VERSION}.${GODOT_STATUS}"
+          ls -la "$TEMPLATE_DIR"
+          mkdir -p android/build
+          unzip -q -o "$TEMPLATE_DIR/android_source.zip" -d android/build/
+          touch android/build/.gdignore
+          echo "${GODOT_VERSION}.${GODOT_STATUS}" > android/.build_version
+          ls -la android/build/ | head -10
+          cat android/.build_version
+
+      - name: Export Android APK
+        working-directory: game
+        timeout-minutes: 15
+        env:
+          BUILD_TYPE: ${{ github.event.inputs.build_type || 'debug' }}
+        run: |
+          mkdir -p build
+          if [ "$BUILD_TYPE" = "release" ]; then
+            ../godot --headless --export-release "Android" build/KromeichHeroes.apk
+          else
+            ../godot --headless --export-debug "Android" build/KromeichHeroes.apk
+          fi
+          ls -la build/
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: KromeichHeroes-${{ github.event.inputs.build_type || 'debug' }}-${{ github.sha }}
+          path: game/build/*.apk
+          # Storage-Quota auf GitHub Free ist eng (500 MB). 28 MB/APK *
+          # viele Commits sprengt das schnell - siehe Run 27363969609,
+          # der genau daran scheiterte. Lieber kurze Retention; aktuelle
+          # APK liegt sowieso schon lokal beim Tester.
+          retention-days: 3
+        # if-no-files-found NICHT auf error setzen - der Release-Step unten
+        # ist jetzt der primaere Liefer-Kanal. Artifact bleibt fuer 3 Tage
+        # als Backup, schlaegt aber bei voller Quota nicht den Build ab.
+        continue-on-error: true
+
+      - name: Rolling Release "latest-mobile" mit APK aktualisieren
+        # Faengt den Quota-Fall ab: Releases zaehlen nicht gegen die
+        # Artifact-Storage-Quota und liefern einen stabilen Download-Link
+        # https://github.com/<owner>/<repo>/releases/tag/latest-mobile
+        # Bei jedem Build wird der Tag verschoben und die APK ueberschrieben.
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest-mobile
+          name: "Aktueller mobiler Build (auto, ${{ github.ref_name }})"
+          body: |
+            Automatisch generierte APK fuer Branch `${{ github.ref_name }}`
+            Commit: ${{ github.sha }}
+            Build-Typ: ${{ github.event.inputs.build_type || 'debug' }}
+
+            Wird bei jedem Push/Run-Workflow ueberschrieben.
+          files: game/build/*.apk
+          make_latest: false
+          prerelease: true
+
+      - name: Upload Godot logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: godot-logs-${{ github.sha }}
+          path: |
+            ~/.local/share/godot/app_userdata/**/logs/
+          retention-days: 7

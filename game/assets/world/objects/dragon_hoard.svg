@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Drachenhort: Kreaturenbank
+     Erzeugt von tools/gen_map_objects.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <ellipse cx="32" cy="57" rx="23" ry="5" fill="#000" opacity="0.40"/>
+  <path d="M 4 54 Q 8 22 30 16 Q 56 18 60 54 Z" fill="#5a5048" stroke="#241c12" stroke-width="2"/>
+  <path d="M 18 54 Q 32 32 46 54 Z" fill="#1a1612" stroke="#241c12" stroke-width="1.5"/>
+  <ellipse cx="32.0" cy="52.0" rx="12.0" ry="4.0" fill="#e6c247" stroke="#241c12" stroke-width="1.2"/>
+  <polygon points="30.0,18.0 44.0,4.0 42.0,14.0 52.0,8.0 46.0,20.0" fill="#8a2f26" stroke="#241c12" stroke-width="1.5" stroke-linejoin="round"/>
+</svg>

@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Oase: Bewegung
+     Erzeugt von tools/gen_map_objects.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <ellipse cx="32" cy="57" rx="20" ry="5" fill="#000" opacity="0.40"/>
+  <ellipse cx="32.0" cy="48.0" rx="20.0" ry="7.0" fill="#d6c08a" stroke="#241c12" stroke-width="2.0"/>
+  <ellipse cx="32.0" cy="48.0" rx="14.0" ry="4.5" fill="#4a8ab0" stroke="#241c12" stroke-width="1.5"/>
+  <line x1="40.0" y1="48.0" x2="34.0" y2="16.0" stroke="#7a5a30" stroke-width="4.0" stroke-linecap="round"/>
+  <line x1="34.0" y1="16.0" x2="20.0" y2="20.0" stroke="#3f7a2a" stroke-width="4.0" stroke-linecap="round"/>
+  <line x1="34.0" y1="16.0" x2="48.0" y2="22.0" stroke="#3f7a2a" stroke-width="4.0" stroke-linecap="round"/>
+  <line x1="34.0" y1="16.0" x2="24.0" y2="10.0" stroke="#3f7a2a" stroke-width="4.0" stroke-linecap="round"/>
+  <line x1="34.0" y1="16.0" x2="44.0" y2="10.0" stroke="#3f7a2a" stroke-width="4.0" stroke-linecap="round"/>
+  <line x1="34.0" y1="16.0" x2="34.0" y2="6.0" stroke="#3f7a2a" stroke-width="4.0" stroke-linecap="round"/>
+</svg>

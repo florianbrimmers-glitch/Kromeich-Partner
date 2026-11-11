@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Erzeugt von tools/gen_city_buildings.py - nicht von Hand editieren.
+     Bodenraute-Mitte bei y=288 (CityScreen SPRITE_GROUND_FRAC 0.56). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<polygon points="81.1,294.0 256.0,206.6 430.9,294.0 256.0,381.4" fill="#000000" opacity="0.30"/>
+<polygon points="91.0,288.0 256.0,370.5 256.0,282.5 91.0,200.0" fill="#a8874f" stroke="#1f2a14" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="256.0,370.5 421.0,288.0 421.0,200.0 256.0,282.5" fill="#7b6034" stroke="#1f2a14" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="256.0,117.5 421.0,200.0 256.0,282.5 91.0,200.0" fill="#3b7130" stroke="#1f2a14" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="166.0,200.0 256.0,245.0 256.0,137.0 166.0,92.0" fill="#a8874f" stroke="#1f2a14" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="256.0,245.0 346.0,200.0 346.0,92.0 256.0,137.0" fill="#7b6034" stroke="#1f2a14" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="256.0,47.0 346.0,92.0 256.0,137.0 166.0,92.0" fill="#3b7130" stroke="#1f2a14" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="166.0,92.0 256.0,47.0 256.0,38.0" fill="#4f9040" stroke="#1f2a14" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="256.0,47.0 346.0,92.0 256.0,38.0" fill="#3b7130" stroke="#1f2a14" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="346.0,92.0 256.0,137.0 256.0,38.0" fill="#2a5122" stroke="#1f2a14" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="256.0,137.0 166.0,92.0 256.0,38.0" fill="#3b7130" stroke="#1f2a14" stroke-width="2.0" stroke-linejoin="round"/>
+<path d="M 230.0 294.0 L 230.0 252.2 A 26.0 34.2 0 0 1 282.0 252.2 L 282.0 294.0 Z" fill="#5c4527" stroke="#1f2a14" stroke-width="2"/>
+<line x1="110.0" y1="156.0" x2="110.0" y2="282.0" stroke="#1f2a14" stroke-width="5"/>
+<polygon points="110.0,156.0 164.0,172.0 110.0,190.0" fill="#c8a24a" stroke="#1f2a14" stroke-width="2.0" stroke-linejoin="round"/>
+<line x1="386.0" y1="156.0" x2="386.0" y2="282.0" stroke="#1f2a14" stroke-width="5"/>
+<polygon points="386.0,156.0 440.0,172.0 386.0,190.0" fill="#c8a24a" stroke="#1f2a14" stroke-width="2.0" stroke-linejoin="round"/>
+<rect x="175.0" y="196.0" width="22.0" height="30.0" rx="9.9" fill="#ffe89a" stroke="#1f2a14" stroke-width="2"/>
+<rect x="245.0" y="196.0" width="22.0" height="30.0" rx="9.9" fill="#ffe89a" stroke="#1f2a14" stroke-width="2"/>
+<rect x="315.0" y="196.0" width="22.0" height="30.0" rx="9.9" fill="#ffe89a" stroke="#1f2a14" stroke-width="2"/>
+<ellipse cx="101.0" cy="297.0" rx="26.0" ry="17.2" fill="#356328"/>
+<ellipse cx="79.0" cy="302.0" rx="19.0" ry="12.5" fill="#356328"/>
+<ellipse cx="115.0" cy="303.0" rx="16.0" ry="10.6" fill="#356328"/>
+<ellipse cx="97.0" cy="294.0" rx="26.0" ry="17.2" fill="#6fa74b"/>
+<ellipse cx="75.0" cy="299.0" rx="19.0" ry="12.5" fill="#6fa74b"/>
+<ellipse cx="111.0" cy="300.0" rx="16.0" ry="10.6" fill="#6fa74b"/>
+<path d="M 97.0 280.0 Q 111.0 236.0 101.0 198.0" fill="none" stroke="#356328" stroke-width="5" stroke-linecap="round"/>
+<ellipse cx="105.0" cy="260.0" rx="13" ry="8" fill="#6fa74b"/>
+<ellipse cx="107.0" cy="234.0" rx="13" ry="8" fill="#6fa74b"/>
+<ellipse cx="109.0" cy="208.0" rx="13" ry="8" fill="#6fa74b"/>
+<ellipse cx="419.0" cy="297.0" rx="26.0" ry="17.2" fill="#356328"/>
+<ellipse cx="441.0" cy="302.0" rx="19.0" ry="12.5" fill="#356328"/>
+<ellipse cx="405.0" cy="303.0" rx="16.0" ry="10.6" fill="#356328"/>
+<ellipse cx="415.0" cy="294.0" rx="26.0" ry="17.2" fill="#6fa74b"/>
+<ellipse cx="437.0" cy="299.0" rx="19.0" ry="12.5" fill="#6fa74b"/>
+<ellipse cx="401.0" cy="300.0" rx="16.0" ry="10.6" fill="#6fa74b"/>
+<path d="M 415.0 280.0 Q 401.0 236.0 411.0 198.0" fill="none" stroke="#356328" stroke-width="5" stroke-linecap="round"/>
+<ellipse cx="407.0" cy="260.0" rx="13" ry="8" fill="#6fa74b"/>
+<ellipse cx="405.0" cy="234.0" rx="13" ry="8" fill="#6fa74b"/>
+<ellipse cx="403.0" cy="208.0" rx="13" ry="8" fill="#6fa74b"/>
+</svg>

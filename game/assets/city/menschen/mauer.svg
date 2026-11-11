@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Erzeugt von tools/gen_city_buildings.py - nicht von Hand editieren.
+     Bodenraute-Mitte bei y=288 (CityScreen SPRITE_GROUND_FRAC 0.56). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<ellipse cx="256.0" cy="298.0" rx="156.4" ry="18.0" fill="#000000" opacity="0.30"/>
+<polygon points="131.0,288.0 131.0,196.0 381.0,196.0 381.0,288.0" fill="#c9b184" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="131.0,196.0 381.0,196.0 381.0,174.1 131.0,174.1" fill="#5e7290" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<line x1="131.0" y1="218.0" x2="381.0" y2="218.0" stroke="#2c2418" stroke-width="2" opacity="0.45"/>
+<line x1="131.0" y1="242.0" x2="381.0" y2="242.0" stroke="#2c2418" stroke-width="2" opacity="0.45"/>
+<line x1="131.0" y1="266.0" x2="381.0" y2="266.0" stroke="#2c2418" stroke-width="2" opacity="0.45"/>
+<polygon points="152.0,174.1 180.0,174.1 180.0,148.1 152.0,148.1" fill="#c9b184" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="182.0,174.1 210.0,174.1 210.0,148.1 182.0,148.1" fill="#c9b184" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="212.0,174.1 240.0,174.1 240.0,148.1 212.0,148.1" fill="#c9b184" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="242.0,174.1 270.0,174.1 270.0,148.1 242.0,148.1" fill="#c9b184" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="272.0,174.1 300.0,174.1 300.0,148.1 272.0,148.1" fill="#c9b184" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="302.0,174.1 330.0,174.1 330.0,148.1 302.0,148.1" fill="#c9b184" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="332.0,174.1 360.0,174.1 360.0,148.1 332.0,148.1" fill="#c9b184" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="63.0,288.0 63.0,138.0 131.0,138.0 131.0,288.0" fill="#c9b184" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="109.0,288.0 109.0,138.0 131.0,138.0 131.0,288.0" fill="#9a8460" opacity="0.60"/>
+<ellipse cx="97.0" cy="138.0" rx="34" ry="13" fill="#4a5a72" stroke="#2c2418" stroke-width="2"/>
+<polygon points="64.0,134.0 82.0,134.0 82.0,110.0 64.0,110.0" fill="#c9b184" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="88.0,134.0 106.0,134.0 106.0,110.0 88.0,110.0" fill="#c9b184" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="112.0,134.0 130.0,134.0 130.0,110.0 112.0,110.0" fill="#c9b184" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="381.0,288.0 381.0,138.0 449.0,138.0 449.0,288.0" fill="#c9b184" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="427.0,288.0 427.0,138.0 449.0,138.0 449.0,288.0" fill="#9a8460" opacity="0.60"/>
+<ellipse cx="415.0" cy="138.0" rx="34" ry="13" fill="#4a5a72" stroke="#2c2418" stroke-width="2"/>
+<polygon points="382.0,134.0 400.0,134.0 400.0,110.0 382.0,110.0" fill="#c9b184" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="406.0,134.0 424.0,134.0 424.0,110.0 406.0,110.0" fill="#c9b184" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="430.0,134.0 448.0,134.0 448.0,110.0 430.0,110.0" fill="#c9b184" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+
+</svg>

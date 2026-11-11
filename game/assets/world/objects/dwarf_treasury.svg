@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Zwergenschatz: Kreaturenbank
+     Erzeugt von tools/gen_map_objects.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <ellipse cx="32" cy="57" rx="22" ry="5" fill="#000" opacity="0.40"/>
+  <path d="M 6 54 Q 10 18 32 12 Q 54 18 58 54 Z" fill="#7a7468" stroke="#241c12" stroke-width="2"/>
+  <rect x="22.0" y="30.0" width="20.0" height="24.0" rx="0" fill="#3a2a18" stroke="#241c12" stroke-width="1.5"/>
+  <rect x="20.0" y="27.0" width="24.0" height="5.0" rx="0" fill="#c9a24a" stroke="#241c12" stroke-width="1.5"/>
+  <ellipse cx="14.0" cy="52.0" rx="7.0" ry="3.0" fill="#e6c247" stroke="#241c12" stroke-width="1.2"/>
+  <ellipse cx="50.0" cy="52.0" rx="7.0" ry="3.0" fill="#e6c247" stroke="#241c12" stroke-width="1.2"/>
+</svg>

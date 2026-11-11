@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Brunnen: Mana auffuellen
+     Erzeugt von tools/gen_map_objects.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <ellipse cx="32" cy="57" rx="19" ry="5" fill="#000" opacity="0.40"/>
+  <ellipse cx="32.0" cy="46.0" rx="17.0" ry="8.0" fill="#6b665f" stroke="#241c12" stroke-width="2.0"/>
+  <ellipse cx="32.0" cy="45.0" rx="11.0" ry="5.0" fill="#2f5b6b" stroke="#241c12" stroke-width="1.5"/>
+  <rect x="15.0" y="38.0" width="34.0" height="10.0" rx="2" fill="#7d776e" stroke="#241c12" stroke-width="2.0"/>
+  <rect x="15.0" y="18.0" width="6.0" height="22.0" rx="0" fill="#6b5330" stroke="#241c12" stroke-width="1.5"/>
+  <rect x="43.0" y="18.0" width="6.0" height="22.0" rx="0" fill="#6b5330" stroke="#241c12" stroke-width="1.5"/>
+  <polygon points="10.0,20.0 32.0,8.0 54.0,20.0" fill="#8a5a34" stroke="#241c12" stroke-width="2.0" stroke-linejoin="round"/>
+  <polygon points="10.0,20.0 32.0,8.0 32.0,20.0" fill="#a87a4c" stroke="#241c12" stroke-width="0.0" stroke-linejoin="round"/>
+  <line x1="32.0" y1="20.0" x2="32.0" y2="30.0" stroke="#241c12" stroke-width="1.5" stroke-linecap="round"/>
+  <rect x="28.0" y="30.0" width="8.0" height="7.0" rx="0" fill="#5c4326" stroke="#241c12" stroke-width="1.5"/>
+</svg>

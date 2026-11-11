@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Uebergangs-Franse top (weiss, wird eingefaerbt)
+     Erzeugt von tools/gen_world_tiles.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <path d="M 0 0 L 0.0 7.5 L 8.0 13.7 L 16.0 14.7 L 24.0 10.3 L 32.0 4.3 L 40.0 1.5 L 48.0 4.3 L 56.0 10.3 L 64.0 7.5 L 64 0 Z" fill="#ffffff" opacity="0.30"/>
+  <path d="M 0 0 L 0.0 3.5 L 8.0 5.4 L 16.0 2.5 L 24.0 0.8 L 32.0 1.6 L 40.0 4.3 L 48.0 6.6 L 56.0 6.7 L 64.0 3.5 L 64 0 Z" fill="#ffffff" opacity="0.52"/>
+</svg>

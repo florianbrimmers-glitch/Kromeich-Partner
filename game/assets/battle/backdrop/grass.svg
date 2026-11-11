@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Kampf-Kulisse grass (Ferne, ueber dem Gitter)
+     Erzeugt von tools/gen_battle_art.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 540 200" width="540" height="200">
+  <rect x="0" y="10" width="540" height="19" fill="#4a6b3d" opacity="0.040"/>
+  <rect x="0" y="28" width="540" height="19" fill="#4a6b3d" opacity="0.075"/>
+  <rect x="0" y="45" width="540" height="19" fill="#4a6b3d" opacity="0.110"/>
+  <rect x="0" y="63" width="540" height="19" fill="#4a6b3d" opacity="0.145"/>
+  <rect x="0" y="81" width="540" height="19" fill="#4a6b3d" opacity="0.180"/>
+  <rect x="0" y="99" width="540" height="19" fill="#4a6b3d" opacity="0.215"/>
+  <rect x="0" y="116" width="540" height="19" fill="#4a6b3d" opacity="0.250"/>
+  <polygon points="0,200 0,48 77,67 154,23 231,57 309,77 386,22 463,13 540,56 540,200" fill="#1d2f1a" opacity="0.45"/>
+  <polygon points="0,200 0,87 60,99 120,78 180,78 240,97 300,77 360,66 420,100 480,81 540,72 540,200" fill="#1d2f1a" opacity="0.62"/>
+  <rect x="0" y="40" width="540" height="26" fill="#4a6b3d" opacity="0.06"/>
+  <rect x="0" y="66" width="540" height="26" fill="#4a6b3d" opacity="0.06"/>
+  <rect x="0" y="130" width="540" height="70" fill="#3c5c33" opacity="0.35"/>
+  <polygon points="0,200 0,103 60,89 120,88 180,93 240,106 300,105 360,85 420,95 480,105 540,98 540,200" fill="#1d2f1a" opacity="0.90"/>
+  <ellipse cx="41" cy="115" rx="14" ry="12" fill="#2e4728" stroke="#1d2f1a" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="88" cy="116" rx="13" ry="11" fill="#2e4728" stroke="#1d2f1a" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="160" cy="113" rx="19" ry="16" fill="#2e4728" stroke="#1d2f1a" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="208" cy="115" rx="14" ry="12" fill="#2e4728" stroke="#1d2f1a" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="274" cy="114" rx="16" ry="13" fill="#2e4728" stroke="#1d2f1a" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="322" cy="115" rx="13" ry="11" fill="#2e4728" stroke="#1d2f1a" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="402" cy="115" rx="14" ry="12" fill="#2e4728" stroke="#1d2f1a" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="446" cy="113" rx="18" ry="16" fill="#2e4728" stroke="#1d2f1a" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="504" cy="112" rx="20" ry="17" fill="#2e4728" stroke="#1d2f1a" stroke-width="1.5" opacity="0.95"/>
+  <polygon points="0,200 0,127 60,110 120,110 180,124 240,127 300,122 360,108 420,121 480,129 540,118 540,200" fill="#2e4728" opacity="0.90"/>
+  <ellipse cx="24" cy="132" rx="23" ry="20" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="61" cy="134" rx="20" ry="17" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="116" cy="132" rx="24" ry="20" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="156" cy="135" rx="19" ry="16" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="199" cy="132" rx="23" ry="20" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="235" cy="130" rx="27" ry="23" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="304" cy="135" rx="18" ry="16" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="329" cy="134" rx="19" ry="16" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="381" cy="131" rx="26" ry="22" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="437" cy="132" rx="25" ry="21" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="460" cy="135" rx="18" ry="15" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="511" cy="133" rx="23" ry="20" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+  <polygon points="0,200 0,148 60,141 120,126 180,132 240,147 300,144 360,131 420,135 480,146 540,131 540,200" fill="#2e4728" opacity="0.90"/>
+  <ellipse cx="13" cy="150" rx="31" ry="27" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="40" cy="155" rx="22" ry="19" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="77" cy="154" rx="24" ry="20" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="121" cy="153" rx="27" ry="23" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="150" cy="150" rx="32" ry="28" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="191" cy="149" rx="33" ry="28" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="227" cy="154" rx="23" ry="20" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="257" cy="154" rx="25" ry="21" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="292" cy="154" rx="23" ry="20" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="353" cy="151" rx="30" ry="26" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="365" cy="153" rx="25" ry="21" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="412" cy="150" rx="32" ry="27" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="439" cy="155" rx="21" ry="18" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="491" cy="153" rx="27" ry="23" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+  <ellipse cx="518" cy="152" rx="27" ry="23" fill="#3c5c33" stroke="#2e4728" stroke-width="1.5" opacity="0.95"/>
+</svg>

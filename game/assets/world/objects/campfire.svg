@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Lagerfeuer: Gold und Ressourcen
+     Erzeugt von tools/gen_map_objects.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <ellipse cx="32" cy="57" rx="18" ry="5" fill="#000" opacity="0.40"/>
+  <ellipse cx="32.0" cy="50.0" rx="15.0" ry="5.0" fill="#6b665f" stroke="#241c12" stroke-width="2.0"/>
+  <line x1="20.0" y1="52.0" x2="32.0" y2="40.0" stroke="#5c4326" stroke-width="4.0" stroke-linecap="round"/>
+  <line x1="44.0" y1="52.0" x2="32.0" y2="40.0" stroke="#5c4326" stroke-width="4.0" stroke-linecap="round"/>
+  <polygon points="24.0,48.0 28.0,30.0 32.0,38.0 36.0,22.0 40.0,48.0" fill="#e8782c" stroke="#241c12" stroke-width="1.5" stroke-linejoin="round"/>
+  <polygon points="28.0,48.0 31.0,36.0 34.0,42.0 36.0,48.0" fill="#ffd35a" stroke="#241c12" stroke-width="0.0" stroke-linejoin="round"/>
+  <rect x="44.0" y="42.0" width="10.0" height="10.0" rx="2" fill="#c9a24a" stroke="#241c12" stroke-width="1.5"/>
+</svg>

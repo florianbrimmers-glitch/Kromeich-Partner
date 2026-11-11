@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Krypta: Kreaturenbank
+     Erzeugt von tools/gen_map_objects.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <ellipse cx="32" cy="57" rx="21" ry="5" fill="#000" opacity="0.40"/>
+  <rect x="16.0" y="26.0" width="32.0" height="28.0" rx="0" fill="#5e5a66" stroke="#241c12" stroke-width="2.0"/>
+  <polygon points="13.0,28.0 32.0,12.0 51.0,28.0" fill="#4a4652" stroke="#241c12" stroke-width="2.0" stroke-linejoin="round"/>
+  <path d="M 26 54 L 26 40 Q 32 32 38 40 L 38 54 Z" fill="#141018" stroke="#241c12" stroke-width="1.5"/>
+  <rect x="5.0" y="44.0" width="6.0" height="10.0" rx="2" fill="#7d776e" stroke="#241c12" stroke-width="1.2"/>
+  <rect x="51.0" y="44.0" width="6.0" height="10.0" rx="2" fill="#7d776e" stroke="#241c12" stroke-width="1.2"/>
+  <line x1="32.0" y1="12.0" x2="32.0" y2="4.0" stroke="#9aa0a8" stroke-width="2.0" stroke-linecap="round"/>
+  <line x1="28.0" y1="7.0" x2="36.0" y2="7.0" stroke="#9aa0a8" stroke-width="2.0" stroke-linecap="round"/>
+</svg>

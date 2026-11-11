@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Gelaende swamp, Variante 0 von 6
+     Erzeugt von tools/gen_world_tiles.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <rect width="64" height="64" fill="#3f4e2b"/>
+  <ellipse cx="29.0" cy="32.8" rx="13.9" ry="5.8" fill="#3c4f2a" opacity="0.46"/>
+  <ellipse cx="17.4" cy="54.1" rx="8.6" ry="3.6" fill="#3c4f2a" opacity="0.52"/>
+  <circle cx="21.4" cy="43.9" r="2.5" fill="none" stroke="#8fae62" stroke-width="1.2" opacity="0.48"/>
+  <circle cx="52.9" cy="27.6" r="2.8" fill="none" stroke="#8fae62" stroke-width="1.2" opacity="0.42"/>
+  <circle cx="21.9" cy="41.0" r="3.2" fill="none" stroke="#8fae62" stroke-width="1.2" opacity="0.60"/>
+  <g stroke="#6b8442" stroke-width="1.0" stroke-linecap="round" opacity="0.45">
+    <line x1="24.1" y1="46.4" x2="24.7" y2="43.4"/>
+    <line x1="25.7" y1="46.4" x2="25.4" y2="43.2"/>
+  </g>
+  <g stroke="#6b8442" stroke-width="1.0" stroke-linecap="round" opacity="0.45">
+    <line x1="19.6" y1="39.1" x2="19.7" y2="35.2"/>
+    <line x1="21.2" y1="39.1" x2="22.2" y2="35.0"/>
+  </g>
+</svg>

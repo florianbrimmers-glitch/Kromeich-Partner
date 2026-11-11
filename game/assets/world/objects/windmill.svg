@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Windmuehle: Ressource pro Woche
+     Erzeugt von tools/gen_map_objects.py. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <ellipse cx="32" cy="57" rx="17" ry="5" fill="#000" opacity="0.40"/>
+  <polygon points="20.0,54.0 24.0,24.0 40.0,24.0 44.0,54.0" fill="#b8a47c" stroke="#241c12" stroke-width="2.0" stroke-linejoin="round"/>
+  <polygon points="20.0,54.0 24.0,24.0 32.0,24.0 32.0,54.0" fill="#d0bc94" stroke="#241c12" stroke-width="0.0" stroke-linejoin="round"/>
+  <polygon points="21.0,24.0 32.0,12.0 43.0,24.0" fill="#7a3a2c" stroke="#241c12" stroke-width="2.0" stroke-linejoin="round"/>
+  <rect x="28.0" y="44.0" width="8.0" height="10.0" rx="0" fill="#5c4326" stroke="#241c12" stroke-width="1.5"/>
+  <line x1="32.0" y1="22.0" x2="32.0" y2="4.0" stroke="#f2e8c8" stroke-width="3.0" stroke-linecap="round"/>
+  <line x1="32.0" y1="22.0" x2="50.0" y2="22.0" stroke="#f2e8c8" stroke-width="3.0" stroke-linecap="round"/>
+  <line x1="32.0" y1="22.0" x2="32.0" y2="40.0" stroke="#f2e8c8" stroke-width="3.0" stroke-linecap="round"/>
+  <line x1="32.0" y1="22.0" x2="14.0" y2="22.0" stroke="#f2e8c8" stroke-width="3.0" stroke-linecap="round"/>
+  <circle cx="32" cy="22" r="3.5" fill="#7a5a18" stroke="#241c12" stroke-width="1.5"/>
+</svg>

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Erzeugt von tools/gen_city_buildings.py - nicht von Hand editieren.
+     Bodenraute-Mitte bei y=288 (CityScreen SPRITE_GROUND_FRAC 0.56). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<polygon points="97.0,294.0 256.0,214.5 415.0,294.0 256.0,373.5" fill="#000000" opacity="0.30"/>
+<polygon points="106.0,288.0 256.0,363.0 256.0,327.0 106.0,252.0" fill="#9a9086" stroke="#2f2b26" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="256.0,363.0 406.0,288.0 406.0,252.0 256.0,327.0" fill="#6f665d" stroke="#2f2b26" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="256.0,177.0 406.0,252.0 256.0,327.0 106.0,252.0" fill="#b0a79c" stroke="#2f2b26" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="133.3,252.0 172.3,252.0 172.3,236.0 133.3,236.0" fill="#7d746a" stroke="#2f2b26" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="184.9,252.0 223.9,252.0 223.9,236.0 184.9,236.0" fill="#7d746a" stroke="#2f2b26" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="236.5,252.0 275.5,252.0 275.5,236.0 236.5,236.0" fill="#7d746a" stroke="#2f2b26" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="288.1,252.0 327.1,252.0 327.1,236.0 288.1,236.0" fill="#7d746a" stroke="#2f2b26" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="339.7,252.0 378.7,252.0 378.7,236.0 339.7,236.0" fill="#7d746a" stroke="#2f2b26" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="118.0,296.0 118.0,194.0 130.0,194.0 130.0,296.0" fill="#8a6c3d" stroke="#2f2b26" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="382.0,296.0 382.0,194.0 394.0,194.0 394.0,296.0" fill="#8a6c3d" stroke="#2f2b26" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="115.0,220.0 397.0,220.0 397.0,230.0 115.0,230.0" fill="#8a6c3d" stroke="#2f2b26" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="115.0,266.0 397.0,266.0 397.0,276.0 115.0,276.0" fill="#8a6c3d" stroke="#2f2b26" stroke-width="2.0" stroke-linejoin="round"/>
+<line x1="173.5" y1="294.0" x2="173.5" y2="214.0" stroke="#2f2b26" stroke-width="5"/>
+<line x1="199.5" y1="294.0" x2="199.5" y2="214.0" stroke="#2f2b26" stroke-width="5"/>
+<line x1="173.5" y1="280.0" x2="199.5" y2="280.0" stroke="#2f2b26" stroke-width="4"/>
+<line x1="173.5" y1="254.0" x2="199.5" y2="254.0" stroke="#2f2b26" stroke-width="4"/>
+<line x1="173.5" y1="228.0" x2="199.5" y2="228.0" stroke="#2f2b26" stroke-width="4"/>
+</svg>

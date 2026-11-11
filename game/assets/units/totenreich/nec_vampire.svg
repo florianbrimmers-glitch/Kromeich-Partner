@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Kampf-Token Vampir (nec_vampire), Stufe 4.
+     Generiert von tools/gen_unit_sprites.py - nicht per Hand editieren,
+     sondern den Generator anpassen und neu laufen lassen. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <ellipse cx="64.0" cy="117.0" rx="31.6" ry="7" fill="#000" opacity="0.42"/>
+  <ellipse cx="64.0" cy="66" rx="42" ry="48" fill="#a167cf" opacity="0.18"/>
+  <g transform="translate(64.0,114.0) scale(0.94) translate(-64.0,-114.0)">
+  <path d="M 54.0 38.0 q -18.0 -24.0 -45.0 -16.0 q 4.0 16.0 15.7 6.0 q 2.0 14.0 22.5 18.0 Z" fill="#67655b" stroke="#242320" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M 52.0 38.0 L 21.2 23.0" fill="none" stroke="#242320" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 74.0 38.0 q 18.0 -24.0 45.0 -16.0 q -4.0 16.0 -15.7 6.0 q -2.0 14.0 -22.5 18.0 Z" fill="#67655b" stroke="#242320" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M 76.0 38.0 L 106.8 23.0" fill="none" stroke="#242320" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <polygon points="48.5,80.0 57.5,80.0 57.5,110.0 60.5,114.0 45.5,114.0" fill="#8b887b" stroke="#242320" stroke-width="2.5" stroke-linejoin="round"/>
+  <polygon points="70.5,80.0 79.5,80.0 79.5,110.0 82.5,114.0 67.5,114.0" fill="#8b887b" stroke="#242320" stroke-width="2.5" stroke-linejoin="round"/>
+  <polygon points="46.0,52.0 82.0,52.0 76.0,82.0 52.0,82.0" fill="#b8b4a3" stroke="#242320" stroke-width="2.5" stroke-linejoin="round"/>
+  <polygon points="55.9,56.0 72.1,56.0 70.0,74.0 58.0,74.0" fill="#ebe7da" stroke="#242320" stroke-width="1.8" stroke-linejoin="round"/>
+  <ellipse cx="64.0" cy="33.0" rx="18.0" ry="18.9" fill="#ebe7da" stroke="#242320" stroke-width="2.5"/>
+  <ellipse cx="56.8" cy="30.3" rx="2.9" ry="3.6" fill="#a167cf"/>
+  <polygon points="59.0,38.4 54.6,38.4 56.8,48.3" fill="#ffffff" stroke="#242320" stroke-width="0.0" stroke-linejoin="round"/>
+  <ellipse cx="71.2" cy="30.3" rx="2.9" ry="3.6" fill="#a167cf"/>
+  <polygon points="69.0,38.4 73.4,38.4 71.2,48.3" fill="#ffffff" stroke="#242320" stroke-width="0.0" stroke-linejoin="round"/>
+  <path d="M 34.0 66 q -3.0 10 -1.0 20" fill="none" stroke="#242320" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M 29.0 66 q -3.0 10 -1.0 20" fill="none" stroke="#242320" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M 24.0 66 q -3.0 10 -1.0 20" fill="none" stroke="#242320" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M 94.0 66 q 3.0 10 1.0 20" fill="none" stroke="#242320" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M 99.0 66 q 3.0 10 1.0 20" fill="none" stroke="#242320" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M 104.0 66 q 3.0 10 1.0 20" fill="none" stroke="#242320" stroke-width="3.5" stroke-linejoin="round" stroke-linecap="round"/>
+  </g>
+  <circle cx="50.5" cy="122.0" r="2.6" fill="#ebe7da" opacity="0.75"/>
+  <circle cx="59.5" cy="122.0" r="2.6" fill="#ebe7da" opacity="0.75"/>
+  <circle cx="68.5" cy="122.0" r="2.6" fill="#ebe7da" opacity="0.75"/>
+  <circle cx="77.5" cy="122.0" r="2.6" fill="#ebe7da" opacity="0.75"/>
+</svg>

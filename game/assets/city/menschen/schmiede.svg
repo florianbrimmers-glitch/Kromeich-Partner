@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Erzeugt von tools/gen_city_buildings.py - nicht von Hand editieren.
+     Bodenraute-Mitte bei y=288 (CityScreen SPRITE_GROUND_FRAC 0.56). -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+<polygon points="107.6,294.0 256.0,219.8 404.4,294.0 256.0,368.2" fill="#000000" opacity="0.30"/>
+<polygon points="116.0,288.0 256.0,358.0 256.0,258.0 116.0,188.0" fill="#c9b184" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="256.0,358.0 396.0,288.0 396.0,188.0 256.0,258.0" fill="#9a8460" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="256.0,118.0 396.0,188.0 256.0,258.0 116.0,188.0" fill="#4a5a72" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="256.0,46.0 256.0,118.0 116.0,188.0 256.0,258.0 256.0,186.0" fill="#5e7290" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<polygon points="256.0,46.0 256.0,118.0 396.0,188.0 256.0,258.0 256.0,186.0" fill="#374556" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<line x1="256.0" y1="46.0" x2="256.0" y2="186.0" stroke="#2c2418" stroke-width="3"/>
+<polygon points="165.0,176.0 165.0,92.0 199.0,92.0 199.0,176.0" fill="#9a8460" stroke="#2c2418" stroke-width="2.0" stroke-linejoin="round"/>
+<circle cx="189.0" cy="76.0" r="12.0" fill="#cfc6b4" opacity="0.34"/>
+<circle cx="201.0" cy="56.0" r="16.0" fill="#cfc6b4" opacity="0.25"/>
+<circle cx="213.0" cy="36.0" r="20.0" fill="#cfc6b4" opacity="0.16"/>
+<ellipse cx="256.0" cy="248.0" rx="62" ry="30" fill="#a8342c" opacity="0.45"/>
+<ellipse cx="256.0" cy="245.0" rx="30" ry="15" fill="#ffd98a" opacity="0.85"/>
+
+</svg>

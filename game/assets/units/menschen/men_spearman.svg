@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Kampf-Token Speertraeger (men_spearman), Stufe 1.
+     Generiert von tools/gen_unit_sprites.py - nicht per Hand editieren,
+     sondern den Generator anpassen und neu laufen lassen. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <ellipse cx="64.0" cy="117.0" rx="24.4" ry="7" fill="#000" opacity="0.42"/>
+  <g transform="translate(64.0,114.0) scale(0.88) translate(-64.0,-114.0)">
+  <polygon points="48.5,80.0 57.5,80.0 57.5,110.0 60.5,114.0 45.5,114.0" fill="#968637" stroke="#27230e" stroke-width="2.5" stroke-linejoin="round"/>
+  <polygon points="70.5,80.0 79.5,80.0 79.5,110.0 82.5,114.0 67.5,114.0" fill="#968637" stroke="#27230e" stroke-width="2.5" stroke-linejoin="round"/>
+  <polygon points="46.0,52.0 82.0,52.0 76.0,82.0 52.0,82.0" fill="#c7b249" stroke="#27230e" stroke-width="2.5" stroke-linejoin="round"/>
+  <polygon points="55.9,56.0 72.1,56.0 70.0,74.0 58.0,74.0" fill="#f7e692" stroke="#27230e" stroke-width="1.8" stroke-linejoin="round"/>
+  <polygon points="46.0,42.0 49.6,25.8 64.0,6.0 78.4,25.8 82.0,42.0" fill="#c8d2dc" stroke="#27230e" stroke-width="2.5" stroke-linejoin="round"/>
+  <path d="M 53.2 34.8 L 74.8 34.8" fill="none" stroke="#27230e" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M 92 30 L 76 104" fill="none" stroke="#7a5a34" stroke-width="5.0" stroke-linecap="round" stroke-linejoin="round"/>
+  <polygon points="94.0,20.0 99.0,34.0 88.0,34.0" fill="#c8d2dc" stroke="#27230e" stroke-width="2.0" stroke-linejoin="round"/>
+  <path d="M 32.0 64.0 q -13 0 -13 13 l 0 9 q 0 13 13 15 q 13 -2 13 -15 l 0 -9 q 0 -13 -13 -13 Z" fill="#dac350" stroke="#27230e" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+  <path d="M 32.0 68.0 L 32.0 96.0" fill="none" stroke="#c8d2dc" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+  <circle cx="64.0" cy="122.0" r="2.6" fill="#f7e692" opacity="0.75"/>
+</svg>
