@@ -20,6 +20,7 @@ import {
 	throwOnTextErrors,
 } from "../propstack/howto";
 import { scalar } from "../propstack/mappers";
+import { appendNote } from "../propstack/notes";
 import { linkContact, type RelationResult, type RelationRole, relationLine, ROLE_LABEL } from "../propstack/relations";
 import { CRM_BASE, createReviewTask } from "../review-task";
 import { beginWrite, finishWrite } from "../write-log";
@@ -381,7 +382,7 @@ export const updateProjectInput = {
 	furnishing_note: optionalText(10000).describe(`${TEXT_RULES.furnishing}. ${EXPOSE_VISIBLE}`),
 	public_price_confirmed: publicPriceConfirmed,
 	note_append: optionalText(4000).describe(
-		"Interne Notiz ergänzen – nur möglich, wenn Propstack die vorhandene Notiz zurückliefert. Sonst wird abgelehnt, damit nichts überschrieben wird; dann direkt in Propstack ergänzen",
+		"Interne Notiz ergänzen – nur möglich, wenn Propstack die vorhandene Notiz zurückliefert. Sonst wird abgelehnt, damit nichts überschrieben wird; dann direkt in Propstack ergänzen. Steht derselbe Text schon da, wird er nicht noch einmal angehängt",
 	),
 	custom_fields: z.record(z.string(), z.unknown()).optional().describe("Projekt-Custom-Felder {schlüssel: wert}, Schlüssel über list_fields entity=projects; null leert"),
 	lat: z.number().min(-90).max(90).optional().describe("Breitengrad – nur zusammen mit lng; geschrieben mit dem Stufen-Trick und per Einzel-GET geprüft"),
@@ -446,6 +447,7 @@ export async function updateProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 		}
 	}
 
+	const alreadyPresent: string[] = [];
 	if (input.note_append) {
 		// Der Projekt-GET liefert note nicht zurück (live 09.11.). Ohne den alten Text würde „anhängen“ ihn ersetzen.
 		if (!("note" in current)) {
@@ -455,8 +457,13 @@ export async function updateProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 			);
 		}
 		const old = String(scalar(current.note) ?? "").trim();
-		fields.note = [old, `${originNoteText(user.name, deps.now?.() ?? new Date(), "Ergänzt")}\n${input.note_append}`].filter(Boolean).join("\n\n");
-		before.note = old;
+		// Nicht doppelt: Steht derselbe Text schon in der Notiz, wird er nicht noch einmal angehängt
+		const appended = appendNote(old, originNoteText(user.name, deps.now?.() ?? new Date(), "Ergänzt"), [input.note_append]);
+		if (appended.text === undefined) alreadyPresent.push("note_append (steht schon in der internen Notiz)");
+		else {
+			fields.note = appended.text;
+			before.note = old;
+		}
 	}
 	const custom = await validateCustomFields(client, "for_projects", input.custom_fields);
 	if (custom) {
@@ -466,7 +473,10 @@ export async function updateProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 
 	const coordsRequested = input.lat !== undefined && input.lng !== undefined;
 	if (!Object.keys(fields).length && !coordsRequested && !custom) {
-		return { count: 0, result: { updated: false, id: input.id, note: "Keine Änderung – alle Werte sind bereits so gesetzt." } };
+		return {
+			count: 0,
+			result: { updated: false, id: input.id, already_present: alreadyPresent.length ? alreadyPresent : undefined, note: "Keine Änderung – alle Werte sind bereits so gesetzt." },
+		};
 	}
 	// Auch Koordinaten gehören in den Snapshot (Write-Log: Stand vorher)
 	if (coordsRequested) Object.assign(before, { lat: coordsOf(current).lat ?? null, lng: coordsOf(current).lng ?? null });
@@ -537,6 +547,7 @@ export async function updateProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 			name: scalar(actual.name),
 			changed: [...Object.keys(fields), ...Object.keys(custom?.send ?? {}).map((k) => `custom_fields.${k}`), ...(coordsRequested ? ["lat/lng"] : [])],
 			coordinates,
+			already_present: alreadyPresent.length ? alreadyPresent : undefined,
 			warnings: warnings.length ? warnings : undefined,
 			not_applied: missing.length ? missing : undefined,
 			not_verifiable: unverified.length ? unverified : undefined,

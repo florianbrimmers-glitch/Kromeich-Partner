@@ -12,6 +12,8 @@ import {
 import { ACTIVE_STATUSES } from "../config";
 import { PUBLIC_PRICE_HINT, type CustomOption, loadFieldDefs, mirroredCustomFields, validateCustomFields } from "../propstack/field-rules";
 import { areaNumber, computedTotal, MEZZANINE_KEY, showArea, totalDiffers } from "../propstack/areas";
+import { availabilityMirror, BEZUG_KEY, bezugDeviation } from "../propstack/availability";
+import { appendNote } from "../propstack/notes";
 import { scalar } from "../propstack/mappers";
 import { readUnit, UNVERIFIABLE, type UnitState, unitCustomValue, unitValue } from "../propstack/unit-state";
 import { CRM_BASE, createReviewTask } from "../review-task";
@@ -386,7 +388,7 @@ export const updateContactInput = {
 	client_status_id: id.optional().describe("Kontaktstatus-ID"),
 	add_tag_ids: tagIds.optional().describe("Merkmale hinzufügen"),
 	remove_tag_ids: tagIds.optional().describe("Merkmale entfernen"),
-	note_append: optionalText(2000).describe("Text an die Notiz anhängen (mit Datum und Nutzer); vorhandene Notiz bleibt erhalten"),
+	note_append: optionalText(2000).describe("Text an die Notiz anhängen (mit Datum und Nutzer); vorhandene Notiz bleibt erhalten. Steht derselbe Text schon da, wird er nicht noch einmal angehängt (already_present)"),
 	allow_duplicate_reason: optionalText(500).describe("Nur falls die neue E-Mail/Mobilnummer schon bei einem anderen Kontakt steht: Begründung"),
 };
 
@@ -429,16 +431,27 @@ export async function updateContact(deps: WriteDeps, input: z.infer<z.ZodObject<
 	if (addTags.length) payload.add_group_ids = addTags;
 	if (removeTags.length) payload.sub_group_ids = removeTags;
 	if (custom) payload.partial_custom_fields = custom.send;
+	// Notiz anhängen – aber nicht doppelt, wenn derselbe Text schon dasteht
+	const alreadyPresent: string[] = [];
+	let noteChanged = false;
 	if (input.note_append) {
 		const old = String(scalar(current.description) ?? "");
-		before.description = old;
-		payload.description = [old, `${originNote(user, now, "Ergänzt")}\n${input.note_append}`].filter(Boolean).join("\n\n");
+		const appended = appendNote(old, originNote(user, now, "Ergänzt"), [input.note_append]);
+		if (appended.text === undefined) alreadyPresent.push("note_append (steht schon in der Notiz)");
+		else {
+			before.description = old;
+			payload.description = appended.text;
+			noteChanged = true;
+		}
 	}
 	if (addTags.length || removeTags.length) before.tag_ids = currentTags;
 	if (custom) before.custom_fields = Object.fromEntries(Object.keys(custom.send).map((k) => [k, rawValue((current.custom_fields as Raw | undefined)?.[k])]));
 
 	if (!Object.keys(payload).length) {
-		return { count: 0, result: { updated: false, id: input.id, note: "Keine Änderung – alle Werte sind bereits so gesetzt." } };
+		return {
+			count: 0,
+			result: { updated: false, id: input.id, already_present: alreadyPresent.length ? alreadyPresent : undefined, note: "Keine Änderung – alle Werte sind bereits so gesetzt." },
+		};
 	}
 	deps.capture?.({ after: { ...fields, ...(custom ? { custom_fields: custom.send } : {}) }, before });
 
@@ -474,7 +487,8 @@ export async function updateContact(deps: WriteDeps, input: z.infer<z.ZodObject<
 			updated: true,
 			id: input.id,
 			name: scalar(actual.name),
-			changed: [...Object.keys(fields), ...(addTags.length ? ["add_tags"] : []), ...(removeTags.length ? ["remove_tags"] : []), ...(input.note_append ? ["note"] : []), ...Object.keys(custom?.send ?? {}).map((k) => `custom_fields.${k}`)],
+			changed: [...Object.keys(fields), ...(addTags.length ? ["add_tags"] : []), ...(removeTags.length ? ["remove_tags"] : []), ...(noteChanged ? ["note"] : []), ...Object.keys(custom?.send ?? {}).map((k) => `custom_fields.${k}`)],
+			already_present: alreadyPresent.length ? alreadyPresent : undefined,
 			warnings: dedupe.warnings.length ? dedupe.warnings : undefined,
 			not_applied: missing.length ? missing : undefined,
 		},
@@ -546,13 +560,15 @@ const objectFieldsShape = {
 	hall_height: num.describe("Hallenhöhe in m UKB"),
 	floor_load: num.describe("Bodentragkraft in kg/m² – Propstack hängt kg/m² selbst an (5 t/m² = 5000)"),
 	construction_year: z.number().int().min(1800).max(2100).optional().describe("Baujahr"),
-	free_from: optionalText(100).describe("Verfügbar ab (Text), z. B. „auf Anfrage“ oder „01.03.2027“"),
+	free_from: optionalText(100).describe(
+		"Verfügbar ab (Text), z. B. „sofort“, „auf Anfrage“, „Q3 2027“ oder „01.03.2027“. Die Custom-Felder „Bezug“ (gleicher Wortlaut) und „Bezug (Datum)“ (wenn der Text genau ein Datum nennt, sonst leer) zieht der Connector selbst nach – nicht zusätzlich angeben",
+	),
 	hide_address: z.boolean().optional().describe("Adresse im Exposé ausblenden"),
 	rented: z
 		.boolean()
 		.optional()
 		.describe(
-			"Vermietet ja/nein (Standard: nicht vermietet). true setzt automatisch free_from „vermietet“, status_logistik/aktiv Inaktiv und die verfügbaren Flächen auf „X m² (vermietet)“. Den Status (163676 Abgeschlossen) separat über status_id setzen",
+			"Vermietet ja/nein (Standard: nicht vermietet). true setzt automatisch free_from „vermietet“ (samt „Bezug“), status_logistik/aktiv Inaktiv und die verfügbaren Flächen auf „X m² (vermietet)“. Den Status (163676 Abgeschlossen) separat über status_id setzen. Bei false (wieder verfügbar) free_from mit angeben, sonst bleibt „vermietet“ stehen",
 		),
 	commission: commissionParam,
 	courtage: optionalText(200).describe("Außenprovision fürs Exposé – nur der Provisionstext, keine Arbeitsvermerke. Bei Einheiten im Projekt weglassen (kommt vom Projekt)"),
@@ -562,10 +578,10 @@ const objectFieldsShape = {
 	furnishing_note: optionalText(10000).describe(`${TEXT_RULES.furnishing}. ${EXPOSE_VISIBLE}`),
 	other_note: optionalText(10000).describe(`Sonstiges. ${EXPOSE_VISIBLE} – keine Konditionen, Eigentümer, Kundennamen, Adresse oder offenen Punkte`),
 	bemerkung_append: optionalText(4000).describe(
-		"Änderungsvermerk im Custom-Feld „Bemerkung“ (nicht im Exposé): nur was geändert wurde und warum – wird mit Datum und Nutzer angehängt. Das Feld liest im Team kaum jemand: nichts hineinschreiben, was jemand lesen muss. Offene Punkte dem Nutzer melden (sie stehen auch in der Prüfaufgabe), Fachliches in die interne Notiz",
+		"Änderungsvermerk im Custom-Feld „Bemerkung“ (nicht im Exposé): nur was geändert wurde und warum – wird mit Datum und Nutzer angehängt. Derselbe Vermerk wird am selben Tag nicht doppelt angehängt (already_present). Das Feld liest im Team kaum jemand: nichts hineinschreiben, was jemand lesen muss. Offene Punkte dem Nutzer melden (sie stehen auch in der Prüfaufgabe), Fachliches in die interne Notiz",
 	),
 	internal_note: optionalText(4000).describe(
-		"Interne Notiz (Propstack-Feld „Notiz“ = „Interne Notizen“ im How-to, nicht im Exposé): Freitext zusätzlich zu source_link, mandate, internal_commission, developer_project_name. Beim Ändern wird angehängt (mit Datum und Nutzer), nie ersetzt",
+		"Interne Notiz (Propstack-Feld „Notiz“ = „Interne Notizen“ im How-to, nicht im Exposé): Freitext zusätzlich zu source_link, mandate, internal_commission, developer_project_name. Beim Ändern wird angehängt (mit Datum und Nutzer), nie ersetzt. Steht derselbe Text schon in der Notiz, wird er nicht noch einmal angehängt (already_present)",
 	),
 	...internalNoteShape,
 	...howtoObjectShape,
@@ -837,6 +853,9 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 		priceOnInquiry: fields.price_on_inquiry === true,
 		rent,
 	});
+	// „Bezug“ und „Bezug (Datum)“ folgen „Verfügbar ab“
+	if (typeof fields.free_from === "string") Object.assign(mirrored, availabilityMirror(fields.free_from, defs, explicit, { clear: false }));
+	const bezugNote = bezugDeviation(fields.free_from, input.custom_fields?.[BEZUG_KEY]);
 	// Testobjekte nie automatisch an Interessenten verschicken
 	if (input.test && defs.get("kein_automatischer_exposeversand")?.type === "Boolean" && !("kein_automatischer_exposeversand" in explicit)) {
 		mirrored.kein_automatischer_exposeversand = true;
@@ -872,7 +891,7 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 		},
 		tool: "create_object",
 		userEmail: user.email,
-		warnings: [...dedupe.warnings, ...textWarnings],
+		warnings: [...dedupe.warnings, ...textWarnings, ...(bezugNote ? [bezugNote] : [])],
 	});
 	let newId: number;
 	try {
@@ -980,7 +999,7 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 			inherited_from_project: inherited.length ? inherited : undefined,
 			derived: derived.length ? derived : undefined,
 			mirrored_custom_fields: Object.keys(mirrored).length || Object.keys(provision).length ? [...Object.keys(mirrored), ...Object.keys(provision)] : undefined,
-			warnings: dedupe.warnings.length ? dedupe.warnings : undefined,
+			warnings: dedupe.warnings.length || bezugNote ? [...dedupe.warnings, ...(bezugNote ? [bezugNote] : [])] : undefined,
 			text_warnings: textWarnings.length ? textWarnings : undefined,
 			howto_not_provided: notProvided.length ? notProvided : undefined,
 			internal_note_hint: noteHint,
@@ -1124,6 +1143,18 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	}
 	const howto = howtoCustomFields(input, defs, input.custom_fields, rentState);
 	const explicit: Raw = { ...howto, ...input.custom_fields };
+	// „Bezug“ und „Bezug (Datum)“ folgen „Verfügbar ab“ – sobald der Aufruf free_from nennt (auch unverändert: zieht
+	// Altbestand nach) oder die Einheit auf vermietet setzt. Sonst bleiben sie unberührt.
+	const rentedText = rentChanged && fields.rented === true && requested.free_from === undefined ? "vermietet" : undefined;
+	const freeFromTarget = requested.free_from !== undefined ? (typeof requested.free_from === "string" ? requested.free_from : null) : rentedText;
+	const availability = freeFromTarget !== undefined ? availabilityMirror(freeFromTarget, defs, explicit, { clear: true }) : {};
+	if (input.custom_fields && BEZUG_KEY in input.custom_fields) {
+		const deviation = bezugDeviation(freeFromTarget !== undefined ? freeFromTarget : scalar(currentValue("free_from")), input.custom_fields[BEZUG_KEY]);
+		if (deviation) notes.push(deviation);
+	}
+	if (rentChanged && fields.rented === false && requested.free_from === undefined && same("vermietet", scalar(currentValue("free_from")))) {
+		notes.push("Die Einheit ist wieder als nicht vermietet markiert, „Verfügbar ab“ steht aber noch auf „vermietet“ – bitte free_from angeben (z. B. „sofort“); „Bezug“ zieht dann mit.");
+	}
 	// „Provision extern“ nur anfassen, wenn die Provision in diesem Aufruf geändert wird – dann aus dem Stand danach
 	const commissionTouched = input.commission !== undefined || input.courtage !== undefined || input.courtage_note !== undefined;
 	const provision = provisionCustomFields(
@@ -1148,6 +1179,7 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 			}),
 			...howto,
 			...provision,
+			...availability,
 		}).filter(([key, value]) => {
 			const actual = unitCustomValue(current, key);
 			return actual === UNVERIFIABLE || !same(value, actual);
@@ -1164,6 +1196,8 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 		customBefore[key] = actual === UNVERIFIABLE ? "nicht lesbar" : rawValue(actual);
 	}
 	// Interne Notiz („Notiz“): anhängen, nie ersetzen – nur wenn der vorhandene Text lesbar ist
+	// Nicht doppelt: Was schon in der Notiz steht, wird nicht noch einmal angehängt (z. B. wiederholter Aufruf)
+	const alreadyPresent: string[] = [];
 	const noteAppend = [...internalNoteLines(input), ...(input.internal_note ? [input.internal_note] : [])];
 	let noteAddition: string | undefined;
 	if (noteAppend.length) {
@@ -1172,27 +1206,48 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 			throw new PropstackError("Die vorhandene interne Notiz konnte nicht gelesen werden – nichts geändert, damit sie nicht überschrieben wird.", 0);
 		}
 		const oldText = String(scalar(old) ?? "").trim();
-		noteAddition = `${originNote(user, now, "Ergänzt")}\n${noteAppend.join("\n")}`;
-		fields.note = [oldText, noteAddition].filter(Boolean).join("\n\n");
-		before.note = oldText;
+		const appended = appendNote(oldText, originNote(user, now, "Ergänzt"), noteAppend);
+		if (appended.present.length) {
+			alreadyPresent.push(appended.text === undefined ? "internal_note (steht schon in der internen Notiz)" : `internal_note (${appended.present.length} von ${noteAppend.length} Teilen standen schon in der internen Notiz)`);
+		}
+		if (appended.text !== undefined) {
+			noteAddition = appended.addition;
+			fields.note = appended.text;
+			before.note = oldText;
+		}
 	}
-	const appendLines = [input.bemerkung_append].filter(Boolean);
+	// Die Bemerkung ist ein Änderungsprotokoll: doppelt ist ein Vermerk nur unter dem Stempel desselben Tages und Nutzers
+	const appendLines = [input.bemerkung_append].filter((line): line is string => Boolean(line));
+	let bemerkungAppended = false;
 	if (appendLines.length) {
 		const old = unitCustomValue(current, "bemerkung");
 		if (old === UNVERIFIABLE) {
 			throw new PropstackError("Die vorhandene Bemerkung konnte nicht gelesen werden – nichts geändert, damit sie nicht überschrieben wird.", 0);
 		}
 		const oldText = String(scalar(old) ?? "").trim();
-		const text = [oldText, `${originNote(user, now, "Ergänzt")}\n${appendLines.join("\n")}`].filter(Boolean).join("\n\n");
-		customSend.bemerkung = text;
-		customExpect.bemerkung = text;
-		customBefore.bemerkung = oldText;
+		const appended = appendNote(oldText, originNote(user, now, "Ergänzt"), appendLines, { sameStampOnly: true });
+		if (appended.text === undefined) alreadyPresent.push("bemerkung_append (derselbe Vermerk steht heute schon in der Bemerkung)");
+		else {
+			customSend.bemerkung = appended.text;
+			customExpect.bemerkung = appended.text;
+			customBefore.bemerkung = oldText;
+			bemerkungAppended = true;
+		}
 	}
 	if (Object.keys(customBefore).length) before.custom_fields = customBefore;
 
 	const coordsRequested = input.lat !== undefined && input.lng !== undefined;
 	if (!Object.keys(fields).length && !Object.keys(customSend).length && !coordsRequested) {
-		return { count: 0, result: { updated: false, id: input.id, note: "Keine Änderung – alle Werte sind bereits so gesetzt." } };
+		return {
+			count: 0,
+			result: {
+				updated: false,
+				id: input.id,
+				already_present: alreadyPresent.length ? alreadyPresent : undefined,
+				warnings: notes.length ? notes : undefined,
+				note: "Keine Änderung – alle Werte sind bereits so gesetzt.",
+			},
+		};
 	}
 	// Auch Koordinaten gehören in den Snapshot (Write-Log: Stand vorher) – wichtig bei Korrekturen an Bestandsobjekten
 	if (coordsRequested) Object.assign(before, { lat: coordsOf(current.detail).lat ?? null, lng: coordsOf(current.detail).lng ?? null });
@@ -1272,9 +1327,10 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 			title: scalar(state.row?.title ?? state.detail.title),
 			changed: [
 				...Object.keys(fields).map((k) => (k === "note" ? "internal_note (angehängt)" : fieldLabel(k))),
-				...Object.keys(customSend).map((k) => (k === "bemerkung" && appendLines.length ? "bemerkung (angehängt)" : `custom_fields.${k}`)),
+				...Object.keys(customSend).map((k) => (k === "bemerkung" && bemerkungAppended ? "bemerkung (angehängt)" : `custom_fields.${k}`)),
 				...(coordsRequested ? ["lat/lng"] : []),
 			],
+			already_present: alreadyPresent.length ? alreadyPresent : undefined,
 			warnings: warnings.length ? warnings : undefined,
 			not_applied: missing.length ? missing : undefined,
 			coordinates,

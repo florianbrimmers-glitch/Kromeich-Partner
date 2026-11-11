@@ -44,6 +44,7 @@ type Client = Pick<
 	| "searchContacts"
 	| "getContact"
 	| "getContactLinks"
+	| "getContactRelationships"
 	| "searchUnits"
 	| "getUnit"
 	| "searchDeals"
@@ -193,6 +194,11 @@ export async function getContact(client: Client, input: DiagnoseInput): Promise<
 
 export const searchObjectsInput = {
 	...objectFilters.shape,
+	owner_contact_id: id
+		.optional()
+		.describe(
+			"Alle Objekte eines Eigentümers (Kontakt-ID der Firma, über search_contacts): Einheiten, an denen der Kontakt als Eigentümer verknüpft ist, UND alle Einheiten der Projekte, an denen er als Eigentümer verknüpft ist – der Eigentümer hängt oft nur am Projekt. Mit den übrigen Filtern kombinierbar (außer tag_match=all). Das Ergebnis nennt unter owner die Projekte mit Zahl der Einheiten. Datensätze ohne Eigentümer-Verknüpfung findet die Suche nicht",
+		),
 	sort_by: z
 		.enum(["created_at", "price", "base_rent", "property_space_value", "plot_area", "construction_year", "exposee_id", "unit_id.raw"])
 		.optional(),
@@ -217,11 +223,170 @@ export function matchesLocation(row: Raw, city?: string, zipPrefix?: string): bo
 	return true;
 }
 
+// ---------- Suche nach Eigentümer ----------
+// Ansage Florian, 11.11.2026 – für den Abgleich mit den monatlichen Eigentümer-Updates („was dort nicht genannt
+// ist, ist nicht mehr verfügbar“) muss der ganze Bestand eines Eigentümers sicher gefunden werden.
+// Befund an Hillwood (Kontakt 17366591): Bei 36 von 46 Einheiten hängt der Eigentümer nur am Projekt, nicht an
+// der Einheit. Deshalb zwei Wege: Verknüpfung an der Einheit UND alle Einheiten der Projekte des Eigentümers.
+// Quelle: GET /contacts/:id?include=relationships (Form live am 11.11. per Diagnose geprüft).
+
+/** Bis zu so vielen Projekten wird je Projekt abgefragt; darüber werden alle Objekte einmal geladen und gefiltert. */
+export const OWNER_PROJECT_LIMIT = 30;
+
+export interface OwnerLinks {
+	contact: { id: number; name: string };
+	/** Projekte, an denen der Kontakt als Eigentümer verknüpft ist: ID → Name. */
+	projects: Map<number, string>;
+	/** Einheiten, an denen der Kontakt selbst als Eigentümer verknüpft ist. */
+	direct: Set<number>;
+	/** Verknüpfungen mit Objekten/Projekten in anderer Rolle (z. B. Ansprechpartner). */
+	otherRoles: number;
+}
+
+function refOf(value: unknown): { id: number; name: string } | undefined {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+	const refId = Number(scalar((value as Raw).id));
+	if (!Number.isInteger(refId) || refId <= 0) return undefined;
+	const name = scalar((value as Raw).name) ?? scalar((value as Raw).title);
+	return { id: refId, name: typeof name === "string" && name.trim() ? name.trim() : String(refId) };
+}
+
+/** Nennt der Eintrag Kontakt-IDs, muss der gesuchte Kontakt dabei sein (sonst zählt er nicht als dessen Verknüpfung). */
+function involves(entry: Raw, contactId: number): boolean {
+	const ids = [refOf(entry.related_client)?.id, refOf(entry.client)?.id, entry.related_client_id, entry.client_id]
+		.map((value) => Number(value))
+		.filter((value) => Number.isInteger(value) && value > 0);
+	return ids.length === 0 || ids.includes(contactId);
+}
+
+export async function ownerLinks(client: Pick<Client, "getContactRelationships">, contactId: number): Promise<OwnerLinks> {
+	const contact = asObject(await client.getContactRelationships(contactId));
+	if (!Array.isArray(contact.relationships)) {
+		// Lieber abbrechen als einen unvollständigen Bestand ausgeben
+		throw new PropstackError("Propstack liefert die Verknüpfungen dieses Kontakts nicht – die Suche nach Eigentümer ist so nicht möglich.", 0);
+	}
+	const projects = new Map<number, string>();
+	const direct = new Set<number>();
+	let otherRoles = 0;
+	for (const entry of contact.relationships) {
+		if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
+		const raw = entry as Raw;
+		const project = refOf(raw.project);
+		const property = refOf(raw.property);
+		if (!project && !property) continue; // Kontakt-zu-Kontakt (z. B. Mitarbeiter einer Firma)
+		if (raw.internal_name !== "owner" || !involves(raw, contactId)) {
+			otherRoles++;
+			continue;
+		}
+		if (project) projects.set(project.id, project.name);
+		if (property) direct.add(property.id);
+	}
+	const name = scalar(contact.name);
+	return { contact: { id: contactId, name: typeof name === "string" && name.trim() ? name.trim() : String(contactId) }, direct, otherRoles, projects };
+}
+
+const natural = (a: unknown, b: unknown) => String(a ?? "").localeCompare(String(b ?? ""), "de", { numeric: true, sensitivity: "base" });
+
+async function searchOwnerObjects(
+	client: Client,
+	input: ObjectFilters & { owner_contact_id?: number; sort_by?: string; order?: "asc" | "desc"; page?: number; per_page?: number },
+	params: { page: number; per: number },
+): Promise<ToolOutput> {
+	if (input.tag_match === "all" && (input.tag_ids?.length ?? 0) > 1) {
+		throw new PropstackError("owner_contact_id lässt sich nicht mit tag_match=all kombinieren – bitte ein Merkmal oder tag_match=any.", 400);
+	}
+	const search = (q: Query) => client.searchUnits(q);
+	const links = await ownerLinks(client, input.owner_contact_id!);
+	// Vollständig heißt hier: alle Seiten gelesen UND so viele Zeilen wie Propstack als Gesamtzahl nennt
+	const whole = (loaded: { rows: Raw[]; complete: boolean; total: number | null }) => loaded.complete && (loaded.total === null || loaded.rows.length >= loaded.total);
+
+	// Einheiten der Projekte des Eigentümers (auch archivierte – ob sie angezeigt werden, entscheidet der Filter unten)
+	const projectOf = new Map<number, number>();
+	const perProject = new Map<number, number>([...links.projects.keys()].map((projectId) => [projectId, 0]));
+	const take = (row: Raw, projectId: number) => {
+		const unitId = Number(scalar(row.id));
+		if (!Number.isInteger(unitId) || projectOf.has(unitId)) return;
+		projectOf.set(unitId, projectId);
+		perProject.set(projectId, (perProject.get(projectId) ?? 0) + 1);
+	};
+	if (links.projects.size <= OWNER_PROJECT_LIMIT) {
+		for (const projectId of links.projects.keys()) {
+			const loaded = await loadAll(search, { archived: "-1", project_id: projectId });
+			if (!whole(loaded)) throw new PropstackError(`Die Einheiten von Projekt ${projectId} ließen sich nicht vollständig laden – kein Ergebnis, damit der Bestand nicht lückenhaft erscheint.`, 0);
+			for (const row of loaded.rows) take(row, projectId);
+		}
+	} else if (links.projects.size) {
+		const loaded = await loadAll(search, { archived: "-1" });
+		if (!whole(loaded)) {
+			throw new PropstackError(`Der Eigentümer hat ${links.projects.size} Projekte und der Bestand ist zu groß, um ihn in einem Aufruf zu durchsuchen. Bitte je Projekt mit project_id suchen.`, 400);
+		}
+		for (const row of loaded.rows) {
+			const projectId = Number(scalar(row.project_id));
+			if (links.projects.has(projectId)) take(row, projectId);
+		}
+	}
+
+	const all = new Set<number>([...projectOf.keys(), ...links.direct]);
+	const wanted = input.object_ids ? [...all].filter((unitId) => input.object_ids!.includes(unitId)) : [...all];
+
+	// Die Treffer mit den übrigen Filtern laden (Propstack filtert; Ort/PLZ und Status wie sonst hier)
+	const base: Query = { ...objectQuery({ ...input, object_ids: undefined, status_ids: undefined }), q: input.query ?? input.city ?? input.zip_prefix };
+	let rows: Raw[] = [];
+	for (let start = 0; start < wanted.length; start += 100) {
+		const loaded = await loadAll(search, { ...base, property_ids: wanted.slice(start, start + 100).join(",") });
+		if (!whole(loaded)) throw new PropstackError("Die Objekte des Eigentümers ließen sich nicht vollständig laden – kein Ergebnis, damit der Bestand nicht lückenhaft erscheint.", 0);
+		// Gegenprobe: nur Zeilen, die wirklich angefragt waren
+		rows.push(...loaded.rows.filter((row) => all.has(Number(scalar(row.id)))));
+	}
+	rows = rows.filter((row) => matchesLocation(row, input.city, input.zip_prefix));
+	const statusIds = input.status_ids ?? [];
+	let withoutStatus: number | undefined;
+	if (statusIds.length) {
+		withoutStatus = rows.filter((row) => rowStatusId(row) === undefined || rowStatusId(row) === null).length;
+		rows = rows.filter((row) => statusIds.includes(rowStatusId(row) as number));
+	}
+	// Nach Projekt, dann Einheit – so lässt sich der Bestand Standort für Standort abgleichen; Einzelobjekte zuletzt
+	const projectName = (row: Raw) => links.projects.get(projectOf.get(Number(scalar(row.id))) ?? Number(scalar(row.project_id))) ?? "";
+	rows.sort((a, b) => {
+		const [pa, pb] = [projectName(a), projectName(b)];
+		if (!pa !== !pb) return pa ? -1 : 1;
+		return natural(pa, pb) || natural(scalar(a.unit_id) ?? scalar(a.name) ?? scalar(a.title), scalar(b.unit_id) ?? scalar(b.name) ?? scalar(b.title)) || Number(scalar(a.id)) - Number(scalar(b.id));
+	});
+
+	const page = slicePage(rows, params);
+	const names = await brokerNames(client);
+	const items = page.rows.map((row) => withBrokerName(mapUnitSummary(row), names));
+	const notes = [
+		all.size
+			? "Gefunden über die Eigentümer-Verknüpfung am Objekt und am Projekt. Datensätze ohne diese Verknüpfung (z. B. Altimporte) findet die Suche nicht."
+			: `Der Kontakt ist nirgends als Eigentümer verknüpft${links.otherRoles ? ` – aber ${links.otherRoles}-mal in anderer Rolle (z. B. Ansprechpartner). Eigentümer ist meist der Firmenkontakt` : ""}.`,
+		all.size > rows.length ? `${all.size - rows.length} der ${all.size} Objekte sind hier nicht enthalten (archiviert oder durch die übrigen Filter ausgeschlossen).` : undefined,
+		input.sort_by ? "Sortiert ist nach Projekt und Einheit; sort_by wirkt zusammen mit owner_contact_id nicht." : undefined,
+		withoutStatus ? `${withoutStatus} passende Objekte haben keinen Status und sind deshalb nicht enthalten.` : undefined,
+	].filter(Boolean);
+	return {
+		count: rows.length,
+		result: compact({
+			...pageResult(page, items, params),
+			excluded_without_status: withoutStatus || undefined,
+			owner: compact({
+				contact: links.contact,
+				objects_total: all.size,
+				objects_via_projects: projectOf.size,
+				objects_linked_directly: links.direct.size,
+				projects: [...links.projects].map(([projectId, name]) => ({ id: projectId, name, objects: perProject.get(projectId) ?? 0 })).sort((a, b) => natural(a.name, b.name)),
+				note: notes.join(" "),
+			}),
+		}),
+	};
+}
+
 export async function searchObjects(
 	client: Client,
-	input: ObjectFilters & { sort_by?: string; order?: "asc" | "desc"; page?: number; per_page?: number },
+	input: ObjectFilters & { owner_contact_id?: number; sort_by?: string; order?: "asc" | "desc"; page?: number; per_page?: number },
 ): Promise<ToolOutput> {
 	const params = pageParams(input);
+	if (input.owner_contact_id !== undefined) return searchOwnerObjects(client, input, params);
 	const search = (q: Query) => client.searchUnits(q);
 	const statusIds = input.status_ids ?? [];
 	const tagIds = input.tag_ids ?? [];

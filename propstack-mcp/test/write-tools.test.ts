@@ -195,6 +195,9 @@ function fakeClient(impl: Record<string, (...args: unknown[]) => unknown>) {
 						{ field_type: "Number", name: "mietpreis_hallenflache" },
 						{ field_type: "Number", name: "intern_mietpreis_hallenflache" },
 						{ field_type: "String", name: "bemerkung" },
+						// „Bezug“ und „Bezug (Datum)“ folgen „Verfügbar ab“ (Typen wie live, 11.11.2026)
+						{ field_type: "String", name: "bezug" },
+						{ field_type: "Date", name: "bezug_datum" },
 						// Felder aus dem Team-How-to (Typen wie live, 09.11.2026)
 						{ field_type: "Number", name: "lagerflache_teilbar_ab", unit: "sqm" },
 						{ field_type: "Number", name: "buroflache_teilbar_ab", unit: "sqm" },
@@ -379,6 +382,30 @@ describe("update_contact", () => {
 		expect(out.result).toMatchObject({ changed: ["add_tags", "note"], updated: true });
 		const before = JSON.parse(rows[0][7] as string);
 		expect(before).toEqual({ description: "Alte Notiz", tag_ids: [5] });
+	});
+
+	it("Notiz wird nicht doppelt angehängt, wenn derselbe Text schon dasteht", async () => {
+		const noted = { ...current, description: "Alte Notiz\n\nErgänzt über Claude (Propstack MCP) von Lena Klinnert am 2026-09-01.\nRückruf vereinbart" };
+		let sent: Record<string, unknown> | undefined;
+		const { client, calls } = fakeClient({
+			getContact: () => ({ ...noted, ...(sent ?? {}) }),
+			updateContact: (_id, payload) => {
+				sent = payload as Record<string, unknown>;
+				return {};
+			},
+		});
+		const deps = { client, db: fakeDb().db, now: NOW, user: USER };
+		// nur die Notiz, die schon dasteht → gar kein Write
+		const same = await updateContact(deps, { id: 7, note_append: "Rückruf vereinbart" });
+		expect(same.result).toMatchObject({ already_present: ["note_append (steht schon in der Notiz)"], updated: false });
+		expect(calls.some((c) => c.method === "updateContact")).toBe(false);
+		// zusammen mit einer echten Änderung: die Änderung wird geschrieben, die Notiz nicht
+		const mixed = await updateContact(deps, { id: 7, note_append: "Rückruf vereinbart", position: "CFO" });
+		expect(sent).toEqual({ position: "CFO" });
+		expect(mixed.result).toMatchObject({ already_present: ["note_append (steht schon in der Notiz)"], changed: ["position"], updated: true });
+		// ein anderer Text wird angehängt
+		await updateContact(deps, { id: 7, note_append: "Rückruf am 12.11. erledigt" });
+		expect(String(sent?.description)).toMatch(/Rückruf vereinbart\n\nErgänzt über Claude .* am 2026-10-14\.\nRückruf am 12\.11\. erledigt$/);
 	});
 
 	it("keine Änderung → kein Write", async () => {
@@ -712,6 +739,8 @@ describe("create_object / update_object", () => {
 				partial_custom_fields: {
 					aktiv: [8],
 					bemerkung: expect.stringMatching(/^Alte Bemerkung\n\nErgänzt über Claude .* am 2026-10-14\.\nEigentümer will 6 €\/m²$/),
+					// „Bezug“ folgt „Verfügbar ab“
+					bezug: "vermietet",
 					lagerflache: 5000,
 					lagerflache_gesamt: 5000,
 					lagerflache_verfugbar: "5.000 m² (vermietet)",
@@ -1039,7 +1068,7 @@ describe("create_object / update_object – Team-How-to", () => {
 		// ohne Änderung an der Provision bleibt „Provision extern“ unberührt
 		w.puts.length = 0;
 		await updateObject(deps, { free_from: "sofort", id: 900 });
-		expect(w.puts).toEqual([{ free_from: "sofort" }]);
+		expect(w.puts).toEqual([{ free_from: "sofort", partial_custom_fields: { bezug: "sofort" } }]);
 
 		// internal_commission und das Custom-Feld zugleich: Widerspruch
 		await expect(updateObject(deps, { custom_fields: { provision_interne_notiz: "x" }, id: 900, internal_commission: "y" })).rejects.toThrow(/gleichzeitig angegeben/);
@@ -1165,6 +1194,130 @@ describe("create_object / update_object – Team-How-to", () => {
 		// mit ausdrücklicher Mezzanine wird gerechnet
 		await updateObject(deps, { id: 900, industrial_area: 4200, mezzanine_area: 1000 });
 		expect(w.stored).toMatchObject({ industrial_area: 4200, total_floor_space: 5200 });
+	});
+
+	it("„Bezug“ und „Bezug (Datum)“ folgen „Verfügbar ab“ (Ansage Florian, 11.11.2026)", async () => {
+		const w = world();
+		// Stand wie nach dem Hillwood-Update vom 10.11.: „Verfügbar ab“ gepflegt, „Bezug“ alt
+		Object.assign(w.stored, { free_from: "Q1 2027", marketing_type: "RENT", rented: false, title: "Halle" });
+		Object.assign(w.custom, { bezug: "Q1 2027" });
+		const deps = { client: w.client, db: fakeDb().db, now: NOW, sleep, user: USER };
+		const lastPut = () => w.puts[w.puts.length - 1];
+
+		// 1) Datum: Text nach „Bezug“, Datum nach „Bezug (Datum)“
+		const dated = await updateObject(deps, { free_from: "01.04.2027", id: 900 });
+		expect(lastPut()).toEqual({ free_from: "01.04.2027", partial_custom_fields: { bezug: "01.04.2027", bezug_datum: "2027-04-01" } });
+		expect((dated.result as { changed: string[] }).changed).toEqual(["free_from", "custom_fields.bezug", "custom_fields.bezug_datum"]);
+
+		// 2) Kein Datum mehr im Text: das alte Datum wird geleert, nicht stehen gelassen
+		await updateObject(deps, { free_from: "Q3 2027", id: 900 });
+		expect(lastPut()).toEqual({ free_from: "Q3 2027", partial_custom_fields: { bezug: "Q3 2027", bezug_datum: null } });
+
+		// 3) Altbestand: „Verfügbar ab“ stimmt schon, „Bezug“ ist leer → der unveränderte Wert zieht „Bezug“ nach
+		w.custom.bezug = null;
+		const healed = await updateObject(deps, { free_from: "Q3 2027", id: 900 });
+		expect(lastPut()).toEqual({ partial_custom_fields: { bezug: "Q3 2027" } });
+		expect((healed.result as { changed: string[] }).changed).toEqual(["custom_fields.bezug"]);
+		// … und beim nächsten Mal gibt es nichts mehr zu tun
+		expect((await updateObject(deps, { free_from: "Q3 2027", id: 900 })).result).toMatchObject({ updated: false });
+
+		// 4) Ein Aufruf ohne free_from lässt „Bezug“ in Ruhe
+		w.custom.bezug = "abweichend";
+		const before = w.puts.length;
+		await updateObject(deps, { ground_level_doors: 2, id: 900 });
+		expect(JSON.stringify(w.puts.slice(before))).not.toContain("bezug");
+		expect(w.custom.bezug).toBe("abweichend");
+
+		// 5) Vermietet: „Verfügbar ab“ und „Bezug“ = „vermietet“, ein Datum verschwindet
+		w.custom.bezug_datum = "2027-04-01";
+		await updateObject(deps, { id: 900, rented: true });
+		expect(w.stored.free_from).toBe("vermietet");
+		expect(w.custom).toMatchObject({ bezug: "vermietet", bezug_datum: null });
+
+		// 6) Wieder verfügbar ohne free_from: Hinweis, dass „vermietet“ noch dasteht
+		const back = await updateObject(deps, { id: 900, rented: false });
+		expect((back.result as { warnings: string[] }).warnings.join(" ")).toMatch(/„Verfügbar ab“ steht aber noch auf „vermietet“ – bitte free_from angeben/);
+		// mit free_from ist alles stimmig, kein Hinweis
+		w.stored.rented = true;
+		const available = await updateObject(deps, { free_from: "sofort", id: 900, rented: false });
+		expect(w.stored.free_from).toBe("sofort");
+		expect(w.custom.bezug).toBe("sofort");
+		expect(JSON.stringify((available.result as { warnings?: string[] }).warnings ?? [])).not.toMatch(/vermietet/);
+
+		// 7) Ausdrücklich abweichendes „Bezug“: wird geschrieben wie angegeben – aber gemeldet
+		const explicit = await updateObject(deps, { custom_fields: { bezug: "Frühjahr 2027" }, free_from: "01.04.2027", id: 900 });
+		expect(w.custom).toMatchObject({ bezug: "Frühjahr 2027", bezug_datum: "2027-04-01" });
+		expect((explicit.result as { warnings: string[] }).warnings.join(" ")).toMatch(/„Bezug“ \(„Frühjahr 2027“\) weicht von „Verfügbar ab“ \(„01\.04\.2027“\) ab/);
+		// nur „Bezug“ ohne free_from: Abgleich gegen den gespeicherten Wert
+		const alone = await updateObject(deps, { custom_fields: { bezug: "Sommer 2027" }, id: 900 });
+		expect((alone.result as { warnings: string[] }).warnings.join(" ")).toMatch(/weicht von „Verfügbar ab“ \(„01\.04\.2027“\) ab/);
+	});
+
+	it("create_object: „Bezug“ und „Bezug (Datum)“ werden beim Anlegen mitgesetzt", async () => {
+		const w = world();
+		const out = await createObject(
+			{ client: w.client, db: fakeDb().db, now: NOW, sleep, user: USER },
+			{ city: "Hillscheid", free_from: "ab 01.07.2027", marketing_type: "RENT", rs_type: "INDUSTRY", street: "Am Scheid", title: "Logistikhalle in (56) Hillscheid", zip_code: "56204" },
+		);
+		expect(w.custom).toMatchObject({ bezug: "ab 01.07.2027", bezug_datum: "2027-07-01" });
+		expect((out.result as { mirrored_custom_fields: string[] }).mirrored_custom_fields).toEqual(expect.arrayContaining(["bezug", "bezug_datum"]));
+		expect((out.result as { not_applied?: string[] }).not_applied).toBeUndefined();
+
+		// ohne Datum im Text nur „Bezug“; vermietet angelegt → „vermietet“
+		const rented = world();
+		await createObject(
+			{ client: rented.client, db: fakeDb().db, now: NOW, sleep, user: USER },
+			{ city: "Hillscheid", marketing_type: "RENT", rented: true, rs_type: "INDUSTRY", street: "Am Scheid", title: "Logistikhalle in (56) Hillscheid", zip_code: "56204" },
+		);
+		expect(rented.custom.bezug).toBe("vermietet");
+		expect("bezug_datum" in rented.custom).toBe(false);
+	});
+
+	it("Notizen werden nicht doppelt angehängt (Ansage Florian, 11.11.2026)", async () => {
+		const w = world();
+		Object.assign(w.stored, { marketing_type: "RENT", rented: false, title: "Halle" });
+		const deps = { client: w.client, db: fakeDb().db, now: NOW, sleep, user: USER };
+		const parking = "Stellplatzmieten laut Hillwood (Mail vom 10.11.2026): Pkw 50 €, Lkw 100 € je Stellplatz und Monat, netto.";
+		const vermerk = "Hillwood-Update November 2026: Verfügbarkeit und interne Mieten aktualisiert.";
+
+		// 1) Erster Aufruf: beides wird angehängt
+		const first = await updateObject(deps, { bemerkung_append: vermerk, id: 900, internal_note: parking });
+		expect((first.result as { changed: string[]; already_present?: string[] }).changed).toEqual(["internal_note (angehängt)", "bemerkung (angehängt)"]);
+		expect((first.result as { already_present?: string[] }).already_present).toBeUndefined();
+		const note = String(w.stored.note);
+		const bemerkung = String(w.custom.bemerkung);
+		expect(note).toBe(`Ergänzt über Claude (Propstack MCP) von Florian Brimmers am 2026-10-14.\n${parking}`);
+
+		// 2) Derselbe Aufruf noch einmal (z. B. nach einem verlorenen Aufruf): nichts wird geschrieben
+		const puts = w.puts.length;
+		const again = await updateObject(deps, { bemerkung_append: vermerk, id: 900, internal_note: parking });
+		expect(again.result).toMatchObject({
+			already_present: ["internal_note (steht schon in der internen Notiz)", "bemerkung_append (derselbe Vermerk steht heute schon in der Bemerkung)"],
+			updated: false,
+		});
+		expect(w.puts.length).toBe(puts);
+		expect(w.stored.note).toBe(note);
+		expect(w.custom.bemerkung).toBe(bemerkung);
+
+		// 3) Zusammen mit einer echten Änderung: die Änderung ja, die Notizen nicht
+		const mixed = await updateObject(deps, { bemerkung_append: vermerk, ground_level_doors: 2, id: 900, internal_note: parking });
+		expect((mixed.result as { changed: string[] }).changed).toEqual(["custom_fields.anzahl_rampentore_2"]);
+		expect((mixed.result as { already_present: string[] }).already_present).toHaveLength(2);
+		expect(w.stored.note).toBe(note);
+
+		// 4) Nur der neue Teil kommt dazu (Mandat neu, Stellplatzmieten schon da)
+		const partly = await updateObject(deps, { id: 900, internal_note: parking, mandate: "kein Alleinmandat" });
+		expect(String(w.stored.note)).toBe(`${note}\n\nErgänzt über Claude (Propstack MCP) von Florian Brimmers am 2026-10-14.\nMandat: kein Alleinmandat`);
+		expect((partly.result as { already_present: string[] }).already_present).toEqual(["internal_note (1 von 2 Teilen standen schon in der internen Notiz)"]);
+
+		// 5) Ein kurzer Text, der nur Teil einer vorhandenen Zeile ist, gilt nicht als vorhanden
+		await updateObject(deps, { id: 900, internal_note: "Stellplatzmieten laut Hillwood" });
+		expect(String(w.stored.note)).toMatch(/\nStellplatzmieten laut Hillwood$/);
+
+		// 6) Bemerkung ist ein Änderungsprotokoll: derselbe Vermerk an einem späteren Tag ist ein neuer Eintrag
+		const later = await updateObject({ ...deps, now: () => new Date("2026-10-15T09:00:00Z") }, { bemerkung_append: vermerk, id: 900 });
+		expect((later.result as { changed: string[] }).changed).toEqual(["bemerkung (angehängt)"]);
+		expect(String(w.custom.bemerkung)).toBe(`${bemerkung}\n\nErgänzt über Claude (Propstack MCP) von Florian Brimmers am 2026-10-15.\n${vermerk}`);
 	});
 });
 

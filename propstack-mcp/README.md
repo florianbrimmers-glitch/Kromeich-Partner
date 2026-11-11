@@ -15,7 +15,7 @@ Live unter `https://propstack-mcp.kromeichpartner.workers.dev/mcp`, als Organisa
 |---|---|---|
 | `whoami` | Angemeldeter Nutzer und Propstack-ID | – |
 | `search_contacts` / `get_contact` | Kontakte suchen bzw. abrufen | `GET /contacts`, `GET /contacts/:id` |
-| `search_objects` / `get_object` | Objekte (Einheiten) suchen bzw. abrufen, inkl. Bildern mit Titel | `GET /units`, `GET /units/:id?new=1` |
+| `search_objects` / `get_object` | Objekte (Einheiten) suchen bzw. abrufen, inkl. Bildern mit Titel; mit `owner_contact_id` der ganze Bestand eines Eigentümers | `GET /units`, `GET /units/:id?new=1`, `GET /contacts/:id?include=relationships` |
 | `get_project` | Projekt abrufen: Name, Überschrift, Unterzeile, Adresse, Koordinaten, Provision, Texte, Bilder mit Titel, Links, Einheiten | `GET /projects/:id`, `GET /units?project_id=` |
 | `search_deals` | Deals suchen und abrufen (Kontakt, Objekt, Phase, Preis) | `GET /client_properties` |
 | `pipeline_status` | Pipelines mit Phasen; je Phase Anzahl, Summe Preis, gewichteter Wert | `GET /deal_pipelines`, `GET /client_properties` |
@@ -33,6 +33,14 @@ Grundsätze:
 - **Merkmale:** Propstack verknüpft mehrere Merkmale mit ODER. `tag_match: "all"` bildet die UND-Schnittmenge serverseitig (je Merkmal max. 5.000 Treffer). `aggregate` kann nur ODER und lehnt `all` ab.
 - **Orte:** `query` ist Propstacks unscharfe Volltextsuche (findet z. B. auch „Leverkusener Str.“ in Mannheim). `city`/`zip_prefix` filtern exakt nach dem Ort- bzw. PLZ-Feld. Bei `status_ids` meldet `search_objects`, wie viele passende Objekte **keinen Status** haben.
 - **Pipeline-Werte:** Deals ohne Phase dieser Pipeline (z. B. unqualifiziert) werden als `outside_stages` gemeldet. Hat kein Deal einen Preis, gibt es keine Summen statt „0 €“. Die Gewichtung nutzt die in Propstack hinterlegte Phasen-Wahrscheinlichkeit. Eine Phase „Absage“ sollte dort 0 % haben.
+
+- **Suche nach Eigentümer** (Ansage Florian, 11.11.2026): `search_objects` mit `owner_contact_id` (Kontakt-ID der Firma) liefert den ganzen Bestand eines Eigentümers.
+  - **Zwei Wege**, weil der Eigentümer oft nur am Projekt hängt (Hillwood am 11.11.: bei 36 von 46 Einheiten): die Einheiten, an denen der Kontakt selbst als Eigentümer verknüpft ist, **und** alle Einheiten der Projekte, an denen er als Eigentümer verknüpft ist. Quelle ist `GET /contacts/:id?include=relationships` (je Eintrag `internal_name`, `project`, `property`; Form per Diagnose geprüft).
+  - Das Ergebnis ist nach Projekt und Einheit sortiert (Einzelobjekte zuletzt) und nennt unter `owner` die Projekte mit Zahl der Einheiten, `objects_total`, `objects_via_projects` und `objects_linked_directly`. Archivierte zählen in `objects_total` mit, erscheinen in der Liste aber nur mit `archived: "include"`.
+  - Mit den übrigen Filtern kombinierbar (Status, Ort, `object_ids` …), nicht mit `tag_match: "all"`. `sort_by` wirkt hier nicht – das steht dann im Hinweis.
+  - **Lieber kein Ergebnis als ein lückenhaftes:** Liefert Propstack die Verknüpfungen nicht oder lassen sich die Einheiten nicht vollständig laden, bricht die Suche mit einer Meldung ab. Bis 30 Projekte wird je Projekt abgefragt, darüber der Bestand einmal geladen und gefiltert.
+  - **Grenze:** Gefunden wird nur, was als Eigentümer verknüpft ist. Datensätze ohne Verknüpfung (z. B. leere Altimporte) sieht die Suche nicht. Ein Kontakt, der nur Ansprechpartner ist, liefert nichts – der Hinweis nennt dann die anderen Rollen; Eigentümer ist meist der Firmenkontakt.
+  - **Regel für Eigentümer-Updates (Florian, 11.11.2026):** Was der Eigentümer in seinem monatlichen Update nicht mehr nennt, ist nicht mehr verfügbar. Ablauf: Bestand mit `owner_contact_id` holen (alle Seiten), mit dem Update abgleichen, Nichtgenanntes mit `rented: true` und `status_id: 163676` abschließen. In Massenänderungen (`plan`) ist der Eigentümer-Filter bewusst nicht enthalten – dort die IDs angeben.
 
 Bewusste Lücken: Ein einzelner Deal per ID und die Kontakt-Status-Liste sind nur in der V2-Doku vorhanden. Deals werden daher über `search_deals` abgerufen, Kontakte lassen sich nicht nach Status gruppieren.
 
@@ -78,6 +86,17 @@ Bewusste Lücken: Ein einzelner Deal per ID und die Kontakt-Status-Liste sind nu
   - **Ohne Hallenfläche** (z. B. reine Bürofläche) gilt die Regel nicht.
   - **Mezzanine nicht lesbar:** Steht im Feld ein Text statt einer Zahl (etwa „ca. 1.000 m²“), rechnet das Tool nicht, sondern weist die Flächenänderung ab und verlangt `mezzanine_area`. Sonst ginge die Mezzanine in der Summe verloren.
   - **Undo einer Massenänderung:** Die Gesamtfläche wird nicht zurückgeschrieben, sondern aus den zurückgesetzten Flächen neu gerechnet. Stand vorher ein Wert, der nicht zur Rechnung passt, meldet das Undo das.
+- **„Bezug“ folgt „Verfügbar ab“** (Ansage Florian, 11.11.2026; Anlass: beim Hillwood-Update vom 10.11. war „Verfügbar ab“ neu, „Bezug“ stand noch auf dem alten Wert):
+  - Im Bestand hat `free_from` zwei Begleiter in den Custom-Feldern: `bezug` („Bezug“, Text, derselbe Wortlaut) und `bezug_datum` („Bezug (Datum)“, Datum). Muster aus dem Mileway-Lauf: „ab 01.07.2027“ → Bezug „ab 01.07.2027“, Datum 01.07.2027; „sofort“, „auf Anfrage“, „ab 2027“ → Bezug gleich, Datum leer.
+  - **Anlegen und Ändern:** Nennt der Aufruf `free_from`, setzt das Tool `bezug` auf denselben Text und `bezug_datum` auf das Datum, wenn der Text **genau ein** Datum nennt (TT.MM.JJJJ, TT.MM.JJ oder JJJJ-MM-TT). Sonst wird ein vorhandenes Datum **geleert** – ein altes Datum neben „Q3 2027“ wäre falsch. Zwei verschiedene Daten oder ein unmögliches (31.02.) zählen als kein Datum.
+  - **Altbestand:** Auch ein unverändertes `free_from` zieht nach – so lässt sich ein Objekt mit richtigem „Verfügbar ab“ und leerem „Bezug“ berichtigen. Ein Aufruf ohne `free_from` lässt beide Felder in Ruhe.
+  - **Vermietet:** `rented: true` setzt mit `free_from` „vermietet“ auch `bezug` „vermietet“ und leert das Datum. Bei `rented: false` ohne `free_from` meldet das Tool, dass „vermietet“ noch dasteht.
+  - **Ausdrücklich gesetzt:** `custom_fields.bezug` bzw. `bezug_datum` haben wie alle ausdrücklichen Custom-Felder Vorrang. Weicht „Bezug“ danach von „Verfügbar ab“ ab, steht das als Hinweis im Ergebnis.
+- **Notizen werden nicht doppelt angehängt** (Ansage Florian, 11.11.2026; Anlass: beim Hillwood-Lauf gingen Aufrufe durch einen Neustart verloren und mussten wiederholt werden):
+  - **Notizen** (`internal_note` samt `source_link`, `mandate`, `internal_commission`, `developer_project_name` am Objekt; `note_append` an Projekt und Kontakt) halten Sachverhalte fest. Steht derselbe Text schon da – egal von wann und von wem –, wird er nicht noch einmal angehängt. Von mehreren Teilen kommt nur der neue dazu.
+  - **Bemerkung** (`bemerkung_append`) ist ein Änderungsprotokoll: Derselbe Vermerk an einem späteren Tag ist ein neuer Eintrag. Doppelt ist er nur unter dem Stempel desselben Tages und Nutzers – genau der Fall „Aufruf wiederholt“.
+  - Verglichen werden **ganze, aufeinanderfolgende Zeilen** (Leerraum egal). Ein kurzer Text, der nur Teil einer längeren Zeile ist, gilt nicht als vorhanden.
+  - Das Ergebnis nennt Übersprungenes unter `already_present`. Ist sonst nichts zu ändern, wird nichts geschrieben.
 - **Koordinaten (Entscheidung Florian, 16.10.; korrigiert 09.11.):** Reihenfolge: angegebene Werte > Koordinaten des Projekts (Einheit mit gleicher Adresse) > was Propstack selbst ermittelt > OpenStreetMap (Nominatim) aus der Adresse. Das Tool meldet die Genauigkeit ehrlich: „Hausnummer“ nur, wenn OpenStreetMap die Hausnummer wirklich kennt, sonst „Straße“. Straßengenaue Treffer werden **gesetzt** und in der Prüfaufgabe zum Nachsehen markiert. Geschrieben wird mit dem Trick aus Notion-Korrektur 34: erst `lat`, dann `lng` mit 1, 2, 3, 4 Nachkommastellen und zuletzt exakt. Die Kontrolle läuft per Einzel-GET. An den Kartendienst geht nur die Adresse, mit neutralem Client-Namen.
 - **Eigentümer und Ansprechpartner an Einheiten:** `create_object` mit `owner_contact_id` und `contact_person_id`, nachträglich über `set_project_owner` mit `object_id` (und `role`). Die Prüfung erfolgt wie bei Projekten über die Gegenprobe.
 - **Feldpaare:** `beleuchtung_halle` und `beleuchtung` werden gegenseitig gespiegelt, weil Exposé und Teamansicht sie getrennt lesen.

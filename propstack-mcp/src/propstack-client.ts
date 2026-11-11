@@ -129,7 +129,17 @@ export class PropstackClient {
 	}
 
 	/**
+	 * GET /v1/contacts/:id?include=relationships – Kontakt mit seinen Verknüpfungen (leichte Antwort).
+	 * Live 11.11.2026 (Hillwood 17366591): je Eintrag {internal_name: "owner" | "associate", project: {id, name} | null,
+	 * property: {id, name} | null, related_client, client}. Grundlage der Suche nach Eigentümer.
+	 */
+	async getContactRelationships(id: number): Promise<unknown> {
+		return this.get(`/contacts/${id}?include=relationships`);
+	}
+
+	/**
 	 * GET /v1/contacts/:id?include=owned_properties,relationships – Kontakt samt Verknüpfungen.
+	 * Nur für die Diagnose: owned_properties liefert jedes Objekt im vollen Format (schwer).
 	 * Doku „Kontakt lesen“: owned_properties = Objekte, bei denen der Kontakt als Eigentümer eingetragen ist.
 	 */
 	async getContactLinks(id: number): Promise<unknown> {
