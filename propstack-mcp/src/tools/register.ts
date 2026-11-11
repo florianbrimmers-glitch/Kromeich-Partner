@@ -139,7 +139,7 @@ export function registerReadTools(server: McpServer, ctx: ToolContext): void {
 	);
 	register(
 		"search_objects",
-		"Objekte (Einheiten) in Propstack suchen. Für Orte immer city bzw. zip_prefix nutzen, query ist eine unscharfe Volltextsuche. Weitere Filter: Status, Vermarktungsart, Objektart, Merkmale (tag_match any/all), Preis- und Flächenbereiche. Liefert eine gekürzte Trefferliste mit Gesamtzahl. Bei Statusfilter wird gemeldet, wie viele passende Objekte keinen Status haben.",
+		"Objekte (Einheiten) in Propstack suchen. Für Orte immer city bzw. zip_prefix nutzen, query ist eine unscharfe Volltextsuche. Weitere Filter: Status, Vermarktungsart, Objektart, Merkmale (tag_match any/all), Preis- und Flächenbereiche. Liefert eine gekürzte Trefferliste mit Gesamtzahl. Bei Statusfilter wird gemeldet, wie viele passende Objekte keinen Status haben. Ganzer Bestand eines Eigentümers: owner_contact_id (Kontakt-ID der Firma) – findet die Einheiten, an denen er als Eigentümer verknüpft ist, und alle Einheiten seiner Projekte; sortiert nach Projekt, mit Projektübersicht unter owner. Für den Abgleich mit Eigentümer-Updates (Regel Florian, 11.11.2026: Was der Eigentümer in seinem Update nicht mehr nennt, ist nicht mehr verfügbar) per_page 50 nutzen und alle Seiten lesen.",
 		{ ...searchObjectsInput, ...paginationShape },
 		searchObjects,
 	);

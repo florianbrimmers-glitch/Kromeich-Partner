@@ -3,7 +3,21 @@ import { retentionCutoff, serializeParams } from "../src/audit";
 import type { Page, PropstackClient, Query } from "../src/propstack-client";
 import { PropstackError } from "../src/propstack-client";
 import { runTool } from "../src/tools/register";
-import { aggregate, getContact, getObject, getProject, linkSummary, listFields, listTags, pipelineStatus, searchContacts, searchDeals } from "../src/tools/read-tools";
+import {
+	aggregate,
+	getContact,
+	getObject,
+	getProject,
+	linkSummary,
+	listFields,
+	listTags,
+	OWNER_PROJECT_LIMIT,
+	ownerLinks,
+	pipelineStatus,
+	searchContacts,
+	searchDeals,
+	searchObjects,
+} from "../src/tools/read-tools";
 
 const page = (rows: Record<string, unknown>[], total: number | null = rows.length): Page => ({ rows, total });
 
@@ -372,5 +386,139 @@ describe("Diagnose: Verknüpfungen", () => {
 		});
 		const failed = (await getProject(failing.client, { diagnose: "list_channel", id: 1 })).result as { list_channel: { expand: { error: string } } };
 		expect(failed.list_channel.expand.error).toContain("timeout");
+	});
+});
+
+describe("Suche nach Eigentümer (owner_contact_id)", () => {
+	// Form wie live am 11.11.2026 (Hillwood): Eigentümer meist nur am Projekt, an Einzelobjekten direkt
+	const HILLWOOD = {
+		id: 17366591,
+		name: "Hillwood Germany GmbH",
+		relationships: [
+			{ client: null, id: 1, internal_name: "owner", name: null, project: { id: 566962, name: "Logistikpark in (14) Falkensee" }, property: null, related_client: { id: 17366591, name: "Hillwood Germany GmbH" } },
+			{ client: null, id: 2, internal_name: "owner", name: null, project: { id: 503126, name: "Logistikflächen in (40) Düsseldorf" }, property: null, related_client: { id: 17366591, name: "Hillwood Germany GmbH" } },
+			// an der Einheit direkt verknüpft (zugleich Einheit eines Projekts) und ein Einzelobjekt ohne Projekt
+			{ client: null, id: 3, internal_name: "owner", name: null, project: null, property: { id: 5121159, name: "Unit 1" }, related_client: { id: 17366591, name: "Hillwood Germany GmbH" } },
+			{ client: null, id: 4, internal_name: "owner", name: null, project: null, property: { id: 3063644, name: "Falkensee alt" }, related_client: { id: 17366591, name: "Hillwood Germany GmbH" } },
+			// andere Rolle und Kontakt-zu-Kontakt zählen nicht
+			{ client: null, id: 5, internal_name: "partner", name: "Ansprechpartner", project: { id: 999, name: "Fremdes Projekt" }, property: null, related_client: { id: 17366591, name: "Hillwood Germany GmbH" } },
+			{ client: { id: 17366591, name: "Hillwood Germany GmbH" }, id: 6, internal_name: "associate", name: "Mitarbeiter", project: null, property: null, related_client: { id: 17366586, name: "Arndt Rellecke" } },
+			// nennt der Eintrag einen anderen Kontakt, gehört er nicht zu diesem
+			{ client: null, id: 7, internal_name: "owner", name: null, project: { id: 888, name: "Projekt eines anderen" }, property: null, related_client: { id: 4711, name: "Anderer" } },
+		],
+	};
+	const unit = (id: number, project_id: number | null, extra: Record<string, unknown> = {}) => ({
+		city: project_id === 503126 ? "Düsseldorf" : "Falkensee",
+		id,
+		project_id,
+		status: { id: 163674, name: "Vermarktung" },
+		title: `Objekt ${id}`,
+		unit_id: `Halle ${id % 10}`,
+		zip_code: project_id === 503126 ? "40597" : "14612",
+		...extra,
+	});
+	const UNITS = [
+		unit(5766192, 566962),
+		unit(5766193, 566962, { archived: true }),
+		unit(5121159, 503126),
+		unit(5121205, 503126, { status: { id: 163676, name: "Abgeschlossen" } }),
+		unit(3063644, null),
+		unit(1, 999),
+		unit(2, null),
+	];
+	/** Propstack-Verhalten: project_id, property_ids, archived (Standard: ohne Archivierte), q als Volltext. */
+	const unitSearch = (rows = UNITS) => (q?: Query) => {
+		let hit = rows;
+		if (q?.project_id !== undefined) hit = hit.filter((r) => r.project_id === q.project_id);
+		if (q?.property_ids !== undefined) hit = hit.filter((r) => String(q.property_ids).split(",").includes(String(r.id)));
+		if (q?.archived !== "-1") hit = hit.filter((r) => !(r as { archived?: boolean }).archived);
+		if (typeof q?.q === "string") hit = hit.filter((r) => `${r.city} ${r.zip_code}`.toLowerCase().includes(q.q!.toString().toLowerCase()));
+		return page(hit);
+	};
+	const hillwood = (overrides: Partial<Record<keyof PropstackClient, unknown>> = {}) => {
+		const world = fakeClient({ getContactRelationships: async () => structuredClone(HILLWOOD), ...overrides });
+		const calls = world.calls;
+		const client = { ...world.client, searchUnits: async (q?: Query) => (calls.push({ method: "searchUnits", query: q }), unitSearch()(q)), ...overrides } as unknown as PropstackClient;
+		return { calls, client };
+	};
+	type OwnerResult = { total: number; items: { id: number }[]; owner: { objects_total: number; objects_via_projects: number; objects_linked_directly: number; projects: { id: number; name: string; objects: number }[]; note: string } };
+
+	it("ownerLinks: nur Eigentümer-Verknüpfungen dieses Kontakts; fehlt die Liste, wird abgebrochen", async () => {
+		const links = await ownerLinks({ getContactRelationships: async () => HILLWOOD } as never, 17366591);
+		expect([...links.projects]).toEqual([[566962, "Logistikpark in (14) Falkensee"], [503126, "Logistikflächen in (40) Düsseldorf"]]);
+		expect([...links.direct]).toEqual([5121159, 3063644]);
+		expect(links.otherRoles).toBe(2);
+		expect(links.contact).toEqual({ id: 17366591, name: "Hillwood Germany GmbH" });
+		await expect(ownerLinks({ getContactRelationships: async () => ({ id: 1, name: "X" }) } as never, 1)).rejects.toThrow(/liefert die Verknüpfungen dieses Kontakts nicht/);
+	});
+
+	it("findet den ganzen Bestand: Einheiten der Projekte des Eigentümers UND direkt verknüpfte Objekte", async () => {
+		const { client, calls } = hillwood();
+		const { result, count } = await searchObjects(client, { owner_contact_id: 17366591 });
+		const r = result as OwnerResult;
+		// 5 Objekte gehören dem Eigentümer (eines davon archiviert); fremde (1, 2) bleiben draußen
+		expect(r.owner).toMatchObject({ contact: { id: 17366591, name: "Hillwood Germany GmbH" }, objects_linked_directly: 2, objects_total: 5, objects_via_projects: 4 });
+		expect(r.owner.projects).toEqual([
+			{ id: 503126, name: "Logistikflächen in (40) Düsseldorf", objects: 2 },
+			{ id: 566962, name: "Logistikpark in (14) Falkensee", objects: 2 },
+		]);
+		// sortiert nach Projekt und Einheit, Einzelobjekt zuletzt; das archivierte fehlt und wird genannt
+		expect(r.items.map((i) => i.id)).toEqual([5121205, 5121159, 5766192, 3063644]);
+		expect(count).toBe(4);
+		expect(r.owner.note).toMatch(/1 der 5 Objekte sind hier nicht enthalten \(archiviert/);
+		expect(r.owner.note).toMatch(/Datensätze ohne diese Verknüpfung .* findet die Suche nicht/);
+		// je Projekt eine Abfrage (mit Archivierten), dann die Treffer in einem Rutsch
+		const unitCalls = calls.filter((c) => c.method === "searchUnits").map((c) => c.query);
+		expect(unitCalls.slice(0, 2)).toEqual([expect.objectContaining({ archived: "-1", project_id: 566962 }), expect.objectContaining({ archived: "-1", project_id: 503126 })]);
+		expect(String(unitCalls[2]?.property_ids).split(",").sort()).toEqual(["3063644", "5121159", "5121205", "5766192", "5766193"]);
+	});
+
+	it("lässt sich mit den übrigen Filtern kombinieren (Status, Ort, Archivierte, object_ids)", async () => {
+		const { client } = hillwood();
+		const ids = async (input: Parameters<typeof searchObjects>[1]) => ((await searchObjects(client, input)).result as OwnerResult).items?.map((i) => i.id) ?? [];
+		expect(await ids({ owner_contact_id: 17366591, status_ids: [163674] })).toEqual([5121159, 5766192, 3063644]);
+		expect(await ids({ city: "Düsseldorf", owner_contact_id: 17366591 })).toEqual([5121205, 5121159]);
+		expect(await ids({ archived: "include", owner_contact_id: 17366591 })).toEqual([5121205, 5121159, 5766192, 5766193, 3063644]);
+		// object_ids schränkt ein, erweitert aber nie über den Bestand des Eigentümers hinaus
+		expect(await ids({ object_ids: [5766192, 1], owner_contact_id: 17366591 })).toEqual([5766192]);
+		await expect(searchObjects(client, { owner_contact_id: 17366591, tag_ids: [1, 2], tag_match: "all" })).rejects.toThrow(/nicht mit tag_match=all kombinieren/);
+		// sort_by wirkt hier nicht – das wird gesagt statt verschwiegen
+		expect(((await searchObjects(client, { owner_contact_id: 17366591, sort_by: "created_at" })).result as OwnerResult).owner.note).toMatch(/sort_by wirkt zusammen mit owner_contact_id nicht/);
+	});
+
+	it("Kontakt ohne Eigentümer-Verknüpfung: leeres Ergebnis mit Hinweis statt stiller Null", async () => {
+		const { client, calls } = hillwood({
+			getContactRelationships: async () => ({ id: 17366586, name: "Arndt Rellecke", relationships: [HILLWOOD.relationships[4], HILLWOOD.relationships[5]] }),
+		});
+		const { result, count } = await searchObjects(client, { owner_contact_id: 17366586 });
+		expect(count).toBe(0);
+		expect((result as OwnerResult).owner.note).toMatch(/nirgends als Eigentümer verknüpft – aber 1-mal in anderer Rolle .* Eigentümer ist meist der Firmenkontakt/);
+		expect(calls.filter((c) => c.method === "searchUnits")).toHaveLength(0);
+	});
+
+	it("viele Projekte: statt je Projekt wird der Bestand einmal geladen und nach Projekt gefiltert", async () => {
+		const many = Array.from({ length: OWNER_PROJECT_LIMIT + 1 }, (_, i) => ({
+			client: null,
+			id: i,
+			internal_name: "owner",
+			name: null,
+			project: { id: 1000 + i, name: `Projekt ${String(i).padStart(2, "0")}` },
+			property: null,
+			related_client: { id: 5, name: "Großer Eigentümer" },
+		}));
+		const rows = [...many.map((m, i) => unit(9000 + i, m.project.id)), unit(1, 999)];
+		const calls: (Query | undefined)[] = [];
+		const { client } = hillwood({
+			getContactRelationships: async () => ({ id: 5, name: "Großer Eigentümer", relationships: many }),
+			searchUnits: async (q?: Query) => (calls.push(q), unitSearch(rows)(q)),
+		});
+		const { result } = await searchObjects(client, { owner_contact_id: 5, per_page: 50 });
+		const r = result as OwnerResult;
+		expect(r.owner.objects_total).toBe(OWNER_PROJECT_LIMIT + 1);
+		expect(r.total).toBe(OWNER_PROJECT_LIMIT + 1);
+		expect(r.owner.projects.every((p) => p.objects === 1)).toBe(true);
+		// keine Abfrage je Projekt
+		expect(calls.some((q) => q?.project_id !== undefined)).toBe(false);
+		expect(calls[0]).toMatchObject({ archived: "-1" });
 	});
 });
