@@ -14,11 +14,40 @@ export function scalar(value: unknown): unknown {
 	return value;
 }
 
+/** Kurzfassung für Listen (z. B. Notiz in der Deal-Liste). In Einzelansichten fullText nutzen. */
 export function truncate(value: unknown, max: number): string | undefined {
 	const text = scalar(value);
 	if (typeof text !== "string" || !text.trim()) return undefined;
 	const clean = text.trim();
 	return clean.length > max ? `${clean.slice(0, max)}…` : clean;
+}
+
+/**
+ * Obergrenze je Textfeld in der Einzelansicht. So viel darf update_object/update_project in einem Aufruf schreiben –
+ * was der Connector schreiben kann, muss er auch vollständig zurücklesen können.
+ */
+export const DETAIL_TEXT_MAX = 10_000;
+
+function wholeOrMarked(clean: string, max: number): string {
+	if (clean.length <= max) return clean;
+	const head = Math.floor(max * 0.4);
+	const tail = max - head;
+	const omitted = clean.length - max;
+	return `${clean.slice(0, head)}\n[… ${omitted} von ${clean.length} Zeichen aus der Mitte ausgelassen – dieser Text ist NICHT vollständig und taugt nicht als Vorlage zum Überschreiben …]\n${clean.slice(-tail)}`;
+}
+
+/**
+ * Text für die Einzelansicht (get_object, get_project, get_contact): vollständig.
+ * Ansage Florian, 11.11.2026 („Warum ist nicht der gesamte Teil zu sehen?“). Vorher wurde nach 300 bis 2.000 Zeichen
+ * abgeschnitten. Das traf genau die Felder, die nur angehängt werden (interne Notiz, Bemerkung): Das Neueste steht
+ * am Ende und war nicht mehr lesbar. Bei Exposé-Texten kam dazu, dass ein gekürzt gelesener Text beim Überarbeiten
+ * als Ganzes zurückgeschrieben werden kann – der Rest ginge verloren.
+ * Nur über der Obergrenze wird noch gekürzt, dann mit Anfang UND Ende und einem unübersehbaren Hinweis.
+ */
+export function fullText(value: unknown, max = DETAIL_TEXT_MAX): string | undefined {
+	const text = scalar(value);
+	if (typeof text !== "string" || !text.trim()) return undefined;
+	return wholeOrMarked(text.trim(), max);
 }
 
 /** Entfernt leere Werte, damit die Antworten kurz bleiben. */
@@ -54,14 +83,14 @@ function idName(value: unknown): { id?: unknown; name?: string } | undefined {
 	return compact({ id: obj.id, name: nameOf(obj) });
 }
 
-/** Custom-Felder: nur befüllte, als {schlüssel: wert}. */
-export function customFields(value: unknown): Raw | undefined {
+/** Custom-Felder: nur befüllte, als {schlüssel: wert}. Texte vollständig (siehe fullText) – auch die Bemerkung. */
+export function customFields(value: unknown, max = DETAIL_TEXT_MAX): Raw | undefined {
 	if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
 	const out: Raw = {};
 	for (const [key, field] of Object.entries(value as Raw)) {
 		const v = scalar(field);
 		if (v === null || v === undefined || v === "" || (Array.isArray(v) && v.length === 0)) continue;
-		out[key] = typeof v === "string" && v.length > 300 ? `${v.slice(0, 300)}…` : v;
+		out[key] = typeof v === "string" ? wholeOrMarked(v, max) : v;
 	}
 	return Object.keys(out).length ? out : undefined;
 }
@@ -130,8 +159,8 @@ export function mapContactDetail(raw: Raw) {
 		status: idName(raw.status),
 		home_address: addressOf(raw, "home"),
 		office_address: addressOf(raw, "office"),
-		description: truncate(raw.description, 1500),
-		warning_notice: truncate(raw.warning_notice, 500),
+		description: fullText(raw.description),
+		warning_notice: fullText(raw.warning_notice),
 		gdpr_status: gdpr,
 		tags: groupNames(raw.groups),
 		custom_fields: customFields(raw.custom_fields),
@@ -245,11 +274,11 @@ export function mapUnitDetail(raw: Raw) {
 		broker: idName(raw.broker),
 		project: nameOf(raw.project),
 		tags: groupNames(raw.property_groups ?? raw.groups),
-		description: truncate(raw.description_note, 2000),
-		location: truncate(raw.location_note, 1500),
-		furnishing: truncate(raw.furnishing_note, 1500),
-		other: truncate(raw.other_note, 800),
-		internal_note: truncate(raw.note, 1500),
+		description: fullText(raw.description_note),
+		location: fullText(raw.location_note),
+		furnishing: fullText(raw.furnishing_note),
+		other: fullText(raw.other_note),
+		internal_note: fullText(raw.note),
 		contacts: relationshipList(raw.relationships),
 		energy_source: scalar(raw.firing_types),
 		heating_type: scalar(raw.heating_type),
@@ -292,11 +321,11 @@ export function mapProjectDetail(raw: Raw, units?: { rows: Raw[]; total: number 
 		code: scalar(raw.project_id),
 		status,
 		address: scalar(raw.address),
-		description: truncate(raw.description_note, 2000),
-		location: truncate(raw.location_note, 1500),
-		furnishing: truncate(raw.furnishing_note, 1500),
-		internal_note: truncate(raw.note, 1500),
-		warning_notice: truncate(raw.warning_notice, 500),
+		description: fullText(raw.description_note),
+		location: fullText(raw.location_note),
+		furnishing: fullText(raw.furnishing_note),
+		internal_note: fullText(raw.note),
+		warning_notice: fullText(raw.warning_notice),
 		contacts: relationshipList(raw.relationships),
 		custom_fields: customFields(raw.custom_fields),
 		image_count: countOf(raw.images),

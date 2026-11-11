@@ -1,6 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { berlinOffset, contactQuery, dayEnd, dayStart, dealQuery, objectQuery } from "../src/propstack/filters";
-import { customFields, mapContactDetail, mapContactSummary, mapDeal, mapUnitDetail, mapUnitSummary, scalar, stageIndex } from "../src/propstack/mappers";
+import {
+	customFields,
+	DETAIL_TEXT_MAX,
+	fullText,
+	mapContactDetail,
+	mapContactSummary,
+	mapDeal,
+	mapProjectDetail,
+	mapUnitDetail,
+	mapUnitSummary,
+	scalar,
+	stageIndex,
+} from "../src/propstack/mappers";
 
 describe("Datumsgrenzen in deutscher Zeit", () => {
 	it("kennt Winter- und Sommerzeit", () => {
@@ -92,8 +104,50 @@ describe("Mapper kürzen und schützen", () => {
 			id: 7,
 			tags: [{ id: 5, name: "Investor" }],
 		});
-		expect((out.description as string).length).toBe(1501);
+		// Einzelansicht: die Notiz des Kontakts vollständig (vorher nach 1.500 Zeichen abgeschnitten)
+		expect(out.description).toBe("x".repeat(2000));
 		expect(out).not.toHaveProperty("academic_title");
+	});
+
+	it("Einzelansicht zeigt Texte vollständig – auch das Ende von Notiz und Bemerkung (Ansage Florian, 11.11.2026)", () => {
+		// Beide Felder werden nur angehängt: Das Neueste steht am Ende und fiel vorher weg (300 bzw. 1.500 Zeichen)
+		const remark = `${"Älterer Eintrag im Protokoll. ".repeat(40)}\nErgänzt am 2026-11-11.\nGebäudefläche gesamt angeglichen: 8.423 m² statt 8.801 m².`;
+		const note = `${"Zeile der internen Notiz. ".repeat(100)}\nStellplatzmieten laut Eigentümer: Pkw 25 €, Lkw 50 €.`;
+		const location = `Lage:\n${"- A2 (Anschlussstelle): ca. 0,2 km\n".repeat(80)}- Hafen: ca. 12 km`;
+		expect(remark.length).toBeGreaterThan(300);
+		expect(note.length).toBeGreaterThan(1500);
+		expect(location.length).toBeGreaterThan(2000);
+		const detail = mapUnitDetail({ custom_fields: { bemerkung: { value: remark } }, id: 9, location_note: location, note });
+		expect((detail.custom_fields as Record<string, unknown>).bemerkung).toBe(remark);
+		expect(detail.internal_note).toBe(note);
+		expect(detail.location).toBe(location);
+		const project = mapProjectDetail({ custom_fields: { bemerkung: { value: remark } }, description_note: location, id: 3, note });
+		expect(project.description).toBe(location);
+		expect(project.internal_note).toBe(note);
+		expect((project.custom_fields as Record<string, unknown>).bemerkung).toBe(remark);
+	});
+
+	it("über der Obergrenze: Anfang und Ende mit unübersehbarem Hinweis – nie ein stilles Abschneiden", () => {
+		const long = `ANFANG ${"x".repeat(DETAIL_TEXT_MAX + 500)} ENDE`;
+		const shown = fullText(long)!;
+		expect(shown.startsWith("ANFANG ")).toBe(true);
+		expect(shown.endsWith(" ENDE")).toBe(true);
+		expect(shown).toContain("[… 512 von 10512 Zeichen aus der Mitte ausgelassen – dieser Text ist NICHT vollständig und taugt nicht als Vorlage zum Überschreiben …]");
+		expect(shown.length).toBeLessThan(DETAIL_TEXT_MAX + 200);
+		// bis zur Grenze unverändert; Leerraum außen fällt weg; leer bleibt leer
+		expect(fullText("y".repeat(DETAIL_TEXT_MAX))).toBe("y".repeat(DETAIL_TEXT_MAX));
+		expect(fullText("  kurz  ")).toBe("kurz");
+		expect(fullText("   ")).toBeUndefined();
+		expect(fullText({ label: "Lage", value: "Text" })).toBe("Text");
+		// Custom-Felder folgen derselben Regel; Zahlen und kurze Texte bleiben, wie sie sind
+		const custom = customFields({ bemerkung: { value: long }, kurz: { value: "ok" }, zahl: { value: 8 } })!;
+		expect(custom).toMatchObject({ kurz: "ok", zahl: 8 });
+		expect(String(custom.bemerkung)).toContain("NICHT vollständig");
+	});
+
+	it("Listen bleiben kurz: die Notiz in der Deal-Liste wird weiter gekürzt", () => {
+		const index = stageIndex([{ deal_stages: [{ chance: 0.5, id: 11, name: "Besichtigt" }], id: 1, name: "Vertrieb" }]);
+		expect((mapDeal({ deal_stage_id: 11, id: 1, note: "n".repeat(400) }, index).note as string).length).toBe(301);
 	});
 
 	it("Kontakt-Liste: Betreuer aus broker_ids, wenn broker_id fehlt", () => {

@@ -133,7 +133,7 @@ export function registerReadTools(server: McpServer, ctx: ToolContext): void {
 	);
 	register(
 		"get_contact",
-		"Einen Kontakt mit Details abrufen: Kontaktdaten, Adressen, Betreuer, Merkmale, befüllte Custom-Felder, DSGVO-Status. Sensible Daten wie Ausweis- und Steuernummer oder Geburtsdaten werden nicht ausgegeben.",
+		"Einen Kontakt mit Details abrufen: Kontaktdaten, Adressen, Betreuer, Merkmale, Notiz und befüllte Custom-Felder (Texte vollständig), DSGVO-Status. Sensible Daten wie Ausweis- und Steuernummer oder Geburtsdaten werden nicht ausgegeben.",
 		getContactInput,
 		getContact,
 	);
@@ -145,13 +145,13 @@ export function registerReadTools(server: McpServer, ctx: ToolContext): void {
 	);
 	register(
 		"get_object",
-		"Ein Objekt mit Details abrufen: Adresse, Eckdaten, Status, Betreuer, Projekt, Merkmale, Beschreibungstexte (gekürzt), interne Notiz, verknüpfte Kontakte (Eigentümer, Ansprechpartner), befüllte Custom-Felder und Bilder mit Titel (zum Prüfen, ob sie benannt sind).",
+		"Ein Objekt mit Details abrufen: Adresse, Eckdaten, Status, Betreuer, Projekt, Merkmale, Beschreibungstexte, interne Notiz, verknüpfte Kontakte (Eigentümer, Ansprechpartner), befüllte Custom-Felder (inkl. Bemerkung = Änderungsprotokoll) und Bilder mit Titel (zum Prüfen, ob sie benannt sind). Alle Texte kommen vollständig – interne Notiz und Bemerkung werden nur angehängt, das Neueste steht am Ende. Nur über 10.000 Zeichen je Feld wird gekürzt, dann mit Anfang, Ende und dem Hinweis „NICHT vollständig“: einen so markierten Text nie als Vorlage zum Überschreiben nehmen.",
 		getObjectInput,
 		getObject,
 	);
 	register(
 		"get_project",
-		"Ein Projekt mit Details abrufen: Name, Überschrift, Unterzeile, Adresse, Koordinaten, Provision, Exposé-Texte (gekürzt), verknüpfte Kontakte (Eigentümer, Ansprechpartner), Bilder mit Titel, Links und die Einheiten des Projekts (ID, Einheitennummer, Status). Zum Prüfen vor und nach Änderungen.",
+		"Ein Projekt mit Details abrufen: Name, Überschrift, Unterzeile, Adresse, Koordinaten, Provision, Exposé-Texte und interne Notiz (vollständig; nur über 10.000 Zeichen je Feld gekürzt und dann als „NICHT vollständig“ markiert), verknüpfte Kontakte (Eigentümer, Ansprechpartner), Bilder mit Titel, Links und die Einheiten des Projekts (ID, Einheitennummer, Status). Zum Prüfen vor und nach Änderungen.",
 		getProjectInput,
 		getProject,
 	);
