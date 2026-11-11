@@ -1,0 +1,29 @@
+// Gespeicherter Stand der Tool-Definitionen (Fingerabdruck aus Beschreibung und Parametern je Tool).
+// Nicht von Hand pflegen: Der Test tool-definitions.test.ts nennt bei einer Abweichung den neuen Stand zum Einfügen.
+// Jede Änderung hier heißt: Diese Tools stehen bei allen Nutzern wieder auf „Genehmigung erforderlich“ (README 5c).
+export const TOOL_DEFINITIONS: Record<string, string> = {
+	add_images: "b994baf6e9491ad5",
+	aggregate: "3ea075a69049fe70",
+	apply_plan: "245acf9b6597f276",
+	create_contact: "0c1da03069ccc452",
+	create_object: "0c30c329ffd8cfff",
+	create_project: "e8c30b13d15e8541",
+	create_task: "b60da91fc5b63afb",
+	get_contact: "d4f874667b033d6c",
+	get_object: "33408d29b6559453",
+	get_project: "3d9466dff962181a",
+	image_upload_url: "4b47ee9795cf5d67",
+	list_fields: "32bc9433bdd877eb",
+	list_reference: "2e97df0cacdb29ea",
+	list_tags: "202d8086cc986bf6",
+	pipeline_status: "8f3ef37f9fb57567",
+	plan: "06b74e4d4b5c2c38",
+	search_contacts: "68a59b5a6acfec1f",
+	search_deals: "9b6add2808357370",
+	search_objects: "b28aae7697f87511",
+	set_project_owner: "91ca453725919014",
+	undo_plan: "6ea3159fcdde8dc9",
+	update_contact: "2e2a455d2b9a8004",
+	update_object: "70c17d079212bd17",
+	update_project: "14063d2a05bcd19b",
+};
