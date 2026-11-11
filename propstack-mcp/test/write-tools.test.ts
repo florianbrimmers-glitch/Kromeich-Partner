@@ -1273,6 +1273,70 @@ describe("create_object / update_object – Team-How-to", () => {
 		expect("bezug_datum" in rented.custom).toBe(false);
 	});
 
+	it("align_building_area: „Gebäudefläche gesamt“ wird an die Gesamtfläche angeglichen (Entscheidung Florian, 11.11.2026)", async () => {
+		const w = world();
+		// Stand wie im Hillwood-Bestand seit August 2026: „Gebäudefläche gesamt“ noch inklusive Büro
+		Object.assign(w.stored, { industrial_area: 10410, marketing_type: "RENT", rented: false, title: "Halle", total_floor_space: 11269, usable_floor_space: 352 });
+		Object.assign(w.custom, { gebaudeflache_gesamt: 11621, mezzanineflache_gesamt: "859 m²" });
+		const deps = { client: w.client, db: fakeDb().db, now: NOW, sleep, user: USER };
+		const lastPut = () => w.puts[w.puts.length - 1];
+
+		// 1) Nur das eine Feld und ein Vermerk mit altem und neuem Wert; ein leeres „verfügbar“ bleibt leer
+		const out = await updateObject(deps, { align_building_area: true, id: 900 });
+		expect(lastPut()).toEqual({
+			partial_custom_fields: {
+				bemerkung: expect.stringMatching(/Gebäudefläche gesamt an die Gesamtfläche angeglichen \(Halle \+ Mezzanine, ohne Büro\): 11\.269 m² statt 11\.621 m²\.$/),
+				gebaudeflache_gesamt: 11269,
+			},
+		});
+		expect((out.result as { changed: string[] }).changed).toEqual(["custom_fields.gebaudeflache_gesamt", "bemerkung (angehängt)"]);
+		expect("gebaudeflache_verfugbar" in w.custom).toBe(false);
+		expect(w.stored.total_floor_space).toBe(11269);
+
+		// 2) Schon angeglichen → nichts zu tun
+		const puts = w.puts.length;
+		expect((await updateObject(deps, { align_building_area: true, id: 900 })).result).toMatchObject({ updated: false });
+		expect(w.puts.length).toBe(puts);
+
+		// 3) Ist „verfügbar“ schon befüllt und die Einheit nicht vermietet, zieht es mit; bei vermieteten bleibt es stehen
+		Object.assign(w.custom, { gebaudeflache_gesamt: 11621, gebaudeflache_verfugbar: 11621 });
+		await updateObject({ ...deps, now: () => new Date("2026-10-15T09:00:00Z") }, { align_building_area: true, id: 900 });
+		expect(w.custom).toMatchObject({ gebaudeflache_gesamt: 11269, gebaudeflache_verfugbar: 11269 });
+		Object.assign(w.custom, { gebaudeflache_gesamt: 11621, gebaudeflache_verfugbar: 11621 });
+		w.stored.rented = true;
+		await updateObject({ ...deps, now: () => new Date("2026-10-16T09:00:00Z") }, { align_building_area: true, id: 900 });
+		expect(w.custom).toMatchObject({ gebaudeflache_gesamt: 11269, gebaudeflache_verfugbar: 11621 });
+		w.stored.rented = false;
+
+		// 4) Stimmt die Gesamtfläche selbst nicht, wird nichts weitergetragen – erst berichtigen
+		w.stored.total_floor_space = 11621;
+		w.custom.gebaudeflache_gesamt = 12000;
+		const before = w.puts.length;
+		await expect(updateObject(deps, { align_building_area: true, id: 900 })).rejects.toThrow(
+			/Gesamtfläche \(11\.621 m²\) ist nicht Hallenfläche \+ Mezzanine \(11\.269 m²\).*total_floor_space: 11269/,
+		);
+		expect(w.puts.length).toBe(before);
+		// … zusammen mit der Berichtigung in einem Aufruf geht es
+		await updateObject(deps, { align_building_area: true, id: 900, total_floor_space: 11269 });
+		expect(w.stored.total_floor_space).toBe(11269);
+		expect(w.custom.gebaudeflache_gesamt).toBe(11269);
+
+		// 5) Mezzanine nicht lesbar oder keine Gesamtfläche → abgewiesen statt geraten
+		w.custom.mezzanineflache_gesamt = "ca. 900 m²";
+		await expect(updateObject(deps, { align_building_area: true, id: 900 })).rejects.toThrow(/Mezzaninefläche \(„ca\. 900 m²“\) ist keine lesbare Zahl/);
+		const empty = world();
+		Object.assign(empty.stored, { marketing_type: "RENT", rented: false, title: "Büro" });
+		await expect(updateObject({ ...deps, client: empty.client }, { align_building_area: true, id: 900 })).rejects.toThrow(/keine Gesamtfläche gespeichert/);
+
+		// 6) Ein ausdrücklich mitgegebener Wert hat Vorrang (kein automatischer Vermerk)
+		const explicit = world();
+		Object.assign(explicit.stored, { industrial_area: 5000, marketing_type: "RENT", rented: false, title: "Halle", total_floor_space: 5000 });
+		Object.assign(explicit.custom, { gebaudeflache_gesamt: 5400 });
+		await updateObject({ ...deps, client: explicit.client }, { align_building_area: true, custom_fields: { gebaudeflache_gesamt: 5100 }, id: 900 });
+		expect(explicit.custom.gebaudeflache_gesamt).toBe(5100);
+		expect(explicit.custom.bemerkung).toBeUndefined();
+	});
+
 	it("Notizen werden nicht doppelt angehängt (Ansage Florian, 11.11.2026)", async () => {
 		const w = world();
 		Object.assign(w.stored, { marketing_type: "RENT", rented: false, title: "Halle" });

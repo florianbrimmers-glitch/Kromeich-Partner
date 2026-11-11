@@ -1015,6 +1015,12 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 export const updateObjectInput = {
 	id: id.describe("Propstack-Objekt-ID"),
 	...objectFieldsShape,
+	align_building_area: z
+		.literal(true)
+		.optional()
+		.describe(
+			"„Gebäudefläche gesamt“ an die Gesamtfläche angleichen (Halle + Mezzanine, ohne Büro – Entscheidung Florian, 11.11.2026): setzt das Custom-Feld gebaudeflache_gesamt auf die gespeicherte Gesamtfläche, zieht gebaudeflache_verfugbar nur nach, wo es schon befüllt und das Objekt nicht vermietet ist, und hängt einen Änderungsvermerk mit altem und neuem Wert an. Passt die Gesamtfläche nicht zu Hallenfläche + Mezzanine, wird abgewiesen – dann zuerst die Flächen berichtigen. Für viele Objekte: plan mit changes.align_building_area",
+		),
 	allow_duplicate_reason: optionalText(500).describe("Nur falls die geänderte Adresse/Einheit/Vermarktungsart mit einem anderen Objekt kollidiert: Begründung"),
 };
 
@@ -1040,6 +1046,8 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	// Gesamtfläche wird immer gerechnet: Hallenfläche + Mezzaninefläche – je der neue Wert aus dem Aufruf, sonst der gespeicherte.
 	// Neu geschrieben wird sie, sobald der Aufruf eine der Flächen anfasst; Altobjekte, an denen nur anderes geändert wird, bleiben unberührt.
 	const totalNotes: string[] = [];
+	/** Zielwert für „Gebäudefläche gesamt“, wenn align_building_area gesetzt ist. */
+	let alignTarget: number | undefined;
 	{
 		const customGiven = input.custom_fields !== undefined && MEZZANINE_KEY in input.custom_fields;
 		const mezzanineGiven = input.mezzanine_area !== undefined || customGiven;
@@ -1069,6 +1077,26 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 					`Gesamtfläche (${showArea(stored!)} m²) ist nicht Hallenfläche + Mezzanine (${showArea(computed)} m²). Sie wird neu gerechnet, sobald Hallen- oder Mezzaninefläche gesetzt wird – oder sofort mit total_floor_space: ${computed}.`,
 				);
 			}
+		}
+		// „Gebäudefläche gesamt“ angleichen: nur auf eine Gesamtfläche, die selbst stimmt – sonst würde ein falscher Wert weitergetragen
+		if (input.align_building_area) {
+			if (unreadable && hall !== undefined) {
+				throw new PropstackError(
+					`Die gespeicherte Mezzaninefläche („${String(scalar(mezzanineStored)).slice(0, 60)}“) ist keine lesbare Zahl – ob die Gesamtfläche stimmt, lässt sich so nicht prüfen. Bitte mezzanine_area mit angeben.`,
+					400,
+				);
+			}
+			const target = typeof requested.total_floor_space === "number" ? requested.total_floor_space : areaNumber(currentValue("total_floor_space"));
+			if (target === undefined) {
+				throw new PropstackError("Es ist keine Gesamtfläche gespeichert – „Gebäudefläche gesamt“ lässt sich nicht angleichen. Bitte zuerst die Flächen setzen.", 400);
+			}
+			if (computed !== undefined && totalDiffers(target, computed)) {
+				throw new PropstackError(
+					`Die gespeicherte Gesamtfläche (${showArea(target)} m²) ist nicht Hallenfläche + Mezzanine (${showArea(computed)} m²). Bitte zuerst die Gesamtfläche berichtigen (total_floor_space: ${computed}) – erst dann lässt sich „Gebäudefläche gesamt“ angleichen.`,
+					400,
+				);
+			}
+			alignTarget = target;
 		}
 	}
 
@@ -1155,6 +1183,19 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	if (rentChanged && fields.rented === false && requested.free_from === undefined && same("vermietet", scalar(currentValue("free_from")))) {
 		notes.push("Die Einheit ist wieder als nicht vermietet markiert, „Verfügbar ab“ steht aber noch auf „vermietet“ – bitte free_from angeben (z. B. „sofort“); „Bezug“ zieht dann mit.");
 	}
+	// „Gebäudefläche gesamt“ = Gesamtfläche (ohne Büro). „verfügbar“ nur, wo es schon befüllt ist und die Einheit
+	// nicht vermietet ist – leere Felder bleiben leer, damit das Angleichen nichts Neues ins Exposé bringt.
+	const alignment: Raw = {};
+	if (alignTarget !== undefined) {
+		const target = alignTarget;
+		const open = (key: string) => defs.has(key) && !(key in explicit);
+		const asField = (key: string) => (defs.get(key)!.type === "Number" ? target : `${showArea(target)} m²`);
+		if (open("gebaudeflache_gesamt")) alignment.gebaudeflache_gesamt = asField("gebaudeflache_gesamt");
+		const available = unitCustomValue(current, "gebaudeflache_verfugbar");
+		if (open("gebaudeflache_verfugbar") && rentState === "available" && available !== UNVERIFIABLE && !isEmpty(available)) {
+			alignment.gebaudeflache_verfugbar = asField("gebaudeflache_verfugbar");
+		}
+	}
 	// „Provision extern“ nur anfassen, wenn die Provision in diesem Aufruf geändert wird – dann aus dem Stand danach
 	const commissionTouched = input.commission !== undefined || input.courtage !== undefined || input.courtage_note !== undefined;
 	const provision = provisionCustomFields(
@@ -1180,6 +1221,7 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 			...howto,
 			...provision,
 			...availability,
+			...alignment,
 		}).filter(([key, value]) => {
 			const actual = unitCustomValue(current, key);
 			return actual === UNVERIFIABLE || !same(value, actual);
@@ -1216,8 +1258,15 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 			before.note = oldText;
 		}
 	}
+	// Angleichen hinterlässt einen eigenen Vermerk mit altem und neuem Wert – nur wenn sich das Feld wirklich ändert
+	let alignNote: string | undefined;
+	if (alignTarget !== undefined && "gebaudeflache_gesamt" in mirrored) {
+		const stored = unitCustomValue(current, "gebaudeflache_gesamt");
+		const old = stored === UNVERIFIABLE ? undefined : areaNumber(stored);
+		alignNote = `Gebäudefläche gesamt an die Gesamtfläche angeglichen (Halle + Mezzanine, ohne Büro): ${showArea(alignTarget)} m²${old !== undefined ? ` statt ${showArea(old)} m²` : ""}.`;
+	}
 	// Die Bemerkung ist ein Änderungsprotokoll: doppelt ist ein Vermerk nur unter dem Stempel desselben Tages und Nutzers
-	const appendLines = [input.bemerkung_append].filter((line): line is string => Boolean(line));
+	const appendLines = [input.bemerkung_append, alignNote].filter((line): line is string => Boolean(line));
 	let bemerkungAppended = false;
 	if (appendLines.length) {
 		const old = unitCustomValue(current, "bemerkung");

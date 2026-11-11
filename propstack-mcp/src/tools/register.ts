@@ -246,7 +246,7 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
 	);
 	register(
 		"update_object",
-		`Vorhandenes Objekt ändern: Eckdaten, Status, Vermietet, Aktiv, Flächen, Ausstattungsfelder, Provision, Texte, interne Notiz (angehängt), Änderungsvermerk, Custom-Felder, Koordinaten (lat+lng). Nur geänderte Werte werden geschrieben, der vorherige Stand wird gesichert. Bei Adress-/Einheiten-/Vermarktungsänderung erneute Dublettenprüfung. Eigentümer/Ansprechpartner: set_project_owner. ${objectRules} ${commissionRules}`,
+		`Vorhandenes Objekt ändern: Eckdaten, Status, Vermietet, Aktiv, Flächen, Ausstattungsfelder, Provision, Texte, interne Notiz (angehängt), Änderungsvermerk, Custom-Felder, Koordinaten (lat+lng). Nur geänderte Werte werden geschrieben, der vorherige Stand wird gesichert. Bei Adress-/Einheiten-/Vermarktungsänderung erneute Dublettenprüfung. Eigentümer/Ansprechpartner: set_project_owner. „Gebäudefläche gesamt“ an die Gesamtfläche angleichen: align_building_area. ${objectRules} ${commissionRules}`,
 		updateObjectInput,
 		true,
 		updateObject,
@@ -295,7 +295,7 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
 	);
 	register(
 		"plan",
-		`Massenänderung PLANEN (ändert noch nichts): Kontakte oder Objekte per ID-Liste oder Filter (wie search_contacts/search_objects) auswählen, Änderung festlegen – Kontakte: Merkmale hinzufügen/entfernen, Betreuer, Quelle, Kontaktstatus, Custom-Felder; Objekte: Status, vermietet, Provision und Exposé-Texte (z. B. vom Projekt auf alle Einheiten übertragen: object_filter {project_id}), Custom-Felder (keine Merkmale). Liefert plan_id, Anzahl und Vorschau; max. ${MAX_PLAN_ITEMS} Datensätze. Danach dem Nutzer die Vorschau zeigen und ausdrücklich bestätigen lassen – erst dann apply_plan. Die plan_id verfällt nach 10 Minuten.`,
+		`Massenänderung PLANEN (ändert noch nichts): Kontakte oder Objekte per ID-Liste oder Filter (wie search_contacts/search_objects) auswählen, Änderung festlegen – Kontakte: Merkmale hinzufügen/entfernen, Betreuer, Quelle, Kontaktstatus, Custom-Felder; Objekte: Status, vermietet, Provision und Exposé-Texte (z. B. vom Projekt auf alle Einheiten übertragen: object_filter {project_id}), Custom-Felder (keine Merkmale), „Gebäudefläche gesamt“ an die Gesamtfläche angleichen (align_building_area – jedes Objekt bekommt seinen eigenen Wert). Liefert plan_id, Anzahl und Vorschau; max. ${MAX_PLAN_ITEMS} Datensätze. Danach dem Nutzer die Vorschau zeigen und ausdrücklich bestätigen lassen – erst dann apply_plan. Die plan_id verfällt nach 10 Minuten.`,
 		planBulkInput,
 		false,
 		planBulk,

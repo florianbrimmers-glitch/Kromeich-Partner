@@ -51,6 +51,12 @@ export const changesShape = {
 	client_status_id: id.optional().describe("Nur Kontakte: Kontaktstatus setzen"),
 	status_id: id.optional().describe("Nur Objekte: Objekt-Status (163672 Akquise … 163676 Abgeschlossen)"),
 	rented: z.boolean().optional().describe("Nur Objekte: vermietet ja/nein (mit den Automatiken aus update_object)"),
+	align_building_area: z
+		.literal(true)
+		.optional()
+		.describe(
+			"Nur Objekte: „Gebäudefläche gesamt“ an die Gesamtfläche jedes Objekts angleichen (Halle + Mezzanine, ohne Büro) – jedes Objekt bekommt seinen eigenen Wert und einen Änderungsvermerk mit altem und neuem Wert. Objekte, deren Gesamtfläche nicht zu Hallenfläche + Mezzanine passt, bleiben unverändert und werden gemeldet",
+		),
 	commission: commissionParam.describe("Nur Objekte: Provision nach Team-Standard – provisionsfrei oder staffel (Standardtexte wie bei update_object)"),
 	courtage: text(200).describe("Nur Objekte: Außenprovision fürs Exposé"),
 	courtage_note: text(2000).describe("Nur Objekte: Provisionshinweis"),
@@ -66,7 +72,17 @@ export const changesShape = {
 const CONTACT_ONLY = ["broker_id", "source_id", "client_status_id", "add_tag_ids", "remove_tag_ids"];
 // Texte und Provision an Objekten: Ersatz für „Daten auf Einheiten übertragen“ nach einer Projektänderung (How-to).
 const OBJECT_TEXT_KEYS = ["commission", "courtage", "courtage_note", "description_note", "location_note", "furnishing_note"];
-const OBJECT_ONLY = ["status_id", "rented", "public_price_confirmed", ...OBJECT_TEXT_KEYS];
+const OBJECT_ONLY = ["status_id", "rented", "align_building_area", "public_price_confirmed", ...OBJECT_TEXT_KEYS];
+/** Objekt-Änderungen, die nur Custom-Felder anfassen: kein Einzel-PUT, keine Dublettenprüfung → weniger Anfragen je Datensatz. */
+const OBJECT_CUSTOM_ONLY = ["custom_fields", "align_building_area", "public_price_confirmed"];
+const COST_CUSTOM_ONLY = { apply: 6, undo: 8 } as const;
+
+/** Schlechtester Fall an Propstack-Anfragen je Datensatz für diesen Plan. */
+export function costOf(entity: "contacts" | "objects", changes: Raw, kind: "apply" | "undo"): number {
+	const keys = Object.keys(changes).filter((key) => changes[key] !== undefined);
+	if (entity === "objects" && keys.length && keys.every((key) => OBJECT_CUSTOM_ONLY.includes(key))) return COST_CUSTOM_ONLY[kind];
+	return COST[entity][kind];
+}
 
 export const planBulkInput = {
 	entity: z.enum(["contacts", "objects"]).describe("Kontakte oder Objekte"),
@@ -192,7 +208,7 @@ export async function planBulk(deps: BulkDeps, input: z.infer<z.ZodObject<typeof
 		rows.map((row) => ({ entity_id: Number(scalar(row.id)), label: labelOf(row, entity) })),
 	);
 
-	const perCall = Math.floor(BULK_REQUEST_BUDGET / COST[entity].apply);
+	const perCall = Math.floor(BULK_REQUEST_BUDGET / costOf(entity, changes, "apply"));
 	return {
 		count: rows.length,
 		result: {
@@ -221,7 +237,7 @@ function itemInput(entity: "contacts" | "objects", entityId: number, changes: Ra
 	const pick = (keys: string[]) => Object.fromEntries(keys.filter((k) => changes[k] !== undefined).map((k) => [k, changes[k]]));
 	return entity === "contacts"
 		? { id: entityId, ...pick(["add_tag_ids", "remove_tag_ids", "broker_id", "source_id", "client_status_id", "custom_fields"]) }
-		: { id: entityId, ...pick(["status_id", "rented", "custom_fields", "public_price_confirmed", ...OBJECT_TEXT_KEYS]) };
+		: { id: entityId, ...pick(["status_id", "rented", "align_building_area", "custom_fields", "public_price_confirmed", ...OBJECT_TEXT_KEYS]) };
 }
 
 async function runOne(
@@ -266,7 +282,7 @@ export async function applyPlan(deps: BulkDeps, input: z.infer<z.ZodObject<typeo
 	}
 	if (plan.status === "planned") await store.updatePlan(plan.id, { applied_by: user.email, status: "applying" });
 
-	const cost = COST[plan.entity].apply;
+	const cost = costOf(plan.entity, plan.changes, "apply");
 	let processed = 0;
 	let interrupted: string | null = null;
 	for (;;) {
@@ -455,7 +471,7 @@ export async function undoPlan(deps: BulkDeps, input: z.infer<z.ZodObject<typeof
 	}
 	if (plan.status !== "undoing") await store.updatePlan(plan.id, { status: "undoing", undone_by: user.email });
 
-	const cost = COST[plan.entity].undo;
+	const cost = costOf(plan.entity, plan.changes, "undo");
 	let processed = 0;
 	let interrupted: string | null = null;
 	for (;;) {
