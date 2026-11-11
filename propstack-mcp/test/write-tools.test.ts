@@ -1298,6 +1298,25 @@ describe("create_object / update_object – Team-How-to", () => {
 		expect((await updateObject(deps, { align_building_area: true, id: 900 })).result).toMatchObject({ updated: false });
 		expect(w.puts.length).toBe(puts);
 
+		// 2b) Der Wert wird zurückgestellt (z. B. über undo_plan) und am selben Tag erneut angeglichen: wieder ein Vermerk –
+		// das ist eine neue Änderung, kein wiederholter Aufruf (Befund 11.11.2026: vorher blieb der zweite Vermerk aus)
+		w.custom.gebaudeflache_gesamt = 11621;
+		const repeat = (await updateObject(deps, { align_building_area: true, id: 900 })).result as { changed: string[]; already_present?: string[] };
+		expect(repeat.changed).toEqual(["custom_fields.gebaudeflache_gesamt", "bemerkung (angehängt)"]);
+		expect(repeat.already_present).toBeUndefined();
+		expect(String(w.custom.bemerkung).match(/11\.269 m² statt 11\.621 m²\./g)).toHaveLength(2);
+		// Ein mitgegebener Vermerk bleibt dabei doppelt-geschützt: steht er heute schon da, kommt nur der Angleich-Vermerk dazu
+		await updateObject(deps, { bemerkung_append: "Flächen laut Exposé geprüft.", id: 900 });
+		w.custom.gebaudeflache_gesamt = 11621;
+		const mixed = (await updateObject(deps, { align_building_area: true, bemerkung_append: "Flächen laut Exposé geprüft.", id: 900 })).result as {
+			changed: string[];
+			already_present?: string[];
+		};
+		expect(mixed.changed).toEqual(["custom_fields.gebaudeflache_gesamt", "bemerkung (angehängt)"]);
+		expect(mixed.already_present).toEqual(["bemerkung_append (derselbe Vermerk steht heute schon in der Bemerkung)"]);
+		expect(String(w.custom.bemerkung).match(/Flächen laut Exposé geprüft\./g)).toHaveLength(1);
+		expect(String(w.custom.bemerkung).match(/11\.269 m² statt 11\.621 m²\./g)).toHaveLength(3);
+
 		// 3) Ist „verfügbar“ schon befüllt und die Einheit nicht vermietet, zieht es mit; bei vermieteten bleibt es stehen
 		Object.assign(w.custom, { gebaudeflache_gesamt: 11621, gebaudeflache_verfugbar: 11621 });
 		await updateObject({ ...deps, now: () => new Date("2026-10-15T09:00:00Z") }, { align_building_area: true, id: 900 });

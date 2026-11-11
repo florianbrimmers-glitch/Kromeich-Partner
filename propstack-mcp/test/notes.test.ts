@@ -50,4 +50,18 @@ describe("Notizen nicht doppelt anhängen", () => {
 		// anderer Vermerk am selben Tag wird angehängt
 		expect(appendNote(`${STAMP}\n${note}`, STAMP, ["Status auf Abgeschlossen."], { sameStampOnly: true }).addition).toBe(`${STAMP}\nStatus auf Abgeschlossen.`);
 	});
+
+	it("appendNote mit always: Vermerke, die der Connector bei einer echten Änderung erzeugt, gelten nie als doppelt", () => {
+		const event = "Gebäudefläche gesamt an die Gesamtfläche angeglichen (Halle + Mezzanine, ohne Büro): 2.500 m² statt 3.000 m².";
+		const given = "Verfügbarkeit laut Eigentümer aktualisiert.";
+		// derselbe Wortlaut steht heute schon da (angleichen → rückgängig → erneut angleichen) → kommt trotzdem dazu
+		const again = appendNote(`${STAMP}\n${event}`, STAMP, [], { always: [event], sameStampOnly: true });
+		expect(again.text).toBe(`${STAMP}\n${event}\n\n${STAMP}\n${event}`);
+		// der mitgegebene Vermerk daneben bleibt geschützt: nur das Ereignis kommt dazu, und present meldet den Rest
+		const mixed = appendNote(`${STAMP}\n${given}`, STAMP, [given], { always: [event], sameStampOnly: true });
+		expect(mixed.addition).toBe(`${STAMP}\n${event}`);
+		expect(mixed.present).toEqual([given]);
+		// weder Ereignis noch Neues: nichts anzuhängen
+		expect(appendNote(`${STAMP}\n${given}`, STAMP, [given], { always: [], sameStampOnly: true }).text).toBeUndefined();
+	});
 });
