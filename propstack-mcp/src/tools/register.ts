@@ -7,6 +7,7 @@ import {
 	aggregate,
 	aggregateInput,
 	getContact,
+	getContactInput,
 	getObject,
 	getObjectInput,
 	getProject,
@@ -133,7 +134,7 @@ export function registerReadTools(server: McpServer, ctx: ToolContext): void {
 	register(
 		"get_contact",
 		"Einen Kontakt mit Details abrufen: Kontaktdaten, Adressen, Betreuer, Merkmale, befüllte Custom-Felder, DSGVO-Status. Sensible Daten wie Ausweis- und Steuernummer oder Geburtsdaten werden nicht ausgegeben.",
-		{ id: id.describe("Propstack-Kontakt-ID") },
+		getContactInput,
 		getContact,
 	);
 	register(

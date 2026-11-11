@@ -128,6 +128,14 @@ export class PropstackClient {
 		return this.get(`/contacts/${id}`);
 	}
 
+	/**
+	 * GET /v1/contacts/:id?include=owned_properties,relationships – Kontakt samt Verknüpfungen.
+	 * Doku „Kontakt lesen“: owned_properties = Objekte, bei denen der Kontakt als Eigentümer eingetragen ist.
+	 */
+	async getContactLinks(id: number): Promise<unknown> {
+		return this.get(`/contacts/${id}?include=owned_properties,relationships`);
+	}
+
 	/** GET /v1/units – Objekte suchen. */
 	async searchUnits(query: Query): Promise<Page> {
 		return toPage(await this.get(`/units${buildQuery({ ...query, with_meta: 1 })}`));
@@ -176,6 +184,14 @@ export class PropstackClient {
 	/** GET /v1/projects */
 	async listProjects(): Promise<Page> {
 		return toPage(await this.get("/projects"));
+	}
+
+	/**
+	 * GET /v1/projects?expand=1 – alle Projekte im ausführlichen Format („wie wenn man ein einzelnes Projekt
+	 * aufruft“, Doku „Projekte abrufen“). Große Antwort → längere Wartezeit als sonst.
+	 */
+	async listProjectsExpanded(): Promise<Page> {
+		return toPage(await this.get("/projects?expand=1", 40_000));
 	}
 
 	/** GET /v1/projects?q=… – Projekte suchen (Dublettenprüfung). */
@@ -350,7 +366,7 @@ export class PropstackClient {
 		this.requestCount++;
 	}
 
-	private async get(path: string): Promise<unknown> {
+	private async get(path: string, timeoutMs = this.timeoutMs): Promise<unknown> {
 		for (let attempt = 0; ; attempt++) {
 			this.countRequest();
 			let response: Response;
@@ -358,7 +374,7 @@ export class PropstackClient {
 				response = await this.fetchFn(`${this.baseUrl}${path}`, {
 					headers: { Accept: "application/json", "X-API-KEY": this.apiKey },
 					method: "GET",
-					signal: AbortSignal.timeout(this.timeoutMs),
+					signal: AbortSignal.timeout(timeoutMs),
 				});
 			} catch (error) {
 				throw new PropstackError(`Propstack nicht erreichbar: ${(error as Error).message}`, 0);
