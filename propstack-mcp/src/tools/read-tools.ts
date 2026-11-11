@@ -43,6 +43,7 @@ type Client = Pick<
 	| "listBrokers"
 	| "searchContacts"
 	| "getContact"
+	| "getContactLinks"
 	| "searchUnits"
 	| "getUnit"
 	| "searchDeals"
@@ -53,6 +54,7 @@ type Client = Pick<
 	| "listPropertyStatuses"
 	| "listContactSources"
 	| "listProjects"
+	| "listProjectsExpanded"
 	| "getProject"
 	| "getProjectNewFormat"
 >;
@@ -169,7 +171,20 @@ export async function searchContacts(
 	return { count: page.total ?? items.length, result: pageResult(page, items, params) };
 }
 
-export async function getContact(client: Client, input: { id: number }): Promise<ToolOutput> {
+export async function getContact(client: Client, input: DiagnoseInput): Promise<ToolOutput> {
+	if (input.diagnose) {
+		// Mit include=owned_properties,relationships: was liefert Propstack an Verknüpfungen (Eigentümer von …)?
+		const linked = asObject(await client.getContactLinks(input.id));
+		return {
+			count: 1,
+			result: {
+				entity: "contact",
+				id: input.id,
+				field_names: fieldShapes(linked, input.diagnose_key),
+				links: compact({ owned_properties: linkSummary(linked.owned_properties), relationships: linkSummary(linked.relationships) }),
+			},
+		};
+	}
 	const contact = mapContactDetail(asObject(await client.getContact(input.id)));
 	return { count: 1, result: withBrokerName(contact, await brokerNames(client)) };
 }
@@ -314,7 +329,40 @@ const diagnoseKey = z
 	.optional()
 	.describe("Nur mit diagnose: auf Felder einschränken, deren Name oder Bezeichnung diesen Text enthält (z. B. „energie“) – diese werden tiefer aufgeschlüsselt");
 
-type DiagnoseInput = { id: number; diagnose?: "field_names"; diagnose_key?: string };
+type DiagnoseInput = { id: number; diagnose?: "field_names" | "list_channel"; diagnose_key?: string };
+
+/**
+ * Verknüpfungslisten (relationships, owned_properties) für die Diagnose: Feldnamen über ALLE Einträge mit Typ
+ * und die Ausprägungen der Art-Felder (internal_name, *_type) – keine Namen, keine IDs, keine Inhalte.
+ */
+export function linkSummary(value: unknown): Raw | undefined {
+	if (!Array.isArray(value)) return undefined;
+	const fields = new Map<string, Set<string>>();
+	const kinds = new Map<string, Set<string>>();
+	const add = (map: Map<string, Set<string>>, key: string, entry: string) => (map.get(key) ?? map.set(key, new Set()).get(key)!).add(entry);
+	for (const entry of value) {
+		if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+			add(fields, "(Eintrag)", entry === null ? "leer" : typeof entry);
+			continue;
+		}
+		for (const [key, v] of Object.entries(entry as Raw)) {
+			const type = v === null || v === undefined ? "leer" : Array.isArray(v) ? `Liste[${v.length}]` : typeof v === "object" ? `Objekt{${Object.keys(v as Raw).slice(0, 12).join(", ")}}` : typeof v;
+			add(fields, key, type);
+			if (typeof v === "string" && v.length <= 40 && (key === "internal_name" || key.endsWith("_type"))) add(kinds, key, v);
+		}
+	}
+	return compact({
+		count: value.length,
+		fields: Object.fromEntries([...fields].map(([key, types]) => [key, [...types].slice(0, 4).join(" | ")])),
+		kinds: Object.fromEntries([...kinds].map(([key, values]) => [key, [...values].slice(0, 10)])),
+	});
+}
+
+export const getContactInput = {
+	id: id.describe("Propstack-Kontakt-ID"),
+	diagnose,
+	diagnose_key: diagnoseKey,
+};
 
 export const getObjectInput = { id: id.describe("Propstack-Objekt-ID"), diagnose, diagnose_key: diagnoseKey };
 
@@ -349,9 +397,47 @@ async function resolveContactNames(client: Client, contacts: Raw[] | undefined):
 
 // ---------- Projekte ----------
 
-export const getProjectInput = { id: id.describe("Propstack-Projekt-ID"), diagnose, diagnose_key: diagnoseKey };
+export const getProjectInput = {
+	id: id.describe("Propstack-Projekt-ID"),
+	diagnose: z
+		.enum(["field_names", "list_channel"])
+		.optional()
+		.describe(
+			"Nur zur Diagnose: field_names = Feldnamen mit Bezeichnung und Typ, die Propstack für dieses Projekt liefert (keine Werte) · list_channel = was die Projektliste liefert (einfach und mit expand: Anzahl, Dauer, Feldnamen, Verknüpfungen)",
+		),
+	diagnose_key: diagnoseKey,
+};
+
+/** Diagnose: Liefert die Projektliste (einfach bzw. mit expand=1) die Verknüpfungen mit, und wie schwer ist die Antwort? */
+async function projectListChannel(client: Client, projectId: number): Promise<Raw> {
+	const pick = (rows: Raw[]) => rows.find((row) => row.id === projectId) ?? rows[0];
+	const plain = await client.listProjects();
+	const started = Date.now();
+	let expand: Raw;
+	try {
+		const expanded = await client.listProjectsExpanded();
+		const ms = Date.now() - started;
+		const row = pick(expanded.rows);
+		expand = compact({
+			rows: expanded.rows.length,
+			ms,
+			chars: JSON.stringify(expanded.rows).length,
+			rows_with_relationships: expanded.rows.filter((r) => Array.isArray(r.relationships)).length,
+			rows_with_linked_contact: expanded.rows.filter((r) => Array.isArray(r.relationships) && r.relationships.length > 0).length,
+			fields: row ? Object.keys(row) : [],
+			relationships: linkSummary(row?.relationships),
+		});
+	} catch (error) {
+		expand = { error: (error as Error).message, ms: Date.now() - started };
+	}
+	const row = pick(plain.rows);
+	return { rows: plain.rows.length, fields: row ? Object.keys(row) : [], expand };
+}
 
 export async function getProject(client: Client, input: DiagnoseInput): Promise<ToolOutput> {
+	if (input.diagnose === "list_channel") {
+		return { count: 1, result: { entity: "project", id: input.id, list_channel: await projectListChannel(client, input.id) } };
+	}
 	const raw = asObject(await client.getProject(input.id));
 	if (input.diagnose) {
 		const fields = fieldShapes(raw, input.diagnose_key);

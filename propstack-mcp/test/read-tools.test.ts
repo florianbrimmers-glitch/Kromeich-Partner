@@ -3,7 +3,7 @@ import { retentionCutoff, serializeParams } from "../src/audit";
 import type { Page, PropstackClient, Query } from "../src/propstack-client";
 import { PropstackError } from "../src/propstack-client";
 import { runTool } from "../src/tools/register";
-import { aggregate, getObject, listFields, listTags, pipelineStatus, searchContacts, searchDeals } from "../src/tools/read-tools";
+import { aggregate, getContact, getObject, getProject, linkSummary, listFields, listTags, pipelineStatus, searchContacts, searchDeals } from "../src/tools/read-tools";
 
 const page = (rows: Record<string, unknown>[], total: number | null = rows.length): Page => ({ rows, total });
 
@@ -307,5 +307,70 @@ describe("Objekte lesen nach Feld-Mapping", () => {
 			{ blocked: expect.stringMatching(/Euro/), key: "mezzanineflache", type: "Number", unit: "euro" },
 			{ key: "spekulative_entwicklung", options: [{ id: 1, name: "Ja" }], type: "Dropdown" },
 		]);
+	});
+});
+
+describe("Diagnose: Verknüpfungen", () => {
+	const relationships = [
+		{ client_id: 17366591, id: 1, internal_name: "owner", name: null, project_id: 566962, related_type: "Project" },
+		{ client_id: 17366591, id: 2, internal_name: "partner", name: "Ansprechpartner", property: { id: 5, title: "Geheimer Titel" }, related_type: "Property" },
+	];
+
+	it("linkSummary: Feldnamen über alle Einträge, Art-Felder mit Ausprägungen – keine Inhalte", () => {
+		const summary = linkSummary(relationships)!;
+		expect(summary.count).toBe(2);
+		expect(summary.fields).toMatchObject({ client_id: "number", internal_name: "string", name: "leer | string", project_id: "number", property: "Objekt{id, title}" });
+		expect(summary.kinds).toEqual({ internal_name: ["owner", "partner"], related_type: ["Project", "Property"] });
+		expect(JSON.stringify(summary)).not.toContain("Geheimer Titel");
+		expect(JSON.stringify(summary)).not.toContain("17366591");
+		expect(linkSummary(undefined)).toBeUndefined();
+		expect(linkSummary([7, null])).toEqual({ count: 2, fields: { "(Eintrag)": "number | leer" } });
+	});
+
+	it("get_contact diagnose liest den Kontakt mit Verknüpfungen und gibt nur Namen und Typen aus", async () => {
+		const { client, calls } = fakeClient({
+			getContactLinks: async (id: number) => {
+				calls.push({ method: `getContactLinks:${id}` });
+				return { id, name: "Hillwood Germany GmbH", owned_properties: [{ id: 3063644, title: "Geheimer Titel" }], relationships };
+			},
+		});
+		const { result } = await getContact(client, { diagnose: "field_names", id: 17366591 });
+		expect(calls.map((c) => c.method)).toEqual(["getContactLinks:17366591"]);
+		expect(result).toMatchObject({
+			entity: "contact",
+			field_names: { name: "string", owned_properties: "Liste[1] von {id, title}" },
+			links: { owned_properties: { count: 1, fields: { id: "number", title: "string" } }, relationships: { count: 2 } },
+		});
+		expect(JSON.stringify(result)).not.toContain("Hillwood");
+		expect(JSON.stringify(result)).not.toContain("Geheimer Titel");
+	});
+
+	it("get_project diagnose=list_channel: Projektliste einfach und mit expand, Fehler wird gemeldet statt geworfen", async () => {
+		const { client } = fakeClient({
+			listProjects: async () => page([{ id: 1, title: "A" }, { id: 2, title: "B" }]),
+			listProjectsExpanded: async () =>
+				page([
+					{ description_note: "Text", id: 1, relationships: [], title: "A" },
+					{ description_note: "Text", id: 2, relationships: [relationships[0]], title: "B" },
+				]),
+		});
+		const { result } = await getProject(client, { diagnose: "list_channel", id: 2 });
+		expect(result).toMatchObject({
+			entity: "project",
+			list_channel: {
+				expand: { fields: ["description_note", "id", "relationships", "title"], relationships: { count: 1, kinds: { internal_name: ["owner"] } }, rows: 2, rows_with_linked_contact: 1, rows_with_relationships: 2 },
+				fields: ["id", "title"],
+				rows: 2,
+			},
+		});
+
+		const failing = fakeClient({
+			listProjects: async () => page([{ id: 1 }]),
+			listProjectsExpanded: async () => {
+				throw new PropstackError("Propstack nicht erreichbar: timeout", 0);
+			},
+		});
+		const failed = (await getProject(failing.client, { diagnose: "list_channel", id: 1 })).result as { list_channel: { expand: { error: string } } };
+		expect(failed.list_channel.expand.error).toContain("timeout");
 	});
 });
