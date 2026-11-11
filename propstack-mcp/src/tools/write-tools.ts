@@ -1265,18 +1265,21 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 		const old = stored === UNVERIFIABLE ? undefined : areaNumber(stored);
 		alignNote = `Gebäudefläche gesamt an die Gesamtfläche angeglichen (Halle + Mezzanine, ohne Büro): ${showArea(alignTarget)} m²${old !== undefined ? ` statt ${showArea(old)} m²` : ""}.`;
 	}
-	// Die Bemerkung ist ein Änderungsprotokoll: doppelt ist ein Vermerk nur unter dem Stempel desselben Tages und Nutzers
-	const appendLines = [input.bemerkung_append, alignNote].filter((line): line is string => Boolean(line));
+	// Die Bemerkung ist ein Änderungsprotokoll. Ein mitgegebener Vermerk (bemerkung_append) ist doppelt, wenn er unter
+	// dem Stempel desselben Tages und Nutzers schon steht (Aufruf wiederholt). Der Angleich-Vermerk entsteht dagegen
+	// nur, wenn sich das Feld wirklich ändert: Er ist jedes Mal ein eigenes Ereignis und wird immer angehängt.
+	const userLines = input.bemerkung_append ? [input.bemerkung_append] : [];
+	const eventLines = alignNote ? [alignNote] : [];
 	let bemerkungAppended = false;
-	if (appendLines.length) {
+	if (userLines.length || eventLines.length) {
 		const old = unitCustomValue(current, "bemerkung");
 		if (old === UNVERIFIABLE) {
 			throw new PropstackError("Die vorhandene Bemerkung konnte nicht gelesen werden – nichts geändert, damit sie nicht überschrieben wird.", 0);
 		}
 		const oldText = String(scalar(old) ?? "").trim();
-		const appended = appendNote(oldText, originNote(user, now, "Ergänzt"), appendLines, { sameStampOnly: true });
-		if (appended.text === undefined) alreadyPresent.push("bemerkung_append (derselbe Vermerk steht heute schon in der Bemerkung)");
-		else {
+		const appended = appendNote(oldText, originNote(user, now, "Ergänzt"), userLines, { always: eventLines, sameStampOnly: true });
+		if (appended.present.length) alreadyPresent.push("bemerkung_append (derselbe Vermerk steht heute schon in der Bemerkung)");
+		if (appended.text !== undefined) {
 			customSend.bemerkung = appended.text;
 			customExpect.bemerkung = appended.text;
 			customBefore.bemerkung = oldText;

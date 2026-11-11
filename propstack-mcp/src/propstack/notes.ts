@@ -43,15 +43,19 @@ export function splitNewParts(existing: string, parts: string[]): { fresh: strin
 /**
  * Notiz mit Stempel anhängen. Liefert den neuen Gesamttext und die Ergänzung – oder undefined, wenn alles schon dasteht.
  * sameStampOnly: nur als doppelt werten, was unter genau diesem Stempel (Tag und Nutzer) schon steht (Änderungsprotokoll).
+ * always: Zeilen, die nie als doppelt gelten – Vermerke, die der Connector selbst nur bei einer echten Änderung erzeugt
+ * (z. B. beim Angleichen). Jeder ist ein eigenes Ereignis, auch wenn derselbe Wortlaut heute schon dasteht
+ * (Befund 11.11.2026: angleichen → rückgängig → am selben Tag erneut angleichen hinterließ sonst keinen Vermerk mehr).
  */
 export function appendNote(
 	existing: string,
 	stamp: string,
 	parts: string[],
-	options: { sameStampOnly?: boolean } = {},
+	options: { sameStampOnly?: boolean; always?: string[] } = {},
 ): { text: string; addition: string; present: string[] } | { text: undefined; addition: undefined; present: string[] } {
 	const old = existing.trim();
 	const wanted = parts.map((part) => part.trim()).filter(Boolean);
+	const forced = (options.always ?? []).map((part) => part.trim()).filter(Boolean);
 	const { fresh, present } = options.sameStampOnly
 		? wanted.reduce(
 				(acc, part) => {
@@ -61,7 +65,8 @@ export function appendNote(
 				{ fresh: [] as string[], present: [] as string[] },
 			)
 		: splitNewParts(old, wanted);
-	if (!fresh.length) return { addition: undefined, present, text: undefined };
-	const addition = `${stamp}\n${fresh.join("\n")}`;
+	const all = [...fresh, ...forced];
+	if (!all.length) return { addition: undefined, present, text: undefined };
+	const addition = `${stamp}\n${all.join("\n")}`;
 	return { addition, present, text: [old, addition].filter(Boolean).join("\n\n") };
 }

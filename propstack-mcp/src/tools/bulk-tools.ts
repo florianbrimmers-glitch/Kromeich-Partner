@@ -375,8 +375,11 @@ const REMARK_LABELS: Record<string, string> = {
 	gebaudeflache_verfugbar: "Gebäudefläche verfügbar",
 };
 
-/** Vermerk fürs Änderungsprotokoll: was das Rückgängigmachen wieder hergestellt hat. */
-function undoRemark(appliedDay: string, input: Raw, restored: string[]): string {
+/**
+ * Vermerk fürs Änderungsprotokoll: was das Rückgängigmachen wieder hergestellt hat. Die Plan-ID macht ihn eindeutig –
+ * so gilt er nie als „steht heute schon da“, wenn am selben Tag zwei Sammeländerungen zurückgenommen werden.
+ */
+function undoRemark(plan: { day: string; id: string }, input: Raw, restored: string[]): string {
 	const custom = (input.custom_fields ?? {}) as Raw;
 	const parts = restored.map((name) => {
 		const key = name.replace(/^custom_fields\./, "");
@@ -386,7 +389,7 @@ function undoRemark(appliedDay: string, input: Raw, restored: string[]): string 
 		const area = areaNumber(old);
 		return `${label} wieder ${area !== undefined ? `${showArea(area)} m²` : old === null || old === "" ? "leer" : `„${String(old)}“`}`;
 	});
-	return `Sammeländerung vom ${appliedDay} rückgängig gemacht: ${parts.join(", ")}.`;
+	return `Sammeländerung vom ${plan.day} (Plan ${plan.id}) rückgängig gemacht: ${parts.join(", ")}.`;
 }
 
 /**
@@ -402,7 +405,7 @@ export function undoInput(
 	item: BulkItem,
 	changes: Raw,
 	current: Current,
-	appliedDay: string,
+	plan: { day: string; id: string },
 ): { input: Raw; restored: string[]; skipped: string[]; already: string[] } {
 	const before = item.before ?? {};
 	const after = item.changed ?? {};
@@ -493,7 +496,7 @@ export function undoInput(
 	if (entity === "objects" && changes.public_price_confirmed === true && Object.keys(custom).length) input.public_price_confirmed = true;
 	// Ist die Bemerkung gerade nicht lesbar, wird sie nicht angefasst – die Werte kommen trotzdem zurück
 	if (entity === "objects" && remarkKept && restored.length && current.custom("bemerkung") !== UNVERIFIABLE) {
-		input.bemerkung_append = undoRemark(appliedDay, input, restored);
+		input.bemerkung_append = undoRemark(plan, input, restored);
 	}
 	return { already, input, restored, skipped };
 }
@@ -513,7 +516,7 @@ export async function undoPlan(deps: BulkDeps, input: z.infer<z.ZodObject<typeof
 	if (plan.status !== "undoing") await store.updatePlan(plan.id, { status: "undoing", undone_by: user.email });
 
 	const cost = costOf(plan.entity, plan.changes, "undo");
-	const appliedDay = (plan.applied_ts ?? plan.created_ts).slice(0, 10);
+	const remarkPlan = { day: (plan.applied_ts ?? plan.created_ts).slice(0, 10), id: plan.id };
 	let processed = 0;
 	let interrupted: string | null = null;
 	for (;;) {
@@ -522,7 +525,7 @@ export async function undoPlan(deps: BulkDeps, input: z.infer<z.ZodObject<typeof
 		processed++;
 		try {
 			const current = await readCurrent(client, plan.entity, item.entity_id);
-			const { input: undo, restored, skipped, already } = undoInput(plan.entity, item, plan.changes, current, appliedDay);
+			const { input: undo, restored, skipped, already } = undoInput(plan.entity, item, plan.changes, current, remarkPlan);
 			if (!restored.length) {
 				// Nichts mehr zu schreiben. Tragen die Felder den alten Wert schon wieder (z. B. Wiederholung nach einer
 				// Unterbrechung), ist der Datensatz rückgängig gemacht – kein Problem.

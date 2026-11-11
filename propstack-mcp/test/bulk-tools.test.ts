@@ -360,9 +360,9 @@ describe("Objekte: „Gebäudefläche gesamt“ angleichen (Sammelfunktion, 11.1
 		);
 		expect(world.units.get(1)!.custom.gebaudeflache_gesamt).toBe(8901);
 		expect(world.units.get(6)!.custom.gebaudeflache_gesamt).toBe(8600 + 506 + 300);
-		expect(String(world.units.get(1)!.custom.bemerkung)).toMatch(
-			/angeglichen \(Halle \+ Mezzanine, ohne Büro\): 8\.601 m² statt 8\.901 m²\.[\s\S]*\nSammeländerung vom 2026-10-15 rückgängig gemacht: Gebäudefläche gesamt wieder 8\.901 m²\.$/,
-		);
+		const remark = String(world.units.get(1)!.custom.bemerkung);
+		expect(remark).toMatch(/angeglichen \(Halle \+ Mezzanine, ohne Büro\): 8\.601 m² statt 8\.901 m²\.\n/);
+		expect(remark.endsWith(`\nSammeländerung vom 2026-10-15 (Plan ${planned.plan_id}) rückgängig gemacht: Gebäudefläche gesamt wieder 8.901 m².`)).toBe(true);
 	});
 
 	it("Undo nach einer Unterbrechung: was den alten Wert schon wieder trägt, ist rückgängig – kein Problem, kein zweiter Vermerk", async () => {
@@ -381,6 +381,33 @@ describe("Objekte: „Gebäudefläche gesamt“ angleichen (Sammelfunktion, 11.1
 		expect(out.problems).toBeUndefined();
 		expect(world.puts.map((p) => p.id)).toEqual([1]);
 		expect(world.units.get(2)!.custom.bemerkung).toBe(remarkBefore);
+	});
+
+	it("angleichen → rückgängig → am selben Tag erneut angleichen → rückgängig: jedes Ereignis steht im Protokoll (Befund 11.11.2026)", async () => {
+		const world = areaWorld();
+		const store = new MemoryBulkStore();
+		const { db } = fakeDb();
+		const deps = () => ({ client: world.makeClient(), db, now: () => T0, store, user: USER });
+		const round = async () => {
+			const planned = (await planBulk(deps(), { changes: { align_building_area: true }, description: "Gebäudefläche gesamt angleichen", entity: "objects", ids: [1] })).result as { plan_id: string };
+			expect((await applyPlan(deps(), { plan_id: planned.plan_id })).result).toMatchObject({ done: 1, finished: true });
+			expect(world.units.get(1)!.custom.gebaudeflache_gesamt).toBe(8601);
+			expect((await undoPlan(deps(), { plan_id: planned.plan_id })).result).toMatchObject({ finished: true, undone: 1 });
+			expect(world.units.get(1)!.custom.gebaudeflache_gesamt).toBe(8901);
+			return planned.plan_id;
+		};
+		const first = await round();
+		const second = await round();
+		// Vorher galt der zweite, wortgleiche Angleich-Vermerk als „steht heute schon da“ – das Protokoll endete falsch
+		const entries = String(world.units.get(1)!.custom.bemerkung)
+			.split("\n")
+			.filter((line) => /angeglichen|rückgängig gemacht/.test(line));
+		expect(entries).toEqual([
+			expect.stringMatching(/angeglichen .*8\.601 m² statt 8\.901 m²\.$/),
+			`Sammeländerung vom 2026-10-15 (Plan ${first}) rückgängig gemacht: Gebäudefläche gesamt wieder 8.901 m².`,
+			expect.stringMatching(/angeglichen .*8\.601 m² statt 8\.901 m²\.$/),
+			`Sammeländerung vom 2026-10-15 (Plan ${second}) rückgängig gemacht: Gebäudefläche gesamt wieder 8.901 m².`,
+		]);
 	});
 });
 
@@ -404,7 +431,7 @@ describe("undoInput", () => {
 		undo_status: null,
 	});
 
-	const DAY = "2026-11-11";
+	const PLAN = { day: "2026-11-11", id: "4g6k0b5j301o" };
 
 	it("Objekte: Status zurück, Custom-Rohwert zurück, Merkmal nur wenn vom Plan gesetzt; die Bemerkung bleibt und bekommt einen Vermerk", () => {
 		const out = undoInput(
@@ -415,10 +442,10 @@ describe("undoInput", () => {
 			),
 			{ add_tag_ids: [9, 10], status_id: 163674 },
 			current({ status_id: 163674 }, [1, 9, 10], { lagerflache_verfugbar: { value: "3.000 m² (vermietet)" }, status_logistik: { value: "Aktiv" } }),
-			DAY,
+			PLAN,
 		);
 		expect(out.input).toEqual({
-			bemerkung_append: "Sammeländerung vom 2026-11-11 rückgängig gemacht: Merkmale, status_id, lagerflache_verfugbar, status_logistik.",
+			bemerkung_append: "Sammeländerung vom 2026-11-11 (Plan 4g6k0b5j301o) rückgängig gemacht: Merkmale, status_id, lagerflache_verfugbar, status_logistik.",
 			custom_fields: { lagerflache_verfugbar: "3.000 m²", status_logistik: "Inaktiv" },
 			id: 9,
 			remove_tag_ids: [10],
@@ -432,14 +459,14 @@ describe("undoInput", () => {
 		const before = { custom_fields: { bemerkung: "alt", gebaudeflache_gesamt: 3000, gebaudeflache_verfugbar: null } };
 		const changed = { custom_fields: { bemerkung: "alt\n\nangeglichen", gebaudeflache_gesamt: 2500, gebaudeflache_verfugbar: 2500 } };
 		const now = { gebaudeflache_gesamt: { pretty_value: "2.500 m²", value: "2500.0" }, gebaudeflache_verfugbar: { value: 2500 } };
-		const out = undoInput("objects", item(before, changed), { align_building_area: true }, current({}, [], now), DAY);
+		const out = undoInput("objects", item(before, changed), { align_building_area: true }, current({}, [], now), PLAN);
 		expect(out.input).toEqual({
-			bemerkung_append: "Sammeländerung vom 2026-11-11 rückgängig gemacht: Gebäudefläche gesamt wieder 3.000 m², Gebäudefläche verfügbar wieder leer.",
+			bemerkung_append: "Sammeländerung vom 2026-11-11 (Plan 4g6k0b5j301o) rückgängig gemacht: Gebäudefläche gesamt wieder 3.000 m², Gebäudefläche verfügbar wieder leer.",
 			custom_fields: { gebaudeflache_gesamt: 3000, gebaudeflache_verfugbar: null },
 			id: 9,
 		});
 		// Die Bemerkung ist gerade nicht lesbar → nicht anfassen, die Werte kommen trotzdem zurück
-		const unreadable = undoInput("objects", item(before, changed), { align_building_area: true }, current({}, [], { ...now, bemerkung: UNVERIFIABLE }), DAY);
+		const unreadable = undoInput("objects", item(before, changed), { align_building_area: true }, current({}, [], { ...now, bemerkung: UNVERIFIABLE }), PLAN);
 		expect(unreadable.input).toEqual({ custom_fields: { gebaudeflache_gesamt: 3000, gebaudeflache_verfugbar: null }, id: 9 });
 		// Der Plan hat keinen Vermerk hinterlassen → das Undo auch nicht
 		const silent = undoInput(
@@ -447,7 +474,7 @@ describe("undoInput", () => {
 			item({ custom_fields: { gebaudeflache_gesamt: 3000 } }, { custom_fields: { gebaudeflache_gesamt: 2500 } }),
 			{ custom_fields: { gebaudeflache_gesamt: 2500 } },
 			current({}, [], now),
-			DAY,
+			PLAN,
 		);
 		expect(silent.input).toEqual({ custom_fields: { gebaudeflache_gesamt: 3000 }, id: 9 });
 		// Kontakte haben kein Änderungsprotokoll: Dort bleibt ein Custom-Feld „bemerkung“ ein übersprungenes Feld und wird gemeldet
@@ -456,7 +483,7 @@ describe("undoInput", () => {
 			item({ custom_fields: { bemerkung: "alt", branche: "Logistik" } }, { custom_fields: { bemerkung: "neu", branche: "Handel" } }),
 			{ custom_fields: { bemerkung: "neu", branche: "Handel" } },
 			current({}, [], { branche: "Handel" }),
-			DAY,
+			PLAN,
 		);
 		expect(contact.input).toEqual({ custom_fields: { branche: "Logistik" }, id: 9 });
 		expect(contact.skipped).toEqual(["custom_fields.bemerkung (Bemerkungen werden nie zurückgesetzt)"]);
@@ -468,7 +495,7 @@ describe("undoInput", () => {
 			item({ custom_fields: { bemerkung: "alt", gebaudeflache_gesamt: 8901 }, status_id: 163672 }, { custom_fields: { bemerkung: "neu", gebaudeflache_gesamt: 8601 }, status_id: 163674 }),
 			{ align_building_area: true, status_id: 163674 },
 			current({ status_id: 163672 }, [], { gebaudeflache_gesamt: { value: 8901 } }),
-			DAY,
+			PLAN,
 		);
 		expect(out).toMatchObject({ already: ["status_id", "custom_fields.gebaudeflache_gesamt"], restored: [], skipped: [] });
 		expect(out.input).toEqual({ id: 9 });
@@ -478,7 +505,7 @@ describe("undoInput", () => {
 			item({ custom_fields: { gebaudeflache_gesamt: 8901 } }, { custom_fields: { gebaudeflache_gesamt: 8601 } }),
 			{ align_building_area: true },
 			current({}, [], { gebaudeflache_gesamt: { value: 9100 } }),
-			DAY,
+			PLAN,
 		);
 		expect(foreign).toMatchObject({ already: [], restored: [], skipped: ["custom_fields.gebaudeflache_gesamt (inzwischen geändert)"] });
 	});
@@ -489,7 +516,7 @@ describe("undoInput", () => {
 			item({ free_from: null, rented: "nicht lesbar" }, { free_from: "vermietet", rented: true }),
 			{ rented: true },
 			current({ free_from: "vermietet", rented: true }, []),
-			DAY,
+			PLAN,
 		);
 		expect(out.input).toEqual({ free_from: null, id: 9 });
 		expect(out.skipped).toEqual(["rented (vorheriger Wert unbekannt)"]);
@@ -504,7 +531,7 @@ describe("undoInput", () => {
 			item({ custom_fields: { mezzanineflache_gesamt: 800 }, total_floor_space: 5800 }, { custom_fields: { mezzanineflache_gesamt: 1000 }, total_floor_space: 6000 }),
 			changes,
 			now,
-			DAY,
+			PLAN,
 		);
 		expect(consistent.input).toEqual({ custom_fields: { mezzanineflache_gesamt: 800 }, id: 9 });
 		expect(consistent.skipped).toEqual([]);
@@ -514,12 +541,12 @@ describe("undoInput", () => {
 			item({ custom_fields: { mezzanineflache_gesamt: 800 }, total_floor_space: 6400 }, { custom_fields: { mezzanineflache_gesamt: 1000 }, total_floor_space: 6000 }),
 			changes,
 			now,
-			DAY,
+			PLAN,
 		);
 		expect(legacy.input).toEqual({ custom_fields: { mezzanineflache_gesamt: 800 }, id: 9 });
 		expect(legacy.skipped).toEqual(["total_floor_space (wird aus Hallenfläche + Mezzanine gerechnet, vorher 6400 m²)"]);
 		// Ohne Hallenfläche gilt die Regel nicht – dann wird der alte Wert normal zurückgesetzt
-		const office = undoInput("objects", item({ total_floor_space: 199 }, { total_floor_space: 250 }), {}, current({ total_floor_space: 250 }, []), DAY);
+		const office = undoInput("objects", item({ total_floor_space: 199 }, { total_floor_space: 250 }), {}, current({ total_floor_space: 250 }, []), PLAN);
 		expect(office.input).toEqual({ id: 9, total_floor_space: 199 });
 	});
 });
