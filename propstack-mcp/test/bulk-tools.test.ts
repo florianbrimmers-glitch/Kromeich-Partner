@@ -6,7 +6,7 @@ beforeEach(() => {
 });
 import { MemoryBulkStore } from "../src/bulk/store";
 import { type Page, type PropstackClient, PropstackError, type Query } from "../src/propstack-client";
-import { applyPlan, planBulk, undoInput, undoPlan } from "../src/tools/bulk-tools";
+import { applyPlan, costOf, planBulk, undoInput, undoPlan } from "../src/tools/bulk-tools";
 
 const page = (rows: Record<string, unknown>[]): Page => ({ rows, total: rows.length });
 const USER = { brokerId: 347158, email: "florian.brimmers@kromeichpartner.de", name: "Florian Brimmers" };
@@ -237,6 +237,114 @@ describe("Objekte: Texte und Provision übertragen (Ersatz für „Daten auf Ein
 		world.puts.length = 0;
 		await undoPlan(deps(), { plan_id: planId });
 		expect(world.units.get(1)).toMatchObject({ courtage: null, courtage_note: null, furnishing_note: "alt" });
+	});
+});
+
+describe("Objekte: „Gebäudefläche gesamt“ angleichen (Sammelfunktion, 11.11.2026)", () => {
+	const DEFS = page([
+		{
+			custom_fields: [
+				{ field_type: "Number", name: "gebaudeflache_gesamt", unit: "sqm" },
+				{ field_type: "Number", name: "gebaudeflache_verfugbar", unit: "sqm" },
+				{ field_type: "Number", name: "mezzanineflache_gesamt", unit: "sqm" },
+				{ field_type: "String", name: "bemerkung" },
+			],
+		},
+	]);
+
+	/** Acht Einheiten wie im Hillwood-Bestand: „Gebäudefläche gesamt“ inklusive Büro; Nr. 7 stimmt schon, bei Nr. 8 passt die Gesamtfläche nicht. */
+	function areaWorld() {
+		const units = new Map<number, { stored: Record<string, unknown>; custom: Record<string, unknown> }>();
+		for (let i = 1; i <= 8; i++) {
+			const hall = 8000 + i * 100;
+			const mezzanine = 500 + i;
+			units.set(i, {
+				custom: { gebaudeflache_gesamt: i === 7 ? hall + mezzanine : hall + mezzanine + 300, mezzanineflache_gesamt: `${mezzanine} m²` },
+				stored: { industrial_area: hall, marketing_type: "RENT", rented: false, title: `Halle ${i}`, total_floor_space: i === 8 ? hall + mezzanine + 300 : hall + mezzanine },
+			});
+		}
+		const puts: { id: number; payload: Record<string, unknown> }[] = [];
+		const perClient: number[] = [];
+		const makeClient = () => {
+			let used = 0;
+			const slot = perClient.push(0) - 1;
+			const count = <T>(value: T) => {
+				used++;
+				perClient[slot] = used;
+				return value;
+			};
+			return {
+				getUnit: async (id: number) =>
+					count({ custom_fields: Object.fromEntries(Object.entries(units.get(id)!.custom).map(([k, v]) => [k, { pretty_value: String(v), value: v }])), id, title: units.get(id)!.stored.title }),
+				listCustomFieldGroups: async () => count(DEFS),
+				get requestsUsed() {
+					return used;
+				},
+				searchUnits: async (q: Query) => {
+					const ids = ((q.property_ids as number[] | undefined) ?? [...units.keys()]).filter((i) => units.has(i));
+					return count(page(ids.map((i) => ({ id: i, ...Object.fromEntries(Object.entries(units.get(i)!.stored).map(([k, v]) => [k, q.expand ? { label: k, value: v } : v])) }))));
+				},
+				updateUnit: async (id: number, payload: Record<string, unknown>) => {
+					puts.push({ id, payload });
+					const { partial_custom_fields, ...rest } = payload as { partial_custom_fields?: Record<string, unknown> };
+					Object.assign(units.get(id)!.stored, rest);
+					Object.assign(units.get(id)!.custom, partial_custom_fields ?? {});
+					return count({});
+				},
+			} as unknown as PropstackClient;
+		};
+		return { makeClient, perClient, puts, units };
+	}
+
+	it("costOf: Pläne, die nur Custom-Felder anfassen, brauchen weniger Anfragen je Objekt", () => {
+		expect(costOf("objects", { align_building_area: true }, "apply")).toBe(6);
+		expect(costOf("objects", { align_building_area: true, custom_fields: { wgk: "WGK 3" } }, "undo")).toBe(8);
+		expect(costOf("objects", { align_building_area: true, rented: true }, "apply")).toBe(10);
+		expect(costOf("objects", { status_id: 163676 }, "undo")).toBe(12);
+		expect(costOf("contacts", { custom_fields: { x: 1 } }, "apply")).toBe(4);
+	});
+
+	it("jedes Objekt bekommt seinen eigenen Wert; sechs je Aufruf; Unstimmiges wird gemeldet, nicht geändert; Undo stellt den alten Wert her", async () => {
+		const world = areaWorld();
+		const store = new MemoryBulkStore();
+		const { db } = fakeDb();
+		const deps = () => ({ client: world.makeClient(), db, now: () => T0, store, user: USER });
+		await expect(planBulk(deps(), { changes: { align_building_area: true }, description: "xxxxx", entity: "contacts", ids: [1] })).rejects.toThrow(/nicht möglich: align_building_area/);
+
+		const planned = (await planBulk(deps(), { changes: { align_building_area: true }, description: "Gebäudefläche gesamt angleichen", entity: "objects", ids: [1, 2, 3, 4, 5, 6, 7, 8] })).result as {
+			plan_id: string;
+			estimated_calls: number;
+			total: number;
+		};
+		expect(planned).toMatchObject({ estimated_calls: 2, total: 8 });
+		expect(world.puts).toEqual([]);
+
+		// Erster Aufruf: sechs Objekte, höchstens 40 Propstack-Anfragen
+		const first = (await applyPlan(deps(), { plan_id: planned.plan_id })).result as Record<string, unknown>;
+		expect(first).toMatchObject({ finished: false, processed_now: 6, remaining: 2 });
+		expect(world.perClient[world.perClient.length - 1]).toBeLessThanOrEqual(40);
+		expect(world.puts.map((p) => p.id)).toEqual([1, 2, 3, 4, 5, 6]);
+		expect(world.puts[0].payload).toEqual({
+			partial_custom_fields: {
+				bemerkung: expect.stringMatching(/angeglichen \(Halle \+ Mezzanine, ohne Büro\): 8\.601 m² statt 8\.901 m²\.$/),
+				gebaudeflache_gesamt: 8601,
+			},
+		});
+		expect(world.units.get(6)!.custom.gebaudeflache_gesamt).toBe(8600 + 506);
+
+		// Zweiter Aufruf: Nr. 7 stimmt schon (unverändert), Nr. 8 wird gemeldet und bleibt, wie sie ist
+		const second = (await applyPlan(deps(), { plan_id: planned.plan_id })).result as { problems: { error?: string }[] } & Record<string, unknown>;
+		expect(second).toMatchObject({ done: 6, failed: 1, finished: true, unchanged: 1 });
+		expect(JSON.stringify(second.problems)).toMatch(/Gesamtfläche \(9\.608 m²\) ist nicht Hallenfläche \+ Mezzanine \(9\.308 m²\)/);
+		expect(world.units.get(8)!.custom.gebaudeflache_gesamt).toBe(9608);
+		expect(world.puts).toHaveLength(6);
+
+		// Undo: alter Wert kommt zurück (der Vermerk bleibt stehen)
+		await undoPlan(deps(), { plan_id: planned.plan_id });
+		await undoPlan(deps(), { plan_id: planned.plan_id });
+		expect(world.units.get(1)!.custom.gebaudeflache_gesamt).toBe(8901);
+		expect(world.units.get(6)!.custom.gebaudeflache_gesamt).toBe(8600 + 506 + 300);
+		expect(String(world.units.get(1)!.custom.bemerkung)).toMatch(/angeglichen/);
 	});
 });
 
