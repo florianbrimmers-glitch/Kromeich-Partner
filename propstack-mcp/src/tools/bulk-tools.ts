@@ -5,7 +5,7 @@ import { contactFilterShape, objectFilterShape } from "../propstack/filters";
 import { validateCustomFields } from "../propstack/field-rules";
 import { checkExposeTexts, commissionParam, throwOnTextErrors } from "../propstack/howto";
 import { scalar } from "../propstack/mappers";
-import { areaNumber, MEZZANINE_KEY } from "../propstack/areas";
+import { areaNumber, MEZZANINE_KEY, showArea } from "../propstack/areas";
 import { readUnit, UNVERIFIABLE, unitCustomValue, unitValue } from "../propstack/unit-state";
 import { id } from "./params";
 import { selectContacts, selectObjects, type ToolOutput } from "./read-tools";
@@ -29,6 +29,8 @@ import {
 //   Arbeitet in Etappen (Propstack-Request-Budget je Tool-Aufruf) – so lange aufrufen, bis remaining = 0.
 // - undo_plan stellt den Stand vorher wieder her – aber nur Felder, die seitdem niemand anders geändert hat.
 //   Möglich bis 7 Tage nach dem Ausführen (Entscheidung Florian). Jeder Nutzer darf rückgängig machen.
+//   Die Bemerkung (Änderungsprotokoll) wird nie zurückgesetzt; hat die Sammeländerung dort einen Vermerk
+//   hinterlassen, kommt ein Vermerk über das Rückgängigmachen dazu.
 
 type Raw = Record<string, unknown>;
 
@@ -367,18 +369,47 @@ async function readCurrent(client: PropstackClient, entity: "contacts" | "object
 	};
 }
 
-/** Undo-Eingabe: nur Felder, deren aktueller Wert noch dem nach apply_plan entspricht. */
+/** Felder, die der Vermerk über das Rückgängigmachen mit Wert nennt (Schlüssel → Bezeichnung). */
+const REMARK_LABELS: Record<string, string> = {
+	gebaudeflache_gesamt: "Gebäudefläche gesamt",
+	gebaudeflache_verfugbar: "Gebäudefläche verfügbar",
+};
+
+/** Vermerk fürs Änderungsprotokoll: was das Rückgängigmachen wieder hergestellt hat. */
+function undoRemark(appliedDay: string, input: Raw, restored: string[]): string {
+	const custom = (input.custom_fields ?? {}) as Raw;
+	const parts = restored.map((name) => {
+		const key = name.replace(/^custom_fields\./, "");
+		const label = name.startsWith("custom_fields.") ? REMARK_LABELS[key] : undefined;
+		if (!label) return key;
+		const old = custom[key];
+		const area = areaNumber(old);
+		return `${label} wieder ${area !== undefined ? `${showArea(area)} m²` : old === null || old === "" ? "leer" : `„${String(old)}“`}`;
+	});
+	return `Sammeländerung vom ${appliedDay} rückgängig gemacht: ${parts.join(", ")}.`;
+}
+
+/**
+ * Undo-Eingabe: nur Felder, deren aktueller Wert noch dem nach apply_plan entspricht.
+ * - already: Felder, die den alten Wert schon wieder tragen (z. B. wenn ein unterbrochener Undo-Lauf wiederholt
+ *   wird) – nichts zu tun und kein Problem.
+ * - Die Bemerkung (Änderungsprotokoll) wird nie zurückgesetzt. Hat die Sammeländerung dort einen Vermerk
+ *   hinterlassen, bekommt sie einen Vermerk über das Rückgängigmachen (bemerkung_append) – sonst behauptet das
+ *   Protokoll etwas, das nicht mehr gilt (Live-Befund 11.11.2026: „angeglichen“ stand da, der Wert war zurück).
+ */
 export function undoInput(
 	entity: "contacts" | "objects",
 	item: BulkItem,
 	changes: Raw,
 	current: Current,
-): { input: Raw; restored: string[]; skipped: string[] } {
+	appliedDay: string,
+): { input: Raw; restored: string[]; skipped: string[]; already: string[] } {
 	const before = item.before ?? {};
 	const after = item.changed ?? {};
 	const input: Raw = { id: item.entity_id };
 	const restored: string[] = [];
 	const skipped: string[] = [];
+	const already: string[] = [];
 
 	// Merkmale: nur zurücknehmen, was der Plan wirklich verändert hat
 	if (Array.isArray(before.tag_ids)) {
@@ -424,7 +455,8 @@ export function undoInput(
 		}
 		const now = current.value(key);
 		if (now !== UNVERIFIABLE && !same(after[key], now)) {
-			skipped.push(`${inputKey} (inzwischen geändert)`);
+			if (same(old ?? null, now)) already.push(inputKey);
+			else skipped.push(`${inputKey} (inzwischen geändert)`);
 			continue;
 		}
 		input[inputKey] = old ?? null;
@@ -434,19 +466,24 @@ export function undoInput(
 	const customBefore = (before.custom_fields ?? {}) as Raw;
 	const customAfter = (after.custom_fields ?? {}) as Raw;
 	const custom: Raw = {};
+	let remarkKept = false;
 	for (const [key, old] of Object.entries(customBefore)) {
 		if (!(key in customAfter)) continue;
+		if (key === "bemerkung") {
+			// Am Objekt Absicht und kein Problem: Das Protokoll bleibt stehen und bekommt unten einen eigenen Vermerk.
+			// (Dort ist custom_fields.bemerkung gesperrt – im Snapshot steht sie nur, wenn ein Vermerk angehängt wurde.)
+			if (entity === "objects") remarkKept = true;
+			else skipped.push("custom_fields.bemerkung (Bemerkungen werden nie zurückgesetzt)");
+			continue;
+		}
 		if (old === "nicht lesbar") {
 			skipped.push(`custom_fields.${key} (vorheriger Wert unbekannt)`);
 			continue;
 		}
-		if (key === "bemerkung") {
-			skipped.push("custom_fields.bemerkung (Bemerkungen werden nie zurückgesetzt)");
-			continue;
-		}
 		const now = current.custom(key);
 		if (now !== UNVERIFIABLE && !same(customAfter[key], now)) {
-			skipped.push(`custom_fields.${key} (inzwischen geändert)`);
+			if (same(old ?? null, now)) already.push(`custom_fields.${key}`);
+			else skipped.push(`custom_fields.${key} (inzwischen geändert)`);
 			continue;
 		}
 		custom[key] = old ?? null;
@@ -454,7 +491,11 @@ export function undoInput(
 	}
 	if (Object.keys(custom).length) input.custom_fields = custom;
 	if (entity === "objects" && changes.public_price_confirmed === true && Object.keys(custom).length) input.public_price_confirmed = true;
-	return { input, restored, skipped };
+	// Ist die Bemerkung gerade nicht lesbar, wird sie nicht angefasst – die Werte kommen trotzdem zurück
+	if (entity === "objects" && remarkKept && restored.length && current.custom("bemerkung") !== UNVERIFIABLE) {
+		input.bemerkung_append = undoRemark(appliedDay, input, restored);
+	}
+	return { already, input, restored, skipped };
 }
 
 export async function undoPlan(deps: BulkDeps, input: z.infer<z.ZodObject<typeof planIdInput>>): Promise<ToolOutput> {
@@ -472,6 +513,7 @@ export async function undoPlan(deps: BulkDeps, input: z.infer<z.ZodObject<typeof
 	if (plan.status !== "undoing") await store.updatePlan(plan.id, { status: "undoing", undone_by: user.email });
 
 	const cost = costOf(plan.entity, plan.changes, "undo");
+	const appliedDay = (plan.applied_ts ?? plan.created_ts).slice(0, 10);
 	let processed = 0;
 	let interrupted: string | null = null;
 	for (;;) {
@@ -480,9 +522,15 @@ export async function undoPlan(deps: BulkDeps, input: z.infer<z.ZodObject<typeof
 		processed++;
 		try {
 			const current = await readCurrent(client, plan.entity, item.entity_id);
-			const { input: undo, restored, skipped } = undoInput(plan.entity, item, plan.changes, current);
+			const { input: undo, restored, skipped, already } = undoInput(plan.entity, item, plan.changes, current, appliedDay);
 			if (!restored.length) {
-				await store.updateItem(plan.id, item.entity_id, { undo_note: skipped.join("; ") || "nichts zurückzusetzen", undo_status: "skipped" });
+				// Nichts mehr zu schreiben. Tragen die Felder den alten Wert schon wieder (z. B. Wiederholung nach einer
+				// Unterbrechung), ist der Datensatz rückgängig gemacht – kein Problem.
+				const done = already.length > 0 && !skipped.length;
+				await store.updateItem(plan.id, item.entity_id, {
+					undo_note: done ? null : skipped.join("; ") || "nichts zurückzusetzen",
+					undo_status: done ? "undone" : "skipped",
+				});
 				continue;
 			}
 			const { result } = await runOne(deps, plan.entity, undo, `undo_plan:${plan.id}`);
@@ -508,6 +556,17 @@ export async function undoPlan(deps: BulkDeps, input: z.infer<z.ZodObject<typeof
 	if (!remaining) await store.updatePlan(plan.id, { status: "undone", undone_ts: now.toISOString() });
 	const problems = await store.recentErrors(plan.id, "undo", 10);
 	const u = counts.undo;
+	// Der Abschlusssatz sagt nur, was stimmt (Live-Befund 11.11.2026: „von jemand anderem geändert“ stand auch da,
+	// wenn nur die Bemerkung absichtlich stehen geblieben war).
+	const closing = [
+		"Fertig.",
+		u.partial || u.skipped || u.failed ? "Nicht alles wurde zurückgesetzt – die Gründe stehen je Datensatz unter problems." : "",
+		plan.entity === "objects" && plan.changes.align_building_area === true
+			? "Die Vermerke der Sammeländerung bleiben in der Bemerkung stehen; wo zurückgesetzt wurde, steht darunter ein Vermerk über das Rückgängigmachen."
+			: "",
+	]
+		.filter(Boolean)
+		.join(" ");
 	return {
 		count: processed,
 		result: {
@@ -524,7 +583,7 @@ export async function undoPlan(deps: BulkDeps, input: z.infer<z.ZodObject<typeof
 				? `Angehalten – Propstack gestört (${interrupted}). In ein paar Minuten undo_plan mit derselben plan_id erneut aufrufen.`
 				: remaining
 					? "undo_plan mit derselben plan_id erneut aufrufen."
-					: "Fertig. Übersprungene Felder wurden inzwischen von jemand anderem geändert und bleiben so.",
+					: closing,
 		},
 	};
 }

@@ -6,6 +6,7 @@ beforeEach(() => {
 });
 import { MemoryBulkStore } from "../src/bulk/store";
 import { type Page, type PropstackClient, PropstackError, type Query } from "../src/propstack-client";
+import { UNVERIFIABLE } from "../src/propstack/unit-state";
 import { applyPlan, costOf, planBulk, undoInput, undoPlan } from "../src/tools/bulk-tools";
 
 const page = (rows: Record<string, unknown>[]): Page => ({ rows, total: rows.length });
@@ -142,6 +143,7 @@ describe("apply_plan / undo_plan", () => {
 		const out = (await undoPlan({ client: world.makeClient(), db, now: () => new Date(T0.getTime() + 86_400_000), store, user: OTHER }, { plan_id: planId }))
 			.result as Record<string, unknown>;
 		expect(out).toMatchObject({ finished: true, partial: 1, undone: 2 });
+		expect(out.next).toBe("Fertig. Nicht alles wurde zurückgesetzt – die Gründe stehen je Datensatz unter problems.");
 		expect(world.puts.find((p) => p.id === 1)!.payload).toEqual({ broker_id: 1, sub_group_ids: [9] });
 		expect(world.puts.find((p) => p.id === 2)!.payload).toEqual({ sub_group_ids: [9] });
 		expect(world.contacts.get(2)!.broker_id).toBe(7);
@@ -235,8 +237,13 @@ describe("Objekte: Texte und Provision übertragen (Ersatz für „Daten auf Ein
 			{ id: 2, payload: { courtage_note: "Die Anmietung erfolgt provisionsfrei für den Mieter." } },
 		]);
 		world.puts.length = 0;
-		await undoPlan(deps(), { plan_id: planId });
+		const undone = (await undoPlan(deps(), { plan_id: planId })).result as Record<string, unknown>;
 		expect(world.units.get(1)).toMatchObject({ courtage: null, courtage_note: null, furnishing_note: "alt" });
+		// Sauberer Lauf: kein „teilweise“, kein Problem und kein Satz über fremde Änderungen (Live-Befund 11.11.2026)
+		expect(undone).toMatchObject({ finished: true, undone: 2 });
+		expect(undone.partial).toBeUndefined();
+		expect(undone.problems).toBeUndefined();
+		expect(undone.next).toBe("Fertig.");
 	});
 });
 
@@ -339,12 +346,41 @@ describe("Objekte: „Gebäudefläche gesamt“ angleichen (Sammelfunktion, 11.1
 		expect(world.units.get(8)!.custom.gebaudeflache_gesamt).toBe(9608);
 		expect(world.puts).toHaveLength(6);
 
-		// Undo: alter Wert kommt zurück (der Vermerk bleibt stehen)
-		await undoPlan(deps(), { plan_id: planned.plan_id });
-		await undoPlan(deps(), { plan_id: planned.plan_id });
+		// Undo: alter Wert kommt zurück. Der Vermerk der Sammeländerung bleibt stehen und bekommt einen über das
+		// Rückgängigmachen – und das zählt als „rückgängig“, nicht als „teilweise“ (Live-Befund 11.11.2026).
+		const undoFirst = (await undoPlan(deps(), { plan_id: planned.plan_id })).result as Record<string, unknown>;
+		expect(undoFirst).toMatchObject({ finished: false, processed_now: 5 });
+		expect(world.perClient[world.perClient.length - 1]).toBeLessThanOrEqual(40);
+		const undoLast = (await undoPlan(deps(), { plan_id: planned.plan_id })).result as Record<string, unknown>;
+		expect(undoLast).toMatchObject({ finished: true, undone: 6 });
+		expect(undoLast.partial).toBeUndefined();
+		expect(undoLast.problems).toBeUndefined();
+		expect(undoLast.next).toBe(
+			"Fertig. Die Vermerke der Sammeländerung bleiben in der Bemerkung stehen; wo zurückgesetzt wurde, steht darunter ein Vermerk über das Rückgängigmachen.",
+		);
 		expect(world.units.get(1)!.custom.gebaudeflache_gesamt).toBe(8901);
 		expect(world.units.get(6)!.custom.gebaudeflache_gesamt).toBe(8600 + 506 + 300);
-		expect(String(world.units.get(1)!.custom.bemerkung)).toMatch(/angeglichen/);
+		expect(String(world.units.get(1)!.custom.bemerkung)).toMatch(
+			/angeglichen \(Halle \+ Mezzanine, ohne Büro\): 8\.601 m² statt 8\.901 m²\.[\s\S]*\nSammeländerung vom 2026-10-15 rückgängig gemacht: Gebäudefläche gesamt wieder 8\.901 m²\.$/,
+		);
+	});
+
+	it("Undo nach einer Unterbrechung: was den alten Wert schon wieder trägt, ist rückgängig – kein Problem, kein zweiter Vermerk", async () => {
+		const world = areaWorld();
+		const store = new MemoryBulkStore();
+		const { db } = fakeDb();
+		const deps = () => ({ client: world.makeClient(), db, now: () => T0, store, user: USER });
+		const planned = (await planBulk(deps(), { changes: { align_building_area: true }, description: "Gebäudefläche gesamt angleichen", entity: "objects", ids: [1, 2] })).result as { plan_id: string };
+		await applyPlan(deps(), { plan_id: planned.plan_id });
+		// Einheit 2: Der erste Undo-Versuch hat geschrieben, die Antwort ging verloren – der Wert steht schon wieder auf alt
+		world.units.get(2)!.custom.gebaudeflache_gesamt = 8200 + 502 + 300;
+		const remarkBefore = String(world.units.get(2)!.custom.bemerkung);
+		world.puts.length = 0;
+		const out = (await undoPlan(deps(), { plan_id: planned.plan_id })).result as Record<string, unknown>;
+		expect(out).toMatchObject({ finished: true, undone: 2 });
+		expect(out.problems).toBeUndefined();
+		expect(world.puts.map((p) => p.id)).toEqual([1]);
+		expect(world.units.get(2)!.custom.bemerkung).toBe(remarkBefore);
 	});
 });
 
@@ -368,7 +404,9 @@ describe("undoInput", () => {
 		undo_status: null,
 	});
 
-	it("Objekte: Status zurück, Custom-Rohwert zurück, Bemerkung nie, Merkmal nur wenn vom Plan gesetzt", () => {
+	const DAY = "2026-11-11";
+
+	it("Objekte: Status zurück, Custom-Rohwert zurück, Merkmal nur wenn vom Plan gesetzt; die Bemerkung bleibt und bekommt einen Vermerk", () => {
 		const out = undoInput(
 			"objects",
 			item(
@@ -377,14 +415,72 @@ describe("undoInput", () => {
 			),
 			{ add_tag_ids: [9, 10], status_id: 163674 },
 			current({ status_id: 163674 }, [1, 9, 10], { lagerflache_verfugbar: { value: "3.000 m² (vermietet)" }, status_logistik: { value: "Aktiv" } }),
+			DAY,
 		);
 		expect(out.input).toEqual({
+			bemerkung_append: "Sammeländerung vom 2026-11-11 rückgängig gemacht: Merkmale, status_id, lagerflache_verfugbar, status_logistik.",
 			custom_fields: { lagerflache_verfugbar: "3.000 m²", status_logistik: "Inaktiv" },
 			id: 9,
 			remove_tag_ids: [10],
 			status_id: 163672,
 		});
-		expect(out.skipped).toContain("custom_fields.bemerkung (Bemerkungen werden nie zurückgesetzt)");
+		// Die stehen gebliebene Bemerkung ist Absicht und kein übersprungenes Feld (Live-Befund 11.11.2026)
+		expect(out.skipped).toEqual([]);
+	});
+
+	it("Angleichung zurücknehmen: Vermerk nennt die alten Flächen; ohne Vermerk der Sammeländerung auch keiner beim Undo", () => {
+		const before = { custom_fields: { bemerkung: "alt", gebaudeflache_gesamt: 3000, gebaudeflache_verfugbar: null } };
+		const changed = { custom_fields: { bemerkung: "alt\n\nangeglichen", gebaudeflache_gesamt: 2500, gebaudeflache_verfugbar: 2500 } };
+		const now = { gebaudeflache_gesamt: { pretty_value: "2.500 m²", value: "2500.0" }, gebaudeflache_verfugbar: { value: 2500 } };
+		const out = undoInput("objects", item(before, changed), { align_building_area: true }, current({}, [], now), DAY);
+		expect(out.input).toEqual({
+			bemerkung_append: "Sammeländerung vom 2026-11-11 rückgängig gemacht: Gebäudefläche gesamt wieder 3.000 m², Gebäudefläche verfügbar wieder leer.",
+			custom_fields: { gebaudeflache_gesamt: 3000, gebaudeflache_verfugbar: null },
+			id: 9,
+		});
+		// Die Bemerkung ist gerade nicht lesbar → nicht anfassen, die Werte kommen trotzdem zurück
+		const unreadable = undoInput("objects", item(before, changed), { align_building_area: true }, current({}, [], { ...now, bemerkung: UNVERIFIABLE }), DAY);
+		expect(unreadable.input).toEqual({ custom_fields: { gebaudeflache_gesamt: 3000, gebaudeflache_verfugbar: null }, id: 9 });
+		// Der Plan hat keinen Vermerk hinterlassen → das Undo auch nicht
+		const silent = undoInput(
+			"objects",
+			item({ custom_fields: { gebaudeflache_gesamt: 3000 } }, { custom_fields: { gebaudeflache_gesamt: 2500 } }),
+			{ custom_fields: { gebaudeflache_gesamt: 2500 } },
+			current({}, [], now),
+			DAY,
+		);
+		expect(silent.input).toEqual({ custom_fields: { gebaudeflache_gesamt: 3000 }, id: 9 });
+		// Kontakte haben kein Änderungsprotokoll: Dort bleibt ein Custom-Feld „bemerkung“ ein übersprungenes Feld und wird gemeldet
+		const contact = undoInput(
+			"contacts",
+			item({ custom_fields: { bemerkung: "alt", branche: "Logistik" } }, { custom_fields: { bemerkung: "neu", branche: "Handel" } }),
+			{ custom_fields: { bemerkung: "neu", branche: "Handel" } },
+			current({}, [], { branche: "Handel" }),
+			DAY,
+		);
+		expect(contact.input).toEqual({ custom_fields: { branche: "Logistik" }, id: 9 });
+		expect(contact.skipped).toEqual(["custom_fields.bemerkung (Bemerkungen werden nie zurückgesetzt)"]);
+	});
+
+	it("trägt ein Feld den alten Wert schon wieder, ist das kein Problem (Wiederholung nach einer Unterbrechung)", () => {
+		const out = undoInput(
+			"objects",
+			item({ custom_fields: { bemerkung: "alt", gebaudeflache_gesamt: 8901 }, status_id: 163672 }, { custom_fields: { bemerkung: "neu", gebaudeflache_gesamt: 8601 }, status_id: 163674 }),
+			{ align_building_area: true, status_id: 163674 },
+			current({ status_id: 163672 }, [], { gebaudeflache_gesamt: { value: 8901 } }),
+			DAY,
+		);
+		expect(out).toMatchObject({ already: ["status_id", "custom_fields.gebaudeflache_gesamt"], restored: [], skipped: [] });
+		expect(out.input).toEqual({ id: 9 });
+		// Ein dritter Wert dagegen heißt: jemand anders hat geändert → übersprungen und gemeldet
+		const foreign = undoInput(
+			"objects",
+			item({ custom_fields: { gebaudeflache_gesamt: 8901 } }, { custom_fields: { gebaudeflache_gesamt: 8601 } }),
+			{ align_building_area: true },
+			current({}, [], { gebaudeflache_gesamt: { value: 9100 } }),
+			DAY,
+		);
+		expect(foreign).toMatchObject({ already: [], restored: [], skipped: ["custom_fields.gebaudeflache_gesamt (inzwischen geändert)"] });
 	});
 
 	it("vorher leer → wird wieder geleert; vorher unbekannt → übersprungen", () => {
@@ -393,6 +489,7 @@ describe("undoInput", () => {
 			item({ free_from: null, rented: "nicht lesbar" }, { free_from: "vermietet", rented: true }),
 			{ rented: true },
 			current({ free_from: "vermietet", rented: true }, []),
+			DAY,
 		);
 		expect(out.input).toEqual({ free_from: null, id: 9 });
 		expect(out.skipped).toEqual(["rented (vorheriger Wert unbekannt)"]);
@@ -407,6 +504,7 @@ describe("undoInput", () => {
 			item({ custom_fields: { mezzanineflache_gesamt: 800 }, total_floor_space: 5800 }, { custom_fields: { mezzanineflache_gesamt: 1000 }, total_floor_space: 6000 }),
 			changes,
 			now,
+			DAY,
 		);
 		expect(consistent.input).toEqual({ custom_fields: { mezzanineflache_gesamt: 800 }, id: 9 });
 		expect(consistent.skipped).toEqual([]);
@@ -416,11 +514,12 @@ describe("undoInput", () => {
 			item({ custom_fields: { mezzanineflache_gesamt: 800 }, total_floor_space: 6400 }, { custom_fields: { mezzanineflache_gesamt: 1000 }, total_floor_space: 6000 }),
 			changes,
 			now,
+			DAY,
 		);
 		expect(legacy.input).toEqual({ custom_fields: { mezzanineflache_gesamt: 800 }, id: 9 });
 		expect(legacy.skipped).toEqual(["total_floor_space (wird aus Hallenfläche + Mezzanine gerechnet, vorher 6400 m²)"]);
 		// Ohne Hallenfläche gilt die Regel nicht – dann wird der alte Wert normal zurückgesetzt
-		const office = undoInput("objects", item({ total_floor_space: 199 }, { total_floor_space: 250 }), {}, current({ total_floor_space: 250 }, []));
+		const office = undoInput("objects", item({ total_floor_space: 199 }, { total_floor_space: 250 }), {}, current({ total_floor_space: 250 }, []), DAY);
 		expect(office.input).toEqual({ id: 9, total_floor_space: 199 });
 	});
 });
