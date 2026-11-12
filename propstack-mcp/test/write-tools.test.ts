@@ -12,8 +12,9 @@ import {
 	normalizePhone,
 	normalizeStreet,
 	objectDuplicates,
+	personName,
 } from "../src/propstack/dedupe";
-import type { Page, PropstackClient, Query } from "../src/propstack-client";
+import { type Page, type PropstackClient, PropstackError, type Query } from "../src/propstack-client";
 import { createContact, createObject, notApplied, updateContact, updateObject, validateCustomFields } from "../src/tools/write-tools";
 
 const page = (rows: Record<string, unknown>[]): Page => ({ rows, total: rows.length });
@@ -97,6 +98,44 @@ describe("Kontakt-Dubletten", () => {
 
 	it("eigener Datensatz zählt beim Update nicht", () => {
 		expect(contactDuplicates({ email: "anna@gb.de" }, { ...none, byEmail: [anna] }, 1).duplicates).toEqual([]);
+	});
+
+	// Live-Befund 12.11.2026: Propstack stellt dem Anzeigenamen den akademischen Titel voran ("Dr. Max MCP-Testkontakt
+	// Abnahme"). Der Vergleich lief gegen diesen Anzeigenamen – „Max …“ bei derselben Firma wurde deshalb als neuer
+	// Kontakt angelegt (38363864 neben 38363861), ohne Blockade und ohne Warnung.
+	describe("akademischer Titel im Anzeigenamen (Zeilen so, wie Propstack sie liefert)", () => {
+		const drMax = { academic_title: "Dr.", company: "MCP-TEST Musterfirma GmbH", first_name: "Max", id: 38363861, last_name: "MCP-Testkontakt Abnahme", name: "Dr. Max MCP-Testkontakt Abnahme" };
+
+		it("gleicher Name + gleiche Firma blockiert, auch wenn der vorhandene Kontakt einen Titel trägt (Groß-/Kleinschreibung egal)", () => {
+			const r = contactDuplicates({ company: "MCP-Test Musterfirma GmbH", first_name: "max", last_name: "MCP-Testkontakt Abnahme" }, { ...none, byName: [drMax] });
+			expect(r.duplicates).toEqual([{ id: 38363861, name: "Dr. Max MCP-Testkontakt Abnahme", reason: "gleicher Name und gleiche Firma (MCP-TEST Musterfirma GmbH)" }]);
+		});
+
+		it("ohne Firma: Warnung statt Stille", () => {
+			const r = contactDuplicates({ first_name: "Max", last_name: "MCP-Testkontakt Abnahme" }, { ...none, byName: [drMax] });
+			expect(r.duplicates).toEqual([]);
+			expect(r.warnings).toEqual(["Gleicher Name wie Dr. Max MCP-Testkontakt Abnahme (38363861), Firma MCP-TEST Musterfirma GmbH."]);
+		});
+
+		it("Titel im Vornamen der Eingabe („Dr. Max“) oder mehrere Titel („Prof. Dr.“, „Dipl.-Ing.“) ändern nichts", () => {
+			for (const first_name of ["Dr. Max", "Prof. Dr. Max", "Dipl.-Ing. Max", "Dr. med. Max"]) {
+				const r = contactDuplicates({ company: "MCP-TEST Musterfirma", first_name, last_name: "MCP-Testkontakt Abnahme" }, { ...none, byName: [drMax] });
+				expect(r.duplicates.map((d) => d.id), first_name).toEqual([38363861]);
+			}
+		});
+
+		it("Zeile ohne Vor- und Nachnamen: der Titel wird aus dem Anzeigenamen entfernt", () => {
+			const r = contactDuplicates({ company: "GB Logistics", first_name: "Anna", last_name: "Muster" }, { ...none, byName: [{ company: "GB Logistics GmbH", id: 5, name: "Prof. Dr. Anna Muster" }] });
+			expect(r.duplicates.map((d) => d.id)).toEqual([5]);
+		});
+
+		it("andere Person bleibt eine andere Person; ein Name, der nur aus einem Titelwort besteht, wird nicht leer", () => {
+			expect(contactDuplicates({ company: "MCP-TEST Musterfirma GmbH", first_name: "Moritz", last_name: "MCP-Testkontakt Abnahme" }, { ...none, byName: [drMax] })).toEqual({ duplicates: [], warnings: [] });
+			expect(personName("Dr. Max Muster")).toBe("max muster");
+			expect(personName("Mag")).toBe("mag");
+			expect(personName("Dr. Dr")).toBe("dr");
+			expect(personName("Ingrid Ing")).toBe("ingrid ing");
+		});
 	});
 });
 
@@ -421,8 +460,117 @@ describe("update_contact", () => {
 			searchContacts: () => page([{ email: "bob@gb.de", id: 8, name: "Bob" }]),
 		});
 		const out = await updateContact({ client, db: fakeDb().db, now: NOW, user: USER }, { email: "bob@gb.de", id: 7 });
-		expect(out.result).toMatchObject({ blocked: "Dublette" });
+		// beim Ändern heißt es „updated: false“ – nicht „created: false“ wie beim Anlegen
+		expect(out.result).toMatchObject({ blocked: "Dublette", updated: false });
+		expect(out.result).not.toHaveProperty("created");
 		expect(calls.some((c) => c.method === "updateContact")).toBe(false);
+	});
+
+	// Live-Befund 12.11.2026: Propstack speichert als Kontaktstatus und als Quelle jede Zahl – auch 999999999.
+	// Erkennbar beim Gegenlesen: Nur zu einer gültigen ID liefert Propstack das zugehörige Objekt mit.
+	describe("Kontaktstatus und Quelle, die es nicht gibt", () => {
+		/** Propstack wie live: speichert jede ID, liefert das Objekt dazu aber nur für bekannte IDs. */
+		function propstack(start: Record<string, unknown>, bekannt: { status?: number[]; quelle?: number[] } = {}) {
+			let stand: Record<string, unknown> = { ...start };
+			const puts: Record<string, unknown>[] = [];
+			const lesen = () => ({
+				...stand,
+				client_source: (bekannt.quelle ?? []).includes(stand.client_source_id as number) ? { id: stand.client_source_id, name: "Homepage" } : null,
+				client_status: (bekannt.status ?? []).includes(stand.client_status_id as number) ? { id: stand.client_status_id, name: "Aktiv" } : null,
+			});
+			const { client } = fakeClient({
+				getContact: lesen,
+				updateContact: (_id, payload) => {
+					puts.push(payload as Record<string, unknown>);
+					stand = { ...stand, ...(payload as Record<string, unknown>) };
+					return {};
+				},
+			});
+			return { client, lesen, puts };
+		}
+
+		it("ungültiger Status: wird zurückgenommen (Feld geleert), steht unter not_applied und nicht unter changed", async () => {
+			const { db, updates } = fakeDb();
+			const p = propstack({ id: 7, name: "Anna Muster", position: "CEO" });
+			const out = await updateContact({ client: p.client, db, now: NOW, user: USER }, { client_status_id: 999999999, id: 7, position: "CFO" });
+			expect(p.puts).toEqual([{ client_status_id: 999999999, position: "CFO" }, { client_status_id: null }]);
+			expect(p.lesen()).toMatchObject({ client_status_id: null, position: "CFO" });
+			expect(out.result).toMatchObject({
+				changed: ["position"],
+				not_applied: ["client_status_id (Den Kontaktstatus 999999999 gibt es in Propstack nicht – nicht übernommen)"],
+				updated: true,
+			});
+			// im Write-Log als Lücke vermerkt
+			expect(JSON.stringify(updates)).toMatch(/done_with_gaps/);
+		});
+
+		it("ungültige Quelle: der vorherige gültige Wert wird wiederhergestellt", async () => {
+			const p = propstack({ client_source_id: 211511, id: 7, name: "Anna Muster" }, { quelle: [211511] });
+			const out = await updateContact({ client: p.client, db: fakeDb().db, now: NOW, user: USER }, { id: 7, source_id: 999999999 });
+			expect(p.puts).toEqual([{ client_source_id: 999999999 }, { client_source_id: 211511 }]);
+			expect(out.result).toMatchObject({
+				changed: [],
+				not_applied: ["client_source_id (Die Kontakt-Quelle 999999999 gibt es in Propstack nicht – nicht übernommen, vorheriger Wert wiederhergestellt)"],
+			});
+		});
+
+		it("war schon der vorherige Wert ungültig, wird das Feld geleert statt den Müll wiederherzustellen", async () => {
+			const p = propstack({ client_status_id: 999999999, id: 7, name: "Anna Muster" });
+			await updateContact({ client: p.client, db: fakeDb().db, now: NOW, user: USER }, { client_status_id: 888888888, id: 7 });
+			expect(p.puts).toEqual([{ client_status_id: 888888888 }, { client_status_id: null }]);
+		});
+
+		it("gültige Werte bleiben stehen – kein zweiter Schreibvorgang", async () => {
+			const p = propstack({ id: 7, name: "Anna Muster" }, { quelle: [211511], status: [42] });
+			const out = await updateContact({ client: p.client, db: fakeDb().db, now: NOW, user: USER }, { client_status_id: 42, id: 7, source_id: 211511 });
+			expect(p.puts).toEqual([{ client_source_id: 211511, client_status_id: 42 }]);
+			expect(out.result).toMatchObject({ changed: ["client_source_id", "client_status_id"], updated: true });
+			expect((out.result as { not_applied?: string[] }).not_applied).toBeUndefined();
+		});
+
+		it("Status gilt auch als gültig, wenn Propstack ihn im Feld status statt client_status mitliefert", async () => {
+			const puts: Record<string, unknown>[] = [];
+			const { client } = fakeClient({
+				getContact: () => ({ client_status: null, client_status_id: puts.length ? 42 : null, id: 7, name: "Anna Muster", status: puts.length ? { id: 42, name: "Aktiv" } : {} }),
+				updateContact: (_id, payload) => {
+					puts.push(payload as Record<string, unknown>);
+					return {};
+				},
+			});
+			const out = await updateContact({ client, db: fakeDb().db, now: NOW, user: USER }, { client_status_id: 42, id: 7 });
+			expect(puts).toEqual([{ client_status_id: 42 }]);
+			expect(out.result).toMatchObject({ changed: ["client_status_id"], updated: true });
+		});
+
+		it("schlägt das Zurücksetzen fehl, steht das in der Meldung", async () => {
+			let aufrufe = 0;
+			const { client } = fakeClient({
+				getContact: () => ({ client_status: null, client_status_id: aufrufe ? 999999999 : null, id: 7, name: "Anna Muster" }),
+				updateContact: () => {
+					if (++aufrufe === 2) throw new PropstackError("Propstack-Serverfehler (502)", 502);
+					return {};
+				},
+			});
+			const out = await updateContact({ client, db: fakeDb().db, now: NOW, user: USER }, { client_status_id: 999999999, id: 7 });
+			expect((out.result as { not_applied: string[] }).not_applied[0]).toBe(
+				"client_status_id (Den Kontaktstatus 999999999 gibt es in Propstack nicht – nicht übernommen) – das Zurücksetzen ist fehlgeschlagen (Propstack-Serverfehler (502)), bitte in Propstack prüfen",
+			);
+		});
+
+		it("beim Anlegen: ungültige Quelle wird geleert und gemeldet, der Kontakt bleibt angelegt", async () => {
+			const puts: Record<string, unknown>[] = [];
+			const { client } = fakeClient({
+				createContact: () => ({ id: 77 }),
+				getContact: () => ({ broker_id: USER.brokerId, client_source: null, client_source_id: 999999999, id: 77, last_name: "Neu", name: "Neu" }),
+				updateContact: (_id, payload) => {
+					puts.push(payload as Record<string, unknown>);
+					return {};
+				},
+			});
+			const out = await createContact({ client, db: fakeDb().db, now: NOW, user: USER }, { last_name: "Neu", source_id: 999999999 });
+			expect(puts).toEqual([{ client_source_id: null }]);
+			expect(out.result).toMatchObject({ created: true, id: 77, not_applied: ["client_source_id (Die Kontakt-Quelle 999999999 gibt es in Propstack nicht – nicht übernommen)"] });
+		});
 	});
 });
 

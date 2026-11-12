@@ -177,11 +177,11 @@ export function groupIdsOf(raw: Raw): number[] {
 		.filter((g): g is number => typeof g === "number");
 }
 
-function blockedResult(dedupe: DedupeResult, hint: string): ToolOutput {
+function blockedResult(dedupe: DedupeResult, hint: string, action: "created" | "updated" = "created"): ToolOutput {
 	return {
 		count: 0,
 		result: {
-			created: false,
+			[action]: false,
 			blocked: "Dublette",
 			duplicates: dedupe.duplicates,
 			warnings: dedupe.warnings.length ? dedupe.warnings : undefined,
@@ -271,6 +271,56 @@ async function contactSearches(client: PropstackClient, input: Raw): Promise<Con
 		byName: name ? await search({ q: name }) : [],
 		byPhone: input.phone_office ? await search({ phone_number: String(input.phone_office) }) : [],
 	};
+}
+
+// Propstack prüft Kontaktstatus und Kontakt-Quelle nicht: Jede Zahl wird gespeichert, auch wenn es den Eintrag nicht
+// gibt (Live-Befund 12.11.2026: Status 999999999 und Quelle 999999999 standen danach am Kontakt). Erkennbar ist das
+// beim Gegenlesen: Zu einer gültigen ID liefert Propstack das zugehörige Objekt mit (client_source: {id, name}), zu
+// einer ungültigen nichts. Für den Kontaktstatus gibt es in der V1-Schnittstelle keine Liste – eine Prüfung vorab
+// ist deshalb nicht möglich.
+// Für die Quelle ist das live bestätigt (client_source: {id, name, created_at}). Für den Status ist in diesem Konto
+// kein gültiger Wert bekannt; Propstack führt dafür zwei Felder (client_status, status) – beide sind bei einer
+// ungültigen ID leer. Gilt eines davon mit passender ID, zählt der Status als gültig.
+const CONTACT_REFERENCES = [
+	{ key: "client_status_id", label: "Den Kontaktstatus", objects: ["client_status", "status"] },
+	{ key: "client_source_id", label: "Die Kontakt-Quelle", objects: ["client_source"] },
+] as const;
+
+function referenceValid(row: Raw, key: string, objects: readonly string[]): boolean {
+	const wanted = Number(scalar(row[key]));
+	return objects.some((object) => {
+		const linked = row[object];
+		return !!linked && typeof linked === "object" && Number((linked as Raw).id) === wanted;
+	});
+}
+
+/**
+ * Nach dem Schreiben: Verweise auf einen Status oder eine Quelle, die es nicht gibt, wieder zurücknehmen.
+ * Wiederhergestellt wird der vorherige Wert – aber nur, wenn er selbst gültig war; sonst wird das Feld geleert.
+ * Liefert je zurückgenommenem Feld eine Meldung für not_applied.
+ */
+export async function revertInvalidContactReferences(
+	client: Pick<PropstackClient, "updateContact">,
+	contactId: number,
+	written: Raw,
+	actual: Raw,
+	previous: Raw | null,
+): Promise<{ key: string; message: string }[]> {
+	const invalid: { key: string; message: string }[] = [];
+	const restore: Raw = {};
+	for (const ref of CONTACT_REFERENCES) {
+		if (!(ref.key in written) || referenceValid(actual, ref.key, ref.objects)) continue;
+		const keep = previous && referenceValid(previous, ref.key, ref.objects);
+		restore[ref.key] = keep ? scalar(previous[ref.key]) : null;
+		invalid.push({ key: ref.key, message: `${ref.key} (${ref.label} ${written[ref.key]} gibt es in Propstack nicht – nicht übernommen${keep ? ", vorheriger Wert wiederhergestellt" : ""})` });
+	}
+	if (!invalid.length) return invalid;
+	try {
+		await client.updateContact(contactId, restore);
+	} catch (error) {
+		for (const entry of invalid) entry.message += ` – das Zurücksetzen ist fehlgeschlagen (${(error as Error).message}), bitte in Propstack prüfen`;
+	}
+	return invalid;
 }
 
 export const createContactInput = {
@@ -363,6 +413,7 @@ export async function createContact(deps: WriteDeps, input: z.infer<z.ZodObject<
 	const missing = notApplied({ ...fields, broker_id: user.brokerId }, actual, custom?.expect);
 	const groups = groupIdsOf(actual);
 	for (const tag of tags) if (!groups.includes(tag)) missing.push(`tag ${tag}`);
+	for (const entry of await revertInvalidContactReferences(client, newId, fields, actual, null)) missing.push(entry.message);
 	await finishWrite(deps.db, logId, { entityId: newId, notApplied: missing, status: missing.length ? "done_with_gaps" : "done" });
 
 	return {
@@ -418,7 +469,7 @@ export async function updateContact(deps: WriteDeps, input: z.infer<z.ZodObject<
 		? contactDuplicates(identity, await contactSearches(client, identity), input.id)
 		: { duplicates: [], warnings: [] };
 	if (dedupe.duplicates.length && !input.allow_duplicate_reason) {
-		return blockedResult(dedupe, "Nichts geändert. Die neue E-Mail bzw. Mobilnummer gehört bereits einem anderen Kontakt.");
+		return blockedResult(dedupe, "Nichts geändert. Die neue E-Mail bzw. Mobilnummer gehört bereits einem anderen Kontakt.", "updated");
 	}
 	const overrideReason = checkOverride(dedupe, input.allow_duplicate_reason);
 
@@ -479,6 +530,9 @@ export async function updateContact(deps: WriteDeps, input: z.infer<z.ZodObject<
 	const groups = groupIdsOf(actual);
 	for (const t of addTags) if (!groups.includes(t)) missing.push(`add_tag ${t}`);
 	for (const t of removeTags) if (groups.includes(t)) missing.push(`remove_tag ${t}`);
+	const invalid = await revertInvalidContactReferences(client, input.id, fields, actual, current);
+	for (const entry of invalid) missing.push(entry.message);
+	const reverted = new Set(invalid.map((entry) => entry.key));
 	await finishWrite(deps.db, logId, { notApplied: missing, status: missing.length ? "done_with_gaps" : "done" });
 
 	return {
@@ -487,7 +541,7 @@ export async function updateContact(deps: WriteDeps, input: z.infer<z.ZodObject<
 			updated: true,
 			id: input.id,
 			name: scalar(actual.name),
-			changed: [...Object.keys(fields), ...(addTags.length ? ["add_tags"] : []), ...(removeTags.length ? ["remove_tags"] : []), ...(noteChanged ? ["note"] : []), ...Object.keys(custom?.send ?? {}).map((k) => `custom_fields.${k}`)],
+			changed: [...Object.keys(fields).filter((key) => !reverted.has(key)), ...(addTags.length ? ["add_tags"] : []), ...(removeTags.length ? ["remove_tags"] : []), ...(noteChanged ? ["note"] : []), ...Object.keys(custom?.send ?? {}).map((k) => `custom_fields.${k}`)],
 			already_present: alreadyPresent.length ? alreadyPresent : undefined,
 			warnings: dedupe.warnings.length ? dedupe.warnings : undefined,
 			not_applied: missing.length ? missing : undefined,
@@ -1140,7 +1194,7 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 		if (candidate.zip_code) dedupe = objectDuplicates(candidate, await objectCandidates(client, candidate.zip_code), input.id);
 	}
 	if (dedupe.duplicates.length && !input.allow_duplicate_reason) {
-		return blockedResult(dedupe, "Nichts geändert – das Objekt würde mit einem vorhandenen kollidieren.");
+		return blockedResult(dedupe, "Nichts geändert – das Objekt würde mit einem vorhandenen kollidieren.", "updated");
 	}
 	const overrideReason = checkOverride(dedupe, input.allow_duplicate_reason);
 

@@ -119,8 +119,26 @@ function contactName(row: Raw): string {
 	return String(scalar(row.name) ?? [scalar(row.first_name), scalar(row.last_name)].filter(Boolean).join(" "));
 }
 
+// Akademische Titel vor dem Namen. Propstack stellt sie dem Anzeigenamen voran ("Dr. Max Muster") – für den
+// Namensvergleich zählen sie nicht (Live-Befund 12.11.2026: „Max Muster“ wurde neben „Dr. Max Muster“ angelegt).
+const TITLE_TOKENS = new Set(["prof", "dr", "dres", "dipl", "ing", "med", "jur", "rer", "nat", "phil", "hc", "mag"]);
+
+/** Vergleichsform eines Personennamens: normalisiert, ohne vorangestellte Titel. */
+export function personName(name: unknown): string {
+	const tokens = normalizeText(name).split(" ").filter(Boolean);
+	let start = 0;
+	while (start < tokens.length - 1 && TITLE_TOKENS.has(tokens[start])) start++;
+	return tokens.slice(start).join(" ");
+}
+
 function fullName(input: ContactCandidate): string {
-	return normalizeText([input.first_name, input.last_name].filter(Boolean).join(" "));
+	return personName([input.first_name, input.last_name].filter(Boolean).join(" "));
+}
+
+/** Name eines vorhandenen Kontakts für den Vergleich: Vor- und Nachname, sonst der Anzeigename – jeweils ohne Titel. */
+function rowPersonName(row: Raw): string {
+	const parts = [scalar(row.first_name), scalar(row.last_name)].filter(Boolean);
+	return personName(parts.length ? parts.join(" ") : contactName(row));
 }
 
 export function contactDuplicates(input: ContactCandidate, found: ContactSearchResults, excludeId?: number): DedupeResult {
@@ -176,7 +194,7 @@ export function contactDuplicates(input: ContactCandidate, found: ContactSearchR
 	if (name) {
 		const company = normalizeCompany(input.company);
 		for (const row of others(found.byName)) {
-			if (normalizeText(contactName(row)) !== name) continue;
+			if (rowPersonName(row) !== name) continue;
 			const rowCompany = normalizeCompany(scalar(row.company));
 			if (company && rowCompany && company === rowCompany) {
 				if (block) add(row, `gleicher Name und gleiche Firma (${scalar(row.company)})`);
