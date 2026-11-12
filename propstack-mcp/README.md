@@ -140,6 +140,12 @@ Bewusste Lücken: Ein einzelner Deal per ID und die Kontakt-Status-Liste sind nu
   - `create_contact` mit der Firma „MCP-TEST Musterfirma GmbH“ nennt den Firmen-Datensatz und den nächsten Schritt; mit einer Firma, die es nicht gibt, kommt der Hinweis „keinen eindeutigen Firmen-Datensatz“. Beide neuen Personen ließen sich verknüpfen – die mit abweichendem Firmentext mit Warnung.
   - Endzustand: Firma 38366588 mit drei verknüpften Personen (38363861, 38366712, 38366717); je Person genau eine Zeile „Firma“, an der Firma drei Zeilen „Mitarbeiter“.
   - Live nicht ausgelöst und nur durch Tests abgedeckt: die Antwort 422 beim Verknüpfen (die Vorprüfung greift vorher) und das Nachsetzen der Firmen-Kennzeichnung.
+- **Live-Abnahme mit v0.12.0 (12.11.2026, gegen 20:08 Uhr) – bestanden.** An Testdaten (`MCP-TEST`), Endzustand unabhängig über die Propstack-Schnittstelle gegengelesen.
+  - `get_contact` zeigt an der Firma 38366588 die verknüpften Personen und an der Person 38363861 die Firma.
+  - `create_contact` mit Firma „MCP-TEST Musterfirma“ (ohne Rechtsform): Person 38368715 angelegt und mit der vorhandenen Firma 38366588 verknüpft; keine zweite Firma entstanden.
+  - `create_contact` mit Firma „MCP-TEST Automatik Neu GmbH“ und Adresse: Person 38368746 angelegt, Firma 38368751 angelegt (als Firma gekennzeichnet, Adresse des Kontakts, Merkmal `MCP-TEST`, Betreuer = Nutzer) und verknüpft – am Kontakt „Firma“, an der Firma „Mitarbeiter“.
+  - `create_contact` mit Firma „MCP-TEST Musterfirma Logistik GmbH“: Person 38368766 angelegt, keine Firma angelegt, nichts verknüpft; das Ergebnis nennt die ähnliche Firma und die zwei Wege.
+  - Beobachtung zum Betrieb: Nach dem Deployment bekam die laufende Sitzung noch rund drei Minuten die alte Fassung. Vor einer Live-Abnahme deshalb erst prüfen, dass die neue Fassung antwortet.
 - **Aus der Abnahme, behoben in v0.11.1:** `get_contact` zeigte die Website nicht – am Firmen-Datensatz ließ sich also nicht nachlesen, was `create_company` gesetzt hatte. Sie steht jetzt als `office_url` in der Ausgabe.
 
 **Objekte – Regeln aus dem Notion-Feld-Mapping („Propstack API – Feld-Mapping“, Korrekturen) und dem Skill `propstack-expose-workflow`:**
