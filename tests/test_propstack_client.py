@@ -120,3 +120,97 @@ def test_link_labels_company_as_firma(monkeypatch):
     assert body == {"internal_name": "associate", "name": "Firma",
                     "client_id": 111, "related_client_id": 222}
     assert headers["X-Api-Key"] == "v2"
+
+
+# --- Firmen-Dubletten bei abweichender Rechtsform (12.11.2026) -----------------
+
+def _search_by_term(monkeypatch, by_term):
+    """Propstack-Suche nachstellen: Treffer hängen vom Suchbegriff ab."""
+    calls = []
+
+    def fake_get(url, params=None, **kw):
+        calls.append(params["q"])
+        return _Resp(by_term.get(params["q"], []))
+
+    monkeypatch.setattr(ps.httpx, "get", fake_get)
+    return calls
+
+
+GOODMAN = {"id": 17366550, "is_company": True, "name": "Goodman Germany GmbH",
+           "company": "Goodman Germany GmbH", "first_name": None, "last_name": None}
+GOODMAN_SHORT = {"id": 36103370, "is_company": True, "name": "Goodman",
+                 "company": "Goodman", "first_name": None, "last_name": None}
+
+
+def test_search_terms_full_core_first_word():
+    assert ps._company_search_terms("Goodman Germany GmbH & Co. KG") == [
+        "Goodman Germany GmbH & Co. KG", "Goodman Germany", "Goodman"]
+    assert ps._company_search_terms("Bayer AG") == ["Bayer AG", "Bayer"]
+    assert ps._company_search_terms("Goodman") == ["Goodman"]
+    # kurzes erstes Wort wird nicht allein gesucht
+    assert ps._company_search_terms("DB Schenker AG") == ["DB Schenker AG", "DB Schenker"]
+
+
+def test_find_company_other_legal_form(monkeypatch):
+    # Propstack verlangt jedes Wort: der volle Name findet nichts, der Kern schon
+    calls = _search_by_term(monkeypatch, {"Goodman Germany": [GOODMAN], "Goodman": [GOODMAN, GOODMAN_SHORT]})
+    assert ps.find_company("Goodman Germany AG") == 17366550
+    assert calls == ["Goodman Germany AG", "Goodman Germany", "Goodman"]
+
+
+def test_find_company_other_legal_form_and_spelling(monkeypatch):
+    _search_by_term(monkeypatch, {"L.I.T.": [
+        {"id": 8, "is_company": True, "name": "LIT AG", "company": "LIT AG"}]})
+    assert ps.find_company("L.I.T. GmbH") == 8
+
+
+def test_find_company_prefers_exact_over_other_legal_form(monkeypatch):
+    ag = {"id": 5, "is_company": True, "name": "Goodman Germany AG", "company": "Goodman Germany AG"}
+    _search_by_term(monkeypatch, {"Goodman Germany AG": [ag], "Goodman Germany": [GOODMAN, ag]})
+    assert ps.find_company("Goodman Germany AG") == 5
+
+
+def test_find_company_takes_oldest_of_several(monkeypatch):
+    newer = dict(GOODMAN, id=99999999)
+    _search_by_term(monkeypatch, {"Goodman Germany": [newer, GOODMAN]})
+    assert ps.find_company("Goodman Germany SE") == 17366550
+
+
+def test_find_company_short_form_uses_single_similar_company(monkeypatch, caplog):
+    # Signatur nennt nur die Kurzform; vorhanden ist genau eine länger benannte Firma
+    _search_by_term(monkeypatch, {"Goodman": [GOODMAN]})
+    with caplog.at_level("WARNING"):
+        assert ps.find_company("Goodman") == 17366550
+    assert "ähnlich benannten Firma zugeordnet" in caplog.text
+    # und umgekehrt: vorhanden ist nur die Kurzform
+    _search_by_term(monkeypatch, {"Goodman": [GOODMAN_SHORT]})
+    assert ps.find_company("Goodman Germany GmbH") == 36103370
+
+
+def test_find_company_several_similar_companies_not_used(monkeypatch, caplog):
+    belgium = {"id": 77, "is_company": True, "name": "Goodman Belgium NV", "company": "Goodman Belgium NV"}
+    _search_by_term(monkeypatch, {"Goodman": [GOODMAN, belgium]})
+    with caplog.at_level("WARNING"):
+        assert ps.find_company("Goodman") is None
+    assert "wird nicht verwendet" in caplog.text
+
+
+def test_find_company_similar_with_legal_form_is_other_company(monkeypatch):
+    # Der kürzere Name trägt eine Rechtsform -> eigene Firma, keine Kurzform
+    _search_by_term(monkeypatch, {"L.I.T.": [
+        {"id": 12, "is_company": True, "name": "L.I.T. Speditions GmbH", "company": "L.I.T. Speditions GmbH"}]})
+    assert ps.find_company("L.I.T. AG") is None
+
+
+def test_find_company_person_flagged_as_company_not_matched_loosely(monkeypatch):
+    _search_by_term(monkeypatch, {"Goodman Germany": [
+        {"id": 9, "is_company": True, "name": "Max Muster (Goodman Germany GmbH)",
+         "company": "Goodman Germany GmbH", "first_name": "Max", "last_name": "Muster"}]})
+    assert ps.find_company("Goodman Germany AG") is None
+
+
+def test_find_company_search_error_returns_none(monkeypatch):
+    def boom(url, params=None, **kw):
+        raise httpx.ConnectError("down")
+    monkeypatch.setattr(ps.httpx, "get", boom)
+    assert ps.find_company("Goodman Germany GmbH") is None
