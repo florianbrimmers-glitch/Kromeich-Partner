@@ -196,8 +196,12 @@ def find_or_create_company(contact: ContactData) -> int | None:
 
 
 def link_contact_to_company(person_id: int, company_id: int) -> bool:
-    """Verknüpft eine Person als 'Mitarbeiter' (associate) mit einer Firma über die V2-API.
-    Erzeugt den Eintrag unter 'Verknüpfte Kontakte' der Firma."""
+    """Verknüpft eine Person mit ihrer Firma (associate) über die V2-API.
+
+    `name` bezeichnet den verknüpften Kontakt (related_client_id) aus Sicht von
+    client_id: An der Person steht die Firma als "Firma". Die Gegenrichtung
+    (an der Firma steht die Person als "Mitarbeiter") ergänzt Propstack selbst –
+    genau wie bei Verknüpfungen, die in der Oberfläche angelegt werden."""
     v2_key = _api_key_v2()
     if not v2_key:
         logger.warning("PROPSTACK_API_V2_CONTACTS not set, skipping company linking")
@@ -208,14 +212,14 @@ def link_contact_to_company(person_id: int, company_id: int) -> bool:
             headers={"X-Api-Key": v2_key, "Content-Type": "application/json"},
             json={
                 "internal_name": "associate",
-                "name": "Mitarbeiter",
+                "name": "Firma",
                 "client_id": person_id,
                 "related_client_id": company_id,
             },
             timeout=30.0,
         )
         if response.status_code in (200, 201, 204):
-            logger.info("Person %s mit Firma %s verknüpft (Mitarbeiter)", person_id, company_id)
+            logger.info("Person %s mit Firma %s verknüpft (Person -> Firma)", person_id, company_id)
             return True
         if response.status_code == 422:
             logger.info("Person %s bereits mit Firma %s verknüpft", person_id, company_id)
