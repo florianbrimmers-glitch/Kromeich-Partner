@@ -100,6 +100,76 @@ describe("plan", () => {
 	});
 });
 
+describe("Sammeländerung mit einem Kontaktstatus, den es nicht gibt (Live-Befund 12.11.2026)", () => {
+	/** Propstack wie live: speichert jede Status-ID, liefert aber zu einer unbekannten kein Status-Objekt mit. */
+	function statusWorld(count: number) {
+		const contacts = new Map<number, Record<string, unknown>>();
+		for (let i = 1; i <= count; i++) contacts.set(i, { broker_id: 1, client_status: null, client_status_id: null, groups: [], id: i, name: `Kontakt ${i}` });
+		const puts: { id: number; payload: Record<string, unknown> }[] = [];
+		const makeClient = () => {
+			let used = 0;
+			return {
+				getContact: async (id: number) => {
+					used++;
+					return structuredClone(contacts.get(id)) ?? null;
+				},
+				listCustomFieldGroups: async () => {
+					used++;
+					return page([]);
+				},
+				get requestsUsed() {
+					return used;
+				},
+				searchContacts: async () => {
+					used++;
+					return page([...contacts.values()]);
+				},
+				updateContact: async (id: number, payload: Record<string, unknown>) => {
+					used++;
+					puts.push({ id, payload });
+					Object.assign(contacts.get(id)!, payload);
+					return {};
+				},
+			} as unknown as PropstackClient;
+		};
+		return { contacts, makeClient, puts };
+	}
+
+	it("jeder Kontakt wird zurückgesetzt und steht unter den Problemen – nicht als „unverändert“ versteckt", async () => {
+		const world = statusWorld(3);
+		const store = new MemoryBulkStore();
+		const { db } = fakeDb();
+		const planOut = await planBulk(
+			{ client: world.makeClient(), db, now: () => T0, store, user: USER },
+			{ changes: { client_status_id: 999999999 }, description: "Status setzen, den es nicht gibt", entity: "contacts", ids: [1, 2, 3] },
+		);
+		const planId = (planOut.result as { plan_id: string }).plan_id;
+		const out = (await applyPlan({ client: world.makeClient(), db, now: () => T0, store, user: USER }, { plan_id: planId })).result as Record<string, unknown>;
+
+		// je Kontakt: Status geschrieben, dann wieder geleert
+		expect(world.puts.map((p) => p.payload)).toEqual([
+			{ client_status_id: 999999999 },
+			{ client_status_id: null },
+			{ client_status_id: 999999999 },
+			{ client_status_id: null },
+			{ client_status_id: 999999999 },
+			{ client_status_id: null },
+		]);
+		expect([...world.contacts.values()].map((c) => c.client_status_id)).toEqual([null, null, null]);
+		expect(out).toMatchObject({ finished: true, processed_now: 3, total: 3 });
+		expect(store.rows.map((r) => r.status)).toEqual(["done_with_gaps", "done_with_gaps", "done_with_gaps"]);
+		expect(JSON.stringify(out.problems)).toMatch(/Den Kontaktstatus 999999999 gibt es in Propstack nicht – nicht übernommen/);
+	});
+
+	it("das Zurücknehmen ist im Budget eingerechnet: eine Anfrage mehr je Kontakt, nur bei Status oder Quelle", () => {
+		const basis = costOf("contacts", { add_tag_ids: [9] }, "apply");
+		expect(costOf("contacts", { client_status_id: 5 }, "apply")).toBe(basis + 1);
+		expect(costOf("contacts", { add_tag_ids: [9], source_id: 5 }, "apply")).toBe(basis + 1);
+		expect(costOf("contacts", { broker_id: 2 }, "apply")).toBe(basis);
+		expect(costOf("contacts", { client_status_id: 5 }, "undo")).toBe(costOf("contacts", { add_tag_ids: [9] }, "undo"));
+	});
+});
+
 describe("apply_plan / undo_plan", () => {
 	async function planned(count: number) {
 		const world = contactWorld(count);

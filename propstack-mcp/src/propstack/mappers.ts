@@ -157,6 +157,8 @@ export function mapContactDetail(raw: Raw) {
 		]),
 		emails: Array.isArray(raw.emails) && raw.emails.length > 1 ? raw.emails : undefined,
 		status: idName(raw.status),
+		// Name der Kontakt-Quelle – sonst steht dort nur die Nummer
+		source: idName(raw.client_source),
 		home_address: addressOf(raw, "home"),
 		office_address: addressOf(raw, "office"),
 		description: fullText(raw.description),

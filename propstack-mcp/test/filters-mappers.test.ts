@@ -220,3 +220,12 @@ describe("Objekt-Detail: interne Notiz, verknüpfte Kontakte, Energie", async ()
 		expect(relationshipList([])).toBeUndefined();
 	});
 });
+
+describe("Kontakt-Einzelansicht: Quelle mit Namen (Live-Abnahme Kontakte, 12.11.2026)", () => {
+	it("zeigt den Namen der Quelle, nicht nur die Nummer; ohne Quelle fehlt das Feld", () => {
+		const mit = mapContactDetail({ client_source: { created_at: "2025-01-01", id: 211511, name: "Homepage" }, client_source_id: 211511, id: 1, name: "Anna Muster" });
+		expect(mit).toMatchObject({ client_source_id: 211511, source: { id: 211511, name: "Homepage" } });
+		expect(mapContactDetail({ client_source: null, id: 1, name: "Anna Muster" })).not.toHaveProperty("source");
+	});
+});
+

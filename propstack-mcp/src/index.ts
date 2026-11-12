@@ -16,7 +16,7 @@ import { purgeOldWriteLog } from "./write-log";
 export class PropstackMCP extends McpAgent<Env, Record<string, never>, Props> {
 	server = new McpServer({
 		name: "Propstack MCP – Kromeich",
-		version: "0.10.2",
+		version: "0.10.3",
 	});
 
 	async init() {

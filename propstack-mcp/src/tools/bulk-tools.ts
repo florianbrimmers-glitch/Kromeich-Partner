@@ -83,7 +83,9 @@ const COST_CUSTOM_ONLY = { apply: 6, undo: 8 } as const;
 export function costOf(entity: "contacts" | "objects", changes: Raw, kind: "apply" | "undo"): number {
 	const keys = Object.keys(changes).filter((key) => changes[key] !== undefined);
 	if (entity === "objects" && keys.length && keys.every((key) => OBJECT_CUSTOM_ONLY.includes(key))) return COST_CUSTOM_ONLY[kind];
-	return COST[entity][kind];
+	// Kontaktstatus und Quelle prüft Propstack nicht: Ist der Wert ungültig, nimmt der Connector ihn zurück – eine Anfrage mehr je Kontakt.
+	const revert = entity === "contacts" && kind === "apply" && (keys.includes("client_status_id") || keys.includes("source_id")) ? 1 : 0;
+	return COST[entity][kind] + revert;
 }
 
 export const planBulkInput = {
@@ -299,7 +301,8 @@ export async function applyPlan(deps: BulkDeps, input: z.infer<z.ZodObject<typeo
 				changed: snapshot?.after ?? null,
 				error: null,
 				not_applied: gaps.length ? gaps : null,
-				status: result.updated === false ? "unchanged" : gaps.length ? "done_with_gaps" : "done",
+				// Lücken zuerst: Ein zurückgenommener Wert (updated: false, aber not_applied) muss unter den Problemen erscheinen
+				status: gaps.length ? "done_with_gaps" : result.updated === false ? "unchanged" : "done",
 			});
 		} catch (error) {
 			if (isTransient(error)) {

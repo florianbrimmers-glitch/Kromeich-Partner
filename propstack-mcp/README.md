@@ -94,6 +94,11 @@ Bewusste Lücken: Ein einzelner Deal per ID und die Kontakt-Status-Liste sind nu
   - Der Connector nimmt einen solchen Wert jetzt sofort zurück: Er stellt den vorherigen Wert wieder her – oder leert das Feld, wenn schon der vorherige ungültig war – und meldet ihn unter `not_applied` („… gibt es in Propstack nicht – nicht übernommen“). Das gilt auch beim Anlegen und in Sammeländerungen.
   - Offen bleibt: Für den Kontaktstatus gibt es in der V1-Schnittstelle keine Liste. Gültige Werte kann Claude deshalb nicht nachschlagen, und in diesem Konto ist kein gültiger Status bekannt.
 - **Kleinigkeit, behoben:** Wird eine Änderung als Dublette abgewiesen, heißt es im Ergebnis `updated: false` statt `created: false`.
+- **Live-Nachtest mit v0.10.2 (12.11.2026, 18:24 Uhr) – bestanden:**
+  - „Max MCP-Testkontakt Abnahme“ bei „MCP-TEST Musterfirma“ wird jetzt abgewiesen; genannt werden beide vorhandenen Kontakte, der mit Titel (38363861) und der ohne (38363864).
+  - Ein Status, den es nicht gibt, wird zurückgenommen: Der Wert stand danach nicht mehr am Kontakt, gemeldet unter `not_applied`. Der zuvor testweise gesetzte ungültige Status ist damit ebenfalls weg.
+  - Eine Quelle, die es nicht gibt: Am Kontakt mit gültiger Quelle (Homepage) stand danach wieder „Homepage“ („vorheriger Wert wiederhergestellt“); am Kontakt mit ungültiger Quelle ist das Feld jetzt leer.
+- **Aus dem Nachtest, behoben in v0.10.3:** Wurde alles zurückgenommen, meldete das Ergebnis trotzdem `updated: true` bei leerem `changed`. Jetzt `updated: false`. In Sammeländerungen zählt ein solcher Kontakt als „mit Lücken“ und steht unter den Problemen; das Zurücknehmen ist im Abfragebudget eingerechnet. `get_contact` zeigt außerdem den Namen der Quelle (`source`), nicht nur die Nummer.
 - **Was der Connector bei Kontakten nicht kann** (Abgleich mit dem täglichen Import `src/` und dem Skill `email-kontakt-scan`):
   - Firmen-Datensätze anlegen und Personen als Mitarbeiter mit ihrer Firma verknüpfen. Der tägliche Import macht beides über die V2-Schnittstelle mit eigenem Schlüssel.
   - Newsletter-Gruppen (Mailchimp) setzen – der tägliche Import ordnet jeden Kontakt einer Gruppe zu.
