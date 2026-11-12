@@ -4,6 +4,7 @@ import {
 	customFields,
 	DETAIL_TEXT_MAX,
 	fullText,
+	linkedContacts,
 	mapContactDetail,
 	mapContactSummary,
 	mapDeal,
@@ -226,6 +227,33 @@ describe("Kontakt-Einzelansicht: Quelle mit Namen (Live-Abnahme Kontakte, 12.11.
 		const mit = mapContactDetail({ client_source: { created_at: "2025-01-01", id: 211511, name: "Homepage" }, client_source_id: 211511, id: 1, name: "Anna Muster" });
 		expect(mit).toMatchObject({ client_source_id: 211511, source: { id: 211511, name: "Homepage" } });
 		expect(mapContactDetail({ client_source: null, id: 1, name: "Anna Muster" })).not.toHaveProperty("source");
+	});
+
+	it("verknüpfte Kontakte: wer bei der Firma arbeitet bzw. zu welcher Firma die Person gehört – Zeilen mit Objekt oder Projekt zählen nicht", () => {
+		// so liefert es GET /contacts/:id?include=relationships (live 12.11.2026, Firma 38366588 und Person 35124656)
+		const firma = linkedContacts([
+			{ client: { id: 38366717, name: "Otto MCP-Testkontakt Anderefirma" }, id: 8001240, internal_name: "associate", name: "Firma", project: null, property: null, related_client: { id: 38366588, name: "MCP-TEST Musterfirma GmbH" } },
+			{ client: { id: 38363861, name: "Dr. Max MCP-Testkontakt Abnahme" }, id: 8001117, internal_name: "associate", name: "Firma", project: null, property: null, related_client: { id: 38366588, name: "MCP-TEST Musterfirma GmbH" } },
+		]);
+		expect(firma).toEqual({
+			linked_contacts: [
+				{ id: 38366717, name: "Otto MCP-Testkontakt Anderefirma", this_contact_is: "Firma" },
+				{ id: 38363861, name: "Dr. Max MCP-Testkontakt Abnahme", this_contact_is: "Firma" },
+			],
+		});
+		const person = linkedContacts([
+			{ client: { id: 17366550, name: "Goodman Germany GmbH" }, id: 7135441, internal_name: "associate", name: "Mitarbeiter", project: null, property: null, related_client: { id: 35124656, name: "Stefan Prange" } },
+			{ client: null, id: 1, internal_name: "owner", name: null, project: { id: 5, name: "Projekt" }, property: null, related_client: { id: 35124656, name: "Stefan Prange" } },
+			{ client: { id: 9, name: "X" }, id: 2, internal_name: "owner", name: null, project: null, property: { id: 7, name: "Objekt" }, related_client: { id: 35124656, name: "Stefan Prange" } },
+			{ client: null, id: 3, internal_name: "owner", name: null, project: null, property: null },
+		]);
+		expect(person).toEqual({ linked_contacts: [{ id: 17366550, name: "Goodman Germany GmbH", this_contact_is: "Mitarbeiter" }] });
+		// ohne Verknüpfungen fehlt das Feld; bei sehr vielen wird gekürzt und die Gesamtzahl genannt
+		expect(linkedContacts(undefined)).toEqual({});
+		expect(linkedContacts([])).toEqual({});
+		const viele = linkedContacts(Array.from({ length: 60 }, (_, i) => ({ client: { id: i + 1, name: `P${i}` }, name: "Firma" })));
+		expect((viele.linked_contacts as unknown[]).length).toBe(50);
+		expect(viele.linked_contacts_total).toBe(60);
 	});
 
 	it("zeigt die Website – sonst lässt sich am Firmen-Datensatz nicht nachlesen, was create_company gesetzt hat (Live-Abnahme 12.11.2026)", () => {

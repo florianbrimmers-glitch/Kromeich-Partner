@@ -6,7 +6,19 @@ import { scalar } from "../propstack/mappers";
 import { beginWrite, finishWrite } from "../write-log";
 import { id, optionalText } from "./params";
 import type { ToolOutput } from "./read-tools";
-import { asObjectOrThrow, checkOverride, createdId, ensureTestTag, groupIdsOf, notApplied, originNote, TEST_TAG, type WriteDeps } from "./write-tools";
+import {
+	asObjectOrThrow,
+	checkOverride,
+	createContact,
+	type createContactInput,
+	createdId,
+	ensureTestTag,
+	groupIdsOf,
+	notApplied,
+	originNote,
+	TEST_TAG,
+	type WriteDeps,
+} from "./write-tools";
 
 // Firmen-Datensätze und die Verknüpfung Person ↔ Firma (Entscheidung Florian, 12.11.2026).
 //
@@ -76,27 +88,17 @@ const COMPANY_KEYS: Record<string, string> = {
 	zip_code: "office_zip_code",
 };
 
-export async function createCompany(deps: WriteDeps, input: z.infer<z.ZodObject<typeof createCompanyInput>>): Promise<ToolOutput> {
+type CompanyInput = z.infer<z.ZodObject<typeof createCompanyInput>>;
+
+/** Firmen-Datensatz anlegen und gegenlesen – ohne Dublettenprüfung, die macht der Aufrufer. */
+async function insertCompany(
+	deps: WriteDeps,
+	input: CompanyInput,
+	log: { overrideReason: string | null; tool: string; warnings: string[] },
+): Promise<{ actual: Raw; id: number; missing: string[] }> {
 	const client: CompanyClient = deps.client;
 	const { user } = deps;
 	const now = deps.now?.() ?? new Date();
-	if (!client.hasV2Key) throw new PropstackError(MISSING_V2_KEY, 0);
-
-	const dedupe = companyDuplicates(input.name, await companyCandidates(client, input.name));
-	if (dedupe.duplicates.length && !input.allow_duplicate_reason) {
-		return {
-			count: 0,
-			result: {
-				created: false,
-				blocked: "Dublette",
-				duplicates: dedupe.duplicates,
-				warnings: dedupe.warnings.length ? dedupe.warnings : undefined,
-				hint: "Nichts angelegt – die Firma gibt es schon. Diesen Datensatz verwenden (z. B. für link_contact_company). Nur falls es nachweislich eine andere Firma ist: mit allow_duplicate_reason erneut aufrufen.",
-			},
-		};
-	}
-	const overrideReason = checkOverride(dedupe, input.allow_duplicate_reason);
-
 	const tags = [...(input.tag_ids ?? [])];
 	if (input.test) tags.push(await ensureTestTag(deps.client, "for_clients"));
 
@@ -119,11 +121,11 @@ export async function createCompany(deps: WriteDeps, input: z.infer<z.ZodObject<
 		brokerId: user.brokerId,
 		entity: "contact",
 		entityId: null,
-		overrideReason,
+		overrideReason: log.overrideReason,
 		request: payload,
-		tool: "create_company",
+		tool: log.tool,
 		userEmail: user.email,
-		warnings: dedupe.warnings,
+		warnings: log.warnings,
 	});
 
 	let newId: number;
@@ -151,6 +153,28 @@ export async function createCompany(deps: WriteDeps, input: z.infer<z.ZodObject<
 	const groups = groupIdsOf(actual);
 	for (const tag of tags) if (!groups.includes(tag)) missing.push(`tag ${tag}`);
 	await finishWrite(deps.db, logId, { entityId: newId, notApplied: missing, status: missing.length ? "done_with_gaps" : "done" });
+	return { actual, id: newId, missing };
+}
+
+export async function createCompany(deps: WriteDeps, input: CompanyInput): Promise<ToolOutput> {
+	const client: CompanyClient = deps.client;
+	if (!client.hasV2Key) throw new PropstackError(MISSING_V2_KEY, 0);
+
+	const dedupe = companyDuplicates(input.name, await companyCandidates(client, input.name));
+	if (dedupe.duplicates.length && !input.allow_duplicate_reason) {
+		return {
+			count: 0,
+			result: {
+				created: false,
+				blocked: "Dublette",
+				duplicates: dedupe.duplicates,
+				warnings: dedupe.warnings.length ? dedupe.warnings : undefined,
+				hint: "Nichts angelegt – die Firma gibt es schon. Diesen Datensatz verwenden (z. B. für link_contact_company). Nur falls es nachweislich eine andere Firma ist: mit allow_duplicate_reason erneut aufrufen.",
+			},
+		};
+	}
+	const overrideReason = checkOverride(dedupe, input.allow_duplicate_reason);
+	const { actual, id: newId, missing } = await insertCompany(deps, input, { overrideReason, tool: "create_company", warnings: dedupe.warnings });
 
 	return {
 		count: 1,
@@ -159,7 +183,7 @@ export async function createCompany(deps: WriteDeps, input: z.infer<z.ZodObject<
 			id: newId,
 			name: scalar(actual.name) ?? input.name,
 			is_company: actual.is_company === true,
-			broker: user.name,
+			broker: deps.user.name,
 			test: input.test || undefined,
 			override_reason: overrideReason ?? undefined,
 			warnings: dedupe.warnings.length ? dedupe.warnings : undefined,
@@ -192,7 +216,7 @@ function labelOf(row: Raw | undefined): string | undefined {
 	return label === "" ? undefined : label;
 }
 
-export async function linkContactCompany(deps: WriteDeps, input: z.infer<z.ZodObject<typeof linkContactCompanyInput>>): Promise<ToolOutput> {
+export async function linkContactCompany(deps: WriteDeps, input: z.infer<z.ZodObject<typeof linkContactCompanyInput>>, tool = "link_contact_company"): Promise<ToolOutput> {
 	const client: CompanyClient = deps.client;
 	const { user } = deps;
 	if (!client.hasV2Key) throw new PropstackError(MISSING_V2_KEY, 0);
@@ -244,7 +268,7 @@ export async function linkContactCompany(deps: WriteDeps, input: z.infer<z.ZodOb
 		entityId: input.contact_id,
 		overrideReason: null,
 		request,
-		tool: "link_contact_company",
+		tool,
 		userEmail: user.email,
 		warnings: mismatch ? [mismatch] : [],
 	});
@@ -287,4 +311,79 @@ export async function linkContactCompany(deps: WriteDeps, input: z.infer<z.ZodOb
 			note: "Propstack hat den Aufruf angenommen, die Verknüpfung ließ sich aber nicht bestätigen – bitte am Kontakt unter „Verknüpfte Kontakte“ prüfen.",
 		},
 	};
+}
+
+// ---------- create_contact: Firma automatisch verknüpfen ----------
+// Entscheidung Florian, 12.11.2026: „Die Firmenverknüpfung soll bitte immer gesetzt werden“ – wie in den Import-Jobs,
+// ohne dass jemand etwas tun muss. Nach dem Anlegen der Person wird deshalb der Firmen-Datensatz gesucht, bei Bedarf
+// angelegt (mit der Geschäftsadresse des Kontakts, wie im Import) und verknüpft.
+//
+// Eine Ausnahme, damit dabei keine Firmen-Dubletten entstehen: Gibt es keinen gleichnamigen, aber einen ähnlich
+// benannten Firmen-Datensatz („Goodman“ neben „Goodman Germany GmbH“ – so steht es seit dem Import vom 02.09.2026 im
+// Konto), oder passen mehrere, wird nichts geraten. Das Ergebnis nennt die Kandidaten, entschieden wird mit
+// link_contact_company. Der Kontakt selbst ist in jedem Fall angelegt; ein Fehler bei der Firma macht daraus keinen
+// Fehler des Tools.
+
+type ContactInput = z.infer<z.ZodObject<typeof createContactInput>>;
+
+export async function createContactLinked(deps: WriteDeps, input: ContactInput): Promise<ToolOutput> {
+	const out = await createContact(deps, input);
+	const result = out.result as Raw;
+	const company = input.company?.trim();
+	if (result.created !== true || typeof result.id !== "number" || !company) return out;
+	return { ...out, result: { ...result, company_link: await linkToCompany(deps, result.id, company, input) } };
+}
+
+async function linkToCompany(deps: WriteDeps, contactId: number, company: string, input: ContactInput): Promise<Raw> {
+	const client: CompanyClient = deps.client;
+	const later = `Nachholen mit link_contact_company (contact_id ${contactId}).`;
+	if (!client.hasV2Key) return { linked: false, hint: `Nicht verknüpft: ${MISSING_V2_KEY}` };
+	if (company.length < 2) return { linked: false, hint: `Nicht verknüpft: „${company}“ ist als Firmenname zu kurz. ${later}` };
+	let found: { id: number; name: string } | undefined;
+	let created = false;
+	let gaps: string[] = [];
+	try {
+		const dedupe = companyDuplicates(company, await companyCandidates(client, company));
+		const exact = dedupe.duplicates.filter((d) => strictCompanyName(d.name) === strictCompanyName(company));
+		const match = dedupe.duplicates.length === 1 ? dedupe.duplicates[0] : exact.length === 1 ? exact[0] : undefined;
+		found = match && { id: match.id, name: match.name };
+		if (!found && dedupe.duplicates.length) {
+			return {
+				linked: false,
+				candidates: dedupe.duplicates.map((d) => ({ id: d.id, name: d.name })),
+				hint: `Mehrere Firmen-Datensätze passen zu „${company}“ – nicht automatisch verknüpft. Den richtigen mit link_contact_company wählen (contact_id ${contactId}).`,
+			};
+		}
+		if (!found && dedupe.warnings.length) {
+			return {
+				linked: false,
+				similar: dedupe.warnings,
+				hint: `Für „${company}“ gibt es keinen gleichnamigen, aber einen ähnlich benannten Firmen-Datensatz – deshalb keine neue Firma angelegt. Ist es dieselbe Firma: link_contact_company (contact_id ${contactId}) mit deren ID. Ist es eine andere: create_company, dann link_contact_company.`,
+			};
+		}
+		if (!found) {
+			const { street, house_number, zip_code, city, country, test } = input;
+			const inserted = await insertCompany(deps, { city, country, house_number, name: company, street, test, zip_code }, { overrideReason: null, tool: "create_contact", warnings: [] });
+			found = { id: inserted.id, name: String(scalar(inserted.actual.name) ?? company) };
+			created = true;
+			gaps = inserted.missing;
+		}
+		const link = (await linkContactCompany(deps, { company_id: found.id, contact_id: contactId }, "create_contact")).result as Raw;
+		return {
+			linked: link.linked,
+			company: found,
+			company_created: created || undefined,
+			company_not_applied: gaps.length ? gaps : undefined,
+			label: link.label,
+			warnings: link.warnings,
+			note: link.note,
+		};
+	} catch (error) {
+		return {
+			linked: false,
+			company: found,
+			company_created: created || undefined,
+			hint: `Der Kontakt ist angelegt, die Verknüpfung mit der Firma nicht: ${(error as Error).message} ${later}`,
+		};
+	}
 }
