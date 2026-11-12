@@ -175,12 +175,30 @@ def check_duplicate_by_name(first_name: str, last_name: str) -> bool | None:
         return None
 
 
+def _has_legal_form(name: str | None) -> bool:
+    text = re.sub(r"[^a-z0-9]+", " ", (name or "").lower())
+    return bool(_LEGAL_FORMS.search(text))
+
+
+def _is_short_form_of(company_name: str, record: dict) -> bool:
+    """Ist der kürzere der beiden Namen eine Kurzform ohne Rechtsform?
+    ("Goodman" zu "Goodman Germany GmbH": ja; "L.I.T. AG" zu "L.I.T. Speditions GmbH": nein)"""
+    other = record.get("company") or record.get("name")
+    shorter = company_name if len(_loose_words(company_name)) < len(_loose_words(other)) else other
+    return not _has_legal_form(shorter)
+
+
 def find_company(company_name: str) -> int | None:
     """Sucht einen bestehenden Firmen-Datensatz (is_company=true) anhand des Namens.
 
     Dieselbe Firma wird auch mit anderer Rechtsform oder Schreibweise wiedererkannt
-    und verwendet. Eine nur ähnlich benannte Firma ("Goodman" / "Goodman Germany
-    GmbH") wird NICHT verwendet, sondern nur im Log gemeldet."""
+    und verwendet.
+
+    Nur ähnlich benannte Firma ("Goodman" / "Goodman Germany GmbH"), Entscheidung
+    vom 12.11.2026: Sie wird verwendet, wenn es genau eine gibt und der kürzere
+    der beiden Namen eine Kurzform ohne Rechtsform ist. Trägt der kürzere Name
+    eine Rechtsform ("L.I.T. AG" / "L.I.T. Speditions GmbH"), sind es zwei
+    Firmen – dann wird wie bisher neu angelegt."""
     records: list[dict] = []
     try:
         for term in _company_search_terms(company_name):
@@ -209,8 +227,12 @@ def find_company(company_name: str) -> int | None:
             logger.info("Firma gefunden (%s): %s -> %s (id=%s)", label, company_name, hit.get("name"), hit.get("id"))
             return hit.get("id")
     if similar:
+        listing = ", ".join(f"{c.get('name')} ({c.get('id')})" for c in similar[:5])
+        if len(similar) == 1 and _is_short_form_of(company_name, similar[0]):
+            logger.warning("Firma '%s' einer ähnlich benannten Firma zugeordnet: %s", company_name, listing)
+            return similar[0].get("id")
         logger.warning("Ähnlich benannte Firma vorhanden für '%s': %s – wird nicht verwendet",
-                       company_name, ", ".join(f"{c.get('name')} ({c.get('id')})" for c in similar[:5]))
+                       company_name, listing)
     logger.info("Keine bestehende Firma gefunden für: %s", company_name)
     return None
 

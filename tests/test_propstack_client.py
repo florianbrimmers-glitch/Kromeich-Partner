@@ -176,15 +176,30 @@ def test_find_company_takes_oldest_of_several(monkeypatch):
     assert ps.find_company("Goodman Germany SE") == 17366550
 
 
-def test_find_company_similar_name_is_not_used(monkeypatch, caplog):
-    # Signatur nennt nur die Kurzform; vorhanden ist nur die lange Firma
+def test_find_company_short_form_uses_single_similar_company(monkeypatch, caplog):
+    # Signatur nennt nur die Kurzform; vorhanden ist genau eine länger benannte Firma
     _search_by_term(monkeypatch, {"Goodman": [GOODMAN]})
     with caplog.at_level("WARNING"):
-        assert ps.find_company("Goodman") is None
-    assert "Ähnlich benannte Firma" in caplog.text and "17366550" in caplog.text
-    # und umgekehrt
+        assert ps.find_company("Goodman") == 17366550
+    assert "ähnlich benannten Firma zugeordnet" in caplog.text
+    # und umgekehrt: vorhanden ist nur die Kurzform
     _search_by_term(monkeypatch, {"Goodman": [GOODMAN_SHORT]})
-    assert ps.find_company("Goodman Germany GmbH") is None
+    assert ps.find_company("Goodman Germany GmbH") == 36103370
+
+
+def test_find_company_several_similar_companies_not_used(monkeypatch, caplog):
+    belgium = {"id": 77, "is_company": True, "name": "Goodman Belgium NV", "company": "Goodman Belgium NV"}
+    _search_by_term(monkeypatch, {"Goodman": [GOODMAN, belgium]})
+    with caplog.at_level("WARNING"):
+        assert ps.find_company("Goodman") is None
+    assert "wird nicht verwendet" in caplog.text
+
+
+def test_find_company_similar_with_legal_form_is_other_company(monkeypatch):
+    # Der kürzere Name trägt eine Rechtsform -> eigene Firma, keine Kurzform
+    _search_by_term(monkeypatch, {"L.I.T.": [
+        {"id": 12, "is_company": True, "name": "L.I.T. Speditions GmbH", "company": "L.I.T. Speditions GmbH"}]})
+    assert ps.find_company("L.I.T. AG") is None
 
 
 def test_find_company_person_flagged_as_company_not_matched_loosely(monkeypatch):

@@ -1,12 +1,16 @@
 """Probelauf: verkehrt herum beschriftete Verknüpfungen Person <-> Firma finden.
 
-Liest nur (GET). Ändert nichts in Propstack.
+Liest standardmäßig nur (GET) und ändert nichts in Propstack. Erst mit --apply
+werden die eindeutig vertauschten Paare umbeschriftet (zwei PUT je Paar, weil
+Propstack die Gegenzeile nicht selbst mitzieht – geprüft am 12.11.2026). Jedes
+Paar wird direkt vor dem Schreiben und danach noch einmal gelesen. Sonderfälle
+werden nie angefasst, gelöscht wird nichts.
 
 Bis 12.11.2026 hat der Kontakt-Import die Zeile der Person mit "Mitarbeiter"
 angelegt (richtig: "Firma"); die Gegenzeile an der Firma heißt dadurch "Firma"
 (richtig: "Mitarbeiter"). Das Skript sucht diese Paare und meldet Sonderfälle.
 
-Aufruf:  python scripts/relationship_dryrun.py [--out bericht.json]
+Aufruf:  python scripts/relationship_dryrun.py [--out bericht.json] [--apply [--limit N]]
 Umgebung: PROPSTACK_API_V1, PROPSTACK_API_V2 (werden nie ausgegeben).
 Der Bericht enthält Namen von Kontakten – nicht ins Repository legen.
 """
@@ -110,9 +114,47 @@ def analyse(rows: list[dict], lookup) -> dict:
     }
 
 
+def _pair_rows(client: httpx.Client, key: str, person_id: int, company_id: int) -> list[dict]:
+    rows = []
+    for cid in (person_id, company_id):
+        body = _get(client, f"{V2}/relationships", key,
+                    {"client_id": cid, "internal_name": "associate", "per": 100})
+        rows += [r for r in (body or {}).get("data") or []
+                 if {r.get("client_id"), r.get("related_client_id")} == {person_id, company_id}]
+    return rows
+
+
+def _labels(rows: list[dict]) -> dict:
+    return {r.get("id"): r.get("name") for r in rows}
+
+
+def apply_fix(client: httpx.Client, key: str, pairs: list[dict], limit: int | None) -> tuple[int, list[str]]:
+    done, problems = 0, []
+    headers = {"X-API-KEY": key, "User-Agent": USER_AGENT, "Content-Type": "application/json"}
+    for e in pairs[:limit]:
+        zp, zf = e["zeile_person"], e["zeile_firma"]
+        before = _labels(_pair_rows(client, key, e["person_id"], e["firma_id"]))
+        if before != {zp: WRONG_PERSON_LABEL, zf: WRONG_COMPANY_LABEL}:
+            problems.append(f"{zp}/{zf}: Stand hat sich geändert ({before}) – übersprungen")
+            continue
+        for row_id, name in ((zp, WRONG_COMPANY_LABEL), (zf, WRONG_PERSON_LABEL)):
+            r = client.put(f"{V2}/relationships/{row_id}", headers=headers, json={"name": name})
+            if r.status_code != 200:
+                problems.append(f"{row_id}: PUT {r.status_code}")
+        after = _labels(_pair_rows(client, key, e["person_id"], e["firma_id"]))
+        if after == {zp: WRONG_COMPANY_LABEL, zf: WRONG_PERSON_LABEL}:
+            done += 1
+        else:
+            problems.append(f"{zp}/{zf}: nach dem Schreiben unerwartet: {after} – Abbruch")
+            break
+    return done, problems
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--out", help="Bericht als JSON speichern (enthält Namen)")
+    ap.add_argument("--apply", action="store_true", help="eindeutig vertauschte Paare umbeschriften (schreibt!)")
+    ap.add_argument("--limit", type=int, help="mit --apply: höchstens so viele Paare ändern")
     args = ap.parse_args()
     k1, k2 = os.environ.get("PROPSTACK_API_V1"), os.environ.get("PROPSTACK_API_V2")
     if not k1 or not k2:
@@ -128,6 +170,9 @@ def main() -> int:
             return cache[cid]
 
         report = analyse(rows, lookup)
+        if args.apply:
+            done, problems = apply_fix(client, k2, report["eindeutig_vertauscht"], args.limit)
+            report["korrigiert"], report["probleme_beim_schreiben"] = done, problems
     print(f"Zeilen gesamt: {report['zeilen_gesamt']}")
     for name, n in report["namen"].items():
         print(f"  {n:5d}  {name}")
@@ -140,6 +185,10 @@ def main() -> int:
     for e in report["sonderfaelle"]:
         print(f"  Sonderfall: {e['person']} ({e['person_id']}) <-> {e['firma']} ({e['firma_id']}), "
               f"Zeile {e['zeile_person']}: {'; '.join(e['probleme'])}")
+    if args.apply:
+        print(f"Korrigiert: {report['korrigiert']} Paare")
+        for p in report["probleme_beim_schreiben"]:
+            print(f"  Problem: {p}")
     if args.out:
         with open(args.out, "w", encoding="utf-8") as f:
             json.dump(report, f, ensure_ascii=False, indent=1)
