@@ -222,6 +222,29 @@ export class PropstackClient {
 		return this.get(`/projects/${id}?new=1`);
 	}
 
+	// ---------- Dashboard (dashboard_daten) – nur Lesen ----------
+
+	/**
+	 * GET /v1/units?expand=1 – Einheiten im ausführlichen Listenformat. Nur so liefert Propstack created_at
+	 * (ohne expand ist es null), und nur so wirken created_at_from/created_at_to (tagesgenau) und sort_by=created_at.
+	 * Große Antwort: rund 33 KB je Einheit, deshalb längere Wartezeit als sonst.
+	 */
+	async listUnitsExpanded(query: Query): Promise<Page> {
+		return toPage(await this.get(`/units${buildQuery({ ...query, expand: 1 })}`, 45_000));
+	}
+
+	/** GET /v1/projects?per=…&page=… – Projektliste seitenweise im kurzen Format (Titel, Name, Adresse; kein Zeitstempel). */
+	async listProjectsPage(query: Query): Promise<Page> {
+		return toPage(await this.get(`/projects${buildQuery(query)}`, 30_000));
+	}
+
+	/**
+	 * GET /v1/activities – Aktivitäten, hier die Aufgaben eines Nutzers (item_type=reminder&broker_id=…).
+	 * sort_by=updated_at&order=desc funktioniert; updated_at_from/to ignoriert der Server (live geprüft, weekly_report/propstack.py).
+	 */
+	async listActivities(query: Query): Promise<Page> {
+		return toPage(await this.get(`/activities${buildQuery(query)}`, 30_000));
+	}
 
 	// ---------- Schreiben (Phase 3) – nur Anlegen/Ändern, keine Löschmethoden ----------
 

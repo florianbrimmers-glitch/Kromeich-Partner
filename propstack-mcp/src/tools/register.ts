@@ -52,6 +52,8 @@ import {
 	updateProjectInput,
 } from "./project-tools";
 import { createTask, createTaskInput } from "./task-tools";
+import { dashboardDaten, dashboardDatenInput } from "../dashboard/aufbau";
+import { D1DashboardStore, type DashboardStore } from "../dashboard/store";
 import { type ZodRawShape, z } from "zod";
 import { id } from "./params";
 
@@ -61,6 +63,8 @@ export interface ToolContext {
 	/** Für Tests austauschbar. */
 	createClient?: () => PropstackClient;
 	now?: () => number;
+	/** Für Tests austauschbar: Zwischenspeicher des Dashboards (sonst D1). */
+	dashboardStore?: () => DashboardStore;
 }
 
 type ToolResult = { content: { type: "text"; text: string }[]; isError?: boolean };
@@ -190,6 +194,21 @@ export function registerReadTools(server: McpServer, ctx: ToolContext): void {
 		"Auswertungen: zählt Kontakte, Objekte oder Deals gruppiert nach einer Dimension, mit den Filtern der Such-Tools (Merkmale nur mit ODER, ohne city/zip_prefix). Deals nach Phase liefern zusätzlich Summe Preis und gewichteten Wert.",
 		aggregateInput,
 		aggregate,
+	);
+	register(
+		"dashboard_daten",
+		"Daten für das Propstack-Dashboard „Objektanlage & Prüfaufgaben“ (nur lesen). Liefert genau ein Dokument im Format des Dashboards: meta/stand (Zeitpunkt, Fenster, Zähler, Liste der Wochen und Prüfungs-Teile), meta/projekte (Projekte der neuen Einheiten mit Titel und Anlagedatum = früheste Einheit), wochen/<JJJJ-KWnn> (neu angelegte Einheiten je ISO-Woche in Berliner Zeit) oder pruefung/teil-<nn> (Prüfaufgaben: der offene Bestand plus alles, was im Fenster angelegt oder erledigt wurde, je 400 Aufgaben). Ein Stand braucht mehr Propstack-Abfragen, als ein Aufruf darf, und wird deshalb über mehrere Aufrufe aufgebaut: Solange die Antwort fortsetzen: true enthält, denselben Aufruf wiederholen – nacheinander, nicht parallel. Meldet ein Aufruf dabei einen Fehler von Propstack, ist der Fortschritt gespeichert; ein erneuter Aufruf macht dort weiter. Ein fertiger Stand bleibt 30 Minuten im Zwischenspeicher. Ablauf: zuerst meta/stand abrufen, bis das Dokument kommt; danach meta/projekte sowie jede in meta/stand genannte Woche (wochen/<Woche>) und jeden Teil (pruefung/<Teil>) holen – jeweils mit stand = Wert „aktualisiert“ aus meta/stand, damit alles aus demselben Stand stammt.",
+		dashboardDatenInput,
+		(client, input) =>
+			dashboardDaten(
+				{
+					client,
+					now: ctx.now,
+					store: ctx.dashboardStore ? ctx.dashboardStore() : ctx.env.AUDIT_DB ? new D1DashboardStore(ctx.env.AUDIT_DB) : undefined,
+					user: ctx.props(),
+				},
+				input,
+			),
 	);
 }
 
