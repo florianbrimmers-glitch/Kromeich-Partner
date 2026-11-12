@@ -508,9 +508,11 @@ describe("update_contact", () => {
 			const p = propstack({ client_source_id: 211511, id: 7, name: "Anna Muster" }, { quelle: [211511] });
 			const out = await updateContact({ client: p.client, db: fakeDb().db, now: NOW, user: USER }, { id: 7, source_id: 999999999 });
 			expect(p.puts).toEqual([{ client_source_id: 999999999 }, { client_source_id: 211511 }]);
+			// nichts hat sich geändert → updated: false (live am 12.11.2026 stand hier noch „updated: true“ bei leerem changed)
 			expect(out.result).toMatchObject({
 				changed: [],
 				not_applied: ["client_source_id (Die Kontakt-Quelle 999999999 gibt es in Propstack nicht – nicht übernommen, vorheriger Wert wiederhergestellt)"],
+				updated: false,
 			});
 		});
 

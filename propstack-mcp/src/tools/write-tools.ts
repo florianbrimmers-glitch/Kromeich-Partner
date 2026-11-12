@@ -534,14 +534,22 @@ export async function updateContact(deps: WriteDeps, input: z.infer<z.ZodObject<
 	for (const entry of invalid) missing.push(entry.message);
 	const reverted = new Set(invalid.map((entry) => entry.key));
 	await finishWrite(deps.db, logId, { notApplied: missing, status: missing.length ? "done_with_gaps" : "done" });
+	const changed = [
+		...Object.keys(fields).filter((key) => !reverted.has(key)),
+		...(addTags.length ? ["add_tags"] : []),
+		...(removeTags.length ? ["remove_tags"] : []),
+		...(noteChanged ? ["note"] : []),
+		...Object.keys(custom?.send ?? {}).map((k) => `custom_fields.${k}`),
+	];
 
 	return {
 		count: 1,
 		result: {
-			updated: true,
+			// Wurde alles zurückgenommen (z. B. nur ein Status, den es nicht gibt), hat sich nichts geändert
+			updated: changed.length > 0,
 			id: input.id,
 			name: scalar(actual.name),
-			changed: [...Object.keys(fields).filter((key) => !reverted.has(key)), ...(addTags.length ? ["add_tags"] : []), ...(removeTags.length ? ["remove_tags"] : []), ...(noteChanged ? ["note"] : []), ...Object.keys(custom?.send ?? {}).map((k) => `custom_fields.${k}`)],
+			changed,
 			already_present: alreadyPresent.length ? alreadyPresent : undefined,
 			warnings: dedupe.warnings.length ? dedupe.warnings : undefined,
 			not_applied: missing.length ? missing : undefined,
