@@ -264,7 +264,9 @@ SELECT ts, user_email, tool, entity, entity_id, status, not_applied, override_re
 | Anlagedatum je Projekt | `GET /units?project_id=…&expand=1&sort_by=created_at&order=asc&per=1` | 104 |
 | Aufgaben der Prüfer | `GET /activities?item_type=reminder&broker_id=…&sort_by=updated_at&order=desc`, 200 je Seite | 3 |
 
-- Je Aufruf höchstens 40 Abfragen und 20 Sekunden; danach wird der Fortschritt gespeichert und `fortsetzen: true` gemeldet. Gemessen gegen das echte Propstack: vier Aufrufe (22, 36, 39 und 17 Abfragen), zusammen 72 Sekunden. Die Zeitgrenze greift vor der Abfragegrenze – eine Abfrage dauert rund eine halbe Sekunde, eine Seite Einheiten rund drei.
+- Je Aufruf höchstens 40 Abfragen und 20 Sekunden; danach wird der Fortschritt gespeichert und `fortsetzen: true` gemeldet.
+  - Live über den Connector (12.11.2026): **drei Aufrufe** mit 40, 40 und 34 Abfragen; der erste dauerte unter fünf Sekunden. Vom Worker aus antwortet Propstack schnell, dort greift die Abfragegrenze.
+  - Aus der Entwicklungsumgebung (langsamerer Netzweg, rund eine halbe Sekunde je Abfrage) waren es vier Aufrufe mit 22, 36, 39 und 17 Abfragen, zusammen 72 Sekunden – dort greift die Zeitgrenze.
 - Einheiten werden zu je 100 gelesen statt wie im Export zu 200: Mit `expand=1` wiegt eine Einheit rund 33 KB, 200 wären 6,8 MB je Antwort. Die Reihenfolge ist bei beiden Seitengrößen dieselbe (live geprüft).
 - Der Zeitpunkt des Stands (`aktualisiert`) ist der Beginn des Aufbaus. Einheiten, die während des Aufbaus entstehen, gehören zum nächsten Stand.
 - Meldet Propstack mittendrin einen Fehler, ist der Fortschritt gespeichert; der nächste Aufruf macht dort weiter. Bei einem Serverfehler (5xx) oder Netzproblem versucht es der Connector vorher einmal selbst erneut, bei 429 wartet der Client wie überall.
@@ -286,14 +288,27 @@ SELECT ts, user_email, tool, entity, entity_id, status, not_applied, override_re
 - Der Zwischenspeicher läuft im Test gegen echtes SQLite mit der Migration (`test/dashboard-store.test.ts`) – D1 ist SQLite.
 - **Live-Abgleich am 12.11.2026, 10:29 Uhr:** neuer Code und alter Export nacheinander gegen das echte Propstack, beide auf denselben Zeitpunkt gestellt. Ergebnis: **17 von 17 Dokumenten inhaltlich identisch, einschließlich der Reihenfolge der Felder** (363 Einheiten, 104 Projekte, 13 Wochen, 522 Prüfaufgaben, davon 495 offen, 2 Teile). Zwei Unterschiede in der Schreibweise, beide ohne Wirkung auf das Dashboard: kompakt statt mit Leerzeichen (222 statt 236 KB) und ganze Zahlen ohne „.0“ (`10197` statt `10197.0`, 318 Stellen).
 
+**Live-Abnahme über den Connector (12.11.2026, 10:39 Uhr, v0.10.0)** – in einer frischen Sitzung, weil eine laufende Sitzung neue Tools nicht nachlädt:
+- Das Tool war sofort nach dem Deployment sichtbar (geführt unter der Server-ID, nicht unter „Propstack“) und lief ohne Genehmigungsnachfrage.
+- `meta/stand` ist **identisch** mit dem bisherigen Export, auf denselben Zeitpunkt gestellt: 363 Einheiten, 104 Projekte, 522 Prüfaufgaben, davon 495 offen, 13 Wochen, 2 Teile – gleiche Felder in gleicher Reihenfolge.
+- `pruefung/teil-01` (400 Aufgaben, 373 offen, 105.441 Bytes) wurde vollständig verglichen: Prüfwert (SHA-256 über den Inhalt) gleich dem des Exports.
+- Alle 17 Dokumente kamen an. Der API-Key des Workers darf `/v1/activities` lesen.
+- Ein Aufruf ohne `stand` lieferte danach denselben Stand aus dem Zwischenspeicher. Zwei versehentlich gleichzeitig abgesetzte Aufrufe kamen beide richtig an.
+
+**Befund aus der Abnahme: So kommen die Dokumente in einer Claude-Sitzung an.**
+- 16 der 17 Dokumente (bis rund 30 KB) kamen direkt als Tool-Antwort ins Gespräch.
+- `pruefung/teil-01` war dafür zu groß. Die Sitzung meldete: „Error: result (104,921 characters across 1 line) exceeds maximum allowed tokens. Output has been saved to …/tool-results/….txt“. Die Datei enthält das Dokument unverändert als JSON, ohne Hülle. Das ist kein Fehler des Tools, sondern die Grenze der Sitzung für Tool-Antworten.
+- Folge für die Routine: Das große Dokument liegt als Datei vor und lässt sich ohne Abschreiben in die Datenbank des Artifacts übernehmen. Die 16 kleineren stehen nur im Gespräch – das Modell muss sie Zeichen für Zeichen wiedergeben, um sie zu speichern (zusammen rund 117 KB, jeden Tag). Das kostet Zeit und Geld und kann unbemerkt Fehler einschleusen.
+
 **Bewusste Abweichungen vom Export** (jeweils nur in Fällen, in denen der Export ein falsches oder unvollständiges Ergebnis geliefert hätte):
 - Verschiebt sich eine Liste während des Blätterns, zählt der Export einen Datensatz doppelt. Der Connector zählt jede Einheit und jede Aufgabe einmal.
 - Gibt es im Fenster keine Projekte, fragt der Connector die Projektliste nicht ab.
 - Liefert Propstack mehr Seiten als die Reißleine erlaubt (8.000 Datensätze), speichert der Export still ein unvollständiges Ergebnis. Der Connector bricht mit Fehlermeldung ab.
 
-**Offen (Entscheidung Florian bzw. Dashboard-Sitzung):**
-- Das größte Dokument (`pruefung/teil-01`) ist rund 105 KB groß. Als Tool-Antwort läuft es durch das Sprachmodell der Routine. Ob das unbeaufsichtigt zuverlässig und sparsam ist, zeigt erst die umgestellte Routine. Alternative, **nicht gebaut**: ein Download-Link (15 Minuten gültig, wie beim Bild-Upload), über den die Routine alle Dokumente als Datei holt, ohne dass das Modell sie abschreiben muss. Das wäre ein neuer Zugang ohne Anmeldung und braucht deshalb eine ausdrückliche Entscheidung.
-- Ob der API-Key des Workers `/v1/activities` lesen darf, zeigt der erste Live-Aufruf (der bisherige Export nutzte dafür einen eigenen Aufgaben-Key).
+**Offen (Entscheidung Florian bzw. Dashboard-Sitzung): Wie kommen die Dokumente ohne Abschreiben in die Datenbank des Artifacts?** Drei Wege, keiner davon über die Vorgabe hinaus gebaut:
+1. **So lassen.** Die Routine holt 17 Dokumente einzeln; 16 gibt das Modell wieder. Funktioniert, ist aber der teuerste und fehleranfälligste Weg.
+2. **Ein Abruf für alles** (`dokument: "alle"`, Empfehlung): eine Antwort mit allen Dokumenten (rund 222 KB). Sie ist immer zu groß für das Gespräch und landet deshalb als Datei in der Sitzung; ein kurzes Skript teilt sie in die Einzeldokumente. Kein neuer Zugang, nichts läuft durch das Modell. Hängt daran, dass die Sitzung große Antworten weiter als Datei ablegt – so wie am 12.11.2026 beobachtet.
+3. **Download-Link** (15 Minuten gültig, wie beim Bild-Upload): Die Routine holt alle Dokumente per Link als Datei. Unabhängig vom Verhalten der Sitzung, aber ein neuer Zugang ohne Anmeldung, und die Umgebung der Routine muss den Server erreichen dürfen.
 
 ## Audit-Log (D1)
 
