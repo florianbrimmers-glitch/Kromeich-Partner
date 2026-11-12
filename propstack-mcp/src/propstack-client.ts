@@ -1,4 +1,4 @@
-import { PROPSTACK_BASE_URL } from "./config";
+import { PROPSTACK_BASE_URL, PROPSTACK_BASE_URL_V2 } from "./config";
 
 export class PropstackError extends Error {
 	constructor(
@@ -21,7 +21,10 @@ export interface Page {
 
 export interface PropstackClientOptions {
 	apiKey: string;
+	/** Schlüssel für die V2-Schnittstelle (Firmen-Datensätze, Verknüpfungen zwischen Kontakten). Ohne ihn sind nur diese Aufrufe gesperrt. */
+	apiKeyV2?: string;
 	baseUrl?: string;
+	baseUrlV2?: string;
 	fetchFn?: typeof fetch;
 	sleep?: (ms: number) => Promise<void>;
 	maxRetries?: number;
@@ -90,7 +93,9 @@ export type CustomFieldEntity = "for_clients" | "for_properties" | "for_projects
  */
 export class PropstackClient {
 	private readonly apiKey: string;
+	private readonly apiKeyV2: string | undefined;
 	private readonly baseUrl: string;
+	private readonly baseUrlV2: string;
 	private readonly fetchFn: typeof fetch;
 	private readonly sleep: (ms: number) => Promise<void>;
 	private readonly maxRetries: number;
@@ -101,7 +106,9 @@ export class PropstackClient {
 	constructor(options: PropstackClientOptions) {
 		if (!options.apiKey) throw new Error("PROPSTACK_API_KEY fehlt");
 		this.apiKey = options.apiKey;
+		this.apiKeyV2 = options.apiKeyV2?.trim() || undefined;
 		this.baseUrl = options.baseUrl ?? PROPSTACK_BASE_URL;
+		this.baseUrlV2 = options.baseUrlV2 ?? PROPSTACK_BASE_URL_V2;
 		this.fetchFn = options.fetchFn ?? fetch.bind(globalThis);
 		this.sleep = options.sleep ?? defaultSleep;
 		this.maxRetries = options.maxRetries ?? 3;
@@ -111,6 +118,11 @@ export class PropstackClient {
 
 	get requestsUsed(): number {
 		return this.requestCount;
+	}
+
+	/** Ist der Schlüssel für die V2-Schnittstelle hinterlegt? (Nur ja/nein – der Wert verlässt den Client nie.) */
+	get hasV2Key(): boolean {
+		return this.apiKeyV2 !== undefined;
 	}
 
 	/** GET /v1/brokers – alle Nutzer des Accounts (laut Doku nicht paginiert). */
@@ -246,6 +258,40 @@ export class PropstackClient {
 		return toPage(await this.get(`/activities${buildQuery(query)}`, 30_000));
 	}
 
+	// ---------- V2-Schnittstelle: Firmen-Datensätze und Verknüpfungen zwischen Kontakten ----------
+	// Die V1-Schnittstelle kann einen Kontakt nicht als Firma kennzeichnen und kennt keine Verknüpfung Person ↔ Firma.
+	// Felder gehen bei V2 ohne Hülle in den Body (V1: {client: {…}}). Eigener Schlüssel: PROPSTACK_API_KEY_V2.
+	// Quelle: öffentliche V2-Dokumentation (api.propstack.de/v2/swagger_doc) und der tägliche Kontakt-Import (src/propstack_client.py).
+
+	/** POST /v2/clients – Kontakt anlegen; mit commercial: true entsteht ein Firmen-Datensatz. */
+	async createClientV2(client: Record<string, unknown>): Promise<unknown> {
+		return this.send("POST", "/clients", client, true);
+	}
+
+	/** PUT /v2/clients/:id – hier nur, um einen Datensatz als Firma zu kennzeichnen (commercial). */
+	async updateClientV2(id: number, client: Record<string, unknown>): Promise<unknown> {
+		return this.send("PUT", `/clients/${id}`, client, true);
+	}
+
+	/** GET /v2/relationships – Verknüpfungen eines Kontakts (client_id; nur die Zeilen seiner Seite), optional nach Art (internal_name). Ohne per kommen nur 10. */
+	async listRelationshipsV2(query: Query): Promise<Page> {
+		return toPage(await this.get(`/relationships${buildQuery(query)}`, this.timeoutMs, true));
+	}
+
+	/** POST /v2/relationships – Verknüpfung zwischen zwei Kontakten anlegen; Propstack ergänzt die Gegenrichtung selbst. */
+	async createRelationshipV2(relationship: Record<string, unknown>): Promise<unknown> {
+		return this.send("POST", "/relationships", relationship, true);
+	}
+
+	/** Basisadresse und Schlüssel der gewünschten Schnittstelle. Ohne V2-Schlüssel gibt es eine klare Meldung statt eines 401. */
+	private target(v2: boolean): { base: string; key: string } {
+		if (!v2) return { base: this.baseUrl, key: this.apiKey };
+		if (!this.apiKeyV2) {
+			throw new PropstackError("Für Firmen und Verknüpfungen zwischen Kontakten fehlt dem Server der zweite Propstack-Schlüssel (PROPSTACK_API_KEY_V2).", 0);
+		}
+		return { base: this.baseUrlV2, key: this.apiKeyV2 };
+	}
+
 	// ---------- Schreiben (Phase 3) – nur Anlegen/Ändern, keine Löschmethoden ----------
 
 	/** POST /v1/contacts. Achtung: Propstack aktualisiert bei bekannter E-Mail den vorhandenen Kontakt (Upsert) – Dublettenprüfung vorher ist Pflicht. */
@@ -318,14 +364,15 @@ export class PropstackClient {
 	 * Schreibende Anfrage. Retry nur bei 429 (Anfrage wurde nicht verarbeitet).
 	 * Bei 5xx/Timeout KEIN Retry – der Write könnte trotzdem passiert sein.
 	 */
-	private async send(method: "POST" | "PUT", path: string, body: unknown): Promise<unknown> {
+	private async send(method: "POST" | "PUT", path: string, body: unknown, v2 = false): Promise<unknown> {
+		const { base, key } = this.target(v2);
 		for (let attempt = 0; ; attempt++) {
 			this.countRequest();
 			let response: Response;
 			try {
-				response = await this.fetchFn(`${this.baseUrl}${path}`, {
+				response = await this.fetchFn(`${base}${path}`, {
 					body: JSON.stringify(body),
-					headers: { Accept: "application/json", "Content-Type": "application/json", "X-API-KEY": this.apiKey },
+					headers: { Accept: "application/json", "Content-Type": "application/json", "X-API-KEY": key },
 					method,
 					signal: AbortSignal.timeout(this.timeoutMs),
 				});
@@ -342,7 +389,7 @@ export class PropstackClient {
 			if (!response.ok) {
 				const detail = response.status === 400 || response.status === 422 ? await validationDetail(response) : "";
 				const unclear = response.status >= 500 ? " Status der Änderung unklar – bitte in Propstack prüfen." : "";
-				throw new PropstackError(`${describeStatus(response.status)}${detail}${unclear}`, response.status);
+				throw new PropstackError(`${describeStatus(response.status, v2)}${detail}${unclear}`, response.status);
 			}
 			const text = await response.text();
 			try {
@@ -399,13 +446,14 @@ export class PropstackClient {
 		this.requestCount++;
 	}
 
-	private async get(path: string, timeoutMs = this.timeoutMs): Promise<unknown> {
+	private async get(path: string, timeoutMs = this.timeoutMs, v2 = false): Promise<unknown> {
+		const { base, key } = this.target(v2);
 		for (let attempt = 0; ; attempt++) {
 			this.countRequest();
 			let response: Response;
 			try {
-				response = await this.fetchFn(`${this.baseUrl}${path}`, {
-					headers: { Accept: "application/json", "X-API-KEY": this.apiKey },
+				response = await this.fetchFn(`${base}${path}`, {
+					headers: { Accept: "application/json", "X-API-KEY": key },
 					method: "GET",
 					signal: AbortSignal.timeout(timeoutMs),
 				});
@@ -418,7 +466,7 @@ export class PropstackClient {
 				continue;
 			}
 			if (!response.ok) {
-				throw new PropstackError(describeStatus(response.status), response.status);
+				throw new PropstackError(describeStatus(response.status, v2), response.status);
 			}
 			return response.json();
 		}
@@ -433,7 +481,8 @@ async function validationDetail(response: Response): Promise<string> {
 		let message = text;
 		try {
 			const parsed = JSON.parse(text) as Record<string, unknown>;
-			const raw = parsed.errors ?? parsed.error ?? parsed.message ?? parsed;
+			// V1 meldet unter errors/error; V2 unter details (message ist dort nur die Art, z. B. "validation_error" – live 12.11.2026)
+			const raw = parsed.errors ?? parsed.error ?? parsed.details ?? parsed.message ?? parsed;
 			message = typeof raw === "string" ? raw : JSON.stringify(raw);
 		} catch {
 			// kein JSON – Text verwenden
@@ -444,8 +493,11 @@ async function validationDetail(response: Response): Promise<string> {
 	}
 }
 
-function describeStatus(status: number): string {
+function describeStatus(status: number, v2 = false): string {
 	if (status === 429) return "Propstack-Rate-Limit erreicht (429), auch nach mehreren Versuchen";
+	if ((status === 401 || status === 403) && v2) {
+		return `Propstack hat den Zugriff verweigert (${status}). Dem zweiten Schlüssel (PROPSTACK_API_KEY_V2) fehlt vermutlich das Recht für diesen Bereich – oder er ist ungültig.`;
+	}
 	if (status === 401 || status === 403) {
 		return `Propstack hat den Zugriff verweigert (${status}). Fehlt dem API-Key das Leserecht für diesen Bereich?`;
 	}

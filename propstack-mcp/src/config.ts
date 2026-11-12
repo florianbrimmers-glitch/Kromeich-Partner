@@ -3,6 +3,8 @@
 export const ALLOWED_HOSTED_DOMAIN = "kromeichpartner.de";
 
 export const PROPSTACK_BASE_URL = "https://api.propstack.de/v1";
+// Zweite Schnittstelle von Propstack: nur für Firmen-Datensätze und Verknüpfungen zwischen Kontakten (eigener Schlüssel).
+export const PROPSTACK_BASE_URL_V2 = "https://api.propstack.de/v2";
 
 // Laufzeit der MCP-Access-Tokens (Spezifikation: max. 1 h).
 export const ACCESS_TOKEN_TTL_SECONDS = 60 * 60;

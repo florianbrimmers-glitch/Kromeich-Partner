@@ -3,3 +3,5 @@ GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 COOKIE_ENCRYPTION_KEY=
 PROPSTACK_API_KEY=
+# Optional: zweiter Schlüssel für die V2-Schnittstelle (create_company, link_contact_company)
+PROPSTACK_API_KEY_V2=

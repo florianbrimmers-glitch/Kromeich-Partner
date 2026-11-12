@@ -52,6 +52,7 @@ import {
 	updateProjectInput,
 } from "./project-tools";
 import { createTask, createTaskInput } from "./task-tools";
+import { createCompany, createCompanyInput, linkContactCompany, linkContactCompanyInput } from "./company-tools";
 import { dashboardDaten, dashboardDatenInput } from "../dashboard/aufbau";
 import { D1DashboardStore, type DashboardStore } from "../dashboard/store";
 import { type ZodRawShape, z } from "zod";
@@ -91,7 +92,7 @@ export async function runTool(
 	let output: ToolOutput | undefined;
 	let failure: unknown;
 	try {
-		const client = ctx.createClient ? ctx.createClient() : new PropstackClient({ apiKey: ctx.env.PROPSTACK_API_KEY });
+		const client = ctx.createClient ? ctx.createClient() : new PropstackClient({ apiKey: ctx.env.PROPSTACK_API_KEY, apiKeyV2: ctx.env.PROPSTACK_API_KEY_V2 });
 		output = await fn(client);
 	} catch (error) {
 		failure = error;
@@ -254,6 +255,20 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
 		updateContactInput,
 		true,
 		updateContact,
+	);
+	register(
+		"create_company",
+		`Firma als eigenen Datensatz in Propstack anlegen (Firmen-Datensatz, an dem die Mitarbeiter als verknüpfte Kontakte hängen). Vorher Dublettenprüfung über den Firmennamen: Gleicher Name blockiert, Schreibweise und Rechtsform (GmbH, AG …) zählen dabei nicht; ähnliche Namen werden als Hinweis gemeldet. Bei Dublette nichts anlegen, sondern den vorhandenen Datensatz verwenden. Der Firmen-Datensatz bekommt keine E-Mail-Adresse (Propstack führt Kontakte über die E-Mail zusammen). Danach die Personen mit link_contact_company verknüpfen. ${rules}`,
+		createCompanyInput,
+		false,
+		createCompany,
+	);
+	register(
+		"link_contact_company",
+		"Person mit ihrer Firma verknüpfen: contact_id = Person, company_id = Firmen-Datensatz. Danach steht unter „Verknüpfte Kontakte“ am Kontakt die Firma (Bezeichnung „Firma“) und am Firmen-Datensatz die Person (Bezeichnung „Mitarbeiter“). Vorher wird geprüft, dass company_id wirklich ein Firmen-Datensatz ist, contact_id eine Person und beide nicht schon verknüpft sind (dann wird nichts geschrieben). Vorhandene Verknüpfungen bleiben bestehen; lösen oder ändern kann der Connector sie nicht. Ergebnis linked: true/false/„nicht prüfbar“, label = Bezeichnung am Kontakt.",
+		linkContactCompanyInput,
+		false,
+		linkContactCompany,
 	);
 	const review = "Danach entsteht automatisch eine Prüfaufgabe an Lena (bei test=true an dich), fällig am nächsten Werktag 9:00 – mit Link, allen Lücken und den Schritten, die nur in Propstack selbst gehen.";
 	register(

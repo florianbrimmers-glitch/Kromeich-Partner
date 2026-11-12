@@ -16,7 +16,7 @@ import { purgeOldWriteLog } from "./write-log";
 export class PropstackMCP extends McpAgent<Env, Record<string, never>, Props> {
 	server = new McpServer({
 		name: "Propstack MCP – Kromeich",
-		version: "0.10.3",
+		version: "0.11.0",
 	});
 
 	async init() {
@@ -32,7 +32,9 @@ export class PropstackMCP extends McpAgent<Env, Record<string, never>, Props> {
 			async () =>
 				runTool(ctx, "whoami", {}, async () => {
 					const { email, name, brokerId } = this.props!;
-					return { count: 1, result: { email, name, propstack_user_id: brokerId } };
+					// Nur ob der zweite Schlüssel hinterlegt ist – nie der Wert.
+					const firmen = this.env.PROPSTACK_API_KEY_V2?.trim() ? "bereit (zweiter Propstack-Schlüssel ist hinterlegt)" : "gesperrt (PROPSTACK_API_KEY_V2 fehlt im Server)";
+					return { count: 1, result: { email, name, propstack_user_id: brokerId, firmen_und_verknuepfungen: firmen } };
 				}),
 		);
 
