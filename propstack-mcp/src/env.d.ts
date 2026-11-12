@@ -8,6 +8,8 @@ declare namespace Cloudflare {
 		GOOGLE_CLIENT_SECRET: string;
 		COOKIE_ENCRYPTION_KEY: string;
 		PROPSTACK_API_KEY: string;
+		/** Schlüssel für die V2-Schnittstelle (Firmen, Verknüpfungen zwischen Kontakten). Fehlt er, sind nur diese Tools gesperrt. */
+		PROPSTACK_API_KEY_V2?: string;
 		AUDIT_DB: D1Database;
 	}
 }

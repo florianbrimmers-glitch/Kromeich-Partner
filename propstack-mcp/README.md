@@ -13,7 +13,7 @@ Live unter `https://propstack-mcp.kromeichpartner.workers.dev/mcp`, als Organisa
 
 | Tool | Zweck | Propstack-Endpunkt (V1) |
 |---|---|---|
-| `whoami` | Angemeldeter Nutzer und Propstack-ID | – |
+| `whoami` | Angemeldeter Nutzer und Propstack-ID; zeigt auch, ob der zweite Schlüssel für Firmen und Verknüpfungen hinterlegt ist | – |
 | `search_contacts` / `get_contact` | Kontakte suchen bzw. abrufen | `GET /contacts`, `GET /contacts/:id` |
 | `search_objects` / `get_object` | Objekte (Einheiten) suchen bzw. abrufen, inkl. Bildern mit Titel; mit `owner_contact_id` der ganze Bestand eines Eigentümers | `GET /units`, `GET /units/:id?new=1`, `GET /contacts/:id?include=relationships` |
 | `get_project` | Projekt abrufen: Name, Überschrift, Unterzeile, Adresse, Koordinaten, Provision, Texte, Bilder mit Titel, Links, Einheiten | `GET /projects/:id`, `GET /units?project_id=` |
@@ -60,6 +60,8 @@ Bewusste Lücken: Ein einzelner Deal per ID und die Kontakt-Status-Liste sind nu
 |---|---|
 | `create_contact` | Kontakt (Person) anlegen |
 | `update_contact` | Kontakt ändern, Merkmale hinzufügen/entfernen (taggen), Notiz **anhängen** |
+| `create_company` | Firma als eigenen Datensatz anlegen (Firmen-Datensatz) – braucht den zweiten Propstack-Schlüssel |
+| `link_contact_company` | Person mit ihrem Firmen-Datensatz verknüpfen – braucht den zweiten Propstack-Schlüssel |
 | `create_object` | Objekt anlegen – Einzelobjekt oder Einheit eines Projekts (übernimmt dann Adresse, Überschrift, Texte, Provision und Koordinaten vom Projekt) |
 | `update_object` | Objekt ändern (Eckdaten, Status, Aktiv, Preise, Flächen, Ausstattungsfelder, Provision, Texte, Custom-Felder, Koordinaten) |
 
@@ -100,12 +102,29 @@ Bewusste Lücken: Ein einzelner Deal per ID und die Kontakt-Status-Liste sind nu
   - Eine Quelle, die es nicht gibt: Am Kontakt mit gültiger Quelle (Homepage) stand danach wieder „Homepage“ („vorheriger Wert wiederhergestellt“); am Kontakt mit ungültiger Quelle ist das Feld jetzt leer.
 - **Aus dem Nachtest, behoben in v0.10.3:** Wurde alles zurückgenommen, meldete das Ergebnis trotzdem `updated: true` bei leerem `changed`. Jetzt `updated: false`. In Sammeländerungen zählt ein solcher Kontakt als „mit Lücken“ und steht unter den Problemen; das Zurücknehmen ist im Abfragebudget eingerechnet. `get_contact` zeigt außerdem den Namen der Quelle (`source`), nicht nur die Nummer.
 - **Was der Connector bei Kontakten nicht kann** (Abgleich mit dem täglichen Import `src/` und dem Skill `email-kontakt-scan`):
-  - Firmen-Datensätze anlegen und Personen als Mitarbeiter mit ihrer Firma verknüpfen. Der tägliche Import macht beides über die V2-Schnittstelle mit eigenem Schlüssel.
+  - ~~Firmen-Datensätze anlegen und Personen mit ihrer Firma verknüpfen.~~ Gebaut in v0.11.0, siehe nächster Abschnitt.
   - Newsletter-Gruppen (Mailchimp) setzen – der tägliche Import ordnet jeden Kontakt einer Gruppe zu.
   - Die Aktivitäten eines Kontakts lesen (Notizen, Aufgaben, Termine) oder eine Gesprächsnotiz als Aktivität anlegen; möglich ist nur das Anhängen an das Notizfeld.
   - Kontaktstatus nachschlagen, DSGVO-Status und Newsletter-Kennzeichen ändern, Kontakte archivieren.
   - Custom-Felder für Kontakte gibt es in diesem Konto nicht (`list_fields` liefert keine); Kontakt-Quellen gibt es nur sechs, alle Portale.
   - Was davon gebaut wird, entscheidet Florian.
+
+**Firmen und Verknüpfungen: `create_company` und `link_contact_company` (v0.11.0, 12.11.2026).** Anlass: Der tägliche Kontakt-Import legt zu jedem neuen Kontakt die Firma als eigenen Datensatz an und verknüpft beide. Kontakte, die über Claude entstehen, bekamen das nicht – die Firma stand nur als Text am Kontakt.
+- **Zweiter Schlüssel.** Beides geht nur über die V2-Schnittstelle von Propstack. Der Server braucht dafür das Secret `PROPSTACK_API_KEY_V2` (gesetzt von Florian am 12.11.2026 im Cloudflare-Dashboard). Fehlt es, sind nur diese zwei Tools gesperrt – mit klarer Meldung, alles andere läuft weiter. `whoami` zeigt unter `firmen_und_verknuepfungen`, ob der Schlüssel hinterlegt ist. Verweigert Propstack den Zugriff, nennt die Meldung den zweiten Schlüssel.
+- **Verknüpft wird auf Ansage, nicht automatisch.** Die vorhandenen Tools bleiben im Wortlaut unverändert (5c). `create_contact` sagt im Ergebnis, ob es zur angegebenen Firma schon einen Firmen-Datensatz gibt (`company_record`, `company_hint`) und nennt den nächsten Schritt. Das ist die von Claude empfohlene Variante; ausdrücklich bestätigt hat Florian sie noch nicht.
+- **`create_company`** legt den Datensatz in einem Aufruf an (`POST /v2/clients` mit `commercial: true`, Name im Feld `company`, kein Nachname – sonst zeigt Propstack „X (X)“). Betreuer ist der angemeldete Nutzer, die Herkunftsnotiz hängt an, `test: true` setzt `MCP-TEST`. Danach wird über V1 gegengelesen. Ist der Datensatz nicht als Firma gekennzeichnet, wird das einmal einzeln nachgesetzt; bleibt es dabei, steht es unter `not_applied`. Eine E-Mail-Adresse bekommt der Firmen-Datensatz bewusst nicht: Propstack führt Kontakte über die E-Mail zusammen, eine Person mit derselben Adresse würde den Firmen-Datensatz überschreiben.
+- **Dublettenprüfung für Firmen.** Gleicher Name blockiert; Groß-/Kleinschreibung, Punkte und Rechtsform (GmbH, AG, GmbH & Co. KG …) zählen nicht. Ein nur längerer oder kürzerer Name („Goodman“ / „Goodman Germany GmbH“) ist ein Hinweis. Personen zählen nie als Firma, auch nicht, wenn sie fälschlich so markiert sind (erkennbar am Vornamen).
+  - Befund beim Nachprüfen (nur lesend, 12.11.2026): Die Propstack-Suche verlangt **jedes Wort** der Eingabe. „Goodman Germany AG“ und „Goodman Germany GmbH & Co. KG“ finden „Goodman Germany GmbH“ nicht. Mit einer einzigen Suche – so sucht der tägliche Import – wäre die Dublette unsichtbar geblieben.
+  - Deshalb sucht der Connector dreimal: mit dem ganzen Namen, ohne Rechtsform und mit dem ersten Wort allein. Die dritte Suche bringt kürzer benannte Datensätze als Hinweis ans Licht – im Konto stehen zum Beispiel „Goodman Germany GmbH“ (17366550) und „Goodman“ (36103370) nebeneinander.
+  - Grenze: Tippfehler und andere Punktsetzung im ersten Wort („Goodmann“, „L.I.T.“ gegen „LIT“) findet die Suche nicht.
+- **`link_contact_company`** verknüpft eine Person mit einem Firmen-Datensatz (`POST /v2/relationships`, `internal_name: associate`, `client_id` = Person, `related_client_id` = Firma, `name: "Firma"`). Vorher wird geprüft: `company_id` ist wirklich ein Firmen-Datensatz, `contact_id` eine Person, beide sind verschieden und noch nicht verknüpft. Gibt es die Verknüpfung schon, wird nichts geschrieben (`already_linked`). Danach wird gegengelesen: Steht die Verknüpfung nicht in Propstack, heißt es `linked: false`, lässt sie sich nicht lesen, `linked: "nicht prüfbar"` – nie ein angenommener Erfolg. Steht am Kontakt eine andere Firma als Text, kommt eine Warnung; verknüpft wird trotzdem.
+- **Befund: Der tägliche Import beschriftet Verknüpfungen verkehrt herum.** Nur lesend geprüft am 12.11.2026 an allen 5.149 Kontakt-Verknüpfungen des Kontos.
+  - Propstack führt jede Verknüpfung als zwei Zeilen: die angelegte und die Gegenrichtung, die es selbst ergänzt. `name` bezeichnet den verknüpften Kontakt aus Sicht von `client_id`. In der Oberfläche angelegte Verknüpfungen lauten: Person → Firma „Firma“, Firma → Person „Mitarbeiter“.
+  - Der tägliche Import (`src/propstack_client.py`) schickt für die Person `name: "Mitarbeiter"`. Ergebnis: Am Kontakt steht die Firma als „Mitarbeiter“, an der Firma die Person als „Firma“. Betroffen sind rund 220 Verknüpfungen (Stichprobe 6 von 6 bestätigt; Beispiel vom 12.11.: Kontakt 38337398).
+  - Richtig macht es `personalkarussell_handler` (`name: "Firma"`); so sehen rund 2.000 Verknüpfungen aus. Der Connector macht es ebenso. Trifft `link_contact_company` auf eine vertauscht beschriftete Verknüpfung, gilt sie als vorhanden und wird als vertauscht gemeldet (`label`, `warnings`).
+  - Nicht Teil dieses Auftrags: den Import korrigieren (ein Wort) und die rund 220 vorhandenen Verknüpfungen richtigstellen. Das entscheidet Florian.
+- **Was nicht geht:** Verknüpfungen lösen oder umbenennen (kein Lösch-Tool, harte Regel). Firma mit Firma verknüpfen (Mutter/Tochter). Andere Bezeichnungen als „Firma“ vergeben. Die Verknüpfungs-Kategorie setzt der Connector nicht: In der Oberfläche angelegte Verknüpfungen tragen sie auf beiden Seiten, per Schnittstelle angelegte nur an der Gegenrichtung – ein sichtbarer Unterschied ist nicht bekannt.
+- **Fehlertexte:** Die V2-Schnittstelle meldet Fehler unter `details` (V1 unter `errors`). Beides wird durchgereicht.
 
 **Objekte – Regeln aus dem Notion-Feld-Mapping („Propstack API – Feld-Mapping“, Korrekturen) und dem Skill `propstack-expose-workflow`:**
 - **Einzel-PUTs:** `rs_category`, `total_floor_space`, `industrial_area`, `hall_height`, `floor_load`, `broker_id`, `rented` und der Status verwirft Propstack im POST und in PUTs mit mehreren Feldern still (HTTP 200). Diese Felder werden nach dem Anlegen bzw. Ändern **einzeln** geschrieben. Ein fehlgeschlagener Einzel-PUT bricht die übrigen nicht ab und steht als `write_errors` im Ergebnis.
@@ -404,6 +423,8 @@ npm run type-check
 
 Propstack → **Verwaltung → API-Schlüssel**. Ein V1-Key, laut Spezifikation **ohne Löschrechte**. Ab Phase 2 braucht er **Leserechte** auf: Nutzer, Kontakte (inkl. Quellen), Objekte (inkl. Status), Projekte, Deals, Deal-Pipelines, Merkmale und Custom-Felder. Ab Phase 3 zusätzlich **Anlegen und Bearbeiten** von Kontakten und Objekten sowie **Anlegen** von Merkmalen (nur für `MCP-TEST`). **Keine Löschrechte.** Fehlt ein Recht, meldet das Tool „Zugriff verweigert (401/403)“.
 
+**Zweiter Schlüssel (ab v0.11.0, optional):** `PROPSTACK_API_KEY_V2` für die V2-Schnittstelle – nur für `create_company` und `link_contact_company`. Er braucht Lesen und Schreiben auf Kontakte und Verknüpfungen, **keine Löschrechte**. Ohne ihn sind nur diese zwei Tools gesperrt.
+
 ### 3. Cloudflare: Login und KV
 
 ```bash
@@ -430,7 +451,7 @@ Erst deployen, wenn alle Abnahmefälle lokal grün sind. Es gibt kein Deployment
 
 ```bash
 # Einmalig: Datei außerhalb des Repos anlegen, z. B. ~/propstack-mcp.secrets (Format wie .dev.vars):
-#   GOOGLE_CLIENT_ID=...  GOOGLE_CLIENT_SECRET=...  COOKIE_ENCRYPTION_KEY=...  PROPSTACK_API_KEY=...
+#   GOOGLE_CLIENT_ID=...  GOOGLE_CLIENT_SECRET=...  COOKIE_ENCRYPTION_KEY=...  PROPSTACK_API_KEY=...  PROPSTACK_API_KEY_V2=...
 npx wrangler deploy --secrets-file ~/propstack-mcp.secrets
 rm ~/propstack-mcp.secrets
 ```
@@ -439,6 +460,7 @@ Danach werden einzelne Secrets nur noch so geändert:
 
 ```bash
 npx wrangler secret put PROPSTACK_API_KEY
+npx wrangler secret put PROPSTACK_API_KEY_V2   # optional, für Firmen und Verknüpfungen
 npx wrangler secret put GOOGLE_CLIENT_ID
 npx wrangler secret put GOOGLE_CLIENT_SECRET
 npx wrangler secret put COOKIE_ENCRYPTION_KEY
@@ -495,7 +517,7 @@ Befund vom 11.11.2026 (Nachfragen in Cloud-Sitzungen von Claude Code) – am sel
 | Domain-Konto mit Propstack-Nutzer → richtige ID | Anmelden, `whoami` aufrufen, `propstack_user_id` mit Propstack → Verwaltung → Nutzer vergleichen |
 | Privates Gmail → abgelehnt | Mit Gmail-Konto anmelden: Google blockt schon beim internen Client. Sonst zeigt der Worker 403 |
 | Domain-Konto ohne Propstack-Nutzer → abgelehnt | Mit einem Funktionspostfach anmelden → 403 „kein aktiver Propstack-Nutzer“ |
-| Kein Secret im Repo | `git grep -nE '(PROPSTACK_API_KEY|GOOGLE_CLIENT_SECRET|COOKIE_ENCRYPTION_KEY)\s*[=:]\s*\S{8,}|GOCSPX[-]|[0-9]+-[a-z0-9]{32}\.apps\.googleusercontent\.com'` liefert nichts |
+| Kein Secret im Repo | `git grep -nE '(PROPSTACK_API_KEY(_V2)?|GOOGLE_CLIENT_SECRET|COOKIE_ENCRYPTION_KEY)\s*[=:]\s*\S{8,}|GOCSPX[-]|[0-9]+-[a-z0-9]{32}\.apps\.googleusercontent\.com'` liefert nichts |
 | Unit-Tests 3a/3b | `npm test` (die CI läuft bei Änderungen in `propstack-mcp/`) |
 
 ## Abnahme Phase 2 (live in Claude prüfen)
