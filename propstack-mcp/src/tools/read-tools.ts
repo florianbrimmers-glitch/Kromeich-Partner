@@ -18,12 +18,16 @@ import {
 	mapContactDetail,
 	mapContactSummary,
 	mapDeal,
+	mapProjectDetail,
 	mapUnitDetail,
 	mapUnitSummary,
 	scalar,
 	type StageInfo,
 	stageIndex,
 } from "../propstack/mappers";
+import { BLOCKED_OBJECT_FIELDS, PUBLIC_PRICE_FIELDS } from "../propstack/field-rules";
+import { mergedUnit, readUnit } from "../propstack/unit-state";
+import { id } from "./params";
 
 // Lese-Tools (Phase 2). Jede Funktion liefert das gekürzte Ergebnis und eine
 // Trefferzahl fürs Audit-Log. Kein Tool schreibt nach Propstack.
@@ -39,6 +43,8 @@ type Client = Pick<
 	| "listBrokers"
 	| "searchContacts"
 	| "getContact"
+	| "getContactLinks"
+	| "getContactRelationships"
 	| "searchUnits"
 	| "getUnit"
 	| "searchDeals"
@@ -49,6 +55,9 @@ type Client = Pick<
 	| "listPropertyStatuses"
 	| "listContactSources"
 	| "listProjects"
+	| "listProjectsExpanded"
+	| "getProject"
+	| "getProjectNewFormat"
 >;
 
 const SORT_ORDER = z.enum(["asc", "desc"]).optional();
@@ -163,7 +172,20 @@ export async function searchContacts(
 	return { count: page.total ?? items.length, result: pageResult(page, items, params) };
 }
 
-export async function getContact(client: Client, input: { id: number }): Promise<ToolOutput> {
+export async function getContact(client: Client, input: DiagnoseInput): Promise<ToolOutput> {
+	if (input.diagnose) {
+		// Mit include=owned_properties,relationships: was liefert Propstack an Verknüpfungen (Eigentümer von …)?
+		const linked = asObject(await client.getContactLinks(input.id));
+		return {
+			count: 1,
+			result: {
+				entity: "contact",
+				id: input.id,
+				field_names: fieldShapes(linked, input.diagnose_key),
+				links: compact({ owned_properties: linkSummary(linked.owned_properties), relationships: linkSummary(linked.relationships) }),
+			},
+		};
+	}
 	const contact = mapContactDetail(asObject(await client.getContact(input.id)));
 	return { count: 1, result: withBrokerName(contact, await brokerNames(client)) };
 }
@@ -172,6 +194,11 @@ export async function getContact(client: Client, input: { id: number }): Promise
 
 export const searchObjectsInput = {
 	...objectFilters.shape,
+	owner_contact_id: id
+		.optional()
+		.describe(
+			"Alle Objekte eines Eigentümers (Kontakt-ID der Firma, über search_contacts): Einheiten, an denen der Kontakt als Eigentümer verknüpft ist, UND alle Einheiten der Projekte, an denen er als Eigentümer verknüpft ist – der Eigentümer hängt oft nur am Projekt. Mit den übrigen Filtern kombinierbar (außer tag_match=all). Das Ergebnis nennt unter owner die Projekte mit Zahl der Einheiten. Datensätze ohne Eigentümer-Verknüpfung findet die Suche nicht",
+		),
 	sort_by: z
 		.enum(["created_at", "price", "base_rent", "property_space_value", "plot_area", "construction_year", "exposee_id", "unit_id.raw"])
 		.optional(),
@@ -196,11 +223,170 @@ export function matchesLocation(row: Raw, city?: string, zipPrefix?: string): bo
 	return true;
 }
 
+// ---------- Suche nach Eigentümer ----------
+// Ansage Florian, 11.11.2026 – für den Abgleich mit den monatlichen Eigentümer-Updates („was dort nicht genannt
+// ist, ist nicht mehr verfügbar“) muss der ganze Bestand eines Eigentümers sicher gefunden werden.
+// Befund an Hillwood (Kontakt 17366591): Bei 36 von 46 Einheiten hängt der Eigentümer nur am Projekt, nicht an
+// der Einheit. Deshalb zwei Wege: Verknüpfung an der Einheit UND alle Einheiten der Projekte des Eigentümers.
+// Quelle: GET /contacts/:id?include=relationships (Form live am 11.11. per Diagnose geprüft).
+
+/** Bis zu so vielen Projekten wird je Projekt abgefragt; darüber werden alle Objekte einmal geladen und gefiltert. */
+export const OWNER_PROJECT_LIMIT = 30;
+
+export interface OwnerLinks {
+	contact: { id: number; name: string };
+	/** Projekte, an denen der Kontakt als Eigentümer verknüpft ist: ID → Name. */
+	projects: Map<number, string>;
+	/** Einheiten, an denen der Kontakt selbst als Eigentümer verknüpft ist. */
+	direct: Set<number>;
+	/** Verknüpfungen mit Objekten/Projekten in anderer Rolle (z. B. Ansprechpartner). */
+	otherRoles: number;
+}
+
+function refOf(value: unknown): { id: number; name: string } | undefined {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+	const refId = Number(scalar((value as Raw).id));
+	if (!Number.isInteger(refId) || refId <= 0) return undefined;
+	const name = scalar((value as Raw).name) ?? scalar((value as Raw).title);
+	return { id: refId, name: typeof name === "string" && name.trim() ? name.trim() : String(refId) };
+}
+
+/** Nennt der Eintrag Kontakt-IDs, muss der gesuchte Kontakt dabei sein (sonst zählt er nicht als dessen Verknüpfung). */
+function involves(entry: Raw, contactId: number): boolean {
+	const ids = [refOf(entry.related_client)?.id, refOf(entry.client)?.id, entry.related_client_id, entry.client_id]
+		.map((value) => Number(value))
+		.filter((value) => Number.isInteger(value) && value > 0);
+	return ids.length === 0 || ids.includes(contactId);
+}
+
+export async function ownerLinks(client: Pick<Client, "getContactRelationships">, contactId: number): Promise<OwnerLinks> {
+	const contact = asObject(await client.getContactRelationships(contactId));
+	if (!Array.isArray(contact.relationships)) {
+		// Lieber abbrechen als einen unvollständigen Bestand ausgeben
+		throw new PropstackError("Propstack liefert die Verknüpfungen dieses Kontakts nicht – die Suche nach Eigentümer ist so nicht möglich.", 0);
+	}
+	const projects = new Map<number, string>();
+	const direct = new Set<number>();
+	let otherRoles = 0;
+	for (const entry of contact.relationships) {
+		if (!entry || typeof entry !== "object" || Array.isArray(entry)) continue;
+		const raw = entry as Raw;
+		const project = refOf(raw.project);
+		const property = refOf(raw.property);
+		if (!project && !property) continue; // Kontakt-zu-Kontakt (z. B. Mitarbeiter einer Firma)
+		if (raw.internal_name !== "owner" || !involves(raw, contactId)) {
+			otherRoles++;
+			continue;
+		}
+		if (project) projects.set(project.id, project.name);
+		if (property) direct.add(property.id);
+	}
+	const name = scalar(contact.name);
+	return { contact: { id: contactId, name: typeof name === "string" && name.trim() ? name.trim() : String(contactId) }, direct, otherRoles, projects };
+}
+
+const natural = (a: unknown, b: unknown) => String(a ?? "").localeCompare(String(b ?? ""), "de", { numeric: true, sensitivity: "base" });
+
+async function searchOwnerObjects(
+	client: Client,
+	input: ObjectFilters & { owner_contact_id?: number; sort_by?: string; order?: "asc" | "desc"; page?: number; per_page?: number },
+	params: { page: number; per: number },
+): Promise<ToolOutput> {
+	if (input.tag_match === "all" && (input.tag_ids?.length ?? 0) > 1) {
+		throw new PropstackError("owner_contact_id lässt sich nicht mit tag_match=all kombinieren – bitte ein Merkmal oder tag_match=any.", 400);
+	}
+	const search = (q: Query) => client.searchUnits(q);
+	const links = await ownerLinks(client, input.owner_contact_id!);
+	// Vollständig heißt hier: alle Seiten gelesen UND so viele Zeilen wie Propstack als Gesamtzahl nennt
+	const whole = (loaded: { rows: Raw[]; complete: boolean; total: number | null }) => loaded.complete && (loaded.total === null || loaded.rows.length >= loaded.total);
+
+	// Einheiten der Projekte des Eigentümers (auch archivierte – ob sie angezeigt werden, entscheidet der Filter unten)
+	const projectOf = new Map<number, number>();
+	const perProject = new Map<number, number>([...links.projects.keys()].map((projectId) => [projectId, 0]));
+	const take = (row: Raw, projectId: number) => {
+		const unitId = Number(scalar(row.id));
+		if (!Number.isInteger(unitId) || projectOf.has(unitId)) return;
+		projectOf.set(unitId, projectId);
+		perProject.set(projectId, (perProject.get(projectId) ?? 0) + 1);
+	};
+	if (links.projects.size <= OWNER_PROJECT_LIMIT) {
+		for (const projectId of links.projects.keys()) {
+			const loaded = await loadAll(search, { archived: "-1", project_id: projectId });
+			if (!whole(loaded)) throw new PropstackError(`Die Einheiten von Projekt ${projectId} ließen sich nicht vollständig laden – kein Ergebnis, damit der Bestand nicht lückenhaft erscheint.`, 0);
+			for (const row of loaded.rows) take(row, projectId);
+		}
+	} else if (links.projects.size) {
+		const loaded = await loadAll(search, { archived: "-1" });
+		if (!whole(loaded)) {
+			throw new PropstackError(`Der Eigentümer hat ${links.projects.size} Projekte und der Bestand ist zu groß, um ihn in einem Aufruf zu durchsuchen. Bitte je Projekt mit project_id suchen.`, 400);
+		}
+		for (const row of loaded.rows) {
+			const projectId = Number(scalar(row.project_id));
+			if (links.projects.has(projectId)) take(row, projectId);
+		}
+	}
+
+	const all = new Set<number>([...projectOf.keys(), ...links.direct]);
+	const wanted = input.object_ids ? [...all].filter((unitId) => input.object_ids!.includes(unitId)) : [...all];
+
+	// Die Treffer mit den übrigen Filtern laden (Propstack filtert; Ort/PLZ und Status wie sonst hier)
+	const base: Query = { ...objectQuery({ ...input, object_ids: undefined, status_ids: undefined }), q: input.query ?? input.city ?? input.zip_prefix };
+	let rows: Raw[] = [];
+	for (let start = 0; start < wanted.length; start += 100) {
+		const loaded = await loadAll(search, { ...base, property_ids: wanted.slice(start, start + 100).join(",") });
+		if (!whole(loaded)) throw new PropstackError("Die Objekte des Eigentümers ließen sich nicht vollständig laden – kein Ergebnis, damit der Bestand nicht lückenhaft erscheint.", 0);
+		// Gegenprobe: nur Zeilen, die wirklich angefragt waren
+		rows.push(...loaded.rows.filter((row) => all.has(Number(scalar(row.id)))));
+	}
+	rows = rows.filter((row) => matchesLocation(row, input.city, input.zip_prefix));
+	const statusIds = input.status_ids ?? [];
+	let withoutStatus: number | undefined;
+	if (statusIds.length) {
+		withoutStatus = rows.filter((row) => rowStatusId(row) === undefined || rowStatusId(row) === null).length;
+		rows = rows.filter((row) => statusIds.includes(rowStatusId(row) as number));
+	}
+	// Nach Projekt, dann Einheit – so lässt sich der Bestand Standort für Standort abgleichen; Einzelobjekte zuletzt
+	const projectName = (row: Raw) => links.projects.get(projectOf.get(Number(scalar(row.id))) ?? Number(scalar(row.project_id))) ?? "";
+	rows.sort((a, b) => {
+		const [pa, pb] = [projectName(a), projectName(b)];
+		if (!pa !== !pb) return pa ? -1 : 1;
+		return natural(pa, pb) || natural(scalar(a.unit_id) ?? scalar(a.name) ?? scalar(a.title), scalar(b.unit_id) ?? scalar(b.name) ?? scalar(b.title)) || Number(scalar(a.id)) - Number(scalar(b.id));
+	});
+
+	const page = slicePage(rows, params);
+	const names = await brokerNames(client);
+	const items = page.rows.map((row) => withBrokerName(mapUnitSummary(row), names));
+	const notes = [
+		all.size
+			? "Gefunden über die Eigentümer-Verknüpfung am Objekt und am Projekt. Datensätze ohne diese Verknüpfung (z. B. Altimporte) findet die Suche nicht."
+			: `Der Kontakt ist nirgends als Eigentümer verknüpft${links.otherRoles ? ` – aber ${links.otherRoles}-mal in anderer Rolle (z. B. Ansprechpartner). Eigentümer ist meist der Firmenkontakt` : ""}.`,
+		all.size > rows.length ? `${all.size - rows.length} der ${all.size} Objekte sind hier nicht enthalten (archiviert oder durch die übrigen Filter ausgeschlossen).` : undefined,
+		input.sort_by ? "Sortiert ist nach Projekt und Einheit; sort_by wirkt zusammen mit owner_contact_id nicht." : undefined,
+		withoutStatus ? `${withoutStatus} passende Objekte haben keinen Status und sind deshalb nicht enthalten.` : undefined,
+	].filter(Boolean);
+	return {
+		count: rows.length,
+		result: compact({
+			...pageResult(page, items, params),
+			excluded_without_status: withoutStatus || undefined,
+			owner: compact({
+				contact: links.contact,
+				objects_total: all.size,
+				objects_via_projects: projectOf.size,
+				objects_linked_directly: links.direct.size,
+				projects: [...links.projects].map(([projectId, name]) => ({ id: projectId, name, objects: perProject.get(projectId) ?? 0 })).sort((a, b) => natural(a.name, b.name)),
+				note: notes.join(" "),
+			}),
+		}),
+	};
+}
+
 export async function searchObjects(
 	client: Client,
-	input: ObjectFilters & { sort_by?: string; order?: "asc" | "desc"; page?: number; per_page?: number },
+	input: ObjectFilters & { owner_contact_id?: number; sort_by?: string; order?: "asc" | "desc"; page?: number; per_page?: number },
 ): Promise<ToolOutput> {
 	const params = pageParams(input);
+	if (input.owner_contact_id !== undefined) return searchOwnerObjects(client, input, params);
 	const search = (q: Query) => client.searchUnits(q);
 	const statusIds = input.status_ids ?? [];
 	const tagIds = input.tag_ids ?? [];
@@ -259,8 +445,184 @@ export async function searchObjects(
 	};
 }
 
-export async function getObject(client: Client, input: { id: number }): Promise<ToolOutput> {
-	return { count: 1, result: mapUnitDetail(asObject(await client.getUnit(input.id))) };
+// ---------- Diagnose ----------
+// Welche Felder liefert Propstack für einen Datensatz? Nur Namen, Bezeichnungen und Typen – keine Werte.
+// Hilft, wenn ein Feld aus der Oberfläche (z. B. „Wesentlicher Energieträger“) über die API gesucht wird.
+
+function shapeOf(value: unknown, depth = 0): string {
+	if (value === null || value === undefined) return "leer";
+	const inner = (obj: Raw, limit: number) => {
+		const keys = Object.keys(obj);
+		const shown = keys.slice(0, limit).map((key) => (depth > 0 ? `${key}: ${shapeOf(obj[key], depth - 1)}` : key));
+		return `${shown.join(", ")}${keys.length > limit ? `, … (${keys.length})` : ""}`;
+	};
+	if (Array.isArray(value)) {
+		const first = value[0];
+		return `Liste[${value.length}]${first && typeof first === "object" && !Array.isArray(first) ? ` von {${inner(first as Raw, 30)}}` : ""}`;
+	}
+	if (typeof value === "object") {
+		const obj = value as Raw;
+		if ("label" in obj && "value" in obj) return `„${String(obj.label)}“ (${obj.value === null || obj.value === undefined ? "leer" : typeof obj.value})`;
+		return `Objekt{${inner(obj, depth > 0 ? 40 : 25)}}`;
+	}
+	return typeof value;
+}
+
+/** Feldnamen mit Bezeichnung und Typ. Mit filter: nur passende Felder, dafür zwei Ebenen tief. */
+export function fieldShapes(raw: Raw, filter?: string): Record<string, string> {
+	const wanted = filter?.toLowerCase();
+	return Object.fromEntries(
+		Object.entries(raw)
+			.filter(([key, value]) => {
+				if (!wanted) return true;
+				const label = value && typeof value === "object" && !Array.isArray(value) ? String((value as Raw).label ?? "") : "";
+				return key.toLowerCase().includes(wanted) || label.toLowerCase().includes(wanted);
+			})
+			.map(([key, value]) => [key, shapeOf(value, wanted ? 2 : 0)]),
+	);
+}
+
+const diagnose = z
+	.enum(["field_names"])
+	.optional()
+	.describe("Nur zur Diagnose: statt der Daten die Feldnamen mit Bezeichnung und Typ ausgeben, die Propstack für diesen Datensatz liefert (keine Werte)");
+const diagnoseKey = z
+	.string()
+	.trim()
+	.min(2)
+	.max(60)
+	.optional()
+	.describe("Nur mit diagnose: auf Felder einschränken, deren Name oder Bezeichnung diesen Text enthält (z. B. „energie“) – diese werden tiefer aufgeschlüsselt");
+
+type DiagnoseInput = { id: number; diagnose?: "field_names" | "list_channel"; diagnose_key?: string };
+
+/**
+ * Verknüpfungslisten (relationships, owned_properties) für die Diagnose: Feldnamen über ALLE Einträge mit Typ
+ * und die Ausprägungen der Art-Felder (internal_name, *_type) – keine Namen, keine IDs, keine Inhalte.
+ */
+export function linkSummary(value: unknown): Raw | undefined {
+	if (!Array.isArray(value)) return undefined;
+	const fields = new Map<string, Set<string>>();
+	const kinds = new Map<string, Set<string>>();
+	const add = (map: Map<string, Set<string>>, key: string, entry: string) => (map.get(key) ?? map.set(key, new Set()).get(key)!).add(entry);
+	for (const entry of value) {
+		if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+			add(fields, "(Eintrag)", entry === null ? "leer" : typeof entry);
+			continue;
+		}
+		for (const [key, v] of Object.entries(entry as Raw)) {
+			const type = v === null || v === undefined ? "leer" : Array.isArray(v) ? `Liste[${v.length}]` : typeof v === "object" ? `Objekt{${Object.keys(v as Raw).slice(0, 12).join(", ")}}` : typeof v;
+			add(fields, key, type);
+			if (typeof v === "string" && v.length <= 40 && (key === "internal_name" || key.endsWith("_type"))) add(kinds, key, v);
+		}
+	}
+	return compact({
+		count: value.length,
+		fields: Object.fromEntries([...fields].map(([key, types]) => [key, [...types].slice(0, 4).join(" | ")])),
+		kinds: Object.fromEntries([...kinds].map(([key, values]) => [key, [...values].slice(0, 10)])),
+	});
+}
+
+export const getContactInput = {
+	id: id.describe("Propstack-Kontakt-ID"),
+	diagnose,
+	diagnose_key: diagnoseKey,
+};
+
+export const getObjectInput = { id: id.describe("Propstack-Objekt-ID"), diagnose, diagnose_key: diagnoseKey };
+
+export async function getObject(client: Client, input: DiagnoseInput): Promise<ToolOutput> {
+	// Einzel-GET allein ist lückenhaft (Flächen, Kategorie, Hallenhöhe fehlen) → expand-Kanal ergänzt.
+	const state = await readUnit(client, input.id);
+	if (input.diagnose) {
+		const detail = fieldShapes(state.detail, input.diagnose_key);
+		// Listenkanal: nur, was dort anders oder zusätzlich ist
+		const list = Object.fromEntries(Object.entries(state.row ? fieldShapes(state.row, input.diagnose_key) : {}).filter(([key, shape]) => detail[key] !== shape));
+		return {
+			count: 1,
+			result: { entity: "object", id: input.id, field_names: detail, only_in_list_channel: Object.keys(list).length ? list : undefined },
+		};
+	}
+	const detail = mapUnitDetail(asObject(mergedUnit(state)));
+	await resolveContactNames(client, detail.contacts);
+	return { count: 1, result: detail };
+}
+
+/** Verknüpfte Kontakte: Propstack liefert nur die ID – Namen nachladen (höchstens fünf). */
+async function resolveContactNames(client: Client, contacts: Raw[] | undefined): Promise<void> {
+	for (const contact of (contacts ?? []).slice(0, 5)) {
+		if (contact.name !== undefined || typeof contact.contact_id !== "number") continue;
+		try {
+			contact.name = scalar(asObject(await client.getContact(contact.contact_id)).name);
+		} catch {
+			// Kontakt nicht lesbar → ohne Namen ausgeben
+		}
+	}
+}
+
+// ---------- Projekte ----------
+
+export const getProjectInput = {
+	id: id.describe("Propstack-Projekt-ID"),
+	diagnose: z
+		.enum(["field_names", "list_channel"])
+		.optional()
+		.describe(
+			"Nur zur Diagnose: field_names = Feldnamen mit Bezeichnung und Typ, die Propstack für dieses Projekt liefert (keine Werte) · list_channel = was die Projektliste liefert (einfach und mit expand: Anzahl, Dauer, Feldnamen, Verknüpfungen)",
+		),
+	diagnose_key: diagnoseKey,
+};
+
+/** Diagnose: Liefert die Projektliste (einfach bzw. mit expand=1) die Verknüpfungen mit, und wie schwer ist die Antwort? */
+async function projectListChannel(client: Client, projectId: number): Promise<Raw> {
+	const pick = (rows: Raw[]) => rows.find((row) => row.id === projectId) ?? rows[0];
+	const plain = await client.listProjects();
+	const started = Date.now();
+	let expand: Raw;
+	try {
+		const expanded = await client.listProjectsExpanded();
+		const ms = Date.now() - started;
+		const row = pick(expanded.rows);
+		expand = compact({
+			rows: expanded.rows.length,
+			ms,
+			chars: JSON.stringify(expanded.rows).length,
+			rows_with_relationships: expanded.rows.filter((r) => Array.isArray(r.relationships)).length,
+			rows_with_linked_contact: expanded.rows.filter((r) => Array.isArray(r.relationships) && r.relationships.length > 0).length,
+			fields: row ? Object.keys(row) : [],
+			relationships: linkSummary(row?.relationships),
+		});
+	} catch (error) {
+		expand = { error: (error as Error).message, ms: Date.now() - started };
+	}
+	const row = pick(plain.rows);
+	return { rows: plain.rows.length, fields: row ? Object.keys(row) : [], expand };
+}
+
+export async function getProject(client: Client, input: DiagnoseInput): Promise<ToolOutput> {
+	if (input.diagnose === "list_channel") {
+		return { count: 1, result: { entity: "project", id: input.id, list_channel: await projectListChannel(client, input.id) } };
+	}
+	const raw = asObject(await client.getProject(input.id));
+	if (input.diagnose) {
+		const fields = fieldShapes(raw, input.diagnose_key);
+		// Liefert Propstack mit new=1 (wie bei Einheiten) mehr oder anderes? Nur die Abweichungen zeigen.
+		let different: Record<string, string> | undefined;
+		try {
+			const other = fieldShapes(asObject(await client.getProjectNewFormat(input.id)), input.diagnose_key);
+			different = Object.fromEntries(Object.entries(other).filter(([key, shape]) => fields[key] !== shape));
+		} catch {
+			// Format nicht verfügbar → ohne Vergleich
+		}
+		return {
+			count: 1,
+			result: { entity: "project", id: input.id, field_names: fields, only_with_new_format: different && Object.keys(different).length ? different : undefined },
+		};
+	}
+	const units = await client.searchUnits({ page: 1, per: 100, project_id: input.id });
+	const detail = mapProjectDetail(raw, units);
+	await resolveContactNames(client, detail.contacts);
+	return { count: 1, result: withBrokerName(detail, await brokerNames(client)) };
 }
 
 // ---------- Deals ----------
@@ -453,8 +815,12 @@ export async function listFields(client: Client, input: { entity: "contacts" | "
 	const result = groups.rows.map((group) => {
 		const fields = (Array.isArray(group.custom_fields) ? (group.custom_fields as Raw[]) : []).map((f) => {
 			count++;
-			const options = Array.isArray(f.custom_options) ? (f.custom_options as Raw[]).map((o) => scalar(o.name)) : [];
-			return compact({ key: f.name, label: f.pretty_name, type: f.field_type, options });
+			const options = Array.isArray(f.custom_options)
+				? (f.custom_options as Raw[]).map((o) => (typeof o.id === "number" ? { id: o.id, name: scalar(o.name) } : scalar(o.name)))
+				: [];
+			const blocked = input.entity === "objects" ? BLOCKED_OBJECT_FIELDS[String(f.name)] : undefined;
+			const publicPrice = input.entity === "objects" && PUBLIC_PRICE_FIELDS[String(f.name)] ? `öffentlicher Preis – nur mit public_price_confirmed (intern: ${PUBLIC_PRICE_FIELDS[String(f.name)]})` : undefined;
+			return compact({ key: f.name, label: f.pretty_name, type: f.field_type, unit: f.unit, options, blocked, public_price: publicPrice });
 		});
 		return compact({ group: scalar(group.name), fields });
 	});
@@ -463,6 +829,10 @@ export async function listFields(client: Client, input: { entity: "contacts" | "
 		result: {
 			entity: input.entity,
 			filter_hint: "Filtern über cf_<key>, z. B. cf_marketing_channel=Lead (nur Kontakte/Objekte)",
+			write_hint:
+				input.entity === "objects"
+					? "Schreiben: Number als nackte Zahl mit Dezimalpunkt in der angegebenen unit (sqm = m², euro = €), Auswahlfelder per Name oder Option-ID. Felder mit blocked nicht verwenden."
+					: undefined,
 			groups: result,
 		},
 	};
@@ -674,4 +1044,37 @@ export async function aggregate(client: Client, input: AggregateInput): Promise<
 						: undefined,
 		}),
 	};
+}
+
+// ---------- Auswahl für Massenänderungen (Phase 4) ----------
+// Alle Treffer eines Filters laden – dieselben Filter und dieselbe Logik wie search_contacts/search_objects.
+
+export async function selectContacts(client: Client, filters: ContactFilters, limit: number): Promise<Raw[]> {
+	const base = contactQuery(filters);
+	const tagIds = filters.tag_ids ?? [];
+	if (filters.tag_match === "all" && tagIds.length > 1) {
+		return rowsWithAllTags((q) => client.searchContacts(q), base, tagIds, (id) => ({ group: [id] }));
+	}
+	const loaded = await loadAll((q) => client.searchContacts(q), base, LOAD_PAGE_SIZE, Math.ceil((limit + 1) / LOAD_PAGE_SIZE));
+	return loaded.rows;
+}
+
+export async function selectObjects(client: Client, filters: ObjectFilters, limit: number): Promise<Raw[]> {
+	const search = (q: Query) => client.searchUnits(q);
+	const statusIds = filters.status_ids ?? [];
+	const tagIds = filters.tag_ids ?? [];
+	const tagAll = filters.tag_match === "all" && tagIds.length > 1;
+	if (!filters.city && !filters.zip_prefix && !tagAll) {
+		return (await loadAll(search, objectQuery(filters), LOAD_PAGE_SIZE, Math.ceil((limit + 1) / LOAD_PAGE_SIZE))).rows;
+	}
+	const base: Query = { ...objectQuery({ ...filters, status_ids: undefined }), q: filters.query ?? filters.city ?? filters.zip_prefix };
+	let rows: Raw[];
+	if (tagAll) rows = await rowsWithAllTags(search, base, tagIds, (id) => ({ group: String(id) }));
+	else {
+		const loaded = await loadAll(search, base);
+		if (!loaded.complete) throw new PropstackError("Zu viele Treffer für den Ortsfilter. Bitte zusätzlich filtern.", 400);
+		rows = loaded.rows;
+	}
+	rows = rows.filter((row) => matchesLocation(row, filters.city, filters.zip_prefix));
+	return statusIds.length ? rows.filter((row) => statusIds.includes(rowStatusId(row) as number)) : rows;
 }

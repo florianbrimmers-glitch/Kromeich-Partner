@@ -1,0 +1,254 @@
+import { describe, expect, it } from "vitest";
+import type { FieldDef } from "../src/propstack/field-rules";
+import {
+	checkExposeTexts,
+	checkZipPrefix,
+	COMMISSION_SCALE,
+	commissionFields,
+	howtoCustomFields,
+	imageTitleProblem,
+	internalNoteLines,
+	objectNotProvided,
+	ownerNamesOf,
+	projectNotProvided,
+} from "../src/propstack/howto";
+
+// Regeln aus den Team-How-tos. Wichtig sind hier vor allem die Grenzfälle: Die Prüfungen sollen
+// echte Verstöße abweisen, aber normale Hallenbeschreibungen nicht blockieren.
+
+describe("Exposé-Texte", () => {
+	const owner = { ownerNames: ["JJW Hillscheid Grundbesitz GmbH"] };
+
+	it("Eigentümername: voller Name (ohne Rechtsform) ist ein Fehler, Namensteil nur ein Hinweis, Ort und Allerweltswörter zählen nicht", () => {
+		expect(checkExposeTexts({ description_note: "Ein Objekt der JJW Hillscheid Grundbesitz." }, owner).errors[0]).toMatch(/nennt den Eigentümer/);
+		expect(checkExposeTexts({ description_note: "Von JJW entwickelt." }, owner)).toMatchObject({ errors: [], warnings: [expect.stringMatching(/enthält „jjw“/)] });
+		// „Hillscheid“ ist der Ort, „Grundbesitz“ ein Allerweltswort – kein Befund
+		expect(checkExposeTexts({ description_note: "Logistikhalle in Hillscheid auf eigenem Grundbesitz." }, { ...owner, city: "Hillscheid" })).toEqual({ errors: [], warnings: [] });
+		// Firma, deren Name nur aus Ort und Allerweltswörtern besteht
+		expect(checkExposeTexts({ description_note: "Der Logistikpark in Herford." }, { city: "Herford", ownerNames: ["Logistikpark Herford GmbH & Co. KG"] }).warnings).toEqual([]);
+		// Person: „Hans“ steckt nicht in „Hansestraße“
+		expect(checkExposeTexts({ description_note: "Lage an der Hansestraße." }, { ownerNames: ["Hans Müller"] })).toEqual({ errors: [], warnings: [] });
+		expect(checkExposeTexts({ description_note: "Ansprechpartner ist Hans Müller." }, { ownerNames: ["Hans Müller"] }).errors).toHaveLength(1);
+	});
+
+	it("Preise: Beträge mit €/EUR/Euro sind Fehler, Europaletten und Maße nicht; mit Bestätigung erlaubt", () => {
+		for (const text of ["Miete 6,80 €/m²", "ab 5 EUR je m²", "Kaufpreis 2.500.000 Euro", "€ 6,80 je m²"]) {
+			expect(checkExposeTexts({ description_note: text }).errors[0]).toMatch(/enthält einen Preis/);
+		}
+		for (const text of ["Platz für 1.000 Europaletten", "Hallenhöhe 10,5 m UKB, Bodentragkraft 5 t/m²", "Europaweit vernetzt", "30.000 m² Hallenfläche"]) {
+			expect(checkExposeTexts({ description_note: text }).errors).toEqual([]);
+		}
+		expect(checkExposeTexts({ description_note: "Miete 6,80 €/m²" }, { publicPriceConfirmed: true }).errors).toEqual([]);
+		// auch in Unterzeile und Ausstattung
+		expect(checkExposeTexts({ sub_headline: "Ab 6,50 € je m²" }).errors).toHaveLength(1);
+	});
+
+	it("Ausstattung: Komma-Kette abgewiesen, Liste und einzelner Punkt in Ordnung, Dezimalkomma zählt nicht", () => {
+		expect(checkExposeTexts({ furnishing_note: "LED, Sprinkler, 10 Rampen" }).errors[0]).toMatch(/Aufzählung/);
+		expect(checkExposeTexts({ furnishing_note: "LED; Sprinkler; Rampen" }).errors).toHaveLength(1);
+		expect(checkExposeTexts({ furnishing_note: "- LED\n- Sprinkler, ESFR\n- 10 Rampen, 1 ebenerdiges Tor" }).errors).toEqual([]);
+		expect(checkExposeTexts({ furnishing_note: "Betreuung durch ein Property-Management-Team" }).errors).toEqual([]);
+		expect(checkExposeTexts({ furnishing_note: "Lichte Höhe 10,5 m bei 12,20 m Achsraster" }).errors).toEqual([]);
+		// Die Regel gilt nur für die Ausstattung – Fließtext mit Kommas ist normal
+		expect(checkExposeTexts({ description_note: "Halle, Büro, Mezzanine und Rampen sind vorhanden." }).errors).toEqual([]);
+	});
+
+	it("Lage: ohne km abgewiesen, Entfernungen als Kette abgewiesen, Liste in Ordnung (streng nach How-to)", () => {
+		expect(checkExposeTexts({ location_note: "Gute Lage im Gewerbegebiet mit schneller Anbindung." }).errors[0]).toMatch(/es fehlen die Entfernungen in km.*nichts schätzen/);
+		expect(checkExposeTexts({ location_note: "Entfernungen: A59 ca. 0,2 km; Flughafen ca. 7 km; Hafen ca. 6 km." }).errors[0]).toMatch(/als Liste/);
+		expect(checkExposeTexts({ location_note: "Kurze Einordnung.\n\nAutobahnen:\nA2: ca. 0,2 km\nA30: ca. 17 km" })).toEqual({ errors: [], warnings: [] });
+		expect(checkExposeTexts({ location_note: "Autobahnen:\nA2: ca. 0,2 km" })).toEqual({ errors: [], warnings: [] });
+	});
+
+	it("Adresse im Text: genannte Straße wird abgewiesen, in der Überschrift nur gemeldet; „am Hafen“ im Fließtext ist keine Adresse", () => {
+		for (const text of ["Die Halle an der Röntgenstraße 8 bietet viel Platz.", "Zufahrt über die Röntgenstr. möglich.", "Im Gewerbegebiet „Röntgenstrasse“ gelegen."]) {
+			expect(checkExposeTexts({ description_note: text }, { street: "Röntgenstraße" }).errors[0]).toMatch(/nennt die Straße „Röntgenstraße“ – die Adresse darf/);
+		}
+		expect(checkExposeTexts({ furnishing_note: "- Zufahrt über Am Scheid" }, { street: "Am Scheid" }).errors).toHaveLength(1);
+		// Überschrift: Hinweis statt Fehler
+		expect(checkExposeTexts({ title: "Logistikhalle in (51) Köln – Hansestraße 61-63" }, { street: "Hansestraße" })).toEqual({
+			errors: [],
+			warnings: [expect.stringMatching(/Überschrift: nennt die Straße/)],
+		});
+		// Präposition im Fließtext ist keine Adresse – nur ein Hinweis zum Prüfen
+		const loose = checkExposeTexts({ description_note: "Die Halle liegt direkt am Hafen." }, { street: "Am Hafen" });
+		expect(loose.errors).toEqual([]);
+		expect(loose.warnings).toHaveLength(1);
+		// andere Straße oder sehr kurzer Straßenname: kein Befund
+		expect(checkExposeTexts({ description_note: "Nahe der Kölner Straße." }, { street: "Röntgenstraße" })).toEqual({ errors: [], warnings: [] });
+		expect(checkExposeTexts({ description_note: "Lage am See." }, { street: "Am See" })).toEqual({ errors: [], warnings: [] });
+	});
+
+	it("leere und nicht-textliche Werte (z. B. null beim Rückgängigmachen) werden übergangen", () => {
+		expect(checkExposeTexts({ description_note: null, furnishing_note: undefined, location_note: "  " }, owner)).toEqual({ errors: [], warnings: [] });
+	});
+
+	it("ownerNamesOf: Name und Firma, ohne Doppelte, auch aus {label, value}", () => {
+		expect(ownerNamesOf({ company: { label: "Firma", value: "Goodman Germany GmbH" }, name: "Stefan Prange" })).toEqual(["Stefan Prange", "Goodman Germany GmbH"]);
+		expect(ownerNamesOf({ company: "X GmbH", name: "X GmbH" })).toEqual(["X GmbH"]);
+		expect(ownerNamesOf(undefined)).toEqual([]);
+	});
+});
+
+describe("(XX) in Überschrift und Name", () => {
+	it("falsche Ziffern sind immer ein Fehler; fehlende bei eigener Angabe ein Fehler, bei Übernommenem ein Hinweis", () => {
+		expect(checkZipPrefix("Überschrift", "Logistikhalle in (56) Hillscheid", "56204")).toEqual({});
+		expect(checkZipPrefix("Überschrift", "Logistikhalle in (50) Hillscheid", "56204").error).toMatch(/richtig wäre \(56\)/);
+		expect(checkZipPrefix("Überschrift", "Logistikhalle in (50) Hillscheid", "56204", "warn").error).toMatch(/richtig wäre \(56\)/);
+		expect(checkZipPrefix("Überschrift", "Build-to-Suit Logistikstandort", "56204").error).toMatch(/ohne „\(56\)“/);
+		expect(checkZipPrefix("Überschrift", "Build-to-Suit Logistikstandort", "56204", "warn")).toEqual({ warning: expect.stringMatching(/ohne „\(56\)“/) });
+		expect(checkZipPrefix("Überschrift", undefined, "56204")).toEqual({});
+	});
+});
+
+describe("Provision", () => {
+	it("Vorgaben setzen die Standardtexte, eigene Texte haben Vorrang, nur für Miete", () => {
+		expect(commissionFields("provisionsfrei", "RENT", {})).toEqual({ courtage: "Provisionsfrei", courtage_note: "Die Anmietung erfolgt provisionsfrei für den Mieter." });
+		expect(commissionFields("provisionsfrei", "RENT", { courtage_note: "eigener Hinweis" })).toEqual({ courtage: "Provisionsfrei" });
+		expect(commissionFields("staffel", "RENT", {})).toEqual({ courtage_note: COMMISSION_SCALE });
+		expect(commissionFields(undefined, "BUY", {})).toEqual({});
+		expect(() => commissionFields("staffel", "BUY", {})).toThrow(/nur für Miete/);
+		expect(COMMISSION_SCALE.split("\n").map((l) => /(\S+ \(\d[\d,]*\)) Nettokaltmieten/.exec(l)?.[1])).toEqual(["zwei (2)", "drei (3)", "dreieinhalb (3,5)", "vier (4)"]);
+	});
+});
+
+describe("Wichtige Felder → Custom-Felder", () => {
+	const defs = new Map<string, FieldDef>(
+		(
+			[
+				["ramepntore", "String"],
+				["anzahl_rampentore_2", "Number"],
+				["mezzanineflache_gesamt", "Number"],
+				["mezzanineflache_verfugbar", "Number"],
+				["beleuchtung", "String"],
+			] as const
+		).map(([key, type]) => [key, { key, options: [], type }]),
+	);
+
+	it("Form richtet sich nach dem Feldtyp; verfügbare Fläche nur, solange nicht vermietet; fehlendes Zweitfeld ist kein Fehler", () => {
+		expect(howtoCustomFields({ dock_doors: 10, ground_level_doors: 1, lighting: "LED", mezzanine_area: 800 }, defs, undefined, "available")).toEqual({
+			anzahl_rampentore_2: 1,
+			beleuchtung: "LED", // beleuchtung_halle fehlt in dieser Registry → stillschweigend ausgelassen
+			mezzanineflache_gesamt: 800,
+			mezzanineflache_verfugbar: 800,
+			ramepntore: "10",
+		});
+		expect(howtoCustomFields({ mezzanine_area: 800 }, defs, undefined, "rented")).toEqual({ mezzanineflache_gesamt: 800 });
+		expect(howtoCustomFields({ mezzanine_area: 800 }, defs, undefined, "unknown")).toEqual({ mezzanineflache_gesamt: 800 });
+		expect(howtoCustomFields({ dock_doors: null }, defs, undefined, "available")).toEqual({ ramepntore: null });
+	});
+
+	it("fehlt das Hauptfeld in Propstack, wird laut abgebrochen statt den Wert still zu verlieren", () => {
+		expect(() => howtoCustomFields({ wgk: "WGK 1" }, defs, undefined, "available")).toThrow(/„wgk“ \(WGK\) gibt es nicht/);
+		expect(() => howtoCustomFields({ dock_doors: 10 }, defs, { ramepntore: "9" }, "available")).toThrow(/gleichzeitig/);
+	});
+});
+
+describe("Was laut How-to fehlt", () => {
+	it("Halle als Einzelobjekt: alle wichtigen Angaben; Büroeinheit im Projekt: nur was dort Sinn ergibt", () => {
+		const hall = objectNotProvided({}, { marketing_type: "RENT", rs_type: "INDUSTRY" }, { inProject: false });
+		expect(hall).toEqual(
+			expect.arrayContaining(["Hallenfläche", "Hallenhöhe (m UKB)", "Rampentore", "Ebenerdige Tore", "WGK", "Bodentragkraft", "Sprinkleranlage", "Grundstücksfläche", "Interne Notiz: Mandat", "Mietpreise (intern)", "Eigentümer", "Provision", "Lage"]),
+		);
+		const office = objectNotProvided(
+			{ owner_contact_id: 1 },
+			{ courtage: "Provisionsfrei", description_note: "x", furnishing_note: "x", location_note: "x", marketing_type: "RENT", rs_category: "OFFICE", rs_type: "OFFICE", usable_floor_space: 400 },
+			{ inProject: true },
+		);
+		for (const label of ["Hallenfläche", "Rampentore", "WGK", "Grundstücksfläche", "Interne Notiz: Mandat", "Eigentümer", "Provision", "Lage"]) expect(office).not.toContain(label);
+		expect(office).toEqual(expect.arrayContaining(["Bürofläche teilbar ab", "Mietpreise (intern)", "Verfügbar ab"]));
+		// direkt gesetztes Custom-Feld zählt als angegeben
+		expect(objectNotProvided({}, { rs_type: "INDUSTRY" }, { explicit: { ramepntore: "9" }, inProject: true })).not.toContain("Rampentore");
+	});
+
+	it("Projekt und interne Notiz", () => {
+		expect(projectNotProvided({ marketing_type: "RENT" }, {})).toEqual(expect.arrayContaining(["Eigentümer", "Interne Notiz: Mietpreise", "Unterzeile (z. B. „Direkt an der A40“)", "Lage"]));
+		expect(projectNotProvided({ marketing_type: "BUY" }, {})).not.toContain("Interne Notiz: Mietpreise");
+		expect(internalNoteLines({ developer_project_name: "Panattoni Park", mandate: "Alleinmandat von XY" })).toEqual(["Mandat: Alleinmandat von XY", "Projektname Entwickler: Panattoni Park"]);
+	});
+});
+
+describe("Bildtitel", () => {
+	it("Titel ist Pflicht und muss ein Name sein, kein Dateiname", () => {
+		for (const good of ["Außenansicht", "Halle innen", "Köln 1", "Lageplan"]) expect(imageTitleProblem(good)).toBeUndefined();
+		expect(imageTitleProblem("")).toMatch(/fehlt/);
+		expect(imageTitleProblem(undefined)).toMatch(/fehlt/);
+		expect(imageTitleProblem("IMG_0001")).toMatch(/Dateiname/);
+		expect(imageTitleProblem("aussen.jpg")).toMatch(/Dateiname/);
+		expect(imageTitleProblem("12")).toMatch(/kein Titel/);
+		expect(imageTitleProblem("x".repeat(101))).toMatch(/länger/);
+	});
+});
+
+describe("Provisionsfelder (Feld-Mapping, Korrektur 29 – von Florian am 10.11.2026 bestätigt)", async () => {
+	const { validateCustomFields } = await import("../src/propstack/field-rules");
+	const { provisionCustomFields, provisionExtern, staleFreeCourtage } = await import("../src/propstack/howto");
+	const client = {
+		listCustomFieldGroups: async () => ({
+			rows: [
+				{
+					custom_fields: [
+						{ field_type: "String", name: "provision_interne_notiz" },
+						{ field_type: "String", name: "provision_intern" },
+						{ field_type: "String", name: "provision_extern" },
+						{ field_type: "String", name: "provision" },
+					],
+				},
+			],
+			total: 1,
+		}),
+	};
+
+	it("provision_extern und provision_interne_notiz sind erlaubt; provision und provision_intern bleiben gesperrt (ungenutzt – nicht anfangen)", async () => {
+		// v0.9.6 hatte provision_interne_notiz gesperrt – eine Fehldeutung von „streng nach How-to“
+		expect((await validateCustomFields(client, "for_properties", { provision_interne_notiz: "Tischregel, gedeckelt bei 3 NKM" }))?.send).toEqual({
+			provision_interne_notiz: "Tischregel, gedeckelt bei 3 NKM",
+		});
+		expect((await validateCustomFields(client, "for_properties", { provision_extern: "Provisionsfrei" }))?.send).toEqual({ provision_extern: "Provisionsfrei" });
+		await expect(validateCustomFields(client, "for_properties", { provision_intern: "Tischregel" })).rejects.toThrow(/"provision_intern" gesperrt: laut Feld-Mapping \(Korrektur 29\) ungenutzt/);
+		await expect(validateCustomFields(client, "for_properties", { provision: "3 NKM" })).rejects.toThrow(/gesperrt/);
+		// Leeren bleibt möglich
+		expect(await validateCustomFields(client, "for_properties", { provision_intern: null })).toEqual({ expect: { provision_intern: null }, send: { provision_intern: null } });
+	});
+
+	it("„Provision extern“ folgt aus dem, was im Exposé steht; bei Kauf und bei unklarer Aussage bleibt das Feld leer", () => {
+		expect(provisionExtern({ commission: "provisionsfrei" })).toBe("Provisionsfrei");
+		expect(provisionExtern({ commission: "staffel" })).toBe("provisionspflichtig für den Mieter");
+		// vom Projekt übernommene Außenprovision
+		expect(provisionExtern({ courtage: "Provisionsfrei" })).toBe("Provisionsfrei");
+		expect(provisionExtern({ courtage: " provisionspflichtig " })).toBe("provisionspflichtig für den Mieter");
+		// ein ausdrücklich angegebener Text schlägt die Vorgabe
+		expect(provisionExtern({ commission: "provisionsfrei", courtage: "Provisionspflichtig" })).toBe("provisionspflichtig für den Mieter");
+		// nur der Provisionshinweis ist da (Staffel bzw. Standardsatz)
+		expect(provisionExtern({ courtage_note: "Bei Mietverträgen mit einer Laufzeit von weniger als fünf (5) Jahren beträgt der Provisionsanspruch zwei (2) Nettokaltmieten zzgl. MwSt." })).toBe(
+			"provisionspflichtig für den Mieter",
+		);
+		expect(provisionExtern({ courtage_note: "Die Anmietung erfolgt provisionsfrei für den Mieter." })).toBe("Provisionsfrei");
+		// „für den Mieter“ passt nicht zum Kauf; freier Text ohne klare Aussage wird nicht gedeutet
+		expect(provisionExtern({ courtage: "Provisionspflichtig", marketing_type: "BUY" })).toBeUndefined();
+		expect(provisionExtern({ courtage: "3,5 % zzgl. USt." })).toBeUndefined();
+		expect(provisionExtern({})).toBeUndefined();
+	});
+
+	it("Custom-Felder aus der Provision: ausdrückliche Angabe hat Vorrang, doppelte Angabe ist ein Widerspruch", () => {
+		const defs = new Map([
+			["provision_extern", { name: "provision_extern", type: "String" }],
+			["provision_interne_notiz", { name: "provision_interne_notiz", type: "String" }],
+		]) as never;
+		expect(provisionCustomFields({ commission: "provisionsfrei", internal_commission: " Mileway immer provisionsfrei (Wissensdatenbank) " }, defs, undefined)).toEqual({
+			provision_extern: "Provisionsfrei",
+			provision_interne_notiz: "Mileway immer provisionsfrei (Wissensdatenbank)",
+		});
+		expect(provisionCustomFields({ commission: "provisionsfrei" }, defs, { provision_extern: "Provisionsfrei für Mieter" })).toEqual({});
+		expect(() => provisionCustomFields({ internal_commission: "a" }, defs, { provision_interne_notiz: "b" })).toThrow(/gleichzeitig angegeben/);
+		// gibt es das Feld in Propstack nicht (mehr), wird nichts erfunden
+		expect(provisionCustomFields({ commission: "staffel", internal_commission: "a" }, new Map() as never, undefined)).toEqual({});
+	});
+
+	it("Wechsel auf die Staffel bei stehendem „Provisionsfrei“ ist ein Widerspruch", () => {
+		expect(staleFreeCourtage("staffel", undefined, "Provisionsfrei")).toBe(true);
+		expect(staleFreeCourtage("staffel", "Provisionspflichtig", "Provisionsfrei")).toBe(false);
+		expect(staleFreeCourtage("staffel", undefined, null)).toBe(false);
+		expect(staleFreeCourtage("provisionsfrei", undefined, "Provisionsfrei")).toBe(false);
+	});
+});

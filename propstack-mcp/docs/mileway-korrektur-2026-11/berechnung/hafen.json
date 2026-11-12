@@ -1,0 +1,176 @@
+[
+ {
+  "name": "Hafen Duisburg (duisport)",
+  "gross": false,
+  "lat": 51.4609562,
+  "lon": 6.7829436
+ },
+ {
+  "name": "Hafen Düsseldorf",
+  "gross": false,
+  "lat": 51.2170292,
+  "lon": 6.7335758
+ },
+ {
+  "name": "Hafen Köln-Niehl",
+  "gross": false,
+  "lat": 50.9792423,
+  "lon": 6.9769677
+ },
+ {
+  "name": "Hafen Köln-Godorf",
+  "gross": false,
+  "lat": 50.8514459,
+  "lon": 6.9900919
+ },
+ {
+  "name": "Hafen Bonn",
+  "gross": false,
+  "lat": 50.758824,
+  "lon": 7.0898454
+ },
+ {
+  "name": "Hafen Krefeld",
+  "gross": false,
+  "lat": 51.3409846,
+  "lon": 6.6668807
+ },
+ {
+  "name": "Hafen Lünen",
+  "gross": false,
+  "lat": 51.6023106,
+  "lon": 7.4953509
+ },
+ {
+  "name": "Hafen Herne",
+  "gross": false,
+  "lat": 51.5477467,
+  "lon": 7.1517419
+ },
+ {
+  "name": "Hafen Münster",
+  "gross": false,
+  "lat": 51.9513746,
+  "lon": 7.6442482
+ },
+ {
+  "name": "Hafen Osnabrück",
+  "gross": false,
+  "lat": 52.2949847,
+  "lon": 8.02655
+ },
+ {
+  "name": "Hafen Minden",
+  "gross": false,
+  "lat": 52.2978606,
+  "lon": 8.8611086
+ },
+ {
+  "name": "Osthafen Frankfurt",
+  "gross": false,
+  "lat": 50.1100315,
+  "lon": 8.7144183
+ },
+ {
+  "name": "Hafen Gustavsburg",
+  "gross": false,
+  "lat": 49.9932392,
+  "lon": 8.3143923
+ },
+ {
+  "name": "Hafen Mannheim",
+  "gross": false,
+  "lat": 49.4965612,
+  "lon": 8.4481699
+ },
+ {
+  "name": "Hafen Stuttgart",
+  "gross": false,
+  "lat": 48.7609574,
+  "lon": 9.261713
+ },
+ {
+  "name": "Hafen Heilbronn",
+  "gross": false,
+  "lat": 49.1611534,
+  "lon": 9.2095334
+ },
+ {
+  "name": "Hafen Plochingen",
+  "gross": false,
+  "lat": 48.7145118,
+  "lon": 9.4095778
+ },
+ {
+  "name": "Hafen Regensburg",
+  "gross": false,
+  "lat": 49.0180226,
+  "lon": 12.1220987
+ },
+ {
+  "name": "Hafen Riesa",
+  "gross": false,
+  "lat": 51.318491,
+  "lon": 13.2719639
+ },
+ {
+  "name": "Hafen Magdeburg",
+  "gross": false,
+  "lat": 52.1987249,
+  "lon": 11.6722369
+ },
+ {
+  "name": "Rheinhafen Basel",
+  "gross": false,
+  "lat": 47.5828733,
+  "lon": 7.5876188
+ },
+ {
+  "name": "Hafen Neuss",
+  "gross": false,
+  "lat": 51.2124,
+  "lon": 6.7141
+ },
+ {
+  "name": "Hafen Dortmund",
+  "gross": false,
+  "lat": 51.5289,
+  "lon": 7.447
+ },
+ {
+  "name": "Hafen Hamm",
+  "gross": false,
+  "lat": 51.6797,
+  "lon": 7.7933
+ },
+ {
+  "name": "Hafen Nürnberg",
+  "gross": false,
+  "lat": 49.4021,
+  "lon": 11.0532
+ },
+ {
+  "name": "Hafen Hamburg (Burchardkai)",
+  "gross": false,
+  "lat": 53.527,
+  "lon": 9.93
+ },
+ {
+  "name": "Hafen Halle (Saale)",
+  "gross": false,
+  "lat": 51.5262,
+  "lon": 11.9337
+ },
+ {
+  "name": "Rheinhafen Weil am Rhein",
+  "gross": false,
+  "lat": 47.5998,
+  "lon": 7.5949
+ },
+ {
+  "name": "Hafen Lüttich (Trilogiport)",
+  "gross": false,
+  "lat": 50.7175,
+  "lon": 5.6753
+ }
+]

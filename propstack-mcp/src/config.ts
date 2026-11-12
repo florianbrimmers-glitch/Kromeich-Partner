@@ -18,3 +18,12 @@ export const AUDIT_RETENTION_MONTHS = 12;
 export const AGGREGATE_MAX_GROUPS = 40;
 export const DEAL_PAGE_SIZE = 200;
 export const DEAL_MAX_PAGES = 40;
+
+/** Objekt-Status, bei denen eine Einheit als aktiv gilt (status_logistik/aktiv): Vermarktung, Reserviert (Entscheidung Florian). */
+export const ACTIVE_STATUSES = [163674, 163675];
+
+// Bild-Upload per Einmal-Adresse (image_upload_url): öffentliche Basis-URL des Workers und Grenzen.
+export const PUBLIC_BASE_URL = "https://propstack-mcp.kromeichpartner.workers.dev";
+export const IMAGE_UPLOAD_TTL_SECONDS = 15 * 60;
+export const IMAGE_UPLOAD_MAX_FILES = 20;
+export const IMAGE_UPLOAD_MAX_BYTES = 15 * 1024 * 1024;

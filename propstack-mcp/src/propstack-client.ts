@@ -85,7 +85,7 @@ export type GroupEntity = "for_clients" | "for_properties" | "for_activities";
 export type CustomFieldEntity = "for_clients" | "for_properties" | "for_projects" | "for_deals";
 
 /**
- * Propstack-Client – nur lesend und nur explizit definierte Endpunkte.
+ * Propstack-Client – nur explizit definierte Endpunkte (Lesen, Anlegen, Ändern; kein Löschen).
  * Kein generischer Passthrough (harte Regel der Spezifikation).
  */
 export class PropstackClient {
@@ -126,6 +126,24 @@ export class PropstackClient {
 	/** GET /v1/contacts/:id */
 	async getContact(id: number): Promise<unknown> {
 		return this.get(`/contacts/${id}`);
+	}
+
+	/**
+	 * GET /v1/contacts/:id?include=relationships – Kontakt mit seinen Verknüpfungen (leichte Antwort).
+	 * Live 11.11.2026 (Hillwood 17366591): je Eintrag {internal_name: "owner" | "associate", project: {id, name} | null,
+	 * property: {id, name} | null, related_client, client}. Grundlage der Suche nach Eigentümer.
+	 */
+	async getContactRelationships(id: number): Promise<unknown> {
+		return this.get(`/contacts/${id}?include=relationships`);
+	}
+
+	/**
+	 * GET /v1/contacts/:id?include=owned_properties,relationships – Kontakt samt Verknüpfungen.
+	 * Nur für die Diagnose: owned_properties liefert jedes Objekt im vollen Format (schwer).
+	 * Doku „Kontakt lesen“: owned_properties = Objekte, bei denen der Kontakt als Eigentümer eingetragen ist.
+	 */
+	async getContactLinks(id: number): Promise<unknown> {
+		return this.get(`/contacts/${id}?include=owned_properties,relationships`);
 	}
 
 	/** GET /v1/units – Objekte suchen. */
@@ -178,21 +196,195 @@ export class PropstackClient {
 		return toPage(await this.get("/projects"));
 	}
 
-	private async get(path: string): Promise<unknown> {
+	/**
+	 * GET /v1/projects?expand=1 – alle Projekte im ausführlichen Format („wie wenn man ein einzelnes Projekt
+	 * aufruft“, Doku „Projekte abrufen“). Große Antwort → längere Wartezeit als sonst.
+	 */
+	async listProjectsExpanded(): Promise<Page> {
+		return toPage(await this.get("/projects?expand=1", 40_000));
+	}
+
+	/** GET /v1/projects?q=… – Projekte suchen (Dublettenprüfung). */
+	async searchProjects(query: Query): Promise<Page> {
+		return toPage(await this.get(`/projects${buildQuery({ ...query, with_meta: 1 })}`));
+	}
+
+	/** GET /v1/projects/:id */
+	async getProject(id: number): Promise<unknown> {
+		return this.get(`/projects/${id}`);
+	}
+
+	/**
+	 * GET /v1/projects/:id?new=1 – nur für die Diagnose: Bei Einheiten liefert new=1 ein ausführlicheres Format
+	 * (u. a. das Feld „Notiz“). Ob das auch für Projekte gilt, steht nicht in der Doku.
+	 */
+	async getProjectNewFormat(id: number): Promise<unknown> {
+		return this.get(`/projects/${id}?new=1`);
+	}
+
+
+	// ---------- Schreiben (Phase 3) – nur Anlegen/Ändern, keine Löschmethoden ----------
+
+	/** POST /v1/contacts. Achtung: Propstack aktualisiert bei bekannter E-Mail den vorhandenen Kontakt (Upsert) – Dublettenprüfung vorher ist Pflicht. */
+	async createContact(client: Record<string, unknown>): Promise<unknown> {
+		return this.send("POST", "/contacts", { client });
+	}
+
+	/** PUT /v1/contacts/:id */
+	async updateContact(id: number, client: Record<string, unknown>): Promise<unknown> {
+		return this.send("PUT", `/contacts/${id}`, { client });
+	}
+
+	/** POST /v1/units */
+	async createUnit(property: Record<string, unknown>): Promise<unknown> {
+		return this.send("POST", "/units", { property });
+	}
+
+	/** PUT /v1/units/:id */
+	async updateUnit(id: number, property: Record<string, unknown>): Promise<unknown> {
+		return this.send("PUT", `/units/${id}`, { property });
+	}
+
+	/** POST /v1/projects (Wrapper project). */
+	async createProject(project: Record<string, unknown>): Promise<unknown> {
+		return this.send("POST", "/projects", { project });
+	}
+
+	/** PUT /v1/projects/:id (Wrapper project) – auch für die Eigentümer-Verknüpfung (relationships_attributes). */
+	async updateProject(id: number, project: Record<string, unknown>): Promise<unknown> {
+		return this.send("PUT", `/projects/${id}`, { project });
+	}
+
+	/** POST /v1/images mit remote_photo_url (Propstack lädt das Bild selbst). */
+	async createImage(image: Record<string, unknown>): Promise<unknown> {
+		return this.send("POST", "/images", { image });
+	}
+
+	/**
+	 * POST /v1/images als Multipart mit Datei. Feldname MUSS image[photo] sein –
+	 * image[file] erzeugt ein leeres Bildobjekt, das nur in der UI löschbar ist (Skill/Notion).
+	 */
+	async uploadImage(imageableType: "Property" | "Project", imageableId: number, photo: Blob, filename: string, title?: string): Promise<unknown> {
+		return this.sendMultipart("/images", () => {
+			const form = new FormData();
+			form.append("image[imageable_type]", imageableType);
+			form.append("image[imageable_id]", String(imageableId));
+			// API-Doku „Bilder“: title = Bildbeschreibung (wird auch als Dateiname in der URL verwendet)
+			if (title) form.append("image[title]", title);
+			form.append("image[photo]", photo, filename);
+			return form;
+		});
+	}
+
+	/** POST /v1/tasks (Wrapper task) – Prüfaufgaben und create_task. Antwort laut Doku: {id, activity_id}. */
+	async createTask(task: Record<string, unknown>): Promise<unknown> {
+		return this.send("POST", "/tasks", { task });
+	}
+
+	/** GET /v1/tasks/:id – zum Gegenlesen einer gerade angelegten Aufgabe (Doku „Aufgaben“). */
+	async getTask(id: number): Promise<unknown> {
+		return this.get(`/tasks/${id}`);
+	}
+
+	/** POST /v1/groups – nur intern für das Test-Merkmal MCP-TEST genutzt. */
+	async createGroup(entity: GroupEntity, name: string): Promise<unknown> {
+		return this.send("POST", "/groups", { entity, name });
+	}
+
+	/**
+	 * Schreibende Anfrage. Retry nur bei 429 (Anfrage wurde nicht verarbeitet).
+	 * Bei 5xx/Timeout KEIN Retry – der Write könnte trotzdem passiert sein.
+	 */
+	private async send(method: "POST" | "PUT", path: string, body: unknown): Promise<unknown> {
 		for (let attempt = 0; ; attempt++) {
-			if (this.requestCount >= this.maxRequests) {
+			this.countRequest();
+			let response: Response;
+			try {
+				response = await this.fetchFn(`${this.baseUrl}${path}`, {
+					body: JSON.stringify(body),
+					headers: { Accept: "application/json", "Content-Type": "application/json", "X-API-KEY": this.apiKey },
+					method,
+					signal: AbortSignal.timeout(this.timeoutMs),
+				});
+			} catch (error) {
 				throw new PropstackError(
-					`Abfrage zu umfangreich (mehr als ${this.maxRequests} Propstack-Anfragen). Bitte Filter enger setzen.`,
+					`Propstack nicht erreichbar (${(error as Error).message}). Status der Änderung unklar – bitte in Propstack prüfen, bevor erneut gespeichert wird.`,
 					0,
 				);
 			}
-			this.requestCount++;
+			if (response.status === 429 && attempt < this.maxRetries) {
+				await this.sleep(retryDelayMs(attempt, response.headers.get("retry-after")));
+				continue;
+			}
+			if (!response.ok) {
+				const detail = response.status === 400 || response.status === 422 ? await validationDetail(response) : "";
+				const unclear = response.status >= 500 ? " Status der Änderung unklar – bitte in Propstack prüfen." : "";
+				throw new PropstackError(`${describeStatus(response.status)}${detail}${unclear}`, response.status);
+			}
+			const text = await response.text();
+			try {
+				return text ? JSON.parse(text) : {};
+			} catch {
+				return {};
+			}
+		}
+	}
+
+	/** Multipart-POST; das Formular wird je Versuch neu gebaut (Body ist nach dem Senden verbraucht). */
+	private async sendMultipart(path: string, buildForm: () => FormData): Promise<unknown> {
+		for (let attempt = 0; ; attempt++) {
+			this.countRequest();
+			let response: Response;
+			try {
+				response = await this.fetchFn(`${this.baseUrl}${path}`, {
+					body: buildForm(),
+					headers: { Accept: "application/json", "X-API-KEY": this.apiKey },
+					method: "POST",
+					signal: AbortSignal.timeout(Math.max(this.timeoutMs, 60_000)),
+				});
+			} catch (error) {
+				throw new PropstackError(
+					`Propstack nicht erreichbar (${(error as Error).message}). Status unklar – bitte in Propstack prüfen, bevor erneut hochgeladen wird.`,
+					0,
+				);
+			}
+			if (response.status === 429 && attempt < this.maxRetries) {
+				await this.sleep(retryDelayMs(attempt, response.headers.get("retry-after")));
+				continue;
+			}
+			if (!response.ok) {
+				const detail = response.status === 400 || response.status === 422 ? await validationDetail(response) : "";
+				const unclear = response.status >= 500 ? " Status unklar – bitte in Propstack prüfen." : "";
+				throw new PropstackError(`${describeStatus(response.status)}${detail}${unclear}`, response.status);
+			}
+			const text = await response.text();
+			try {
+				return text ? JSON.parse(text) : {};
+			} catch {
+				return {};
+			}
+		}
+	}
+
+	private countRequest(): void {
+		if (this.requestCount >= this.maxRequests) {
+			throw new PropstackError(
+				`Abfrage zu umfangreich (mehr als ${this.maxRequests} Propstack-Anfragen). Bitte Filter enger setzen.`,
+				0,
+			);
+		}
+		this.requestCount++;
+	}
+
+	private async get(path: string, timeoutMs = this.timeoutMs): Promise<unknown> {
+		for (let attempt = 0; ; attempt++) {
+			this.countRequest();
 			let response: Response;
 			try {
 				response = await this.fetchFn(`${this.baseUrl}${path}`, {
 					headers: { Accept: "application/json", "X-API-KEY": this.apiKey },
 					method: "GET",
-					signal: AbortSignal.timeout(this.timeoutMs),
+					signal: AbortSignal.timeout(timeoutMs),
 				});
 			} catch (error) {
 				throw new PropstackError(`Propstack nicht erreichbar: ${(error as Error).message}`, 0);
@@ -207,6 +399,25 @@ export class PropstackClient {
 			}
 			return response.json();
 		}
+	}
+}
+
+/** Validierungsmeldung von Propstack (400/422) kurz und ohne Steuerzeichen durchreichen. */
+async function validationDetail(response: Response): Promise<string> {
+	try {
+		const text = (await response.text()).replace(/[\u0000-\u001f]+/g, " ").trim();
+		if (!text) return "";
+		let message = text;
+		try {
+			const parsed = JSON.parse(text) as Record<string, unknown>;
+			const raw = parsed.errors ?? parsed.error ?? parsed.message ?? parsed;
+			message = typeof raw === "string" ? raw : JSON.stringify(raw);
+		} catch {
+			// kein JSON – Text verwenden
+		}
+		return `: ${message.slice(0, 300)}`;
+	} catch {
+		return "";
 	}
 }
 

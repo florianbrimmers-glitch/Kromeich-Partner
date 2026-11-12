@@ -105,3 +105,24 @@ describe("Request-Budget", () => {
 		]);
 	});
 });
+
+describe("uploadImage (Multipart)", () => {
+	it("sendet image[photo] mit Typ, ID und Datei, Key im Header", async () => {
+		let seen: { url: string; init: RequestInit } | undefined;
+		const client = new PropstackClient({
+			apiKey: "k",
+			fetchFn: (async (url: string, init: RequestInit) => {
+				seen = { init, url };
+				return new Response(JSON.stringify({ id: 77 }), { status: 201 });
+			}) as unknown as typeof fetch,
+		});
+		expect(await client.uploadImage("Property", 5, new Blob([new Uint8Array([1, 2])], { type: "image/jpeg" }), "a.jpg")).toEqual({ id: 77 });
+		const form = seen!.init.body as FormData;
+		expect(seen!.url).toBe("https://api.propstack.de/v1/images");
+		expect(form.get("image[imageable_type]")).toBe("Property");
+		expect(form.get("image[imageable_id]")).toBe("5");
+		expect((form.get("image[photo]") as File).name).toBe("a.jpg");
+		expect(form.get("image[file]")).toBeNull();
+		expect((seen!.init.headers as Record<string, string>)["X-API-KEY"]).toBe("k");
+	});
+});

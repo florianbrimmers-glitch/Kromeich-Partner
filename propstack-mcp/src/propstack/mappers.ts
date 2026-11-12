@@ -14,11 +14,40 @@ export function scalar(value: unknown): unknown {
 	return value;
 }
 
+/** Kurzfassung für Listen (z. B. Notiz in der Deal-Liste). In Einzelansichten fullText nutzen. */
 export function truncate(value: unknown, max: number): string | undefined {
 	const text = scalar(value);
 	if (typeof text !== "string" || !text.trim()) return undefined;
 	const clean = text.trim();
 	return clean.length > max ? `${clean.slice(0, max)}…` : clean;
+}
+
+/**
+ * Obergrenze je Textfeld in der Einzelansicht. So viel darf update_object/update_project in einem Aufruf schreiben –
+ * was der Connector schreiben kann, muss er auch vollständig zurücklesen können.
+ */
+export const DETAIL_TEXT_MAX = 10_000;
+
+function wholeOrMarked(clean: string, max: number): string {
+	if (clean.length <= max) return clean;
+	const head = Math.floor(max * 0.4);
+	const tail = max - head;
+	const omitted = clean.length - max;
+	return `${clean.slice(0, head)}\n[… ${omitted} von ${clean.length} Zeichen aus der Mitte ausgelassen – dieser Text ist NICHT vollständig und taugt nicht als Vorlage zum Überschreiben …]\n${clean.slice(-tail)}`;
+}
+
+/**
+ * Text für die Einzelansicht (get_object, get_project, get_contact): vollständig.
+ * Ansage Florian, 11.11.2026 („Warum ist nicht der gesamte Teil zu sehen?“). Vorher wurde nach 300 bis 2.000 Zeichen
+ * abgeschnitten. Das traf genau die Felder, die nur angehängt werden (interne Notiz, Bemerkung): Das Neueste steht
+ * am Ende und war nicht mehr lesbar. Bei Exposé-Texten kam dazu, dass ein gekürzt gelesener Text beim Überarbeiten
+ * als Ganzes zurückgeschrieben werden kann – der Rest ginge verloren.
+ * Nur über der Obergrenze wird noch gekürzt, dann mit Anfang UND Ende und einem unübersehbaren Hinweis.
+ */
+export function fullText(value: unknown, max = DETAIL_TEXT_MAX): string | undefined {
+	const text = scalar(value);
+	if (typeof text !== "string" || !text.trim()) return undefined;
+	return wholeOrMarked(text.trim(), max);
 }
 
 /** Entfernt leere Werte, damit die Antworten kurz bleiben. */
@@ -54,14 +83,14 @@ function idName(value: unknown): { id?: unknown; name?: string } | undefined {
 	return compact({ id: obj.id, name: nameOf(obj) });
 }
 
-/** Custom-Felder: nur befüllte, als {schlüssel: wert}. */
-export function customFields(value: unknown): Raw | undefined {
+/** Custom-Felder: nur befüllte, als {schlüssel: wert}. Texte vollständig (siehe fullText) – auch die Bemerkung. */
+export function customFields(value: unknown, max = DETAIL_TEXT_MAX): Raw | undefined {
 	if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
 	const out: Raw = {};
 	for (const [key, field] of Object.entries(value as Raw)) {
 		const v = scalar(field);
 		if (v === null || v === undefined || v === "" || (Array.isArray(v) && v.length === 0)) continue;
-		out[key] = typeof v === "string" && v.length > 300 ? `${v.slice(0, 300)}…` : v;
+		out[key] = typeof v === "string" ? wholeOrMarked(v, max) : v;
 	}
 	return Object.keys(out).length ? out : undefined;
 }
@@ -76,9 +105,16 @@ const GDPR = ["keine Angabe", "ignoriert", "zugestimmt", "widerrufen"];
 
 // ---------- Kontakte ----------
 
+/** Betreuer: Detail liefert broker_id, die Suchliste laut Doku nur broker_ids. */
+function contactBrokerId(raw: Raw): unknown {
+	if (raw.broker_id !== undefined && raw.broker_id !== null) return raw.broker_id;
+	return Array.isArray(raw.broker_ids) && raw.broker_ids.length ? raw.broker_ids[0] : undefined;
+}
+
 export function mapContactSummary(raw: Raw) {
 	return compact({
-		...pick(raw, ["id", "name", "company", "is_company", "email", "broker_id", "client_status_id", "client_source_id"]),
+		...pick(raw, ["id", "name", "company", "is_company", "email", "client_status_id", "client_source_id"]),
+		broker_id: contactBrokerId(raw),
 		phone: scalar(raw.phone) ?? scalar(raw.home_cell) ?? scalar(raw.office_cell) ?? scalar(raw.office_phone) ?? scalar(raw.home_phone),
 		tags: groupNames(raw.groups),
 		last_contact_at: raw.last_contact_at,
@@ -123,8 +159,8 @@ export function mapContactDetail(raw: Raw) {
 		status: idName(raw.status),
 		home_address: addressOf(raw, "home"),
 		office_address: addressOf(raw, "office"),
-		description: truncate(raw.description, 1500),
-		warning_notice: truncate(raw.warning_notice, 500),
+		description: fullText(raw.description),
+		warning_notice: fullText(raw.warning_notice),
 		gdpr_status: gdpr,
 		tags: groupNames(raw.groups),
 		custom_fields: customFields(raw.custom_fields),
@@ -175,12 +211,51 @@ export function mapUnitSummary(raw: Raw) {
 	});
 }
 
+/** Bilder kurz: Titel und Kennzeichen – um zu prüfen, ob Bilder benannt und Grundrisse gekennzeichnet sind. */
+export function imageList(value: unknown, max = 40): Raw[] | undefined {
+	if (!Array.isArray(value) || !value.length) return undefined;
+	return value.slice(0, max).map((image) => {
+		const raw = (image && typeof image === "object" ? image : {}) as Raw;
+		return compact({
+			id: raw.id,
+			title: scalar(raw.title),
+			floorplan: raw.is_floorplan === true ? true : undefined,
+			private: raw.is_private === true ? true : undefined,
+		});
+	});
+}
+
+/**
+ * Verknüpfte Kontakte (Eigentümer, Ansprechpartner) aus dem Einzel-GET der Einheit.
+ * Die Doku beschreibt die Liste nicht – deshalb vorsichtig gelesen; was nicht zuzuordnen ist, wird mit seinen Feldnamen gezeigt.
+ */
+export function relationshipList(value: unknown, max = 20): Raw[] | undefined {
+	if (!Array.isArray(value) || !value.length) return undefined;
+	return value.slice(0, max).map((entry) => {
+		const raw = (entry && typeof entry === "object" ? entry : {}) as Raw;
+		const nested = [raw.related_client, raw.client, raw.contact].find((v) => v && typeof v === "object") as Raw | undefined;
+		const id = raw.related_client_id ?? nested?.id ?? raw.client_id ?? raw.contact_id;
+		const name = scalar(nested?.name) ?? scalar(raw.related_client_name) ?? scalar(raw.client_name);
+		const role = raw.internal_name === "owner" ? "Eigentümer" : (scalar(raw.name) ?? (raw.internal_name === "partner" ? "Ansprechpartner" : scalar(raw.internal_name)));
+		if (id === undefined && name === undefined) return { unknown_shape: Object.keys(raw).slice(0, 30) };
+		return compact({ contact_id: id, name, role });
+	});
+}
+
 export function mapUnitDetail(raw: Raw) {
 	const images = Array.isArray(raw.images) ? raw.images.length : undefined;
 	return compact({
 		...mapUnitSummary(raw),
 		...pick(raw, [
 			"rs_category",
+			"industrial_area",
+			"total_floor_space",
+			"usable_floor_space",
+			"hall_height",
+			"floor_load",
+			"price_on_inquiry",
+			"rented",
+			"free_from",
 			"street",
 			"house_number",
 			"zip_code",
@@ -192,18 +267,78 @@ export function mapUnitDetail(raw: Raw) {
 			"number_of_bed_rooms",
 			"number_of_bath_rooms",
 			"courtage",
+			"courtage_note",
 			"created_at",
 		]),
 		address: scalar(raw.address) ?? scalar(raw.short_address),
 		broker: idName(raw.broker),
 		project: nameOf(raw.project),
 		tags: groupNames(raw.property_groups ?? raw.groups),
-		description: truncate(raw.description_note, 1500),
-		location: truncate(raw.location_note, 800),
-		furnishing: truncate(raw.furnishing_note, 800),
-		other: truncate(raw.other_note, 800),
+		description: fullText(raw.description_note),
+		location: fullText(raw.location_note),
+		furnishing: fullText(raw.furnishing_note),
+		other: fullText(raw.other_note),
+		internal_note: fullText(raw.note),
+		contacts: relationshipList(raw.relationships),
+		energy_source: scalar(raw.firing_types),
+		heating_type: scalar(raw.heating_type),
 		custom_fields: customFields(raw.custom_fields),
 		image_count: images,
+		images: imageList(raw.images),
+	});
+}
+
+// ---------- Projekte ----------
+
+const countOf = (value: unknown) => (Array.isArray(value) && value.length ? value.length : undefined);
+
+export function mapProjectDetail(raw: Raw, units?: { rows: Raw[]; total: number | null }) {
+	const status = raw.status && typeof raw.status === "object" ? scalar((raw.status as Raw).label) : scalar(raw.status);
+	return compact({
+		...pick(raw, [
+			"id",
+			"name",
+			"title",
+			"sub_headline",
+			"tagline",
+			"street",
+			"house_number",
+			"zip_code",
+			"city",
+			"lat",
+			"lng",
+			"hide_address",
+			"show_units_on_landing_page",
+			"broker_id",
+			"for_rent",
+			"for_sale",
+			"courtage",
+			"courtage_note",
+			"construction_year",
+			"created_at",
+			"updated_at",
+		]),
+		code: scalar(raw.project_id),
+		status,
+		address: scalar(raw.address),
+		description: fullText(raw.description_note),
+		location: fullText(raw.location_note),
+		furnishing: fullText(raw.furnishing_note),
+		internal_note: fullText(raw.note),
+		warning_notice: fullText(raw.warning_notice),
+		contacts: relationshipList(raw.relationships),
+		custom_fields: customFields(raw.custom_fields),
+		image_count: countOf(raw.images),
+		images: imageList(raw.images),
+		floorplan_count: countOf(raw.floorplans),
+		document_count: countOf(raw.documents),
+		links: Array.isArray(raw.links)
+			? raw.links.slice(0, 20).map((link) => compact({ title: scalar((link as Raw)?.title), url: (link as Raw)?.url }))
+			: undefined,
+		unit_count: units ? (units.total ?? units.rows.length) : undefined,
+		units: units?.rows.map((unit) =>
+			compact({ id: unit.id, unit_id: scalar(unit.unit_id), title: scalar(unit.title), status: statusName(unit), archived: unit.archived === true ? true : undefined }),
+		),
 	});
 }
 

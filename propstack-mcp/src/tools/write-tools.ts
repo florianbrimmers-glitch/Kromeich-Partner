@@ -1,0 +1,1394 @@
+import { z } from "zod";
+import type { Props } from "../auth/session";
+import { type GroupEntity, PropstackClient, PropstackError } from "../propstack-client";
+import {
+	type ContactSearchResults,
+	contactDuplicates,
+	type DedupeResult,
+	isMobile,
+	objectDuplicates,
+	sameAddress,
+} from "../propstack/dedupe";
+import { ACTIVE_STATUSES } from "../config";
+import { PUBLIC_PRICE_HINT, type CustomOption, loadFieldDefs, mirroredCustomFields, validateCustomFields } from "../propstack/field-rules";
+import { areaNumber, computedTotal, MEZZANINE_KEY, showArea, totalDiffers } from "../propstack/areas";
+import { availabilityMirror, BEZUG_KEY, bezugDeviation } from "../propstack/availability";
+import { appendNote } from "../propstack/notes";
+import { scalar } from "../propstack/mappers";
+import { readUnit, UNVERIFIABLE, type UnitState, unitCustomValue, unitValue } from "../propstack/unit-state";
+import { CRM_BASE, createReviewTask } from "../review-task";
+import { beginWrite, finishWrite } from "../write-log";
+import { coordinatesLine, coordsOf, ensureCoordinates, hasCoordinates } from "../propstack/geo";
+import {
+	checkExposeTexts,
+	checkZipPrefix,
+	commissionFields,
+	provisionCustomFields,
+	staleFreeCourtage,
+	STALE_FREE_COURTAGE,
+	commissionParam,
+	EXPOSE_TEXT_KEYS,
+	howtoCustomFields,
+	howtoObjectShape,
+	internalNoteLines,
+	internalNoteShape,
+	OBJECT_UI_STEPS,
+	objectNotProvided,
+	ownerNamesOf,
+	TEXT_RULES,
+	throwOnTextErrors,
+} from "../propstack/howto";
+import { linkContact, type RelationResult, relationLine } from "../propstack/relations";
+import { id, optionalText } from "./params";
+import { loadAll, type ToolOutput } from "./read-tools";
+
+export { validateCustomFields };
+
+// Schreib-Tools (Phase 3). Grundsätze:
+// - Betreuer ist immer der angemeldete Nutzer (Spezifikation).
+// - Dublettenprüfung vor jedem Anlegen; Override nur mit Begründung, nie bei gleicher E-Mail
+//   (Propstack führt Kontakte über die E-Mail zusammen → würde den vorhandenen überschreiben).
+// - Write-Log mit Snapshot VOR dem Write (fail-closed).
+// - Nach dem Write zurücklesen: Propstack verwirft unbekannte Felder ohne Fehler.
+// - Keine Lösch-Tools.
+
+type Raw = Record<string, unknown>;
+
+export const TEST_TAG = "MCP-TEST";
+const MIN_OVERRIDE_REASON = 15;
+
+export interface WriteDeps {
+	client: PropstackClient;
+	db: D1Database | undefined;
+	user: Props;
+	now?: () => Date;
+	sleep?: (ms: number) => Promise<void>;
+	kv?: KVNamespace;
+	/** Für Geokodierung (Tests). */
+	fetchFn?: typeof fetch;
+	/** Massenänderungen: Tool-Name im Write-Log (z. B. „apply_plan:abc“). */
+	logTool?: string;
+	/** Massenänderungen: Stand vorher je Datensatz mitschneiden (für undo_plan). */
+	capture?: (snapshot: { before: Raw; after: Raw }) => void;
+}
+
+const tagIds = z.array(id).min(1).max(20);
+
+// ---------- Hilfen ----------
+
+function today(now: Date): string {
+	return now.toISOString().slice(0, 10);
+}
+
+function originNote(user: Props, now: Date, verb: "Angelegt" | "Ergänzt"): string {
+	return `${verb} über Claude (Propstack MCP) von ${user.name} am ${today(now)}.`;
+}
+
+/** Test-Merkmal suchen, bei Bedarf anlegen (Entscheidung Florian). */
+export async function ensureTestTag(client: PropstackClient, entity: GroupEntity): Promise<number> {
+	const find = async () =>
+		(await client.listGroups(entity)).rows.find((g) => String(scalar(g.name)).trim().toUpperCase() === TEST_TAG)?.id as
+			| number
+			| undefined;
+	const existing = await find();
+	if (existing) return existing;
+	await client.createGroup(entity, TEST_TAG);
+	const created = await find();
+	if (!created) throw new PropstackError(`Merkmal ${TEST_TAG} konnte nicht angelegt werden – Testdatensatz wird nicht gespeichert.`, 0);
+	return created;
+}
+
+function isOption(value: unknown): value is CustomOption {
+	return !!value && typeof value === "object" && !Array.isArray(value) && typeof (value as Raw).id === "number" && "name" in (value as Raw);
+}
+
+function norm(value: unknown): string {
+	return String(value ?? "").replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+/** Alle Lesarten eines Propstack-Werts als Text (value, pretty_value, label, Listen, {id,name}). */
+function readings(value: unknown): string[] {
+	if (Array.isArray(value)) return value.flatMap(readings);
+	if (value && typeof value === "object") {
+		const obj = value as Raw;
+		return [obj.value, obj.pretty_value, obj.id, obj.name].filter((v) => v !== undefined && v !== null).flatMap(readings);
+	}
+	if (value === null || value === undefined) return [];
+	const text = norm(value);
+	return text.includes(",") ? [text, ...text.split(/,\s*/)] : [text];
+}
+
+function isEmpty(value: unknown): boolean {
+	if (value === null || value === undefined || value === "") return true;
+	if (Array.isArray(value)) return value.length === 0;
+	if (typeof value === "object") {
+		const obj = value as Raw;
+		if ("value" in obj) return isEmpty(obj.value);
+	}
+	return false;
+}
+
+/** Rohwert eines Propstack-Werts ({value, pretty_value} → value) – für Snapshots, die zurückgeschrieben werden. */
+export function rawValue(value: unknown): unknown {
+	if (value && typeof value === "object" && !Array.isArray(value) && "value" in (value as Raw)) return (value as Raw).value ?? null;
+	return value ?? null;
+}
+
+export function same(requested: unknown, actual: unknown): boolean {
+	if (requested === null) return isEmpty(actual);
+	if (isOption(requested)) {
+		const have = readings(actual);
+		return have.includes(String(requested.id)) || have.includes(norm(requested.name));
+	}
+	if (Array.isArray(requested)) {
+		const have = readings(actual);
+		return requested.every((r) => (isOption(r) ? have.includes(String(r.id)) || have.includes(norm(r.name)) : have.includes(norm(r))));
+	}
+	const candidates =
+		actual && typeof actual === "object" && !Array.isArray(actual)
+			? [(actual as Raw).value, (actual as Raw).pretty_value]
+			: [actual];
+	return candidates.some((candidate) => {
+		if (typeof requested === "number") return candidate !== null && candidate !== "" && Number(candidate) === requested;
+		if (typeof requested === "boolean") return candidate === requested || String(candidate) === String(requested);
+		// Groß-/Kleinschreibung zählt (Korrektur „mueller“ → „Müller“ muss geschrieben werden)
+		const squash = (v: unknown) => String(v ?? "").replace(/\s+/g, " ").trim();
+		return squash(candidate) === squash(requested);
+	});
+}
+
+/** Nach dem Write: welche angefragten Felder hat Propstack NICHT übernommen? */
+export function notApplied(requested: Raw, actual: Raw, custom?: Raw): string[] {
+	const missing: string[] = [];
+	for (const [key, value] of Object.entries(requested)) {
+		if (!same(value, actual[key])) missing.push(key);
+	}
+	const actualCustom = (actual.custom_fields ?? {}) as Raw;
+	for (const [key, value] of Object.entries(custom ?? {})) {
+		if (!same(value, actualCustom[key])) missing.push(`custom_fields.${key}`);
+	}
+	return missing;
+}
+
+export function groupIdsOf(raw: Raw): number[] {
+	const groups = raw.groups ?? raw.property_groups ?? raw.group_ids;
+	return (Array.isArray(groups) ? groups : [])
+		.map((g) => (g && typeof g === "object" ? (g as Raw).id : g))
+		.filter((g): g is number => typeof g === "number");
+}
+
+function blockedResult(dedupe: DedupeResult, hint: string): ToolOutput {
+	return {
+		count: 0,
+		result: {
+			created: false,
+			blocked: "Dublette",
+			duplicates: dedupe.duplicates,
+			warnings: dedupe.warnings.length ? dedupe.warnings : undefined,
+			hint,
+		},
+	};
+}
+
+function checkOverride(dedupe: DedupeResult, reason: string | undefined): string | null {
+	if (!dedupe.duplicates.length) return null;
+	if (!reason) return null;
+	if (reason.trim().length < MIN_OVERRIDE_REASON) {
+		throw new PropstackError(`allow_duplicate_reason braucht eine echte Begründung (mind. ${MIN_OVERRIDE_REASON} Zeichen).`, 400);
+	}
+	return reason.trim();
+}
+
+async function asObjectOrThrow(promise: Promise<unknown>): Promise<Raw> {
+	const value = await promise;
+	if (!value || typeof value !== "object" || Array.isArray(value)) throw new PropstackError("Unerwartete Antwort von Propstack", 0);
+	return value as Raw;
+}
+
+function createdId(response: unknown): number {
+	const raw = (response ?? {}) as Raw;
+	const value = raw.id ?? (raw.data as Raw | undefined)?.id;
+	if (typeof value !== "number") {
+		throw new PropstackError("Propstack hat keine ID zurückgegeben – Status unklar, bitte in Propstack prüfen.", 0);
+	}
+	return value;
+}
+
+// ---------- Kontakte ----------
+
+const contactFieldsShape = {
+	salutation: z.enum(["mr", "ms"]).optional().describe("mr = Herr, ms = Frau"),
+	academic_title: optionalText(30),
+	first_name: optionalText(100),
+	last_name: optionalText(100),
+	company: optionalText(200).describe("Firmenname (als Text am Kontakt)"),
+	position: optionalText(200),
+	email: z.string().trim().toLowerCase().email().max(200).optional(),
+	phone_office: optionalText(50).describe("Festnetz geschäftlich"),
+	mobile: optionalText(50).describe("Mobilnummer"),
+	street: optionalText(200),
+	house_number: optionalText(20),
+	zip_code: optionalText(10),
+	city: optionalText(100),
+	country: optionalText(60),
+	source_id: id.optional().describe("Kontakt-Quelle (über list_reference kind=contact_sources)"),
+	custom_fields: z.record(z.string(), z.unknown()).optional().describe("Custom-Felder {schlüssel: wert}, Schlüssel über list_fields"),
+};
+
+export const CONTACT_KEYS: Record<string, string> = {
+	academic_title: "academic_title",
+	city: "office_city",
+	company: "company",
+	country: "office_country",
+	email: "email",
+	first_name: "first_name",
+	house_number: "office_house_number",
+	last_name: "last_name",
+	mobile: "office_cell",
+	phone_office: "office_phone",
+	position: "position",
+	salutation: "salutation",
+	source_id: "client_source_id",
+	broker_id: "broker_id",
+	client_status_id: "client_status_id",
+	street: "office_street",
+	zip_code: "office_zip_code",
+};
+
+function contactPayload(input: Raw): Raw {
+	const out: Raw = {};
+	for (const [from, to] of Object.entries(CONTACT_KEYS)) if (input[from] !== undefined) out[to] = input[from];
+	return out;
+}
+
+async function contactSearches(client: PropstackClient, input: Raw): Promise<ContactSearchResults> {
+	const search = async (query: Record<string, string | number>) =>
+		(await client.searchContacts({ ...query, archived: "-1", page: 1, per: 50 })).rows;
+	const name = [input.first_name, input.last_name].filter(Boolean).join(" ");
+	return {
+		byEmail: input.email ? await search({ email: String(input.email) }) : [],
+		byMobile: input.mobile ? await search({ phone_number: String(input.mobile) }) : [],
+		byName: name ? await search({ q: name }) : [],
+		byPhone: input.phone_office ? await search({ phone_number: String(input.phone_office) }) : [],
+	};
+}
+
+export const createContactInput = {
+	...contactFieldsShape,
+	last_name: z.string().trim().min(1).max(100).describe("Nachname (Pflicht)"),
+	description: optionalText(2000).describe("Notiz"),
+	tag_ids: tagIds.optional().describe("Merkmal-IDs (über list_tags)"),
+	test: z.boolean().optional().describe(`Testdatensatz: setzt das Merkmal ${TEST_TAG}. Für alle Tests Pflicht.`),
+	allow_duplicate_reason: optionalText(500).describe(
+		"Nur wenn die Dublettenprüfung blockiert und es nachweislich eine andere Person ist: Begründung (wird protokolliert). Wirkt nicht bei gleicher E-Mail.",
+	),
+};
+
+export async function createContact(deps: WriteDeps, input: z.infer<z.ZodObject<typeof createContactInput>>): Promise<ToolOutput> {
+	const { client, user } = deps;
+	const now = deps.now?.() ?? new Date();
+	if (input.mobile && !isMobile(input.mobile)) {
+		throw new PropstackError(`${input.mobile} ist keine deutsche Mobilnummer (015x/016x/017x) – bitte als phone_office angeben.`, 400);
+	}
+
+	const candidate = {
+		company: input.company,
+		email: input.email,
+		first_name: input.first_name,
+		last_name: input.last_name,
+		mobile: input.mobile,
+		phone: input.phone_office,
+	};
+	const dedupe = contactDuplicates(candidate, await contactSearches(client, input));
+	const emailDuplicate = dedupe.duplicates.some((d) => d.reason.startsWith("gleiche E-Mail"));
+	if (dedupe.duplicates.length && (emailDuplicate || !input.allow_duplicate_reason)) {
+		return blockedResult(
+			dedupe,
+			emailDuplicate
+				? "Propstack führt Kontakte über die E-Mail zusammen – ein zweiter Kontakt mit dieser E-Mail ist nicht möglich. Bitte den vorhandenen Kontakt mit update_contact ergänzen."
+				: "Nichts angelegt. Vorhandenen Kontakt mit update_contact ergänzen – oder, falls es nachweislich eine andere Person ist, mit allow_duplicate_reason erneut aufrufen.",
+		);
+	}
+	const overrideReason = checkOverride(dedupe, input.allow_duplicate_reason);
+
+	const custom = await validateCustomFields(client, "for_clients", input.custom_fields);
+	const tags = [...(input.tag_ids ?? [])];
+	if (input.test) tags.push(await ensureTestTag(client, "for_clients"));
+
+	const fields = contactPayload(input);
+	const payload: Raw = {
+		...fields,
+		broker_id: user.brokerId,
+		description: [input.description, originNote(user, now, "Angelegt")].filter(Boolean).join("\n\n"),
+		...(tags.length ? { group_ids: tags } : {}),
+		...(custom ? { partial_custom_fields: custom.send } : {}),
+	};
+
+	const logId = await beginWrite(deps.db, {
+		action: "create",
+		before: null,
+		brokerId: user.brokerId,
+		entity: "contact",
+		entityId: null,
+		overrideReason,
+		request: payload,
+		tool: "create_contact",
+		userEmail: user.email,
+		warnings: dedupe.warnings,
+	});
+
+	let newId: number;
+	try {
+		newId = createdId(await client.createContact(payload));
+	} catch (error) {
+		await finishWrite(deps.db, logId, { error: (error as Error).message, status: "failed" });
+		// Live 16.10.: Unterkontakte liefert die Kontaktsuche nicht – Propstack blockt dann selbst
+		const sub = /bereits als Unterkontakt bei Kontakt ([^"\]]+?) hinterlegt/i.exec((error as Error).message);
+		if (sub) {
+			const parent = sub[1].trim();
+			return {
+				count: 0,
+				result: {
+					created: false,
+					blocked: "Dublette",
+					duplicates: [{ name: parent, reason: `E-Mail ist bereits als Unterkontakt bei ${parent} hinterlegt` }],
+					hint: `Nichts angelegt. Die Person existiert schon als Unterkontakt von ${parent} – dort ergänzen (Unterkontakte zeigt die Suche nicht an).`,
+				},
+			};
+		}
+		throw error;
+	}
+
+	const actual = await asObjectOrThrow(client.getContact(newId));
+	const missing = notApplied({ ...fields, broker_id: user.brokerId }, actual, custom?.expect);
+	const groups = groupIdsOf(actual);
+	for (const tag of tags) if (!groups.includes(tag)) missing.push(`tag ${tag}`);
+	await finishWrite(deps.db, logId, { entityId: newId, notApplied: missing, status: missing.length ? "done_with_gaps" : "done" });
+
+	return {
+		count: 1,
+		result: {
+			created: true,
+			id: newId,
+			name: scalar(actual.name),
+			broker: user.name,
+			test: input.test || undefined,
+			override_reason: overrideReason ?? undefined,
+			warnings: dedupe.warnings.length ? dedupe.warnings : undefined,
+			not_applied: missing.length ? missing : undefined,
+			note: missing.length ? "Propstack hat einige Felder nicht übernommen – bitte prüfen." : undefined,
+		},
+	};
+}
+
+export const updateContactInput = {
+	id: id.describe("Propstack-Kontakt-ID"),
+	...contactFieldsShape,
+	broker_id: id.optional().describe("Betreuer ändern (Propstack-Nutzer-ID, über list_reference kind=users)"),
+	client_status_id: id.optional().describe("Kontaktstatus-ID"),
+	add_tag_ids: tagIds.optional().describe("Merkmale hinzufügen"),
+	remove_tag_ids: tagIds.optional().describe("Merkmale entfernen"),
+	note_append: optionalText(2000).describe("Text an die Notiz anhängen (mit Datum und Nutzer); vorhandene Notiz bleibt erhalten. Steht derselbe Text schon da, wird er nicht noch einmal angehängt (already_present)"),
+	allow_duplicate_reason: optionalText(500).describe("Nur falls die neue E-Mail/Mobilnummer schon bei einem anderen Kontakt steht: Begründung"),
+};
+
+export async function updateContact(deps: WriteDeps, input: z.infer<z.ZodObject<typeof updateContactInput>>): Promise<ToolOutput> {
+	const { client, user } = deps;
+	const now = deps.now?.() ?? new Date();
+	if (input.mobile && !isMobile(input.mobile)) {
+		throw new PropstackError(`${input.mobile} ist keine deutsche Mobilnummer – bitte als phone_office angeben.`, 400);
+	}
+	const current = await asObjectOrThrow(client.getContact(input.id));
+
+	// Nur echte Änderungen schreiben
+	const requested = contactPayload(input);
+	const fields: Raw = {};
+	const before: Raw = {};
+	for (const [key, value] of Object.entries(requested)) {
+		if (same(value, current[key])) continue;
+		fields[key] = value;
+		before[key] = scalar(current[key]) ?? null;
+	}
+
+	// Neue E-Mail / Mobilnummer darf nicht einem anderen Kontakt gehören
+	const identity: Raw = {};
+	if (fields.email) identity.email = fields.email;
+	if (fields.office_cell) identity.mobile = fields.office_cell;
+	const dedupe = Object.keys(identity).length
+		? contactDuplicates(identity, await contactSearches(client, identity), input.id)
+		: { duplicates: [], warnings: [] };
+	if (dedupe.duplicates.length && !input.allow_duplicate_reason) {
+		return blockedResult(dedupe, "Nichts geändert. Die neue E-Mail bzw. Mobilnummer gehört bereits einem anderen Kontakt.");
+	}
+	const overrideReason = checkOverride(dedupe, input.allow_duplicate_reason);
+
+	const currentTags = groupIdsOf(current);
+	const addTags = (input.add_tag_ids ?? []).filter((t) => !currentTags.includes(t));
+	const removeTags = (input.remove_tag_ids ?? []).filter((t) => currentTags.includes(t));
+	const custom = await validateCustomFields(client, "for_clients", input.custom_fields);
+
+	const payload: Raw = { ...fields };
+	if (addTags.length) payload.add_group_ids = addTags;
+	if (removeTags.length) payload.sub_group_ids = removeTags;
+	if (custom) payload.partial_custom_fields = custom.send;
+	// Notiz anhängen – aber nicht doppelt, wenn derselbe Text schon dasteht
+	const alreadyPresent: string[] = [];
+	let noteChanged = false;
+	if (input.note_append) {
+		const old = String(scalar(current.description) ?? "");
+		const appended = appendNote(old, originNote(user, now, "Ergänzt"), [input.note_append]);
+		if (appended.text === undefined) alreadyPresent.push("note_append (steht schon in der Notiz)");
+		else {
+			before.description = old;
+			payload.description = appended.text;
+			noteChanged = true;
+		}
+	}
+	if (addTags.length || removeTags.length) before.tag_ids = currentTags;
+	if (custom) before.custom_fields = Object.fromEntries(Object.keys(custom.send).map((k) => [k, rawValue((current.custom_fields as Raw | undefined)?.[k])]));
+
+	if (!Object.keys(payload).length) {
+		return {
+			count: 0,
+			result: { updated: false, id: input.id, already_present: alreadyPresent.length ? alreadyPresent : undefined, note: "Keine Änderung – alle Werte sind bereits so gesetzt." },
+		};
+	}
+	deps.capture?.({ after: { ...fields, ...(custom ? { custom_fields: custom.send } : {}) }, before });
+
+	const logId = await beginWrite(deps.db, {
+		action: "update",
+		before,
+		brokerId: user.brokerId,
+		entity: "contact",
+		entityId: input.id,
+		overrideReason,
+		request: payload,
+		tool: deps.logTool ?? "update_contact",
+		userEmail: user.email,
+		warnings: dedupe.warnings,
+	});
+	try {
+		await client.updateContact(input.id, payload);
+	} catch (error) {
+		await finishWrite(deps.db, logId, { error: (error as Error).message, status: "failed" });
+		throw error;
+	}
+
+	const actual = await asObjectOrThrow(client.getContact(input.id));
+	const missing = notApplied(fields, actual, custom?.expect);
+	const groups = groupIdsOf(actual);
+	for (const t of addTags) if (!groups.includes(t)) missing.push(`add_tag ${t}`);
+	for (const t of removeTags) if (groups.includes(t)) missing.push(`remove_tag ${t}`);
+	await finishWrite(deps.db, logId, { notApplied: missing, status: missing.length ? "done_with_gaps" : "done" });
+
+	return {
+		count: 1,
+		result: {
+			updated: true,
+			id: input.id,
+			name: scalar(actual.name),
+			changed: [...Object.keys(fields), ...(addTags.length ? ["add_tags"] : []), ...(removeTags.length ? ["remove_tags"] : []), ...(noteChanged ? ["note"] : []), ...Object.keys(custom?.send ?? {}).map((k) => `custom_fields.${k}`)],
+			already_present: alreadyPresent.length ? alreadyPresent : undefined,
+			warnings: dedupe.warnings.length ? dedupe.warnings : undefined,
+			not_applied: missing.length ? missing : undefined,
+		},
+	};
+}
+
+// ---------- Objekte ----------
+// Regeln aus dem Notion-Feld-Mapping (Korrekturen), dem Skill propstack-expose-workflow und den Team-How-tos:
+// - Einige Felder verwirft Propstack im POST und in Multi-Feld-PUTs still → einzeln per PUT.
+// - object_type leitet Propstack aus rs_type ab → nicht anbieten.
+// - Öffentliche Preise (price, base_rent, mietpreis_*) nur mit public_price_confirmed (Nutzer hat es
+//   ausdrücklich angesagt bzw. auf Nachfrage bestätigt); interne Preise (intern_*) immer. Sonst price_on_inquiry.
+// - Interne Notizen (How-to: Link, Mandat, Provisionsregelung …) in das Feld note („Notiz“): Es ist über
+//   GET ?new=1 lesbar und trägt bei Bestandsobjekten genau diese Inhalte (live 09.11., Objekt 5220033).
+//   Beschreibungstexte sind exposé-sichtbar.
+// - Custom-Feld bemerkung: nur Änderungsprotokoll („Angelegt …“ und Änderungsvermerke). Entscheidung Florian,
+//   10.11.2026: Das Feld liest im Team kaum jemand – nichts hineinschreiben, was jemand lesen muss. Offene
+//   Punkte gehören in die Prüfaufgabe, Fachliches in die interne Notiz. Kein Ausweichen der Notiz dorthin.
+// - Provisions-Custom-Felder (provision_extern, provision_interne_notiz) nach Feld-Mapping, Korrektur 29.
+// - Einheiten im Projekt übernehmen Adresse, Überschrift, Beschreibung, Lage, Ausstattung, Provision und
+//   Koordinaten vom Projekt (How-to „Projekte anlegen“: „werden normalerweise automatisch vom Projekt gezogen“).
+
+/** Werden im POST und in PUTs mit mehreren Feldern still verworfen → je Feld ein PUT. */
+export const SOLO_OBJECT_FIELDS = [
+	"rs_category",
+	"total_floor_space",
+	"industrial_area",
+	"hall_height",
+	"floor_load",
+	"broker_id",
+	"rented",
+	"property_status_id",
+] as const;
+
+const num = z.number().nonnegative().optional();
+/** Flächen nie 0 m² (Team-Regel). */
+const area = z.number().positive().optional();
+const EXPOSE_VISIBLE = "Steht im Exposé";
+
+const objectFieldsShape = {
+	title: optionalText(250).describe(
+		"Überschrift, Format: „Logistikhalle in (XX) Ort“ (XX = erste zwei PLZ-Ziffern). Bei Einheiten im Projekt weglassen – dann gilt die Überschrift des Projekts",
+	),
+	marketing_type: z.enum(["BUY", "RENT"]).optional().describe("BUY = Kauf, RENT = Miete"),
+	rs_type: z.string().regex(/^[A-Z_]+$/).optional().describe("Objektart, z. B. INDUSTRY (Halle/Produktion), OFFICE. Die Objektkategorie (object_type) leitet Propstack daraus ab"),
+	rs_category: z.string().regex(/^[A-Z_]+$/).optional().describe("Unterart, z. B. HALL (How-to: Halle/Produktion → Halle), WAREHOUSE"),
+	unit_id: optionalText(50).describe("Einheitennummer, z. B. „Unit 1“ – bei Einheiten im Projekt Pflicht, bei Einzelobjekten weglassen"),
+	street: optionalText(200).describe("Straße. Bei Einheiten im Projekt weglassen, wenn die Adresse die des Projekts ist"),
+	house_number: optionalText(20),
+	zip_code: optionalText(10),
+	city: optionalText(100),
+	project_id: id.optional().describe("Projekt, zu dem die Einheit gehört"),
+	status_id: id
+		.optional()
+		.describe("Objekt-Status (list_reference kind=object_statuses): 163672 Akquise, 163673 Vorbereitung, 163674 Vermarktung, 163675 Reserviert, 163676 Abgeschlossen. Einen Status „vermietet“ gibt es nicht – dafür rented"),
+	price: num.describe("Öffentlicher Kaufpreis (nur BUY) – NUR mit public_price_confirmed. Ohne Ansage: weglassen, Objekt bekommt „Preis auf Anfrage“"),
+	base_rent: num.describe("Öffentliche Kaltmiete (nur RENT) – NUR mit public_price_confirmed. Interne Mietpreise immer in internal_rent_*"),
+	public_price_confirmed: z
+		.literal(true)
+		.optional()
+		.describe("Nur setzen, wenn der Nutzer einen ÖFFENTLICHEN Preis ausdrücklich angesagt oder auf Nachfrage bestätigt hat. Sonst vorher fragen. Wird protokolliert"),
+	price_on_inquiry: z.boolean().optional().describe("Preis auf Anfrage. Beim Anlegen automatisch true, außer ein öffentlicher Preis wird gesetzt"),
+	industrial_area: area.describe("Hallenfläche m²"),
+	total_floor_space: area.describe(
+		"Gesamtfläche m² – bitte WEGLASSEN: Der Connector rechnet sie immer selbst aus Hallenfläche + Mezzaninefläche (ohne Büro), beim Anlegen und bei jeder Änderung dieser Flächen. Ein abweichender Wert wird abgewiesen. Frei angebbar nur bei Objekten ohne Hallenfläche",
+	),
+	usable_floor_space: area.describe("Bürofläche m² (Standardfeld Nutzfläche)"),
+	plot_area: area.describe("Grundstücksfläche m²"),
+	hall_height: num.describe("Hallenhöhe in m UKB"),
+	floor_load: num.describe("Bodentragkraft in kg/m² – Propstack hängt kg/m² selbst an (5 t/m² = 5000)"),
+	construction_year: z.number().int().min(1800).max(2100).optional().describe("Baujahr"),
+	free_from: optionalText(100).describe(
+		"Verfügbar ab (Text), z. B. „sofort“, „auf Anfrage“, „Q3 2027“ oder „01.03.2027“. Die Custom-Felder „Bezug“ (gleicher Wortlaut) und „Bezug (Datum)“ (wenn der Text genau ein Datum nennt, sonst leer) zieht der Connector selbst nach – nicht zusätzlich angeben",
+	),
+	hide_address: z.boolean().optional().describe("Adresse im Exposé ausblenden"),
+	rented: z
+		.boolean()
+		.optional()
+		.describe(
+			"Vermietet ja/nein (Standard: nicht vermietet). true setzt automatisch free_from „vermietet“ (samt „Bezug“), status_logistik/aktiv Inaktiv und die verfügbaren Flächen auf „X m² (vermietet)“. Den Status (163676 Abgeschlossen) separat über status_id setzen. Bei false (wieder verfügbar) free_from mit angeben, sonst bleibt „vermietet“ stehen",
+		),
+	commission: commissionParam,
+	courtage: optionalText(200).describe("Außenprovision fürs Exposé – nur der Provisionstext, keine Arbeitsvermerke. Bei Einheiten im Projekt weglassen (kommt vom Projekt)"),
+	courtage_note: optionalText(2000).describe("Provisionshinweis. Standardtexte über commission"),
+	description_note: optionalText(10000).describe(`${TEXT_RULES.description_object}. ${EXPOSE_VISIBLE}`),
+	location_note: optionalText(10000).describe(`${TEXT_RULES.location}. ${EXPOSE_VISIBLE}`),
+	furnishing_note: optionalText(10000).describe(`${TEXT_RULES.furnishing}. ${EXPOSE_VISIBLE}`),
+	other_note: optionalText(10000).describe(`Sonstiges. ${EXPOSE_VISIBLE} – keine Konditionen, Eigentümer, Kundennamen, Adresse oder offenen Punkte`),
+	bemerkung_append: optionalText(4000).describe(
+		"Änderungsvermerk im Custom-Feld „Bemerkung“ (nicht im Exposé): nur was geändert wurde und warum – wird mit Datum und Nutzer angehängt. Derselbe Vermerk wird am selben Tag nicht doppelt angehängt (already_present). Das Feld liest im Team kaum jemand: nichts hineinschreiben, was jemand lesen muss. Offene Punkte dem Nutzer melden (sie stehen auch in der Prüfaufgabe), Fachliches in die interne Notiz",
+	),
+	internal_note: optionalText(4000).describe(
+		"Interne Notiz (Propstack-Feld „Notiz“ = „Interne Notizen“ im How-to, nicht im Exposé): Freitext zusätzlich zu source_link, mandate, internal_commission, developer_project_name. Beim Ändern wird angehängt (mit Datum und Nutzer), nie ersetzt. Steht derselbe Text schon in der Notiz, wird er nicht noch einmal angehängt (already_present)",
+	),
+	...internalNoteShape,
+	...howtoObjectShape,
+	lat: z
+		.number()
+		.min(-90)
+		.max(90)
+		.optional()
+		.describe("Breitengrad – nur zusammen mit lng. Sonst: Koordinaten des Projekts (gleiche Adresse), Propstacks eigene Geokodierung oder OpenStreetMap"),
+	lng: z.number().min(-180).max(180).optional().describe("Längengrad"),
+	custom_fields: z
+		.record(z.string(), z.unknown())
+		.optional()
+		.describe(
+			"Weitere Custom-Felder {schlüssel: wert}, Schlüssel über list_fields entity=objects. Zahlen als nackte Zahl mit Dezimalpunkt (10.5, nie \"10,5\" oder \"6.417 m²\"), Auswahlfelder per Name oder Option-ID, null leert. Gesperrt: provisionspflichtig, provision, provision_intern, mezzanineflache, bemerkung. provision_extern und provision_interne_notiz folgen aus commission/courtage bzw. internal_commission und müssen nicht hier stehen. mietpreis_* sind öffentlich → nur mit public_price_confirmed",
+		),
+};
+
+const OBJECT_KEYS = [
+	"title", "marketing_type", "rs_type", "rs_category", "unit_id", "street", "house_number", "zip_code", "city", "project_id",
+	"price", "base_rent", "price_on_inquiry", "industrial_area", "total_floor_space", "usable_floor_space", "plot_area", "hall_height", "floor_load",
+	"construction_year", "free_from", "hide_address", "rented", "courtage", "courtage_note",
+	"description_note", "location_note", "furnishing_note", "other_note",
+] as const;
+
+function objectPayload(input: Raw): Raw {
+	const out: Raw = {};
+	for (const key of OBJECT_KEYS) if (input[key] !== undefined) out[key] = input[key];
+	if (input.status_id !== undefined) out.property_status_id = input.status_id;
+	return out;
+}
+
+const fieldLabel = (key: string) => (key === "property_status_id" ? "status_id" : key);
+
+function splitSolo(fields: Raw): { bulk: Raw; solo: [string, unknown][] } {
+	const bulk: Raw = {};
+	const solo: [string, unknown][] = [];
+	for (const [key, value] of Object.entries(fields)) {
+		if ((SOLO_OBJECT_FIELDS as readonly string[]).includes(key)) solo.push([key, value]);
+		else bulk[key] = value;
+	}
+	return { bulk, solo };
+}
+
+/** Einzel-PUTs; ein Fehler bricht die übrigen nicht ab (das Objekt existiert bereits). */
+async function writeSolo(client: PropstackClient, unitId: number, solo: [string, unknown][]): Promise<string[]> {
+	const errors: string[] = [];
+	for (const [key, value] of solo) {
+		try {
+			await client.updateUnit(unitId, { [key]: value });
+		} catch (error) {
+			errors.push(`${fieldLabel(key)}: ${(error as Error).message}`);
+		}
+	}
+	return errors;
+}
+
+function sameUnitValue(key: string, requested: unknown, actual: unknown): boolean {
+	if (key === "property_status_id" || key === "broker_id") return actual !== null && actual !== undefined && Number(actual) === requested;
+	return same(requested, actual);
+}
+
+function verifyObject(state: UnitState, fields: Raw, customExpect: Raw): { missing: string[]; unverified: string[] } {
+	const missing: string[] = [];
+	const unverified: string[] = [];
+	for (const [key, value] of Object.entries(fields)) {
+		const actual = unitValue(state, key);
+		if (actual === UNVERIFIABLE) unverified.push(fieldLabel(key));
+		else if (!sameUnitValue(key, value, actual)) missing.push(fieldLabel(key));
+	}
+	for (const [key, value] of Object.entries(customExpect)) {
+		const actual = unitCustomValue(state, key);
+		if (actual === UNVERIFIABLE) unverified.push(`custom_fields.${key}`);
+		else if (!same(value, actual)) missing.push(`custom_fields.${key}`);
+	}
+	return { missing, unverified };
+}
+
+/** Öffentliche Preise nur mit ausdrücklicher Bestätigung; Kaufpreis nur BUY, Kaltmiete nur RENT. */
+function checkPublicPrice(marketingType: unknown, fields: Raw, confirmed: boolean): boolean {
+	const publishing = fields.price !== undefined || fields.base_rent !== undefined;
+	if (!publishing) return false;
+	if (!confirmed) throw new PropstackError(`price/base_rent sind öffentliche Preise. ${PUBLIC_PRICE_HINT}`, 400);
+	if (fields.price !== undefined && marketingType !== "BUY") throw new PropstackError("price ist der Kaufpreis – nur bei BUY. Für Miete base_rent.", 400);
+	if (fields.base_rent !== undefined && marketingType !== "RENT") throw new PropstackError("base_rent ist die Kaltmiete – nur bei RENT. Für Kauf price.", 400);
+	return true;
+}
+
+export function groupIdsOfUnit(state: UnitState): number[] {
+	const fromDetail = groupIdsOf(state.detail);
+	return fromDetail.length || !state.row ? fromDetail : groupIdsOf(state.row);
+}
+
+async function objectCandidates(client: PropstackClient, zip: string): Promise<Raw[]> {
+	const loaded = await loadAll((q) => client.searchUnits(q), { archived: "-1", q: zip });
+	if (!loaded.complete) throw new PropstackError(`Zu viele Objekte in PLZ ${zip} für die Dublettenprüfung.`, 400);
+	return loaded.rows;
+}
+
+function gapNote(missing: string[], unverified: string[], writeErrors: string[]): string | undefined {
+	const parts: string[] = [];
+	if (writeErrors.length) parts.push("Einige Felder konnten nicht geschrieben werden (write_errors).");
+	if (missing.length) parts.push("Propstack hat einige Felder nicht übernommen (not_applied) – bitte in Propstack prüfen.");
+	if (unverified.length) parts.push("Einige Felder liefert Propstack nicht zurück und konnten deshalb nicht gegengeprüft werden (not_verifiable).");
+	return parts.length ? parts.join(" ") : undefined;
+}
+
+/**
+ * Interne Notiz, die Propstack nicht übernommen hat: einzeln nachsetzen. Hält sie auch dann nicht, bleibt
+ * „note“ unter not_applied stehen, und der Hinweis nennt den Text zum Eintragen von Hand – er steht damit
+ * auch in der Prüfaufgabe. Kein Ausweichen ins Feld „Bemerkung“ (Entscheidung Florian, 10.11.2026: dort
+ * stehen nur Änderungsvermerke, das Feld liest kaum jemand).
+ * manualText: der neue Teil der Notiz (beim Ändern nur die Ergänzung, nicht der Altbestand).
+ */
+async function settleInternalNote(client: PropstackClient, unitId: number, note: string, manualText: string, missing: string[]): Promise<string | undefined> {
+	const index = missing.indexOf("note");
+	if (index < 0) return undefined;
+	const byHand = `bitte von Hand unter „Interne Notizen“ eintragen:\n${manualText}`;
+	try {
+		await client.updateUnit(unitId, { note });
+		if (same(note, (((await client.getUnit(unitId)) ?? {}) as Raw).note)) {
+			missing.splice(index, 1);
+			return undefined;
+		}
+		return `Propstack hat die interne Notiz nicht übernommen – ${byHand}`;
+	} catch (error) {
+		return `Interne Notiz nicht gespeichert (${(error as Error).message}) – ${byHand}`;
+	}
+}
+
+export const createObjectInput = {
+	...objectFieldsShape,
+	marketing_type: z.enum(["BUY", "RENT"]).describe("BUY = Kauf, RENT = Miete (Pflicht)"),
+	rs_type: z.string().regex(/^[A-Z_]+$/).describe("Objektart (Pflicht), z. B. INDUSTRY (Halle/Produktion)"),
+	zip_code: z.string().trim().regex(/^\d{4,5}$/).optional(),
+	owner_contact_id: id.optional().describe("Eigentümer-Kontakt (eigener Shop) – wird als Eigentümer verknüpft. Bei Einheiten im Projekt denselben wie am Projekt angeben"),
+	contact_person_id: id.optional().describe("Ansprechpartner-Kontakt, sofern vorhanden – wird als Kontakt verknüpft. Bei Einheiten im Projekt denselben wie am Projekt"),
+	test: z.boolean().optional().describe(`Testdatensatz: setzt das Merkmal ${TEST_TAG}. Für alle Tests Pflicht.`),
+	allow_duplicate_reason: optionalText(500).describe("Nur wenn die Dublettenprüfung blockiert und es nachweislich ein anderes Objekt ist: Begründung (wird protokolliert)"),
+};
+
+export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<typeof createObjectInput>>): Promise<ToolOutput> {
+	const { client, user } = deps;
+	const now = deps.now?.() ?? new Date();
+	if ((input.lat === undefined) !== (input.lng === undefined)) throw new PropstackError("lat und lng nur zusammen angeben.", 400);
+
+	// Einheit im Projekt: Adresse, Überschrift, Texte, Provision und Koordinaten kommen vom Projekt, wenn nicht angegeben
+	// (How-to; Rückmeldung Oguzhan 24.10.: Beschreibung nicht 1:1 übernommen, Lage und Ausstattung fehlten)
+	const project = input.project_id ? await asObjectOrThrow(client.getProject(input.project_id)) : undefined;
+	const fromProject = (key: string): string | undefined => {
+		const value = scalar(project?.[key]);
+		return typeof value === "string" && value.trim() ? value.trim() : undefined;
+	};
+	const inherited: string[] = [];
+	const resolved: Raw = { ...input };
+	const ownAddress = input.street !== undefined || input.house_number !== undefined || input.zip_code !== undefined || input.city !== undefined;
+	if (project) {
+		if (!input.unit_id) throw new PropstackError("Eine Einheit im Projekt braucht eine Einheitennummer (unit_id, z. B. „Unit 1“).", 400);
+		if (!ownAddress) {
+			for (const key of ["street", "house_number", "zip_code", "city"]) {
+				const value = fromProject(key);
+				if (value !== undefined) resolved[key] = value;
+			}
+			if (resolved.street) inherited.push("address");
+		}
+		if (input.title === undefined) {
+			const title = fromProject("title") ?? fromProject("name");
+			if (title) {
+				resolved.title = title;
+				inherited.push("title");
+			}
+		}
+	}
+	const absent = ["title", "street", "zip_code", "city"].filter((key) => !resolved[key]);
+	if (absent.length) {
+		const why = !project
+			? ""
+			: ownAddress
+				? " – die Adresse einer Einheit entweder vollständig angeben (street, zip_code, city) oder ganz weglassen, dann gilt die des Projekts"
+				: " (auch am Projekt nicht hinterlegt)";
+		throw new PropstackError(`Pflichtangaben fehlen: ${absent.join(", ")}${why}.`, 400);
+	}
+	if (!/^\d{4,5}$/.test(String(resolved.zip_code))) throw new PropstackError(`PLZ „${resolved.zip_code}“ ist ungültig.`, 400);
+	const address = {
+		city: String(resolved.city),
+		house_number: resolved.house_number as string | undefined,
+		street: String(resolved.street),
+		zip_code: String(resolved.zip_code),
+	};
+
+	const fields = objectPayload(resolved);
+	const publishing = checkPublicPrice(input.marketing_type, fields, input.public_price_confirmed === true);
+	if (fields.price_on_inquiry === undefined) fields.price_on_inquiry = !publishing;
+	fields.broker_id = user.brokerId;
+	const derived: string[] = [];
+	// Gesamtfläche wird immer gerechnet (Halle + Mezzanine); ein abweichend mitgegebener Wert wird abgewiesen
+	const customMezzanine = input.custom_fields && MEZZANINE_KEY in input.custom_fields ? areaNumber(input.custom_fields[MEZZANINE_KEY]) : undefined;
+	const total = computedTotal(typeof fields.industrial_area === "number" ? fields.industrial_area : undefined, input.mezzanine_area ?? customMezzanine, fields.total_floor_space);
+	if (total !== undefined) {
+		if (fields.total_floor_space === undefined) derived.push("total_floor_space = Hallenfläche + Mezzaninefläche");
+		fields.total_floor_space = total;
+	}
+
+	// Kontakte vorher prüfen (404 → nichts anlegen statt Einheit ohne Eigentümer)
+	const ownerContact = input.owner_contact_id ? await asObjectOrThrow(client.getContact(input.owner_contact_id)) : undefined;
+	const owner = ownerContact ? { id: input.owner_contact_id!, name: String(scalar(ownerContact.name) ?? input.owner_contact_id) } : undefined;
+	const sameContact = input.contact_person_id !== undefined && input.contact_person_id === input.owner_contact_id;
+	const personContact = input.contact_person_id && !sameContact ? await asObjectOrThrow(client.getContact(input.contact_person_id)) : ownerContact;
+	const contactPerson = input.contact_person_id ? { id: input.contact_person_id, name: String(scalar(personContact?.name) ?? input.contact_person_id) } : undefined;
+
+	// Provision: ausdrücklich angegeben > Vorgabe (commission) > vom Projekt
+	const ownCommission = input.commission !== undefined || input.courtage !== undefined || input.courtage_note !== undefined;
+	Object.assign(fields, commissionFields(input.commission, input.marketing_type, input));
+	const inheritedTexts: Raw = {};
+	if (project) {
+		for (const key of ["description_note", "location_note", "furnishing_note", ...(ownCommission ? [] : ["courtage", "courtage_note"])]) {
+			const text = fromProject(key);
+			if (fields[key] !== undefined || text === undefined) continue;
+			fields[key] = text;
+			inherited.push(key);
+			inheritedTexts[key] = text;
+		}
+	}
+
+	// Texte: eigene Angaben werden bei Regelverstößen abgewiesen; vom Projekt Übernommenes nur gemeldet
+	const titleInherited = inherited.includes("title");
+	const textContext = { city: address.city, ownerNames: ownerNamesOf(ownerContact), publicPriceConfirmed: input.public_price_confirmed === true, street: address.street };
+	const ownTexts = Object.fromEntries(EXPOSE_TEXT_KEYS.filter((key) => !(key in inheritedTexts) && !(key === "title" && titleInherited)).map((key) => [key, fields[key]]));
+	const findings = checkExposeTexts(ownTexts, textContext);
+	throwOnTextErrors(findings);
+	const fromProjectFindings = checkExposeTexts({ ...inheritedTexts, ...(titleInherited ? { title: fields.title } : {}) }, textContext);
+	const textWarnings = [...findings.warnings, ...[...fromProjectFindings.errors, ...fromProjectFindings.warnings].map((w) => `Vom Projekt übernommen – ${w}`)];
+	// Eigene Überschrift streng nach How-to; eine vom Projekt übernommene (Alt-)Überschrift nur melden
+	const titleCheck = checkZipPrefix("Überschrift", fields.title, address.zip_code, titleInherited ? "warn" : "strict");
+	if (titleCheck.error && !titleInherited) throw new PropstackError(titleCheck.error, 400);
+	const titleFinding = titleCheck.error ?? titleCheck.warning;
+	if (titleFinding) textWarnings.push(`Vom Projekt übernommen – ${titleFinding}`);
+
+	const dedupe = objectDuplicates(
+		{ ...address, lat: input.lat, lng: input.lng, marketing_type: input.marketing_type, project_id: input.project_id, unit_id: input.unit_id },
+		await objectCandidates(client, address.zip_code),
+	);
+	if (dedupe.duplicates.length && !input.allow_duplicate_reason) {
+		return blockedResult(
+			dedupe,
+			"Nichts angelegt. Vorhandenes Objekt mit update_object ändern – oder, falls es nachweislich ein anderes Objekt ist, mit allow_duplicate_reason erneut aufrufen.",
+		);
+	}
+	const overrideReason = checkOverride(dedupe, input.allow_duplicate_reason);
+
+	const defs = await loadFieldDefs(client, "for_properties");
+	if (fields.rented === true && fields.free_from === undefined) fields.free_from = "vermietet";
+	if (input.active === true && fields.rented === true) {
+		throw new PropstackError("active: true und rented: true widersprechen sich – vermietete Einheiten sind inaktiv.", 400);
+	}
+	const rent = fields.rented === true ? "rented" : "available";
+	const howto = howtoCustomFields(input, defs, input.custom_fields, rent);
+	const explicit: Raw = { ...howto, ...input.custom_fields };
+	// Provision vollständig auf jede Einheit (Feld-Mapping, Korrektur 29) – auch wenn sie vom Projekt übernommen ist
+	const provision = provisionCustomFields(
+		{ commission: input.commission, courtage: fields.courtage, courtage_note: fields.courtage_note, internal_commission: input.internal_commission, marketing_type: input.marketing_type },
+		defs,
+		input.custom_fields,
+	);
+	const mirrored = mirroredCustomFields(fields, defs, explicit, {
+		active: input.active,
+		flags: true,
+		marketable: ACTIVE_STATUSES.includes(Number(fields.property_status_id)),
+		priceOnInquiry: fields.price_on_inquiry === true,
+		rent,
+	});
+	// „Bezug“ und „Bezug (Datum)“ folgen „Verfügbar ab“
+	if (typeof fields.free_from === "string") Object.assign(mirrored, availabilityMirror(fields.free_from, defs, explicit, { clear: false }));
+	const bezugNote = bezugDeviation(fields.free_from, input.custom_fields?.[BEZUG_KEY]);
+	// Testobjekte nie automatisch an Interessenten verschicken
+	if (input.test && defs.get("kein_automatischer_exposeversand")?.type === "Boolean" && !("kein_automatischer_exposeversand" in explicit)) {
+		mirrored.kein_automatischer_exposeversand = true;
+	}
+	const custom = await validateCustomFields(client, "for_properties", { ...mirrored, ...provision, ...explicit }, defs, {
+		publicPriceConfirmed: input.public_price_confirmed === true,
+	});
+	// Interne Notiz (How-to) ins Feld „Notiz“. Das Custom-Feld bemerkung ist nur Änderungsprotokoll:
+	// der Eintrag „Angelegt …“ und ggf. ein Änderungsvermerk
+	const noteLines = [...internalNoteLines(input), ...(input.internal_note ? [input.internal_note] : [])];
+	if (noteLines.length) fields.note = [originNote(user, now, "Angelegt"), ...noteLines].join("\n");
+	const bemerkung = [originNote(user, now, "Angelegt"), input.bemerkung_append].filter(Boolean).join("\n");
+	const customSend: Raw = { ...(custom?.send ?? {}), bemerkung };
+	const customExpect: Raw = { ...(custom?.expect ?? {}), bemerkung };
+	const tags = input.test ? [await ensureTestTag(client, "for_properties")] : [];
+
+	const { bulk, solo } = splitSolo(fields);
+	const payload: Raw = { ...bulk, ...(tags.length ? { group_ids: tags } : {}), partial_custom_fields: customSend };
+
+	const logId = await beginWrite(deps.db, {
+		action: "create",
+		before: null,
+		brokerId: user.brokerId,
+		entity: "object",
+		entityId: null,
+		overrideReason,
+		request: {
+			...payload,
+			contact_person_id: input.contact_person_id,
+			einzeln_nachgesetzt: Object.fromEntries(solo.map(([k, v]) => [fieldLabel(k), v])),
+			owner_contact_id: input.owner_contact_id,
+			public_price_confirmed: input.public_price_confirmed,
+		},
+		tool: "create_object",
+		userEmail: user.email,
+		warnings: [...dedupe.warnings, ...textWarnings, ...(bezugNote ? [bezugNote] : [])],
+	});
+	let newId: number;
+	try {
+		newId = createdId(await client.createUnit(payload));
+	} catch (error) {
+		await finishWrite(deps.db, logId, { error: (error as Error).message, status: "failed" });
+		throw error;
+	}
+
+	const writeErrors = await writeSolo(client, newId, solo);
+	const state = await readUnit(client, newId, { fresh: true, sleep: deps.sleep });
+	const { missing, unverified } = verifyObject(state, fields, customExpect);
+	const groups = groupIdsOfUnit(state);
+	for (const tag of tags) if (!groups.includes(tag)) missing.push(`tag ${TEST_TAG}`);
+	const noteHint = noteLines.length ? await settleInternalNote(client, newId, String(fields.note), noteLines.join("\n"), missing) : undefined;
+
+	// Koordinaten (Stufen-Trick, Kontrolle per Einzel-GET): angegeben > Projekt (gleiche Adresse) > Propstack > OpenStreetMap
+	const given = input.lat !== undefined && input.lng !== undefined;
+	const projectCoords = project && sameAddress({ ...address, marketing_type: "" }, project) ? coordsOf(project) : {};
+	const coordinates = await ensureCoordinates({
+		sleep: deps.sleep,
+		address,
+		current: coordsOf(state.detail),
+		fetchFn: deps.fetchFn,
+		provided: given ? { lat: input.lat, lng: input.lng } : hasCoordinates(projectCoords) ? projectCoords : undefined,
+		providedSource: given ? "angegeben" : "Projekt",
+		put: (body) => client.updateUnit(newId, body),
+		read: async () => coordsOf(((await client.getUnit(newId)) ?? {}) as Raw),
+	});
+	// Lücke nur, wenn geschrieben wurde und nicht haftet; „nichts gefunden“ steht im Ergebnis
+	if (!coordinates.verified && coordinates.source !== "keine") missing.push("lat/lng");
+
+	// Eigentümer und Ansprechpartner an der Einheit (How-to „Ansprechpartner“; Entscheidung Florian, 16.10.)
+	const target = { id: newId, type: "object" as const };
+	const ownerResult = owner ? await linkContact(client, target, owner.id, "owner", { fresh: true }) : undefined;
+	if (ownerResult?.error) writeErrors.push(`Eigentümer: ${ownerResult.error}`);
+	else if (ownerResult && ownerResult.linked !== true) missing.push("owner (nicht prüfbar)");
+	let contactResult: RelationResult | undefined;
+	if (contactPerson) {
+		contactResult = sameContact
+			? { already: true, linked: ownerResult?.linked ?? false, note: "Ansprechpartner ist der Eigentümer – als Eigentümer verknüpft." }
+			: await linkContact(client, target, contactPerson.id, "contact_person", { fresh: true });
+		if (contactResult.error) writeErrors.push(`Ansprechpartner: ${contactResult.error}`);
+		else if (contactResult.linked !== true && !sameContact) missing.push("contact_person (nicht prüfbar)");
+	}
+
+	const gaps = missing.length || writeErrors.length;
+	await finishWrite(deps.db, logId, {
+		entityId: newId,
+		error: writeErrors.length ? writeErrors.join(" | ") : undefined,
+		notApplied: [...missing, ...unverified.map((f) => `${f} (nicht prüfbar)`)],
+		status: gaps ? "done_with_gaps" : "done",
+	});
+
+	const notProvided = objectNotProvided(input, fields, { explicit: input.custom_fields, inProject: Boolean(project) });
+
+	// Einheit im Projekt: die Prüfaufgabe des Projekts deckt sie ab – eigene Aufgabe nur bei Problemen
+	// (Live-Befund 16.10.: 1 Projekt + 4 Einheiten = 5 Aufgaben für Lena).
+	const needsOwnTask = !input.project_id || missing.length > 0 || writeErrors.length > 0 || overrideReason !== null;
+	const title = String(fields.title);
+	const review = needsOwnTask
+		? await createReviewTask(client, deps.db, {
+				lines: [
+					`Objekt ${newId}: ${title}${input.unit_id ? ` – ${input.unit_id}` : ""}`,
+					`${CRM_BASE}/properties/${newId}`,
+					...(input.project_id ? [`Projekt: ${CRM_BASE}/projects/${input.project_id}`] : []),
+					`Angelegt über Claude (Propstack MCP) von ${user.name} am ${today(now)}.`,
+					relationLine("owner", owner, ownerResult),
+					relationLine("contact_person", contactPerson, contactResult),
+					coordinatesLine(coordinates),
+					...(overrideReason ? [`Dublette bewusst angelegt: ${overrideReason}`] : []),
+					...dedupe.warnings.map((w) => `Hinweis: ${w}`),
+					...(missing.length ? [`Nicht übernommen: ${missing.join(", ")}`] : []),
+					...(unverified.length ? [`Nicht prüfbar: ${unverified.join(", ")}`] : []),
+					...(writeErrors.length ? [`Fehler: ${writeErrors.join("; ")}`] : []),
+					...(notProvided.length ? [`Nicht angegeben (laut How-to wichtig): ${notProvided.join(", ")}`] : []),
+					...textWarnings.map((w) => `Texthinweis: ${w}`),
+					...(noteHint ? [`Hinweis: ${noteHint}`] : []),
+					"Prüfen: Stammdaten, Flächen (inkl. Custom-Felder), Texte (kein Eigentümer, keine Adresse, keine Preise), Provision, Bilder.",
+					...OBJECT_UI_STEPS,
+				],
+				now,
+				projectIds: input.project_id ? [input.project_id] : undefined,
+				propertyIds: [newId],
+				test: input.test === true,
+				title: `${title} - Objekt ${newId}`,
+				user,
+			})
+		: { covered_by: `Prüfaufgabe des Projekts ${input.project_id}` };
+
+	return {
+		count: 1,
+		result: {
+			created: true,
+			id: newId,
+			title: scalar(state.row?.title ?? state.detail.title),
+			link: `${CRM_BASE}/properties/${newId}`,
+			review_task: review,
+			broker: user.name,
+			test: input.test || undefined,
+			override_reason: overrideReason ?? undefined,
+			owner: owner ? { ...owner, linked: ownerResult?.linked } : undefined,
+			contact_person: contactPerson ? { ...contactPerson, linked: contactResult?.linked, note: contactResult?.note } : undefined,
+			coordinates,
+			inherited_from_project: inherited.length ? inherited : undefined,
+			derived: derived.length ? derived : undefined,
+			mirrored_custom_fields: Object.keys(mirrored).length || Object.keys(provision).length ? [...Object.keys(mirrored), ...Object.keys(provision)] : undefined,
+			warnings: dedupe.warnings.length || bezugNote ? [...dedupe.warnings, ...(bezugNote ? [bezugNote] : [])] : undefined,
+			text_warnings: textWarnings.length ? textWarnings : undefined,
+			howto_not_provided: notProvided.length ? notProvided : undefined,
+			internal_note_hint: noteHint,
+			ui_steps: input.project_id ? undefined : OBJECT_UI_STEPS,
+			not_applied: missing.length ? missing : undefined,
+			not_verifiable: unverified.length ? unverified : undefined,
+			write_errors: writeErrors.length ? writeErrors : undefined,
+			note: gapNote(missing, unverified, writeErrors),
+		},
+	};
+}
+
+export const updateObjectInput = {
+	id: id.describe("Propstack-Objekt-ID"),
+	...objectFieldsShape,
+	align_building_area: z
+		.literal(true)
+		.optional()
+		.describe(
+			"„Gebäudefläche gesamt“ an die Gesamtfläche angleichen (Halle + Mezzanine, ohne Büro – Entscheidung Florian, 11.11.2026): setzt das Custom-Feld gebaudeflache_gesamt auf die gespeicherte Gesamtfläche, zieht gebaudeflache_verfugbar nur nach, wo es schon befüllt und das Objekt nicht vermietet ist, und hängt einen Änderungsvermerk mit altem und neuem Wert an. Passt die Gesamtfläche nicht zu Hallenfläche + Mezzanine, wird abgewiesen – dann zuerst die Flächen berichtigen. Für viele Objekte: plan mit changes.align_building_area",
+		),
+	allow_duplicate_reason: optionalText(500).describe("Nur falls die geänderte Adresse/Einheit/Vermarktungsart mit einem anderen Objekt kollidiert: Begründung"),
+};
+
+export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<typeof updateObjectInput>>): Promise<ToolOutput> {
+	const { client, user } = deps;
+	const now = deps.now?.() ?? new Date();
+	if ((input.lat === undefined) !== (input.lng === undefined)) throw new PropstackError("lat und lng nur zusammen angeben.", 400);
+	const current = await readUnit(client, input.id);
+	const currentValue = (key: string) => {
+		const value = unitValue(current, key);
+		return value === UNVERIFIABLE ? undefined : value;
+	};
+	const currentText = (key: string) => String(scalar(currentValue(key)) ?? "");
+
+	const requested = objectPayload(input);
+	const marketingType = requested.marketing_type ?? scalar(currentValue("marketing_type"));
+	if (checkPublicPrice(marketingType, requested, input.public_price_confirmed === true) && requested.price_on_inquiry === undefined) {
+		requested.price_on_inquiry = false;
+	}
+	Object.assign(requested, commissionFields(input.commission, marketingType, input));
+	if (staleFreeCourtage(input.commission, input.courtage, scalar(currentValue("courtage")))) throw new PropstackError(STALE_FREE_COURTAGE, 400);
+
+	// Gesamtfläche wird immer gerechnet: Hallenfläche + Mezzaninefläche – je der neue Wert aus dem Aufruf, sonst der gespeicherte.
+	// Neu geschrieben wird sie, sobald der Aufruf eine der Flächen anfasst; Altobjekte, an denen nur anderes geändert wird, bleiben unberührt.
+	const totalNotes: string[] = [];
+	/** Zielwert für „Gebäudefläche gesamt“, wenn align_building_area gesetzt ist. */
+	let alignTarget: number | undefined;
+	{
+		const customGiven = input.custom_fields !== undefined && MEZZANINE_KEY in input.custom_fields;
+		const mezzanineGiven = input.mezzanine_area !== undefined || customGiven;
+		const mezzanineStored = unitCustomValue(current, MEZZANINE_KEY);
+		const hall = typeof requested.industrial_area === "number" ? requested.industrial_area : areaNumber(currentValue("industrial_area"));
+		const mezzanine =
+			input.mezzanine_area ?? (customGiven ? (areaNumber(input.custom_fields![MEZZANINE_KEY]) ?? 0) : mezzanineStored === UNVERIFIABLE ? undefined : areaNumber(mezzanineStored));
+		const touched = requested.industrial_area !== undefined || mezzanineGiven || requested.total_floor_space !== undefined;
+		// Steht im Feld ein Text, der keine Zahl ist („ca. 1.000 m²“), wäre die Rechnung falsch – dann lieber abweisen als die Mezzanine verlieren
+		const unreadable = !mezzanineGiven && mezzanineStored !== UNVERIFIABLE && !isEmpty(mezzanineStored) && areaNumber(mezzanineStored) === undefined;
+		if (unreadable && touched && hall !== undefined) {
+			throw new PropstackError(
+				`Die gespeicherte Mezzaninefläche („${String(scalar(mezzanineStored)).slice(0, 60)}“) ist keine lesbare Zahl – die Gesamtfläche lässt sich so nicht rechnen. Bitte mezzanine_area mit angeben.`,
+				400,
+			);
+		}
+		const computed = unreadable ? undefined : computedTotal(hall, mezzanine, requested.total_floor_space);
+		if (computed !== undefined && touched) {
+			requested.total_floor_space = computed;
+			if (!mezzanineGiven && mezzanineStored === UNVERIFIABLE) {
+				totalNotes.push(`Die gespeicherte Mezzaninefläche war nicht lesbar – Gesamtfläche = Hallenfläche (${showArea(computed)} m²) gesetzt. Bitte prüfen.`);
+			}
+		} else if (computed !== undefined) {
+			const stored = areaNumber(currentValue("total_floor_space"));
+			if (totalDiffers(stored, computed)) {
+				totalNotes.push(
+					`Gesamtfläche (${showArea(stored!)} m²) ist nicht Hallenfläche + Mezzanine (${showArea(computed)} m²). Sie wird neu gerechnet, sobald Hallen- oder Mezzaninefläche gesetzt wird – oder sofort mit total_floor_space: ${computed}.`,
+				);
+			}
+		}
+		// „Gebäudefläche gesamt“ angleichen: nur auf eine Gesamtfläche, die selbst stimmt – sonst würde ein falscher Wert weitergetragen
+		if (input.align_building_area) {
+			if (unreadable && hall !== undefined) {
+				throw new PropstackError(
+					`Die gespeicherte Mezzaninefläche („${String(scalar(mezzanineStored)).slice(0, 60)}“) ist keine lesbare Zahl – ob die Gesamtfläche stimmt, lässt sich so nicht prüfen. Bitte mezzanine_area mit angeben.`,
+					400,
+				);
+			}
+			const target = typeof requested.total_floor_space === "number" ? requested.total_floor_space : areaNumber(currentValue("total_floor_space"));
+			if (target === undefined) {
+				throw new PropstackError("Es ist keine Gesamtfläche gespeichert – „Gebäudefläche gesamt“ lässt sich nicht angleichen. Bitte zuerst die Flächen setzen.", 400);
+			}
+			if (computed !== undefined && totalDiffers(target, computed)) {
+				throw new PropstackError(
+					`Die gespeicherte Gesamtfläche (${showArea(target)} m²) ist nicht Hallenfläche + Mezzanine (${showArea(computed)} m²). Bitte zuerst die Gesamtfläche berichtigen (total_floor_space: ${computed}) – erst dann lässt sich „Gebäudefläche gesamt“ angleichen.`,
+					400,
+				);
+			}
+			alignTarget = target;
+		}
+	}
+
+	// Nur echte Änderungen schreiben; nicht lesbare Felder werden vorsichtshalber geschrieben
+	const fields: Raw = {};
+	const before: Raw = {};
+	for (const [key, value] of Object.entries(requested)) {
+		const actual = unitValue(current, key);
+		if (actual !== UNVERIFIABLE && sameUnitValue(key, value, actual)) continue;
+		fields[key] = value;
+		before[fieldLabel(key)] = actual === UNVERIFIABLE ? "nicht lesbar" : (scalar(actual) ?? null);
+	}
+
+	// Geänderte Texte gegen die Team-Regeln prüfen (unveränderte Alttexte bleiben unberührt)
+	const findings = checkExposeTexts(fields, {
+		city: String(requested.city ?? currentText("city")),
+		publicPriceConfirmed: input.public_price_confirmed === true,
+		street: String(requested.street ?? currentText("street")),
+	});
+	throwOnTextErrors(findings);
+	const notes = [...findings.warnings];
+	if (typeof fields.title === "string") {
+		const titleCheck = checkZipPrefix("Überschrift", fields.title, String(requested.zip_code ?? currentText("zip_code")));
+		if (titleCheck.error) throw new PropstackError(titleCheck.error, 400);
+	}
+	notes.push(...totalNotes);
+
+	// Adresse, Einheit oder Vermarktungsart geändert → Kollision mit anderem Objekt prüfen
+	let dedupe: DedupeResult = { duplicates: [], warnings: [] };
+	if (["street", "house_number", "zip_code", "unit_id", "marketing_type"].some((k) => k in fields)) {
+		const merged = (key: string) => String(fields[key] ?? scalar(currentValue(key)) ?? "");
+		const candidate = {
+			house_number: merged("house_number"),
+			lat: input.lat,
+			lng: input.lng,
+			marketing_type: merged("marketing_type"),
+			street: merged("street"),
+			unit_id: merged("unit_id"),
+			zip_code: merged("zip_code"),
+		};
+		if (candidate.zip_code) dedupe = objectDuplicates(candidate, await objectCandidates(client, candidate.zip_code), input.id);
+	}
+	if (dedupe.duplicates.length && !input.allow_duplicate_reason) {
+		return blockedResult(dedupe, "Nichts geändert – das Objekt würde mit einem vorhandenen kollidieren.");
+	}
+	const overrideReason = checkOverride(dedupe, input.allow_duplicate_reason);
+
+	// Flächen spiegeln; *_verfugbar nur, solange das Objekt nicht vermietet ist
+	const defs = await loadFieldDefs(client, "for_properties");
+	const rentedNow = requested.rented ?? scalar(currentValue("rented"));
+	if (input.active === true && rentedNow === true) {
+		throw new PropstackError("active: true passt nicht zu einem vermieteten Objekt – vermietete Einheiten sind inaktiv.", 400);
+	}
+	const rentState = rentedNow === true ? "rented" : rentedNow === false ? "available" : "unknown";
+	const rentChanged = "rented" in fields;
+	if (rentChanged && fields.rented === true && requested.free_from === undefined) {
+		const actual = unitValue(current, "free_from");
+		if (actual === UNVERIFIABLE || !same("vermietet", actual)) {
+			fields.free_from = "vermietet";
+			before.free_from = actual === UNVERIFIABLE ? "nicht lesbar" : (scalar(actual) ?? null);
+		}
+	}
+	// Aus den angefragten (nicht nur geänderten) Flächen – so werden auch Altobjekte nachgezogen,
+	// deren Custom-Varianten fehlen. Bei Vermietungswechsel auch die vorhandenen Flächen für
+	// „X m² (vermietet)“ heranziehen. Bereits richtige Werte nicht erneut schreiben.
+	const areaSource: Raw = { ...requested };
+	if (rentChanged) {
+		for (const key of ["industrial_area", "usable_floor_space", "total_floor_space"]) {
+			const actual = scalar(currentValue(key));
+			if (areaSource[key] === undefined && typeof actual === "number" && actual > 0) areaSource[key] = actual;
+		}
+	}
+	const howto = howtoCustomFields(input, defs, input.custom_fields, rentState);
+	const explicit: Raw = { ...howto, ...input.custom_fields };
+	// „Bezug“ und „Bezug (Datum)“ folgen „Verfügbar ab“ – sobald der Aufruf free_from nennt (auch unverändert: zieht
+	// Altbestand nach) oder die Einheit auf vermietet setzt. Sonst bleiben sie unberührt.
+	const rentedText = rentChanged && fields.rented === true && requested.free_from === undefined ? "vermietet" : undefined;
+	const freeFromTarget = requested.free_from !== undefined ? (typeof requested.free_from === "string" ? requested.free_from : null) : rentedText;
+	const availability = freeFromTarget !== undefined ? availabilityMirror(freeFromTarget, defs, explicit, { clear: true }) : {};
+	if (input.custom_fields && BEZUG_KEY in input.custom_fields) {
+		const deviation = bezugDeviation(freeFromTarget !== undefined ? freeFromTarget : scalar(currentValue("free_from")), input.custom_fields[BEZUG_KEY]);
+		if (deviation) notes.push(deviation);
+	}
+	if (rentChanged && fields.rented === false && requested.free_from === undefined && same("vermietet", scalar(currentValue("free_from")))) {
+		notes.push("Die Einheit ist wieder als nicht vermietet markiert, „Verfügbar ab“ steht aber noch auf „vermietet“ – bitte free_from angeben (z. B. „sofort“); „Bezug“ zieht dann mit.");
+	}
+	// „Gebäudefläche gesamt“ = Gesamtfläche (ohne Büro). „verfügbar“ nur, wo es schon befüllt ist und die Einheit
+	// nicht vermietet ist – leere Felder bleiben leer, damit das Angleichen nichts Neues ins Exposé bringt.
+	const alignment: Raw = {};
+	if (alignTarget !== undefined) {
+		const target = alignTarget;
+		const open = (key: string) => defs.has(key) && !(key in explicit);
+		const asField = (key: string) => (defs.get(key)!.type === "Number" ? target : `${showArea(target)} m²`);
+		if (open("gebaudeflache_gesamt")) alignment.gebaudeflache_gesamt = asField("gebaudeflache_gesamt");
+		const available = unitCustomValue(current, "gebaudeflache_verfugbar");
+		if (open("gebaudeflache_verfugbar") && rentState === "available" && available !== UNVERIFIABLE && !isEmpty(available)) {
+			alignment.gebaudeflache_verfugbar = asField("gebaudeflache_verfugbar");
+		}
+	}
+	// „Provision extern“ nur anfassen, wenn die Provision in diesem Aufruf geändert wird – dann aus dem Stand danach
+	const commissionTouched = input.commission !== undefined || input.courtage !== undefined || input.courtage_note !== undefined;
+	const provision = provisionCustomFields(
+		{
+			commission: input.commission,
+			courtage: commissionTouched ? (requested.courtage ?? scalar(currentValue("courtage"))) : undefined,
+			courtage_note: commissionTouched ? (requested.courtage_note ?? scalar(currentValue("courtage_note"))) : undefined,
+			internal_commission: input.internal_commission,
+			marketing_type: marketingType,
+		},
+		defs,
+		input.custom_fields,
+	);
+	const mirrored = Object.fromEntries(
+		Object.entries({
+			...mirroredCustomFields(areaSource, defs, explicit, {
+				active: input.active,
+				flags: rentChanged || "property_status_id" in fields || input.active !== undefined,
+				marketable: ACTIVE_STATUSES.includes(Number(requested.property_status_id ?? currentValue("property_status_id"))),
+				priceOnInquiry: requested.price_on_inquiry === true,
+				rent: rentState,
+			}),
+			...howto,
+			...provision,
+			...availability,
+			...alignment,
+		}).filter(([key, value]) => {
+			const actual = unitCustomValue(current, key);
+			return actual === UNVERIFIABLE || !same(value, actual);
+		}),
+	);
+	const custom = await validateCustomFields(client, "for_properties", { ...mirrored, ...input.custom_fields }, defs, {
+		publicPriceConfirmed: input.public_price_confirmed === true,
+	});
+	const customSend: Raw = { ...(custom?.send ?? {}) };
+	const customExpect: Raw = { ...(custom?.expect ?? {}) };
+	const customBefore: Raw = {};
+	for (const key of Object.keys(customSend)) {
+		const actual = unitCustomValue(current, key);
+		customBefore[key] = actual === UNVERIFIABLE ? "nicht lesbar" : rawValue(actual);
+	}
+	// Interne Notiz („Notiz“): anhängen, nie ersetzen – nur wenn der vorhandene Text lesbar ist
+	// Nicht doppelt: Was schon in der Notiz steht, wird nicht noch einmal angehängt (z. B. wiederholter Aufruf)
+	const alreadyPresent: string[] = [];
+	const noteAppend = [...internalNoteLines(input), ...(input.internal_note ? [input.internal_note] : [])];
+	let noteAddition: string | undefined;
+	if (noteAppend.length) {
+		const old = unitValue(current, "note");
+		if (old === UNVERIFIABLE) {
+			throw new PropstackError("Die vorhandene interne Notiz konnte nicht gelesen werden – nichts geändert, damit sie nicht überschrieben wird.", 0);
+		}
+		const oldText = String(scalar(old) ?? "").trim();
+		const appended = appendNote(oldText, originNote(user, now, "Ergänzt"), noteAppend);
+		if (appended.present.length) {
+			alreadyPresent.push(appended.text === undefined ? "internal_note (steht schon in der internen Notiz)" : `internal_note (${appended.present.length} von ${noteAppend.length} Teilen standen schon in der internen Notiz)`);
+		}
+		if (appended.text !== undefined) {
+			noteAddition = appended.addition;
+			fields.note = appended.text;
+			before.note = oldText;
+		}
+	}
+	// Angleichen hinterlässt einen eigenen Vermerk mit altem und neuem Wert – nur wenn sich das Feld wirklich ändert
+	let alignNote: string | undefined;
+	if (alignTarget !== undefined && "gebaudeflache_gesamt" in mirrored) {
+		const stored = unitCustomValue(current, "gebaudeflache_gesamt");
+		const old = stored === UNVERIFIABLE ? undefined : areaNumber(stored);
+		alignNote = `Gebäudefläche gesamt an die Gesamtfläche angeglichen (Halle + Mezzanine, ohne Büro): ${showArea(alignTarget)} m²${old !== undefined ? ` statt ${showArea(old)} m²` : ""}.`;
+	}
+	// Die Bemerkung ist ein Änderungsprotokoll. Ein mitgegebener Vermerk (bemerkung_append) ist doppelt, wenn er unter
+	// dem Stempel desselben Tages und Nutzers schon steht (Aufruf wiederholt). Der Angleich-Vermerk entsteht dagegen
+	// nur, wenn sich das Feld wirklich ändert: Er ist jedes Mal ein eigenes Ereignis und wird immer angehängt.
+	const userLines = input.bemerkung_append ? [input.bemerkung_append] : [];
+	const eventLines = alignNote ? [alignNote] : [];
+	let bemerkungAppended = false;
+	if (userLines.length || eventLines.length) {
+		const old = unitCustomValue(current, "bemerkung");
+		if (old === UNVERIFIABLE) {
+			throw new PropstackError("Die vorhandene Bemerkung konnte nicht gelesen werden – nichts geändert, damit sie nicht überschrieben wird.", 0);
+		}
+		const oldText = String(scalar(old) ?? "").trim();
+		const appended = appendNote(oldText, originNote(user, now, "Ergänzt"), userLines, { always: eventLines, sameStampOnly: true });
+		if (appended.present.length) alreadyPresent.push("bemerkung_append (derselbe Vermerk steht heute schon in der Bemerkung)");
+		if (appended.text !== undefined) {
+			customSend.bemerkung = appended.text;
+			customExpect.bemerkung = appended.text;
+			customBefore.bemerkung = oldText;
+			bemerkungAppended = true;
+		}
+	}
+	if (Object.keys(customBefore).length) before.custom_fields = customBefore;
+
+	const coordsRequested = input.lat !== undefined && input.lng !== undefined;
+	if (!Object.keys(fields).length && !Object.keys(customSend).length && !coordsRequested) {
+		return {
+			count: 0,
+			result: {
+				updated: false,
+				id: input.id,
+				already_present: alreadyPresent.length ? alreadyPresent : undefined,
+				warnings: notes.length ? notes : undefined,
+				note: "Keine Änderung – alle Werte sind bereits so gesetzt.",
+			},
+		};
+	}
+	// Auch Koordinaten gehören in den Snapshot (Write-Log: Stand vorher) – wichtig bei Korrekturen an Bestandsobjekten
+	if (coordsRequested) Object.assign(before, { lat: coordsOf(current.detail).lat ?? null, lng: coordsOf(current.detail).lng ?? null });
+	deps.capture?.({
+		after: { ...Object.fromEntries(Object.entries(fields).map(([k, v]) => [fieldLabel(k), v])), ...(Object.keys(customSend).length ? { custom_fields: customSend } : {}) },
+		before,
+	});
+
+	const { bulk, solo } = splitSolo(fields);
+	const payload: Raw = {
+		...bulk,
+		...(Object.keys(customSend).length ? { partial_custom_fields: customSend } : {}),
+	};
+
+	const logId = await beginWrite(deps.db, {
+		action: "update",
+		before,
+		brokerId: user.brokerId,
+		entity: "object",
+		entityId: input.id,
+		overrideReason,
+		request: {
+			...payload,
+			einzeln_nachgesetzt: Object.fromEntries(solo.map(([k, v]) => [fieldLabel(k), v])),
+			public_price_confirmed: input.public_price_confirmed,
+			...(coordsRequested ? { lat: input.lat, lng: input.lng } : {}),
+		},
+		tool: deps.logTool ?? "update_object",
+		userEmail: user.email,
+		warnings: [...dedupe.warnings, ...notes],
+	});
+	if (Object.keys(payload).length) {
+		try {
+			await client.updateUnit(input.id, payload);
+		} catch (error) {
+			await finishWrite(deps.db, logId, { error: (error as Error).message, status: "failed" });
+			throw error;
+		}
+	}
+	const writeErrors = await writeSolo(client, input.id, solo);
+	if (!Object.keys(payload).length && solo.length > 0 && writeErrors.length === solo.length) {
+		await finishWrite(deps.db, logId, { error: writeErrors.join(" | "), status: "failed" });
+		throw new PropstackError(`Nichts geändert: ${writeErrors.join("; ")}`, 0);
+	}
+
+	const state = await readUnit(client, input.id);
+	const { missing, unverified } = verifyObject(state, fields, customExpect);
+	if (noteAddition) {
+		// Hält die Notiz auch einzeln gesetzt nicht: Hinweis mit dem Text zum Eintragen von Hand
+		const hint = await settleInternalNote(client, input.id, String(fields.note), noteAddition, missing);
+		if (hint) notes.push(hint);
+	}
+	// Koordinaten nur, wenn ausdrücklich angegeben (Stufen-Trick, Kontrolle per Einzel-GET)
+	let coordinates: Awaited<ReturnType<typeof ensureCoordinates>> | undefined;
+	if (coordsRequested) {
+		coordinates = await ensureCoordinates({
+			sleep: deps.sleep,
+			current: coordsOf(state.detail),
+			provided: { lat: input.lat, lng: input.lng },
+			put: (body) => client.updateUnit(input.id, body),
+			read: async () => coordsOf(((await client.getUnit(input.id)) ?? {}) as Raw),
+		});
+		if (!coordinates.verified) missing.push("lat/lng");
+	}
+	await finishWrite(deps.db, logId, {
+		error: writeErrors.length ? writeErrors.join(" | ") : undefined,
+		notApplied: [...missing, ...unverified.map((f) => `${f} (nicht prüfbar)`)],
+		status: missing.length || writeErrors.length ? "done_with_gaps" : "done",
+	});
+
+	const warnings = [...dedupe.warnings, ...notes];
+	return {
+		count: 1,
+		result: {
+			updated: true,
+			id: input.id,
+			title: scalar(state.row?.title ?? state.detail.title),
+			changed: [
+				...Object.keys(fields).map((k) => (k === "note" ? "internal_note (angehängt)" : fieldLabel(k))),
+				...Object.keys(customSend).map((k) => (k === "bemerkung" && bemerkungAppended ? "bemerkung (angehängt)" : `custom_fields.${k}`)),
+				...(coordsRequested ? ["lat/lng"] : []),
+			],
+			already_present: alreadyPresent.length ? alreadyPresent : undefined,
+			warnings: warnings.length ? warnings : undefined,
+			not_applied: missing.length ? missing : undefined,
+			coordinates,
+			not_verifiable: unverified.length ? unverified : undefined,
+			write_errors: writeErrors.length ? writeErrors : undefined,
+			note: gapNote(missing, unverified, writeErrors),
+		},
+	};
+}
