@@ -246,6 +246,10 @@ for (const [name, erzeugen] of varianten) {
 			for (let i = 0; meta.fortsetzen === true && i < 50; i++) meta = await aufruf("meta/stand");
 			expect(meta).toEqual(szenario.dokumente["meta/stand"]);
 			for (const [dokument, erwartet] of Object.entries(szenario.dokumente)) expect(await aufruf(dokument, meta.aktualisiert as string), dokument).toEqual(erwartet);
+			// "alles" liest alle Dokumente des Stands mit einer Abfrage aus dem Speicher
+			const alles = await aufruf("alles", meta.aktualisiert as string);
+			expect(alles).toEqual({ dokumente: szenario.dokumente, stand: meta.aktualisiert });
+			expect(Object.keys(alles.dokumente as object).slice(0, 2)).toEqual(["meta/stand", "meta/projekte"]);
 			expect(band.unbekannt).toEqual([]);
 		});
 	});

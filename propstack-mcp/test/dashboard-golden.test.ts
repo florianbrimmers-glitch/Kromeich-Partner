@@ -74,6 +74,12 @@ describe("Abgleich mit dem bisherigen Python-Export", () => {
 					expect(await lauf.aufruf(name, aktualisiert), name).toEqual(erwartet);
 				}
 
+				// "alles": dieselben Dokumente in einer Antwort – nicht mehr und nicht weniger als der Export
+				const alles = (await lauf.aufruf("alles", aktualisiert)) as { stand: string; dokumente: Record<string, unknown> };
+				expect(alles.stand).toBe(aktualisiert);
+				expect(alles.dokumente).toEqual(szenario.dokumente);
+				expect(Object.keys(alles.dokumente).sort()).toEqual(Object.keys(szenario.dokumente).sort());
+
 				// genau dieselben Dokumente, nicht mehr und nicht weniger
 				const stand = lauf.store.staende[0];
 				expect((await lauf.store.dokumente(stand.id)).map((d) => d.name).sort()).toEqual(Object.keys(szenario.dokumente).sort());

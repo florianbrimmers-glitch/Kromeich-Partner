@@ -250,7 +250,9 @@ describe("dashboard_daten: Zwischenspeicher", () => {
 	it("stand unbekannt oder gelöscht: klarer Fehler statt eines falschen Dokuments, und kein neuer Aufbau", async () => {
 		const welt = kleineWelt();
 		const lauf = aufbau(welt);
-		await expect(lauf.aufruf({ dokument: "meta/stand", stand: "2026-11-12T09:00:00+01:00" })).rejects.toThrow(/Den Stand 2026-11-12T09:00:00\+01:00 gibt es für diese Parameter nicht \(mehr\)\. Neu beginnen: meta\/stand ohne den Parameter stand/);
+		await expect(lauf.aufruf({ dokument: "meta/stand", stand: "2026-11-12T09:00:00+01:00" })).rejects.toThrow(
+			"Den Stand 2026-11-12T09:00:00+01:00 gibt es für diese Parameter nicht (mehr). Neu beginnen: ohne den Parameter stand abrufen (meta/stand bzw. alles) und danach alle Dokumente neu holen.",
+		);
 		expect(welt.log).toEqual([]);
 		expect(lauf.store.staende).toEqual([]);
 
@@ -287,6 +289,96 @@ describe("dashboard_daten: Zwischenspeicher", () => {
 		const welt = kleineWelt();
 		await expect(dashboardDaten({ client: welt.client(), store: undefined, user: USER }, { dokument: "meta/stand" })).rejects.toThrow("Der Zwischenspeicher für das Dashboard ist nicht verfügbar.");
 		expect(welt.log).toEqual([]);
+	});
+});
+
+describe('dashboard_daten: dokument = "alles" – alle Dokumente eines Stands in einer Antwort', () => {
+	it("dieselben Dokumente wie die Einzelabrufe desselben Stands; die Schlüssel sind genau die, die meta/stand nennt", async () => {
+		const welt = grosseWelt();
+		const lauf = aufbau(welt);
+		const stand = await lauf.bisFertig({ dokument: "meta/stand" });
+		const anfragen = welt.log.length;
+
+		const alles = await lauf.aufruf({ dokument: "alles" });
+		expect(Object.keys(alles)).toEqual(["stand", "dokumente"]);
+		expect(alles.stand).toBe(stand.aktualisiert);
+		// Schlüssel: meta/stand, meta/projekte, dann genau die Wochen und Teile aus meta/stand – in dieser Reihenfolge
+		expect(Object.keys(alles.dokumente)).toEqual([
+			"meta/stand",
+			"meta/projekte",
+			...stand.wochen.map((woche: string) => `wochen/${woche}`),
+			...stand.pruefung_teile.map((teil: string) => `pruefung/${teil}`),
+		]);
+		expect(Object.keys(alles.dokumente)).toHaveLength(2 + 14 + 2);
+		// Werte: Zeichen für Zeichen die Einzelabrufe desselben Stands (also auch dieselbe Reihenfolge der Felder)
+		for (const [name, dokument] of Object.entries(alles.dokumente)) {
+			const einzeln = await lauf.aufruf({ dokument: name, stand: stand.aktualisiert });
+			expect(JSON.stringify(dokument), name).toBe(JSON.stringify(einzeln));
+		}
+		expect(alles.dokumente["meta/stand"]).toEqual(stand);
+		// alles aus dem Zwischenspeicher: keine weitere Propstack-Abfrage
+		expect(welt.log.length).toBe(anfragen);
+	});
+
+	it("baut den Stand wie meta/stand in Etappen auf: erst die kleine Antwort mit fortsetzen: true, dann die eine große", async () => {
+		const welt = grosseWelt();
+		const lauf = aufbau(welt);
+		const erste = await lauf.aufruf({ dokument: "alles" });
+		expect(erste).toMatchObject({ fortschritt: "Anlagedatum: 34 von 110 Projekten", fortsetzen: true, stand_von: "2026-11-12T09:47:42.960000+01:00" });
+		expect(erste.dokumente).toBeUndefined();
+		const alles = await lauf.bisFertig({ dokument: "alles" });
+		expect(lauf.anfragenJeAufruf).toEqual([40, 40, 39]);
+		expect(alles.stand).toBe("2026-11-12T09:47:42.960000+01:00");
+		expect(alles.dokumente["meta/stand"]).toMatchObject({ anzahl_aufgaben: 520, anzahl_einheiten: 250, anzahl_offen: 493, anzahl_projekte: 110 });
+		expect(alles.dokumente["pruefung/teil-01"].aufgaben).toHaveLength(400);
+		expect(alles.dokumente["pruefung/teil-02"].aufgaben).toHaveLength(120);
+		// eine Zeile, kompakt – in dieser Größe legt eine Claude-Sitzung die Antwort als Datei ab
+		const text = JSON.stringify(alles);
+		expect(text.length).toBeGreaterThan(150_000);
+		expect(text).not.toMatch(/\n/);
+	});
+
+	it("mit stand: genau dieser Stand, auch wenn inzwischen ein neuerer gebaut wurde; unbekannter Stand ist ein Fehler", async () => {
+		const welt = kleineWelt();
+		const lauf = aufbau(welt);
+		const alt = await lauf.bisFertig({ dokument: "alles" });
+		lauf.uhr.ms = JETZT + 40 * MINUTE;
+		welt.einheiten.push({ created_at: propstackZeit(JETZT + 10 * MINUTE), id: 104, project_id: 8, title: "Halle D" });
+		const neu = await lauf.bisFertig({ dokument: "alles" });
+		expect([alt.dokumente["meta/stand"].anzahl_einheiten, neu.dokumente["meta/stand"].anzahl_einheiten]).toEqual([3, 4]);
+		expect([alt.stand, neu.stand]).toEqual(["2026-11-12T09:47:42.960000+01:00", "2026-11-12T10:27:42.960000+01:00"]);
+
+		const anfragen = welt.log.length;
+		expect(await lauf.aufruf({ dokument: "alles", stand: alt.stand })).toEqual(alt);
+		expect(await lauf.aufruf({ dokument: "alles", stand: neu.stand })).toEqual(neu);
+		expect(await lauf.aufruf({ dokument: "alles" })).toEqual(neu); // ohne stand: der jüngste
+		// der Wert "stand" aus der Antwort gilt auch für Einzelabrufe
+		expect(await lauf.aufruf({ dokument: "meta/stand", stand: alt.stand })).toEqual(alt.dokumente["meta/stand"]);
+		await expect(lauf.aufruf({ dokument: "alles", stand: "2026-11-12T09:00:00+01:00" })).rejects.toThrow(/Den Stand 2026-11-12T09:00:00\+01:00 gibt es für diese Parameter nicht \(mehr\)/);
+		expect(welt.log.length).toBe(anfragen); // festes Lesen baut nie neu auf
+	});
+
+	it("tage und broker_ids wie bei den Einzelabrufen", async () => {
+		const lauf = aufbau(kleineWelt());
+		const alles = await lauf.bisFertig({ broker_ids: [387451], dokument: "alles", tage: 7 });
+		expect(alles.dokumente["meta/stand"]).toMatchObject({ anzahl_aufgaben: 0, anzahl_einheiten: 1, pruefer_broker_ids: [387451], tage: 7 });
+		expect(Object.keys(alles.dokumente)).toEqual(["meta/stand", "meta/projekte", "wochen/2026-KW46"]);
+	});
+
+	it("leeres Fenster: nur meta/stand und meta/projekte", async () => {
+		const alles = await aufbau(neueWelt()).bisFertig({ dokument: "alles" });
+		expect(Object.keys(alles.dokumente)).toEqual(["meta/stand", "meta/projekte"]);
+		expect(alles.dokumente["meta/projekte"]).toEqual({ projekte: {} });
+	});
+
+	it("passt der Speicher nicht zu meta/stand, kommt ein Fehler statt eines unbemerkt unvollständigen Stands", async () => {
+		const lauf = aufbau(kleineWelt());
+		await lauf.bisFertig({ dokument: "alles" });
+		const standId = lauf.store.staende[0].id;
+		lauf.store.dokumentZeilen = lauf.store.dokumentZeilen.filter((d) => d.name !== "wochen/2026-KW45");
+		await expect(lauf.aufruf({ dokument: "alles" })).rejects.toThrow(/ist nicht vollständig gespeichert \(es fehlt: wochen\/2026-KW45; nicht in meta\/stand genannt: nichts\)/);
+		lauf.store.dokumentZeilen.push({ bytes: 2, inhalt: "{}", name: "wochen/2026-KW45", standId }, { bytes: 2, inhalt: "{}", name: "wochen/2020-KW01", standId });
+		await expect(lauf.aufruf({ dokument: "alles" })).rejects.toThrow(/es fehlt: nichts; nicht in meta\/stand genannt: wochen\/2020-KW01/);
 	});
 });
 
@@ -514,7 +606,7 @@ describe("dashboard_daten über das MCP-Protokoll", () => {
 		expect(tool.inputSchema.additionalProperties).toBe(false);
 		const eigenschaften = tool.inputSchema.properties as Record<string, Record<string, unknown>>;
 		expect(eigenschaften.tage).toMatchObject({ maximum: 91, minimum: 1, type: "integer" });
-		expect(eigenschaften.dokument.pattern).toBe("^(meta\\/stand|meta\\/projekte|wochen\\/\\d{4}-KW\\d{2}|pruefung\\/teil-\\d{2})$");
+		expect(eigenschaften.dokument.pattern).toBe("^(alles|meta\\/stand|meta\\/projekte|wochen\\/\\d{4}-KW\\d{2}|pruefung\\/teil-\\d{2})$");
 	});
 
 	it("weist falsche Eingaben ab, bevor Propstack gefragt wird", async () => {
@@ -522,7 +614,10 @@ describe("dashboard_daten über das MCP-Protokoll", () => {
 		const { aufruf, store } = await verbinden(welt);
 		for (const args of [
 			{},
-			{ dokument: "alles" },
+			{ dokument: "alle" },
+			{ dokument: "Alles" },
+			{ dokument: "alles " },
+			{ dokument: "alles/meta" },
 			{ dokument: "meta/stand/../x" },
 			{ dokument: "wochen/2026-KW5" },
 			{ dokument: "pruefung/teil-1" },
@@ -558,6 +653,18 @@ describe("dashboard_daten über das MCP-Protokoll", () => {
 			["routine@kromeichpartner.de", "dashboard_daten", '{"dokument":"wochen/2026-KW46","stand":"2026-11-12T09:47:42.960000+01:00"}', 1, 1],
 			["routine@kromeichpartner.de", "dashboard_daten", '{"dokument":"wochen/2020-KW01"}', null, 0],
 		]);
+	});
+
+	it('dokument = "alles": eine Zeile; jeder Wert Zeichen für Zeichen wie der Einzelabruf; im Audit die Zahl der Dokumente', async () => {
+		const { aufruf, audits } = await verbinden(kleineWelt());
+		const alles = await aufruf({ dokument: "alles" });
+		expect(alles.fehler).toBe(false);
+		const namen = ["meta/stand", "meta/projekte", "wochen/2026-KW44", "wochen/2026-KW45", "wochen/2026-KW46", "pruefung/teil-01"];
+		const teile: string[] = [];
+		for (const name of namen) teile.push(`${JSON.stringify(name)}:${(await aufruf({ dokument: name, stand: "2026-11-12T09:47:42.960000+01:00" })).text}`);
+		expect(alles.text).toBe(`{"stand":"2026-11-12T09:47:42.960000+01:00","dokumente":{${teile.join(",")}}}`);
+		expect(alles.text).not.toMatch(/\n/);
+		expect(audits[0].slice(3, 7)).toEqual(["dashboard_daten", '{"dokument":"alles"}', 6, 1]);
 	});
 
 	it("solange der Stand nicht fertig ist: fortsetzen: true statt eines Dokuments, im Audit mit Anzahl 0", async () => {

@@ -244,14 +244,14 @@ Write-Log auswerten:
 SELECT ts, user_email, tool, entity, entity_id, status, not_applied, override_reason FROM write_log ORDER BY id DESC LIMIT 20;
 ```
 
-## Dashboard-Daten: `dashboard_daten` (v0.10.0, 12.11.2026)
+## Dashboard-Daten: `dashboard_daten` (v0.10.0, 12.11.2026; Abruf „alles“ seit v0.10.1)
 
 **Anlass:** Das Dashboard „Objektanlage & Prüfaufgaben“ (claude.ai-Artifact, Quelltext `weekly_report/dashboard/dashboard.html`) darf Propstack nicht selbst abfragen. Bisher holte eine tägliche Routine die Daten mit `python -m weekly_report.dashboard_export` – dafür lagen Propstack-Keys in der Claude-Umgebung. Jetzt holt der Connector die Daten; der Key bleibt im Worker. Routine und Dashboard stellt die Sitzung um, die das Dashboard betreut.
 
 **Eingabe:**
-- `dokument`: `meta/stand`, `meta/projekte`, `wochen/<JJJJ-KWnn>` oder `pruefung/teil-<nn>`
+- `dokument`: `meta/stand`, `meta/projekte`, `wochen/<JJJJ-KWnn>` oder `pruefung/teil-<nn>` – oder `alles` für alle Dokumente eines Stands in einer Antwort (seit v0.10.1)
 - `tage` (Standard 91, höchstens 91) und `broker_ids` (Standard `[254958]`, der Sitz, auf dem die Prüfaufgaben gepflegt werden)
-- `stand` (Zusatz zur Vorgabe, optional): der Wert `aktualisiert` aus `meta/stand`. Dann kommt das Dokument genau aus diesem Stand oder ein Fehler – nie aus einem anderen.
+- `stand` (Zusatz zur Vorgabe, optional): der Wert `aktualisiert` aus `meta/stand` bzw. `stand` aus der Antwort auf `alles`. Dann kommt die Antwort genau aus diesem Stand oder ein Fehler – nie aus einem anderen.
 
 **Ausgabe:** genau das Dokument, das `baue_dokumente()` im bisherigen Export erzeugt – gleiche Feldnamen in gleicher Reihenfolge, Wochenschlüssel = ISO-Woche in Berliner Zeit, 400 Aufgaben je Teil, gleiche Regel für die Art („Pruefung“ → „Prüfung“). Kompaktes JSON ohne Hülle und ohne Zusatzfelder. Solange der Stand nicht fertig ist, kommt stattdessen `{"fortsetzen": true, "phase": …, "fortschritt": …}`.
 
@@ -276,10 +276,20 @@ SELECT ts, user_email, tool, entity, entity_id, status, not_applied, override_re
 - Mit `stand` bleibt ein Stand **bis zu 24 Stunden** lesbar; ältere Stände löscht der nächste Aufbau und der tägliche Cron. Ein unfertiger Stand, der älter als 30 Minuten ist, wird verworfen.
 - Gleichzeitige Aufrufe: Je Parametersatz gibt es höchstens einen Stand im Aufbau (eindeutiger Index). Eine Sperre (zwei Minuten) lässt nur einen Aufruf bauen, die anderen bekommen „erneut aufrufen“. Bleibt ein Aufruf hängen und ein zweiter übernimmt, überschreibt der Nachzügler nichts: Fertigstellen wirkt nur, solange der Stand im Aufbau ist.
 
-**Empfohlener Ablauf für die Routine:**
-1. `dashboard_daten` mit `dokument: "meta/stand"` aufrufen und wiederholen, solange `fortsetzen: true` kommt (nacheinander, nicht parallel).
-2. Aus `meta/stand` den Wert `aktualisiert` nehmen. Danach `meta/projekte`, jede Woche aus `wochen` (`wochen/<Woche>`) und jeden Teil aus `pruefung_teile` (`pruefung/<Teil>`) holen – jeweils mit `stand` = `aktualisiert`.
-3. Jedes Dokument unverändert in die Datenbank des Artifacts schreiben.
+**Abruf „alles“ (v0.10.1, Auftrag Florian vom 12.11.2026).** Die Routine muss jedes Dokument unverändert in die Datenbank des Artifacts schreiben. Verlässlich geht das nur per Datei – und eine Tool-Antwort liegt in einer Claude-Sitzung nur dann als Datei vor, wenn sie zu groß fürs Gespräch ist. Bei den Einzelabrufen galt das nur für `pruefung/teil-01`; die übrigen Dokumente hätte das Modell abschreiben müssen.
+- `dokument: "alles"` liefert, sobald der Stand fertig ist, **eine** Antwort in einer Zeile: `{"stand": "<aktualisiert>", "dokumente": {"meta/stand": {…}, "meta/projekte": {…}, "wochen/2026-KW33": {…}, …, "pruefung/teil-01": {…}, …}}`.
+- Schlüssel = Name des Dokuments (Sammlung/Dokument) wie bei den Einzelabrufen. Reihenfolge: `meta/stand`, `meta/projekte`, dann die Wochen und Teile so, wie `meta/stand` sie nennt.
+- Die Werte sind Zeichen für Zeichen dieselben wie bei den Einzelabrufen – es sind dieselben gespeicherten Dokumente. Passt der Speicher nicht zu dem, was `meta/stand` nennt, kommt ein Fehler statt eines unvollständigen Stands.
+- Solange der Stand aufgebaut wird, kommt wie sonst die kleine Antwort mit `fortsetzen: true`. `stand`, `tage` und `broker_ids` wirken wie bei den Einzelabrufen. Die Einzelabrufe bleiben unverändert.
+- Grenzen: Der Weg durch Cloudflare trägt bis 32 MiB je Antwort (WebSocket-Nachricht zwischen Worker und Durable Object). Was Claude selbst annimmt, ist nicht dokumentiert – live geprüft mit der heutigen Größe (siehe Abnahme unten). Wächst der Bestand stark, ist die Größe neu zu prüfen; die Einzelabrufe bleiben der Rückweg.
+- Der Weg hängt daran, dass die Sitzung zu große Tool-Antworten als Datei ablegt. Käme die Antwort eines Tages doch ins Gespräch, darf die Routine sie nicht abschreiben, sondern muss abbrechen und melden.
+
+**Empfohlener Ablauf für die Routine (seit v0.10.1):**
+1. `dashboard_daten` mit `dokument: "alles"` aufrufen und wiederholen, solange `fortsetzen: true` kommt (nacheinander, nicht parallel).
+2. Die Antwort kommt nicht ins Gespräch, sondern liegt als Datei in der Sitzung (Meldung „exceeds maximum allowed tokens … Output has been saved to <Pfad>“). Die Datei ist reines JSON.
+3. Ein kurzes Skript liest die Datei und schreibt je Schlüssel aus `dokumente` eine Datei; diese gehen per Dateipfad unverändert in die Datenbank des Artifacts.
+
+Einzelabrufe (weiterhin möglich): `meta/stand` abrufen, bis das Dokument kommt; danach `meta/projekte`, jede Woche aus `wochen` (`wochen/<Woche>`) und jeden Teil aus `pruefung_teile` (`pruefung/<Teil>`) – jeweils mit `stand` = `aktualisiert`.
 
 **Gleichheit mit dem bisherigen Export – wie geprüft:**
 - Die 12 Fälle aus `tests/weekly_report/test_dashboard_export.py` und die Parsing-Fälle aus `test_propstack_parsing.py` sind portiert (`test/dashboard-dokumente.test.ts`, `test/dashboard-zeit.test.ts`).
@@ -305,10 +315,10 @@ SELECT ts, user_email, tool, entity, entity_id, status, not_applied, override_re
 - Gibt es im Fenster keine Projekte, fragt der Connector die Projektliste nicht ab.
 - Liefert Propstack mehr Seiten als die Reißleine erlaubt (8.000 Datensätze), speichert der Export still ein unvollständiges Ergebnis. Der Connector bricht mit Fehlermeldung ab.
 
-**Offen (Entscheidung Florian bzw. Dashboard-Sitzung): Wie kommen die Dokumente ohne Abschreiben in die Datenbank des Artifacts?** Drei Wege, keiner davon über die Vorgabe hinaus gebaut:
-1. **So lassen.** Die Routine holt 17 Dokumente einzeln; 16 gibt das Modell wieder. Funktioniert, ist aber der teuerste und fehleranfälligste Weg.
-2. **Ein Abruf für alles** (`dokument: "alle"`, Empfehlung): eine Antwort mit allen Dokumenten (rund 222 KB). Sie ist immer zu groß für das Gespräch und landet deshalb als Datei in der Sitzung; ein kurzes Skript teilt sie in die Einzeldokumente. Kein neuer Zugang, nichts läuft durch das Modell. Hängt daran, dass die Sitzung große Antworten weiter als Datei ablegt – so wie am 12.11.2026 beobachtet.
-3. **Download-Link** (15 Minuten gültig, wie beim Bild-Upload): Die Routine holt alle Dokumente per Link als Datei. Unabhängig vom Verhalten der Sitzung, aber ein neuer Zugang ohne Anmeldung, und die Umgebung der Routine muss den Server erreichen dürfen.
+**Entschieden (Florian, 12.11.2026): ein Abruf für alles.** Zur Wahl standen drei Wege, die Dokumente ohne Abschreiben in die Datenbank des Artifacts zu bringen:
+1. So lassen – die Routine holt 17 Dokumente einzeln, 16 gibt das Modell wieder. Teuer und fehleranfällig.
+2. **Ein Abruf für alles – umgesetzt in v0.10.1** (siehe oben). Kein neuer Zugang, nichts läuft durch das Modell.
+3. Download-Link (15 Minuten gültig, wie beim Bild-Upload) – unabhängig vom Verhalten der Sitzung, aber ein neuer Zugang ohne Anmeldung. Nicht gebaut; bleibt der Ausweg, falls Weg 2 an einer Grenze von Claude scheitert.
 
 ## Audit-Log (D1)
 
