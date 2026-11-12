@@ -142,6 +142,9 @@ export function mapContactDetail(raw: Raw) {
 			"home_cell",
 			"office_phone",
 			"office_cell",
+			// Website – create_company setzt sie am Firmen-Datensatz (Live-Abnahme 12.11.2026: stand in Propstack, fehlte in der Ausgabe)
+			"office_url",
+			"home_url",
 			"broker_id",
 			"parent_id",
 			"children_size",
