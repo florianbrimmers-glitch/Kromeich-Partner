@@ -227,5 +227,11 @@ describe("Kontakt-Einzelansicht: Quelle mit Namen (Live-Abnahme Kontakte, 12.11.
 		expect(mit).toMatchObject({ client_source_id: 211511, source: { id: 211511, name: "Homepage" } });
 		expect(mapContactDetail({ client_source: null, id: 1, name: "Anna Muster" })).not.toHaveProperty("source");
 	});
+
+	it("zeigt die Website – sonst lässt sich am Firmen-Datensatz nicht nachlesen, was create_company gesetzt hat (Live-Abnahme 12.11.2026)", () => {
+		const firma = mapContactDetail({ company: "MCP-TEST Musterfirma GmbH", home_url: null, id: 38366588, is_company: true, name: "MCP-TEST Musterfirma GmbH", office_url: "https://example.com" });
+		expect(firma).toMatchObject({ is_company: true, office_url: "https://example.com" });
+		expect(firma).not.toHaveProperty("home_url");
+	});
 });
 
