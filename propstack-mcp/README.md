@@ -284,6 +284,14 @@ SELECT ts, user_email, tool, entity, entity_id, status, not_applied, override_re
 - Grenzen: Der Weg durch Cloudflare trägt bis 32 MiB je Antwort (WebSocket-Nachricht zwischen Worker und Durable Object). Was Claude selbst annimmt, ist nicht dokumentiert – live geprüft mit der heutigen Größe (siehe Abnahme unten). Wächst der Bestand stark, ist die Größe neu zu prüfen; die Einzelabrufe bleiben der Rückweg.
 - Der Weg hängt daran, dass die Sitzung zu große Tool-Antworten als Datei ablegt. Käme die Antwort eines Tages doch ins Gespräch, darf die Routine sie nicht abschreiben, sondern muss abbrechen und melden.
 
+**Live-Abnahme „alles“ (12.11.2026, 11:29 Uhr, v0.10.1):**
+- Die Antwort kam als Datei an. Meldung der Sitzung, wörtlich: „Error: result (220,566 characters across 1 line) exceeds maximum allowed tokens. Output has been saved to …/tool-results/mcp-Propstack-dashboard_daten-….txt“.
+- Die Datei ist reines, kompaktes JSON ohne Hülle: 222.358 Bytes, eine Zeile, `{"stand": …, "dokumente": {…}}` mit **17 Dokumenten**. Die Schlüssel sind genau die, die `meta/stand` nennt, in derselben Reihenfolge.
+- Alle 17 Dokumente aus der Datei wurden mit dem bisherigen Export verglichen, auf denselben Zeitpunkt gestellt: **identisch, einschließlich der Feldreihenfolge** (363 Einheiten, 104 Projekte, 522 Prüfaufgaben, davon 495 offen).
+- Aufbau in Etappen mit „alles“ (eigener Stand mit `tage: 90`): zweimal `fortsetzen: true` (nach 40 und 80 Abfragen), beim dritten Aufruf die Datei mit 17 Dokumenten. Die drei Aufrufe dauerten 22, 11 und 15 Sekunden.
+- `stand`: Derselbe Stand noch einmal abgerufen ergab eine bytegleiche Datei; ein unbekannter Stand ergab die Fehlermeldung; der Einzelabruf `meta/stand` mit `stand` ergab dasselbe Dokument wie in der Datei.
+- Aus dem Zwischenspeicher kam die ganze Antwort in 1,5 Sekunden. Kein Aufruf wartete auf eine Genehmigung. Aufgerufen wurde aus einer laufenden Sitzung, die noch die alte Tool-Definition kannte – der neue Wert „alles“ wurde trotzdem angenommen.
+
 **Empfohlener Ablauf für die Routine (seit v0.10.1):**
 1. `dashboard_daten` mit `dokument: "alles"` aufrufen und wiederholen, solange `fortsetzen: true` kommt (nacheinander, nicht parallel).
 2. Die Antwort kommt nicht ins Gespräch, sondern liegt als Datei in der Sitzung (Meldung „exceeds maximum allowed tokens … Output has been saved to <Pfad>“). Die Datei ist reines JSON.
