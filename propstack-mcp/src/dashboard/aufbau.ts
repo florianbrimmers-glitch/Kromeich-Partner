@@ -76,20 +76,23 @@ export const STANDARD_GRENZEN: Grenzen = {
 	zeitMs: 20_000,
 };
 
-export const DOKUMENT_MUSTER = /^(meta\/stand|meta\/projekte|wochen\/\d{4}-KW\d{2}|pruefung\/teil-\d{2})$/;
+/** Alle Dokumente eines Stands in einer Antwort (statt eines einzelnen Dokuments). */
+export const ALLES = "alles";
+
+export const DOKUMENT_MUSTER = /^(alles|meta\/stand|meta\/projekte|wochen\/\d{4}-KW\d{2}|pruefung\/teil-\d{2})$/;
 
 export const dashboardDatenInput = {
 	dokument: z
 		.string()
 		.regex(DOKUMENT_MUSTER)
-		.describe('Welches Dokument: "meta/stand" (zuerst abrufen – nennt die Wochen und Prüfungs-Teile), "meta/projekte", "wochen/<JJJJ-KWnn>" (z. B. wochen/2026-KW46) oder "pruefung/teil-<nn>" (z. B. pruefung/teil-01)'),
+		.describe('Welches Dokument: "alles" (alle Dokumente des Stands in einer Antwort), "meta/stand" (bei Einzelabrufen zuerst – nennt die Wochen und Prüfungs-Teile), "meta/projekte", "wochen/<JJJJ-KWnn>" (z. B. wochen/2026-KW46) oder "pruefung/teil-<nn>" (z. B. pruefung/teil-01)'),
 	tage: z.number().int().min(1).max(STANDARD_TAGE).optional().describe(`Fenster in Tagen zurück ab jetzt (Standard ${STANDARD_TAGE}, höchstens ${STANDARD_TAGE})`),
 	broker_ids: z.array(id).min(1).max(5).optional().describe(`Propstack-Nutzer, deren Aufgaben als Prüfaufgaben zählen (Standard [${STANDARD_BROKER_IDS.join(", ")}])`),
 	stand: z
 		.string()
 		.max(40)
 		.optional()
-		.describe('Wert "aktualisiert" aus meta/stand. Dann kommt das Dokument genau aus diesem Stand (bis 24 Stunden lang) – oder ein Fehler, wenn es ihn nicht mehr gibt. Für alle Abrufe nach meta/stand angeben, damit alles aus demselben Stand stammt.'),
+		.describe('Wert "aktualisiert" aus meta/stand bzw. "stand" aus der Antwort auf "alles". Dann kommt die Antwort genau aus diesem Stand (bis 24 Stunden lang) – oder ein Fehler, wenn es ihn nicht mehr gibt. Bei Einzelabrufen für alle Abrufe nach meta/stand angeben, damit alles aus demselben Stand stammt.'),
 };
 
 export type DashboardClient = Pick<PropstackClient, "listUnitsExpanded" | "listProjectsPage" | "listActivities" | "requestsUsed">;
@@ -159,7 +162,34 @@ function nochNichtFertig(stand: Pick<Stand, "phase" | "cursor" | "broker_ids" | 
 	};
 }
 
+/**
+ * Alle Dokumente eines fertigen Stands in einer Antwort: {"stand": <aktualisiert>, "dokumente": {"meta/stand": …, …}}.
+ * Für Abläufe, die die Dokumente als Datei weiterverarbeiten: Die Antwort ist zu groß für ein Gespräch, eine
+ * Claude-Sitzung legt sie deshalb als Datei ab – so läuft kein Dokument durch das Sprachmodell.
+ * Reihenfolge der Schlüssel: meta/stand, meta/projekte, dann Wochen und Teile so, wie meta/stand sie nennt.
+ * Die Werte sind dieselben wie bei den Einzelabrufen (gleiche gespeicherte Dokumente).
+ */
+async function allesAus(store: DashboardStore, stand: Stand): Promise<ToolOutput> {
+	const zeilen = new Map((await store.dokumente(stand.id)).map((zeile) => [zeile.name, zeile.inhalt]));
+	const meta = zeilen.get("meta/stand");
+	const inhalt = meta ? (JSON.parse(meta) as { wochen?: string[]; pruefung_teile?: string[] }) : {};
+	const namen = ["meta/stand", "meta/projekte", ...(inhalt.wochen ?? []).map((woche) => `wochen/${woche}`), ...(inhalt.pruefung_teile ?? []).map((teil) => `pruefung/${teil}`)];
+	// Genau die Dokumente, die meta/stand nennt – lieber ein Fehler als ein unbemerkt unvollständiger Stand.
+	const fehlt = namen.filter((name) => !zeilen.has(name));
+	const zuviel = [...zeilen.keys()].filter((name) => !namen.includes(name));
+	if (fehlt.length || zuviel.length) {
+		throw new PropstackError(
+			`Der Stand ${stand.until_iso} ist nicht vollständig gespeichert (es fehlt: ${fehlt.join(", ") || "nichts"}; nicht in meta/stand genannt: ${zuviel.join(", ") || "nichts"}). Bitte melden – ein Abruf ohne stand baut nach 30 Minuten einen neuen Stand auf.`,
+			0,
+		);
+	}
+	const dokumente: Record<string, unknown> = {};
+	for (const name of namen) dokumente[name] = JSON.parse(zeilen.get(name) as string);
+	return { count: namen.length, result: { stand: stand.until_iso, dokumente } };
+}
+
 async function dokumentAus(store: DashboardStore, stand: Stand, name: string): Promise<ToolOutput> {
+	if (name === ALLES) return allesAus(store, stand);
 	const zeile = await store.dokument(stand.id, name);
 	if (zeile) return { count: 1, result: JSON.parse(zeile.inhalt) };
 	const meta = await store.dokument(stand.id, "meta/stand");
@@ -213,7 +243,7 @@ export async function dashboardDaten(deps: DashboardDeps, input: Eingabe): Promi
 		const fest = await store.fertiger(params, gewuenscht);
 		if (!fest) {
 			throw new PropstackError(
-				`Den Stand ${gewuenscht} gibt es für diese Parameter nicht (mehr). Neu beginnen: meta/stand ohne den Parameter stand abrufen und danach alle Dokumente neu holen.`,
+				`Den Stand ${gewuenscht} gibt es für diese Parameter nicht (mehr). Neu beginnen: ohne den Parameter stand abrufen (meta/stand bzw. alles) und danach alle Dokumente neu holen.`,
 				404,
 			);
 		}
