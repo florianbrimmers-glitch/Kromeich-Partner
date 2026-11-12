@@ -23,6 +23,7 @@ Live unter `https://propstack-mcp.kromeichpartner.workers.dev/mcp`, als Organisa
 | `list_fields` | Custom-Felder je Entität | `GET /custom_field_groups` |
 | `list_reference` | Objekt-Status, Kontakt-Quellen, Nutzer, Projekte mit IDs | `GET /property_statuses`, `/contact_sources`, `/brokers`, `/projects` |
 | `aggregate` | Zählen nach Dimension, mit allen Such-Filtern; Deals je Phase mit Summen | `with_meta=1&per=1` → `meta.total_count` |
+| `dashboard_daten` | Daten für das Dashboard „Objektanlage & Prüfaufgaben“, ein Dokument je Aufruf (siehe eigener Abschnitt) | `GET /units?expand=1`, `GET /projects`, `GET /activities?item_type=reminder` |
 
 Grundsätze:
 - **Kürzen:** Antworten enthalten nur relevante Felder (`src/propstack/mappers.ts`). Bei Kontakten werden Ausweis- und Steuernummer, Geburtsdaten, Einkommen, Nationalität und der Kundenportal-Token **nie** ausgegeben.
@@ -242,6 +243,57 @@ Write-Log auswerten:
 ```sql
 SELECT ts, user_email, tool, entity, entity_id, status, not_applied, override_reason FROM write_log ORDER BY id DESC LIMIT 20;
 ```
+
+## Dashboard-Daten: `dashboard_daten` (v0.10.0, 12.11.2026)
+
+**Anlass:** Das Dashboard „Objektanlage & Prüfaufgaben“ (claude.ai-Artifact, Quelltext `weekly_report/dashboard/dashboard.html`) darf Propstack nicht selbst abfragen. Bisher holte eine tägliche Routine die Daten mit `python -m weekly_report.dashboard_export` – dafür lagen Propstack-Keys in der Claude-Umgebung. Jetzt holt der Connector die Daten; der Key bleibt im Worker. Routine und Dashboard stellt die Sitzung um, die das Dashboard betreut.
+
+**Eingabe:**
+- `dokument`: `meta/stand`, `meta/projekte`, `wochen/<JJJJ-KWnn>` oder `pruefung/teil-<nn>`
+- `tage` (Standard 91, höchstens 91) und `broker_ids` (Standard `[254958]`, der Sitz, auf dem die Prüfaufgaben gepflegt werden)
+- `stand` (Zusatz zur Vorgabe, optional): der Wert `aktualisiert` aus `meta/stand`. Dann kommt das Dokument genau aus diesem Stand oder ein Fehler – nie aus einem anderen.
+
+**Ausgabe:** genau das Dokument, das `baue_dokumente()` im bisherigen Export erzeugt – gleiche Feldnamen in gleicher Reihenfolge, Wochenschlüssel = ISO-Woche in Berliner Zeit, 400 Aufgaben je Teil, gleiche Regel für die Art („Pruefung“ → „Prüfung“). Kompaktes JSON ohne Hülle und ohne Zusatzfelder. Solange der Stand nicht fertig ist, kommt stattdessen `{"fortsetzen": true, "phase": …, "fortschritt": …}`.
+
+**Aufbau in Etappen.** Ein Stand braucht rund 114 Propstack-Abfragen, ein Tool-Aufruf darf höchstens 45 (Cloudflare Free: 50 Subrequests):
+
+| Schritt | Abfrage | Anzahl am 12.11.2026 |
+|---|---|---|
+| Einheiten im Fenster | `GET /units?expand=1&created_at_from=…&created_at_to=…`, 100 je Seite | 4 |
+| Projektliste | `GET /projects`, 200 je Seite | 3 |
+| Anlagedatum je Projekt | `GET /units?project_id=…&expand=1&sort_by=created_at&order=asc&per=1` | 104 |
+| Aufgaben der Prüfer | `GET /activities?item_type=reminder&broker_id=…&sort_by=updated_at&order=desc`, 200 je Seite | 3 |
+
+- Je Aufruf höchstens 40 Abfragen und 20 Sekunden; danach wird der Fortschritt gespeichert und `fortsetzen: true` gemeldet. Gemessen gegen das echte Propstack: vier Aufrufe (22, 36, 39 und 17 Abfragen), zusammen 72 Sekunden. Die Zeitgrenze greift vor der Abfragegrenze – eine Abfrage dauert rund eine halbe Sekunde, eine Seite Einheiten rund drei.
+- Einheiten werden zu je 100 gelesen statt wie im Export zu 200: Mit `expand=1` wiegt eine Einheit rund 33 KB, 200 wären 6,8 MB je Antwort. Die Reihenfolge ist bei beiden Seitengrößen dieselbe (live geprüft).
+- Der Zeitpunkt des Stands (`aktualisiert`) ist der Beginn des Aufbaus. Einheiten, die während des Aufbaus entstehen, gehören zum nächsten Stand.
+- Meldet Propstack mittendrin einen Fehler, ist der Fortschritt gespeichert; der nächste Aufruf macht dort weiter. Bei einem Serverfehler (5xx) oder Netzproblem versucht es der Connector vorher einmal selbst erneut, bei 429 wartet der Client wie überall.
+
+**Zwischenspeicher (D1, `migrations/0004_dashboard_cache.sql`):** `dashboard_stand` (Fortschritt und Zustand je Stand), `dashboard_teil` (Rohdaten während des Aufbaus, auf die nötigen Felder gekürzt), `dashboard_dokument` (fertige Dokumente).
+- Ein fertiger Stand gilt **30 Minuten**: In dieser Zeit kommen alle Dokumente aus dem Speicher, ohne eine Propstack-Abfrage. Danach baut der nächste Aufruf neu.
+- Mit `stand` bleibt ein Stand **bis zu 24 Stunden** lesbar; ältere Stände löscht der nächste Aufbau und der tägliche Cron. Ein unfertiger Stand, der älter als 30 Minuten ist, wird verworfen.
+- Gleichzeitige Aufrufe: Je Parametersatz gibt es höchstens einen Stand im Aufbau (eindeutiger Index). Eine Sperre (zwei Minuten) lässt nur einen Aufruf bauen, die anderen bekommen „erneut aufrufen“. Bleibt ein Aufruf hängen und ein zweiter übernimmt, überschreibt der Nachzügler nichts: Fertigstellen wirkt nur, solange der Stand im Aufbau ist.
+
+**Empfohlener Ablauf für die Routine:**
+1. `dashboard_daten` mit `dokument: "meta/stand"` aufrufen und wiederholen, solange `fortsetzen: true` kommt (nacheinander, nicht parallel).
+2. Aus `meta/stand` den Wert `aktualisiert` nehmen. Danach `meta/projekte`, jede Woche aus `wochen` (`wochen/<Woche>`) und jeden Teil aus `pruefung_teile` (`pruefung/<Teil>`) holen – jeweils mit `stand` = `aktualisiert`.
+3. Jedes Dokument unverändert in die Datenbank des Artifacts schreiben.
+
+**Gleichheit mit dem bisherigen Export – wie geprüft:**
+- Die 12 Fälle aus `tests/weekly_report/test_dashboard_export.py` und die Parsing-Fälle aus `test_propstack_parsing.py` sind portiert (`test/dashboard-dokumente.test.ts`, `test/dashboard-zeit.test.ts`).
+- **Abgleich mit dem echten Export** (`test/dashboard-golden.test.ts`): `test/dashboard-golden.erzeugen.py` lässt `weekly_report.dashboard_export.main()` selbst gegen eine nachgestellte Propstack-API laufen und zeichnet Anfragen, Antworten und Dokumente auf. Der Connector bekommt dieselben Antworten vorgespielt. Bestanden ist der Test nur, wenn jedes Dokument exakt gleich ist **und** der Connector keine Anfrage stellt, die der Export nicht gestellt hat. Vier Szenarien: Ende der Sommerzeit im Fenster, Jahreswechsel mit KW53 und zwei Prüfern, Fensterbeginn in der Stunde, die es am Beginn der Sommerzeit nicht gibt, Fensterbeginn in der doppelten Stunde am Ende der Sommerzeit.
+- Die Zeitrechnung (Fenster, Wochen, Schreibweise der Zeitstempel) ist gegen Werte geprüft, die Python selbst berechnet hat.
+- Der Zwischenspeicher läuft im Test gegen echtes SQLite mit der Migration (`test/dashboard-store.test.ts`) – D1 ist SQLite.
+- **Live-Abgleich am 12.11.2026, 10:29 Uhr:** neuer Code und alter Export nacheinander gegen das echte Propstack, beide auf denselben Zeitpunkt gestellt. Ergebnis: **17 von 17 Dokumenten inhaltlich identisch, einschließlich der Reihenfolge der Felder** (363 Einheiten, 104 Projekte, 13 Wochen, 522 Prüfaufgaben, davon 495 offen, 2 Teile). Zwei Unterschiede in der Schreibweise, beide ohne Wirkung auf das Dashboard: kompakt statt mit Leerzeichen (222 statt 236 KB) und ganze Zahlen ohne „.0“ (`10197` statt `10197.0`, 318 Stellen).
+
+**Bewusste Abweichungen vom Export** (jeweils nur in Fällen, in denen der Export ein falsches oder unvollständiges Ergebnis geliefert hätte):
+- Verschiebt sich eine Liste während des Blätterns, zählt der Export einen Datensatz doppelt. Der Connector zählt jede Einheit und jede Aufgabe einmal.
+- Gibt es im Fenster keine Projekte, fragt der Connector die Projektliste nicht ab.
+- Liefert Propstack mehr Seiten als die Reißleine erlaubt (8.000 Datensätze), speichert der Export still ein unvollständiges Ergebnis. Der Connector bricht mit Fehlermeldung ab.
+
+**Offen (Entscheidung Florian bzw. Dashboard-Sitzung):**
+- Das größte Dokument (`pruefung/teil-01`) ist rund 105 KB groß. Als Tool-Antwort läuft es durch das Sprachmodell der Routine. Ob das unbeaufsichtigt zuverlässig und sparsam ist, zeigt erst die umgestellte Routine. Alternative, **nicht gebaut**: ein Download-Link (15 Minuten gültig, wie beim Bild-Upload), über den die Routine alle Dokumente als Datei holt, ohne dass das Modell sie abschreiben muss. Das wäre ein neuer Zugang ohne Anmeldung und braucht deshalb eine ausdrückliche Entscheidung.
+- Ob der API-Key des Workers `/v1/activities` lesen darf, zeigt der erste Live-Aufruf (der bisherige Export nutzte dafür einen eigenen Aufgaben-Key).
 
 ## Audit-Log (D1)
 

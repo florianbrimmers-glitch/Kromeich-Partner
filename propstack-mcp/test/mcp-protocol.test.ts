@@ -37,6 +37,7 @@ describe("MCP-Protokoll", () => {
 		const { tools } = await client.listTools();
 		expect(tools.map((t) => t.name).sort()).toEqual([
 			"aggregate",
+			"dashboard_daten",
 			"get_contact",
 			"get_object",
 			"get_project",
