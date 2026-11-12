@@ -4,6 +4,7 @@ import { McpAgent } from "agents/mcp";
 import { env } from "cloudflare:workers";
 import { purgeOldAuditEntries, retentionCutoff } from "./audit";
 import { purgeOldBulkPlans } from "./bulk/store";
+import { purgeOldDashboardStands } from "./dashboard/store";
 import { recheckOnRefresh, type Props } from "./auth/session";
 import { ACCESS_TOKEN_TTL_SECONDS } from "./config";
 import { GoogleHandler } from "./google-handler";
@@ -15,7 +16,7 @@ import { purgeOldWriteLog } from "./write-log";
 export class PropstackMCP extends McpAgent<Env, Record<string, never>, Props> {
 	server = new McpServer({
 		name: "Propstack MCP – Kromeich",
-		version: "0.9.17",
+		version: "0.10.1",
 	});
 
 	async init() {
@@ -73,15 +74,16 @@ export default {
 		if (new URL(request.url).pathname.startsWith("/upload/images/")) return handleImageUpload(request, env);
 		return provider.fetch(request, env, ctx);
 	},
-	// Täglich: Audit- und Write-Log-Einträge älter als 12 Monate löschen.
+	// Täglich: Audit- und Write-Log-Einträge älter als 12 Monate löschen, Dashboard-Zwischenspeicher älter als 24 Stunden.
 	scheduled: async (_controller: ScheduledController, env: Env, ctx: ExecutionContext) => {
 		ctx.waitUntil(
 			Promise.all([
 				purgeOldAuditEntries(env.AUDIT_DB),
 				purgeOldWriteLog(env.AUDIT_DB),
 				purgeOldBulkPlans(env.AUDIT_DB, retentionCutoff(new Date())),
-			]).then(([audit, writes, plans]) =>
-				console.log(`Löschfrist: ${audit} Audit-, ${writes} Write-Log-Einträge und ${plans} Pläne entfernt`),
+				purgeOldDashboardStands(env.AUDIT_DB, new Date(Date.now() - 24 * 3_600_000).toISOString()),
+			]).then(([audit, writes, plans, staende]) =>
+				console.log(`Löschfrist: ${audit} Audit-, ${writes} Write-Log-Einträge, ${plans} Pläne und ${staende} Dashboard-Stände entfernt`),
 			),
 		);
 	},

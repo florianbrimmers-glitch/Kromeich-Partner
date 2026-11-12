@@ -9,6 +9,7 @@ export const TOOL_DEFINITIONS: Record<string, string> = {
 	create_object: "0c30c329ffd8cfff",
 	create_project: "e8c30b13d15e8541",
 	create_task: "b60da91fc5b63afb",
+	dashboard_daten: "3a473e7f9e04ace9",
 	get_contact: "d4f874667b033d6c",
 	get_object: "33408d29b6559453",
 	get_project: "3d9466dff962181a",
