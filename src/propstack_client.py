@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import unicodedata
 from datetime import date
 
 import httpx
@@ -48,6 +49,71 @@ def _company_display_names(record: dict) -> set[str]:
         names.add(_norm_name(m.group(1)))
     names.discard("")
     return names
+
+
+_LEGAL_FORMS = re.compile(
+    r"\b(gmbh|co|kg|ag|se|mbh|ug|haftungsbeschrankt|ohg|gbr|e ?k|kgaa|inc|ltd|llc|bv|b v|nv|sa|sarl|plc)\b"
+)
+
+
+def _loose_words(name: str | None) -> str:
+    """Firmenname ohne Rechtsform, Akzente und Satzzeichen, Wörter durch Leerzeichen
+    getrennt ("Goodman Germany GmbH & Co. KG" -> "goodman germany").
+    Gleiche Regel wie im Propstack-Connector (propstack-mcp, normalizeCompany)."""
+    text = unicodedata.normalize("NFKD", (name or "").lower())
+    text = "".join(ch for ch in text if not unicodedata.combining(ch)).replace("ß", "ss")
+    text = re.sub(r"[^a-z0-9]+", " ", text).strip()
+    return re.sub(r"\s+", " ", _LEGAL_FORMS.sub(" ", text)).strip()
+
+
+def _company_search_terms(name: str) -> list[str]:
+    """Suchbegriffe für die Firmensuche. Die Propstack-Suche verlangt jedes Wort der
+    Eingabe: "Goodman Germany AG" findet "Goodman Germany GmbH" nicht. Deshalb
+    zusätzlich ohne Rechtsform und – damit auch ein kürzer benannter Datensatz
+    ("Goodman") auffällt – mit dem ersten Wort allein."""
+    full = re.sub(r"\s+", " ", name.strip())
+    core = " ".join(w for w in full.split(" ") if _loose_words(w))
+    first = core.split(" ")[0] if core else ""
+    terms: list[str] = []
+    for term in (full, core, first if " " in core and len(_loose_words(first)) >= 4 else ""):
+        if term and term.lower() not in (t.lower() for t in terms):
+            terms.append(term)
+    return terms
+
+
+def _is_company_row(record: dict) -> bool:
+    """Echter Firmen-Datensatz? Personen, die fälschlich als Firma markiert sind,
+    haben einen Vornamen."""
+    return bool(record.get("is_company")) and not record.get("first_name")
+
+
+def _match_companies(company_name: str, records: list[dict]) -> tuple[list[dict], list[dict], list[dict]]:
+    """Teilt Suchtreffer ein in (exakt, gleich bis auf Rechtsform, nur ähnlich).
+
+    exakt:    gleicher Name, nur Satz-/Leerzeichen weichen ab ("L.I.T. AG" = "LIT AG")
+    gleich:   gleicher Name ohne Rechtsform ("Goodman Germany AG" = "Goodman Germany GmbH")
+    ähnlich:  Name ist nur länger oder kürzer ("Goodman" / "Goodman Germany GmbH")
+    """
+    strict = _norm_name(company_name)
+    loose = _loose_words(company_name)
+    exact, same, similar = [], [], []
+    seen: set = set()
+    for rec in records:
+        if not _is_company_row(rec) or rec.get("id") is None or rec.get("id") in seen:
+            continue
+        seen.add(rec.get("id"))
+        raw_names = [rec.get("company"), rec.get("name")]
+        m = re.fullmatch(r"(.+) \((\1)\)", (rec.get("name") or "").strip())
+        if m:
+            raw_names.append(m.group(1))
+        looses = {_loose_words(n) for n in raw_names} - {""}
+        if strict in _company_display_names(rec):
+            exact.append(rec)
+        elif loose and any(o.replace(" ", "") == loose.replace(" ", "") for o in looses):
+            same.append(rec)
+        elif loose and any(o.startswith(loose + " ") or loose.startswith(o + " ") for o in looses):
+            similar.append(rec)
+    return exact, same, similar
 
 
 def _api_key() -> str:
@@ -110,28 +176,43 @@ def check_duplicate_by_name(first_name: str, last_name: str) -> bool | None:
 
 
 def find_company(company_name: str) -> int | None:
-    """Sucht einen bestehenden Firmen-Datensatz (is_company=true) anhand des Namens."""
+    """Sucht einen bestehenden Firmen-Datensatz (is_company=true) anhand des Namens.
+
+    Dieselbe Firma wird auch mit anderer Rechtsform oder Schreibweise wiedererkannt
+    und verwendet. Eine nur ähnlich benannte Firma ("Goodman" / "Goodman Germany
+    GmbH") wird NICHT verwendet, sondern nur im Log gemeldet."""
+    records: list[dict] = []
     try:
-        response = httpx.get(
-            f"{PROPSTACK_BASE_URL}/contacts",
-            params={"api_key": _api_key(), "q": company_name, "per": 25},
-            timeout=30.0,
-        )
-        response.raise_for_status()
-        data = response.json()
-        if not isinstance(data, list):
-            return None
-        target = _norm_name(company_name)
-        for c in data:
-            # Personen, die fälschlich als Firma markiert sind, haben einen Vornamen
-            if c.get("is_company") and not c.get("first_name") and target in _company_display_names(c):
-                logger.info("Firma gefunden: %s (id=%s)", company_name, c.get("id"))
-                return c.get("id")
-        logger.info("Keine bestehende Firma gefunden für: %s", company_name)
-        return None
+        for term in _company_search_terms(company_name):
+            response = httpx.get(
+                f"{PROPSTACK_BASE_URL}/contacts",
+                params={"api_key": _api_key(), "q": term, "per": 50},
+                timeout=30.0,
+            )
+            response.raise_for_status()
+            data = response.json()
+            if isinstance(data, list):
+                records.extend(data)
     except (httpx.HTTPError, ValueError) as e:
+        # Unverändert zu vorher: Bei einem Suchfehler gilt die Firma als nicht gefunden.
         logger.error("Propstack company search failed for '%s': %s", company_name, e)
         return None
+
+    exact, same, similar = _match_companies(company_name, records)
+    for label, hits in (("gleicher Name", exact), ("gleicher Name, andere Rechtsform/Schreibweise", same)):
+        if hits:
+            # Bei mehreren Treffern den ältesten Datensatz nehmen (kleinste ID)
+            hit = min(hits, key=lambda c: c.get("id"))
+            if len(hits) > 1:
+                logger.warning("Firma '%s' mehrfach vorhanden (%s): ids=%s – verwende %s",
+                               company_name, label, sorted(c.get("id") for c in hits), hit.get("id"))
+            logger.info("Firma gefunden (%s): %s -> %s (id=%s)", label, company_name, hit.get("name"), hit.get("id"))
+            return hit.get("id")
+    if similar:
+        logger.warning("Ähnlich benannte Firma vorhanden für '%s': %s – wird nicht verwendet",
+                       company_name, ", ".join(f"{c.get('name')} ({c.get('id')})" for c in similar[:5]))
+    logger.info("Keine bestehende Firma gefunden für: %s", company_name)
+    return None
 
 
 def create_company(contact: ContactData) -> int | None:
