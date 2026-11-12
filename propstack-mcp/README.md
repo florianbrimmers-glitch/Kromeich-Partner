@@ -78,6 +78,30 @@ Bewusste Lücken: Ein einzelner Deal per ID und die Kontakt-Status-Liste sind nu
 - **Testdaten:** `test: true` setzt das Merkmal `MCP-TEST`. Fehlt es, legt der Connector es einmalig an. Löschen kann nur Florian manuell.
 - Notizen werden bei Updates nur ergänzt (mit Datum und Nutzer), nie ersetzt.
 
+**Kontakte: Live-Abnahme am 12.11.2026 (v0.10.1 → Korrekturen in v0.10.2).** Anlass: Nach Objekten und Dashboard sind die Kontakte dran (Ansage Florian). Geprüft wurde an Testkontakten mit dem Merkmal `MCP-TEST`, so wie der E-Mail-Scan Kontakte anlegt.
+- **Bestanden:**
+  - `create_contact` mit allen Feldern (Anrede, Titel, Name, Firma, Position, E-Mail, Festnetz, Mobil, Adresse, Quelle, Merkmal, Notiz): Beim Zurücklesen stand jeder Wert richtig, Betreuer war der angemeldete Nutzer, die Herkunftsnotiz hing an.
+  - Dubletten: gleiche E-Mail blockiert auch mit Begründung; gleiche Mobilnummer blockiert, egal wie sie geschrieben ist (`0171 3920055` gegen `+49 171 39200-55`).
+  - `update_contact`: Felder, Merkmal dazu und weg, Notiz angehängt; dieselbe Notiz ein zweites Mal wird nicht doppelt angehängt. Die E-Mail eines anderen Kontakts wird abgewiesen, ein Merkmal, das es nicht gibt, steht unter `not_applied`, ein Betreuer, den es nicht gibt, wird von Propstack abgelehnt.
+  - Suche nach Merkmal (`tag_match: all`, `exclude_tag_ids`), Telefonnummer und Name; Auswertung nach Betreuer.
+  - Sammeländerung an vier Testkontakten (Merkmal dazu, Merkmal weg) samt `undo_plan`: Danach hatte jeder Kontakt wieder genau seine alten Merkmale.
+- **Befund 1 – übersehene Dublette bei akademischem Titel (behoben in v0.10.2).** „max MCP-Testkontakt Abnahme“ bei derselben Firma wurde neben „Dr. Max MCP-Testkontakt Abnahme“ angelegt, ohne Blockade und ohne Warnung.
+  - Ursache: Propstack stellt dem Anzeigenamen den Titel voran („Dr. Max …“). Der Vergleich lief gegen diesen Anzeigenamen.
+  - Jetzt zählt Vor- und Nachname des vorhandenen Kontakts; vorangestellte Titel (Dr., Prof., Dipl.-Ing. …) werden auf beiden Seiten ignoriert.
+  - Die Tests hatten das nicht gezeigt, weil ihre Beispielzeilen keinen Titel trugen. Sie sind jetzt so aufgebaut, wie Propstack die Zeilen liefert.
+- **Befund 2 – Kontaktstatus und Kontakt-Quelle nehmen jede Zahl an (behoben in v0.10.2).** `client_status_id: 999999999` und `source_id: 999999999` standen danach am Kontakt; der Connector meldete beides als geändert. Propstack prüft diese Verweise nicht.
+  - Erkennbar ist ein ungültiger Verweis beim Gegenlesen: Nur zu einer gültigen ID liefert Propstack das zugehörige Objekt mit (`client_source: {id, name}`), zu einer ungültigen nichts.
+  - Der Connector nimmt einen solchen Wert jetzt sofort zurück: Er stellt den vorherigen Wert wieder her – oder leert das Feld, wenn schon der vorherige ungültig war – und meldet ihn unter `not_applied` („… gibt es in Propstack nicht – nicht übernommen“). Das gilt auch beim Anlegen und in Sammeländerungen.
+  - Offen bleibt: Für den Kontaktstatus gibt es in der V1-Schnittstelle keine Liste. Gültige Werte kann Claude deshalb nicht nachschlagen, und in diesem Konto ist kein gültiger Status bekannt.
+- **Kleinigkeit, behoben:** Wird eine Änderung als Dublette abgewiesen, heißt es im Ergebnis `updated: false` statt `created: false`.
+- **Was der Connector bei Kontakten nicht kann** (Abgleich mit dem täglichen Import `src/` und dem Skill `email-kontakt-scan`):
+  - Firmen-Datensätze anlegen und Personen als Mitarbeiter mit ihrer Firma verknüpfen. Der tägliche Import macht beides über die V2-Schnittstelle mit eigenem Schlüssel.
+  - Newsletter-Gruppen (Mailchimp) setzen – der tägliche Import ordnet jeden Kontakt einer Gruppe zu.
+  - Die Aktivitäten eines Kontakts lesen (Notizen, Aufgaben, Termine) oder eine Gesprächsnotiz als Aktivität anlegen; möglich ist nur das Anhängen an das Notizfeld.
+  - Kontaktstatus nachschlagen, DSGVO-Status und Newsletter-Kennzeichen ändern, Kontakte archivieren.
+  - Custom-Felder für Kontakte gibt es in diesem Konto nicht (`list_fields` liefert keine); Kontakt-Quellen gibt es nur sechs, alle Portale.
+  - Was davon gebaut wird, entscheidet Florian.
+
 **Objekte – Regeln aus dem Notion-Feld-Mapping („Propstack API – Feld-Mapping“, Korrekturen) und dem Skill `propstack-expose-workflow`:**
 - **Einzel-PUTs:** `rs_category`, `total_floor_space`, `industrial_area`, `hall_height`, `floor_load`, `broker_id`, `rented` und der Status verwirft Propstack im POST und in PUTs mit mehreren Feldern still (HTTP 200). Diese Felder werden nach dem Anlegen bzw. Ändern **einzeln** geschrieben. Ein fehlgeschlagener Einzel-PUT bricht die übrigen nicht ab und steht als `write_errors` im Ergebnis.
 - **Gegenlesen:** Der Einzel-GET liefert Flächen, Kategorie, Hallenhöhe, Status-ID usw. gar nicht. Gelesen wird deshalb über `GET /v1/units?expand=1&per=100&property_ids[]=ID`, Status über `status.id`, Betreuer über `broker.id`. Frisch angelegte Objekte fehlen dort kurz, deshalb gibt es Retries nach 1,5 s und 4 s. Felder, die kein Kanal zurückliefert, stehen als `not_verifiable` im Ergebnis (nicht als Fehler). `get_object` nutzt denselben Weg.
