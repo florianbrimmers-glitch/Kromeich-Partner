@@ -2,7 +2,25 @@
 
 Schickt jeden **Dienstag 19:00 Berliner Zeit** eine Slack-DM an Oguzhan Sahin (`U087H2UMREF`) mit dem, was in den letzten 7 Tagen in Propstack passiert ist: neu angelegte Projekte, neu angelegte Objekte/Einheiten und abgeschlossene Prüfaufgaben – jeweils Anzahl plus kurze Details.
 
-Läuft als GitHub-Actions-Cron (`.github/workflows/weekly-report.yml`), Entrypoint `python -m weekly_report.main`.
+## Stand seit 12.11.2026: Claude-Routinen über die Connectoren, ohne Keys
+
+Propstack-Daten kommen nur noch über den Propstack-Connector (`propstack-mcp`, Tool `dashboard_daten`,
+Abruf `alles`). Der Propstack-Key liegt allein im Worker; die Claude-Umgebung braucht weder Keys noch ein
+Network Secret. Die DM geht über den Slack-Connector (Absender: der Besitzer der Routine, nicht mehr der Bot).
+
+| Routine | Zeit (Berlin) | Was |
+|---|---|---|
+| „Propstack-Dashboard abgleichen (Connector)" | täglich 06:17 | `alles` abrufen → zerlegen → Datenbank des Dashboards |
+| „Propstack-Wochenreport an Oguzhan" | Dienstag 19:03 | `alles` abrufen → zerlegen → `python3 -m weekly_report.wochen_dm` → Slack-DM |
+
+`weekly_report/wochen_dm.py` baut die DM aus den Dashboard-Dokumenten (nur Standardbibliothek): letzte 7 Tage
+bis zum Start, gleiche Fachlogik wie `main.py`, Standard-Markdown statt Slack-mrkdwn und auf 4800 Zeichen
+gekürzt (Slack-Connector: höchstens 5000 je Textelement; die Zahlen bleiben vollständig, gekürzt werden nur
+Detailzeilen).
+
+Der GitHub-Actions-Workflow `weekly-report.yml` ist entfernt. `main.py`, `propstack.py`, `slack.py` und
+`dashboard_export.py` bleiben als Referenz für die Fachlogik und für lokale Läufe; die Abschnitte unten zu
+Cron, Verspätung und Secrets beschreiben den alten Weg.
 
 Eigenständiges Paket, **rein lesend** – keine Propstack-Writes, kein Code-Sharing mit `objekte_handler/` oder `src/`.
 
@@ -123,9 +141,8 @@ Zusätzlich zur Slack-DM gibt es ein Live-Dashboard: https://claude.ai/artifact/
 - **Quelle der Seite:** `weekly_report/dashboard/dashboard.html`. Änderungen dort machen und mit dem
   Artifact-Tool an dieselbe URL veröffentlichen.
 - **Daten:** Die Seite darf Propstack nicht selbst abfragen (die Artifact-Umgebung blockiert fremde
-  Server). Ein täglicher Claude-Lauf (Routine „Propstack-Dashboard abgleichen", ca. 6 Uhr) führt
-  `python -m weekly_report.dashboard_export --out <verzeichnis>` aus und schreibt die Dateien in die
-  Datenbank des Artifacts: `meta/stand`, `meta/projekte`, `wochen/<JJJJ-KWnn>` (neue Einheiten) und
+  Server). Die tägliche Routine (siehe oben) holt die Dokumente über den Propstack-Connector – im Format
+  von `dashboard_export.baue_dokumente()` – und schreibt sie in die Datenbank des Artifacts: `meta/stand`, `meta/projekte`, `wochen/<JJJJ-KWnn>` (neue Einheiten) und
   `pruefung/teil-<nn>` (Prüfaufgaben: ganzer offener Bestand plus alles im Fenster Angelegte oder Erledigte).
 - **Bereich „Prüfung · Oguzhan Sahin":** Oguzhan prüft über den Propstack-Sitz 254958. Abgeschlossen und
   neu eingegangen beziehen sich auf den Zeitraum, „offen" ist immer der aktuelle Bestand. Die „Art" einer

@@ -84,11 +84,16 @@ def slack_bot_token() -> str:
     return os.environ["SLACK_BOT_TOKEN"]
 
 
-def propstack_key_objekte() -> str:
-    """Projekte/Einheiten: PROPSTACK_API_KEY, PROPSTACK_KEY_OBJEKTE als Override."""
-    return os.environ.get("PROPSTACK_KEY_OBJEKTE") or os.environ["PROPSTACK_API_KEY"]
+def propstack_key_objekte() -> str | None:
+    """Projekte/Einheiten: PROPSTACK_KEY_OBJEKTE, sonst PROPSTACK_API_KEY.
+
+    None, wenn keiner gesetzt ist. Das ist der Normalfall in der Claude-Cloud-Umgebung:
+    dort hängt ein Network Secret den Key erst im Proxy an jede Anfrage an
+    api.propstack.de, der Prozess sieht ihn nie. propstack._request() schickt die
+    Anfrage dann ohne eigenen X-API-KEY-Header."""
+    return _env_str("PROPSTACK_KEY_OBJEKTE", "") or _env_str("PROPSTACK_API_KEY", "") or None
 
 
-def propstack_key_tasks() -> str:
-    """Aufgaben/Aktivitäten brauchen den Tasks-Key – der Objekt-Key hat dort keine Rechte."""
-    return os.environ.get("PROPSTACK_KEY_TASKS") or os.environ["PROPSTACK_API_KEY"]
+def propstack_key_tasks() -> str | None:
+    """Aufgaben/Aktivitäten: PROPSTACK_KEY_TASKS, sonst PROPSTACK_API_KEY; None wie oben."""
+    return _env_str("PROPSTACK_KEY_TASKS", "") or _env_str("PROPSTACK_API_KEY", "") or None

@@ -20,11 +20,14 @@ PAGE_PAUSE_SECONDS = 0.3
 MAX_PAGES = 40
 
 
-def _request(method: str, path: str, *, key: str, params: dict | None = None) -> httpx.Response:
+def _request(method: str, path: str, *, key: str | None, params: dict | None = None) -> httpx.Response:
     """Read-only-Request mit Retry (Backoff 2**attempt) bei 429/5xx/Netzfehlern.
 
     Andere 4xx werden sofort mit Status+Body geloggt und geraist."""
-    headers = {"X-API-KEY": key, "Accept": "application/json"}
+    headers = {"Accept": "application/json"}
+    # Ohne eigenen Key ergänzt das Network Secret der Cloud-Umgebung den Header im Proxy.
+    if key:
+        headers["X-API-KEY"] = key
     last_error: Exception | None = None
 
     for attempt in range(MAX_ATTEMPTS):
@@ -127,7 +130,7 @@ def _to_task(raw: dict) -> PruefTask:
     )
 
 
-def _paginate(path: str, *, key: str, params: dict):
+def _paginate(path: str, *, key: str | None, params: dict):
     """Seitenweise lesen, bis eine Seite leer oder kürzer als PAGE_SIZE ist."""
     for page in range(1, MAX_PAGES + 1):
         response = _request("GET", path, key=key, params={**params, "per": PAGE_SIZE, "page": page})
