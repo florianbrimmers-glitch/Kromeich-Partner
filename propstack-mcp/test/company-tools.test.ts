@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { companyCore, companyDuplicates, companySearchTerms, findCompanyRecord, strictCompanyName } from "../src/propstack/companies";
 import { type Page, PropstackClient, PropstackError, type Query } from "../src/propstack-client";
-import { createCompany, linkContactCompany } from "../src/tools/company-tools";
-import { createContact } from "../src/tools/write-tools";
+import { createCompany, createContactLinked, linkContactCompany } from "../src/tools/company-tools";
+import { getContact } from "../src/tools/read-tools";
 
 // Firmen-Datensätze und die Verknüpfung Person ↔ Firma (v0.11.0, Entscheidung Florian vom 12.11.2026).
 // Die Zeilen in den Tests sind so aufgebaut, wie Propstack sie liefert – nur lesend nachgesehen am 12.11.2026:
@@ -484,12 +484,13 @@ describe("link_contact_company", () => {
 	});
 });
 
-describe("create_contact: Hinweis auf den Firmen-Datensatz", () => {
+describe("create_contact: Firma automatisch verknüpfen (Entscheidung Florian, 12.11.2026)", () => {
 	/** Wie welt(), aber mit den Aufrufen, die create_contact zusätzlich braucht. */
 	function kontaktWelt(start: Raw[], v2Key = true) {
 		const w = welt(start, { v2Key });
 		Object.assign(w.roh, {
 			createContact: async (kontakt: Raw) => {
+				w.aufrufe.push({ args: [kontakt], methode: "createContact" });
 				w.kontakte.set(8000, { ...kontakt, id: 8000, is_company: false, name: `${kontakt.first_name} ${kontakt.last_name}` });
 				return { id: 8000 };
 			},
@@ -497,48 +498,172 @@ describe("create_contact: Hinweis auf den Firmen-Datensatz", () => {
 		});
 		return w;
 	}
-	const eingabe = { company: "Goodman Germany", first_name: "Erika", last_name: "Neu" };
+	const eingabe = { company: "Goodman Germany GmbH", first_name: "Erika", last_name: "Neu" };
+	const lauf = async (w: ReturnType<typeof kontaktWelt>, input: Raw = eingabe) => {
+		const log = fakeDb();
+		const out = await createContactLinked({ client: w.client, db: log.db, now: NOW, user: USER }, input as never);
+		return { link: (out.result as Raw).company_link as Raw | undefined, log, result: out.result as Raw };
+	};
+	const schreibZugriffe = (w: ReturnType<typeof kontaktWelt>) => w.aufrufe.map((a) => a.methode).filter((m) => /^create|^update/.test(m));
 
-	it("gibt es die Firma als Datensatz, nennt das Ergebnis ihn und den nächsten Schritt", async () => {
+	it("gibt es die Firma, wird die neue Person ohne weiteres Zutun mit ihr verknüpft", async () => {
 		const w = kontaktWelt([GOODMAN]);
-		const out = await createContact({ client: w.client, db: fakeDb().db, now: NOW, user: USER }, eingabe);
-		expect(out.result).toMatchObject({
-			company_hint: "Den Firmen-Datensatz „Goodman Germany GmbH“ (17366550) gibt es schon – die Person mit link_contact_company damit verknüpfen (contact_id 8000, company_id 17366550).",
-			company_record: { id: 17366550, name: "Goodman Germany GmbH" },
-			created: true,
-			id: 8000,
+		const { link, log, result } = await lauf(w);
+		expect(result).toMatchObject({ created: true, id: 8000 });
+		expect(link).toEqual({
+			company: { id: 17366550, name: "Goodman Germany GmbH" },
+			company_created: undefined,
+			company_not_applied: undefined,
+			label: "Firma",
+			linked: true,
+			note: undefined,
+			warnings: undefined,
 		});
+		expect(schreibZugriffe(w)).toEqual(["createContact", "createRelationshipV2"]);
+		expect(w.verknuepfungen.map((v) => [v.client_id, v.name, v.related_client_id])).toEqual([
+			[8000, "Firma", 17366550],
+			[17366550, "Mitarbeiter", 8000],
+		]);
+		// im Write-Log steht die Verknüpfung unter dem Tool, das sie ausgelöst hat
+		expect(log.rows.map((r) => r[3])).toEqual(["create_contact", "create_contact"]);
 	});
 
-	it("gibt es keinen Firmen-Datensatz, sagt das Ergebnis, wie es weitergeht – ohne etwas anzulegen", async () => {
+	it("andere Schreibweise oder Rechtsform am Kontakt: verknüpft wird mit der vorhandenen Firma, keine zweite entsteht", async () => {
+		for (const company of ["Goodman Germany AG", "goodman germany", "Goodman Germany GmbH & Co. KG"]) {
+			const w = kontaktWelt([GOODMAN]);
+			const { link } = await lauf(w, { ...eingabe, company });
+			expect(link, company).toMatchObject({ company: { id: 17366550 }, linked: true });
+			expect(schreibZugriffe(w), company).toEqual(["createContact", "createRelationshipV2"]);
+		}
+	});
+
+	it("gibt es die Firma noch nicht, wird sie angelegt – mit der Geschäftsadresse des Kontakts und dem Test-Merkmal – und verknüpft", async () => {
 		const w = kontaktWelt([]);
-		const out = await createContact({ client: w.client, db: fakeDb().db, now: NOW, user: USER }, eingabe);
-		expect(out.result).toMatchObject({ company_hint: expect.stringContaining("keinen eindeutigen Firmen-Datensatz"), created: true });
-		expect((out.result as Raw).company_record).toBeUndefined();
-		expect(w.aufrufe.some((a) => a.methode === "createClientV2" || a.methode === "createRelationshipV2")).toBe(false);
+		const { link, log } = await lauf(w, { ...eingabe, city: "Köln", company: "Neue Firma GmbH", country: "Deutschland", house_number: "1a", phone_office: "0221 1", street: "Teststraße", test: true, zip_code: "50667" });
+		expect(w.aufrufe.find((a) => a.methode === "createClientV2")!.args[0]).toEqual({
+			broker_id: 347158,
+			commercial: true,
+			company: "Neue Firma GmbH",
+			description: "Angelegt über Claude (Propstack MCP) von Florian Brimmers am 2026-11-12.",
+			group_ids: [722243],
+			office_city: "Köln",
+			office_country: "Deutschland",
+			office_house_number: "1a",
+			office_street: "Teststraße",
+			office_zip_code: "50667",
+		});
+		expect(link).toMatchObject({ company: { id: 9001, name: "Neue Firma GmbH" }, company_created: true, label: "Firma", linked: true });
+		expect(schreibZugriffe(w)).toEqual(["createContact", "createClientV2", "createRelationshipV2"]);
+		expect(w.verknuepfungen[0]).toMatchObject({ client_id: 8000, name: "Firma", related_client_id: 9001 });
+		// Kontakt, Firma und Verknüpfung stehen einzeln im Write-Log, alle unter create_contact
+		expect(log.rows.map((r) => r[3])).toEqual(["create_contact", "create_contact", "create_contact"]);
 	});
 
-	it("ohne Firma am Kontakt oder ohne zweiten Schlüssel: kein Hinweis und keine zusätzliche Suche", async () => {
+	it("gibt es nur eine ähnlich benannte Firma, wird keine neue angelegt und nichts geraten – der Kontakt entsteht trotzdem", async () => {
+		// so ist im Konto „Goodman“ (36103370) neben „Goodman Germany GmbH“ entstanden: Der Import hat einfach angelegt
+		const kurz = { company: "Goodman", id: 36103370, is_company: true, name: "Goodman" };
+		const w = kontaktWelt([kurz]);
+		const { link, result } = await lauf(w);
+		expect(result).toMatchObject({ created: true, id: 8000 });
+		expect(link).toEqual({
+			hint: expect.stringMatching(/keinen gleichnamigen, aber einen ähnlich benannten Firmen-Datensatz – deshalb keine neue Firma angelegt.*contact_id 8000/),
+			linked: false,
+			similar: ["Ähnlicher Firmen-Datensatz: Goodman (36103370) – bitte prüfen, ob es dieselbe Firma ist."],
+		});
+		expect(schreibZugriffe(w)).toEqual(["createContact"]);
+	});
+
+	it("passen mehrere Firmen-Datensätze, wird nur verknüpft, wenn genau einer exakt so heißt – sonst kommen die Kandidaten zurück", async () => {
+		const ag = { company: "Goodman Germany AG", id: 99, is_company: true, name: "Goodman Germany AG" };
+		const eindeutig = kontaktWelt([GOODMAN, ag]);
+		expect((await lauf(eindeutig)).link).toMatchObject({ company: { id: 17366550 }, linked: true });
+
+		const mehrdeutig = kontaktWelt([GOODMAN, { ...GOODMAN, id: 98 }]);
+		const { link } = await lauf(mehrdeutig);
+		expect(link).toEqual({
+			candidates: [
+				{ id: 17366550, name: "Goodman Germany GmbH" },
+				{ id: 98, name: "Goodman Germany GmbH" },
+			],
+			hint: expect.stringContaining("Mehrere Firmen-Datensätze passen"),
+			linked: false,
+		});
+		expect(schreibZugriffe(mehrdeutig)).toEqual(["createContact"]);
+	});
+
+	it("ohne Firma am Kontakt, bei abgewiesener Dublette oder ohne zweiten Schlüssel passiert an Firmen nichts", async () => {
 		const ohneFirma = kontaktWelt([GOODMAN]);
-		const a = await createContact({ client: ohneFirma.client, db: fakeDb().db, now: NOW, user: USER }, { first_name: "Erika", last_name: "Neu" });
-		expect((a.result as Raw).company_hint).toBeUndefined();
+		const a = await lauf(ohneFirma, { first_name: "Erika", last_name: "Neu" });
+		expect(a.result).toMatchObject({ created: true });
+		expect(a.result).not.toHaveProperty("company_link");
+		expect(ohneFirma.aufrufe.filter((x) => x.methode === "searchContacts").map((x) => (x.args[0] as Raw).q)).toEqual(["Erika Neu"]);
+
+		const dublette = kontaktWelt([GOODMAN, { company: "Goodman Germany GmbH", first_name: "Erika", id: 7, is_company: false, last_name: "Neu", name: "Erika Neu" }]);
+		const b = await lauf(dublette);
+		expect(b.result).toMatchObject({ blocked: "Dublette", created: false });
+		expect(b.result).not.toHaveProperty("company_link");
+		expect(schreibZugriffe(dublette)).toEqual([]);
+
 		const ohneSchluessel = kontaktWelt([GOODMAN], false);
-		const b = await createContact({ client: ohneSchluessel.client, db: fakeDb().db, now: NOW, user: USER }, eingabe);
-		expect((b.result as Raw).company_hint).toBeUndefined();
-		// nur die Suche der Dublettenprüfung nach dem Namen, keine nach der Firma
-		expect(ohneSchluessel.aufrufe.filter((x) => x.methode === "searchContacts").map((x) => (x.args[0] as Raw).q)).toEqual(["Erika Neu"]);
+		const c = await lauf(ohneSchluessel);
+		expect(c.result).toMatchObject({ created: true });
+		expect(c.link).toEqual({ hint: expect.stringContaining("PROPSTACK_API_KEY_V2"), linked: false });
+		expect(schreibZugriffe(ohneSchluessel)).toEqual(["createContact"]);
 	});
 
-	it("scheitert die Suche nach der Firma, bleibt der Kontakt trotzdem angelegt", async () => {
-		const w = kontaktWelt([GOODMAN]);
-		const suche = w.roh.searchContacts;
-		w.roh.searchContacts = async (query: Query) => {
-			if (query.q === "Goodman Germany") throw new PropstackError("Propstack-Serverfehler (502)", 502);
-			return suche(query);
+	it("scheitert etwas an der Firma, bleibt der Kontakt angelegt – das Ergebnis sagt, was fehlt und wie es nachgeholt wird", async () => {
+		// Suche gestört
+		const suche = kontaktWelt([GOODMAN]);
+		const original = suche.roh.searchContacts;
+		suche.roh.searchContacts = async (query: Query) => {
+			if (query.q === "Goodman Germany GmbH") throw new PropstackError("Propstack-Serverfehler (502)", 502);
+			return original(query);
 		};
-		const out = await createContact({ client: w.client, db: fakeDb().db, now: NOW, user: USER }, eingabe);
-		expect(out.result).toMatchObject({ created: true, id: 8000 });
-		expect((out.result as Raw).company_hint).toBeUndefined();
+		const a = await lauf(suche);
+		expect(a.result).toMatchObject({ created: true, id: 8000 });
+		expect(a.link).toMatchObject({ hint: expect.stringMatching(/Der Kontakt ist angelegt, die Verknüpfung mit der Firma nicht: Propstack-Serverfehler \(502\).*link_contact_company \(contact_id 8000\)/), linked: false });
+
+		// Firma lässt sich nicht anlegen
+		const anlegen = kontaktWelt([]);
+		anlegen.roh.createClientV2 = async () => {
+			throw new PropstackError("Propstack hat den Zugriff verweigert (403).", 403);
+		};
+		const b = await lauf(anlegen);
+		expect(b.result).toMatchObject({ created: true });
+		expect(b.link).toMatchObject({ hint: expect.stringContaining("403"), linked: false });
+		expect(b.link).not.toHaveProperty("company_created", true);
+		expect(JSON.stringify(b.log.updates)).toMatch(/failed/);
+
+		// Firma angelegt, Verknüpfen scheitert: Die neue Firma wird genannt, damit sie nicht noch einmal entsteht
+		const verknuepfen = kontaktWelt([]);
+		verknuepfen.roh.createRelationshipV2 = async () => {
+			throw new PropstackError("Propstack-Anfrage fehlgeschlagen (422): related_client_id is invalid", 422);
+		};
+		const c = await lauf(verknuepfen, { ...eingabe, company: "Neue Firma GmbH" });
+		expect(c.link).toMatchObject({ company: { id: 9001, name: "Neue Firma GmbH" }, company_created: true, hint: expect.stringContaining("related_client_id is invalid"), linked: false });
+
+		// Verknüpfung nicht bestätigt: kein falscher Erfolg
+		const unbestaetigt = kontaktWelt([GOODMAN]);
+		unbestaetigt.roh.createRelationshipV2 = async () => ({ id: 1 });
+		expect((await lauf(unbestaetigt)).link).toMatchObject({ linked: false, note: expect.stringContaining("ließ sich aber nicht bestätigen") });
+	});
+});
+
+describe("get_contact: verknüpfte Kontakte", () => {
+	it("zeigt an der Firma die verknüpften Personen und an der Person die Firma – mit einer einzigen Anfrage", async () => {
+		const abrufe: number[] = [];
+		const client = {
+			getContactRelationships: async (id: number) => {
+				abrufe.push(id);
+				return id === 17366550
+					? { ...GOODMAN, relationships: [{ client: { id: 35124656, name: "Stefan Prange" }, internal_name: "associate", name: "Firma", project: null, property: null }] }
+					: { ...STEFAN, relationships: [{ client: { id: 17366550, name: "Goodman Germany GmbH" }, internal_name: "associate", name: "Mitarbeiter", project: null, property: null }] };
+			},
+			listBrokers: async () => [],
+		} as never;
+		expect((await getContact(client, { id: 17366550 })).result).toMatchObject({ is_company: true, linked_contacts: [{ id: 35124656, name: "Stefan Prange", this_contact_is: "Firma" }] });
+		expect((await getContact(client, { id: 35124656 })).result).toMatchObject({ linked_contacts: [{ id: 17366550, name: "Goodman Germany GmbH", this_contact_is: "Mitarbeiter" }], name: "Stefan Prange" });
+		expect(abrufe).toEqual([17366550, 35124656]);
 	});
 });
 

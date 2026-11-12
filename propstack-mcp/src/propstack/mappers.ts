@@ -234,6 +234,24 @@ export function imageList(value: unknown, max = 40): Raw[] | undefined {
  * Verknüpfte Kontakte (Eigentümer, Ansprechpartner) aus dem Einzel-GET der Einheit.
  * Die Doku beschreibt die Liste nicht – deshalb vorsichtig gelesen; was nicht zuzuordnen ist, wird mit seinen Feldnamen gezeigt.
  */
+/**
+ * Verknüpfte Kontakte aus GET /contacts/:id?include=relationships. Propstack liefert dort die Zeilen, in denen der
+ * abgerufene Kontakt der verknüpfte ist (live 12.11.2026): bei einer Person {name: "Mitarbeiter", client: Firma},
+ * bei einer Firma {name: "Firma", client: Person}. this_contact_is sagt also, was der abgerufene Kontakt für den
+ * genannten ist. Zeilen mit Objekt oder Projekt (Eigentümer, Ansprechpartner) gehören nicht dazu.
+ */
+export function linkedContacts(value: unknown, max = 50): Raw {
+	const rows = (Array.isArray(value) ? value : []).filter((row): row is Raw => {
+		const raw = (row && typeof row === "object" ? row : {}) as Raw;
+		return !!raw.client && typeof raw.client === "object" && !raw.property && !raw.project;
+	});
+	if (!rows.length) return {};
+	return compact({
+		linked_contacts: rows.slice(0, max).map((row) => compact({ id: (row.client as Raw).id, name: scalar((row.client as Raw).name), this_contact_is: scalar(row.name) })),
+		linked_contacts_total: rows.length > max ? rows.length : undefined,
+	});
+}
+
 export function relationshipList(value: unknown, max = 20): Raw[] | undefined {
 	if (!Array.isArray(value) || !value.length) return undefined;
 	return value.slice(0, max).map((entry) => {

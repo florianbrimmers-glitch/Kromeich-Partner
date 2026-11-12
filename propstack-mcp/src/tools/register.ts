@@ -52,7 +52,7 @@ import {
 	updateProjectInput,
 } from "./project-tools";
 import { createTask, createTaskInput } from "./task-tools";
-import { createCompany, createCompanyInput, linkContactCompany, linkContactCompanyInput } from "./company-tools";
+import { createCompany, createCompanyInput, createContactLinked, linkContactCompany, linkContactCompanyInput } from "./company-tools";
 import { dashboardDaten, dashboardDatenInput } from "../dashboard/aufbau";
 import { D1DashboardStore, type DashboardStore } from "../dashboard/store";
 import { type ZodRawShape, z } from "zod";
@@ -244,10 +244,10 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
 		"Provision: commission=provisionsfrei oder staffel setzt die Standardtexte. Am Objekt gehört die Provision vollständig auf jede Einheit (Feld-Mapping, Korrektur 29): „Provision extern“ setzt der Connector aus der Provisionsaussage selbst, „Provision interne Notiz“ aus internal_commission (Herkunft der Aussage und Sonderregeln, kurz). Feste Regeln (Wissensdatenbank, Stand 09/2026): Mileway immer provisionsfrei; Scheren Logistik provisionspflichtig, auch wenn deren Exposé „provisionsfrei“ nennt.";
 	register(
 		"create_contact",
-		`Kontakt (Person) in Propstack anlegen. Vorher automatische Dublettenprüfung: gleiche E-Mail blockiert immer, ohne persönliche E-Mail blockieren gleiche Mobilnummer oder gleicher Name + Firma; allgemeine Adressen (info@ …) und gleiche Festnetznummern erzeugen nur Warnungen. Bei Dublette nichts anlegen, sondern den Nutzer fragen und ggf. update_contact nutzen. ${rules}`,
+		`Kontakt (Person) in Propstack anlegen. Vorher automatische Dublettenprüfung: gleiche E-Mail blockiert immer, ohne persönliche E-Mail blockieren gleiche Mobilnummer oder gleicher Name + Firma; allgemeine Adressen (info@ …) und gleiche Festnetznummern erzeugen nur Warnungen. Bei Dublette nichts anlegen, sondern den Nutzer fragen und ggf. update_contact nutzen. Ist eine Firma angegeben, wird die Person automatisch mit dem Firmen-Datensatz verknüpft; gibt es keinen, wird er angelegt – außer es gibt schon einen ähnlich benannten oder mehrere passende (dann steht im Ergebnis, was zu entscheiden ist). Ergebnis dazu unter company_link. ${rules}`,
 		createContactInput,
 		false,
-		createContact,
+		createContactLinked,
 	);
 	register(
 		"update_contact",
@@ -265,7 +265,7 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
 	);
 	register(
 		"link_contact_company",
-		"Person mit ihrer Firma verknüpfen: contact_id = Person, company_id = Firmen-Datensatz. Danach steht unter „Verknüpfte Kontakte“ am Kontakt die Firma (Bezeichnung „Firma“) und am Firmen-Datensatz die Person (Bezeichnung „Mitarbeiter“). Vorher wird geprüft, dass company_id wirklich ein Firmen-Datensatz ist, contact_id eine Person und beide nicht schon verknüpft sind (dann wird nichts geschrieben). Vorhandene Verknüpfungen bleiben bestehen; lösen oder ändern kann der Connector sie nicht. Ergebnis linked: true/false/„nicht prüfbar“, label = Bezeichnung am Kontakt.",
+		"Person mit ihrer Firma verknüpfen: contact_id = Person, company_id = Firmen-Datensatz. Danach steht unter „Verknüpfte Kontakte“ am Kontakt die Firma (Bezeichnung „Firma“) und am Firmen-Datensatz die Person (Bezeichnung „Mitarbeiter“). Vorher wird geprüft, dass company_id wirklich ein Firmen-Datensatz ist, contact_id eine Person und beide nicht schon verknüpft sind (dann wird nichts geschrieben). Vorhandene Verknüpfungen bleiben bestehen; lösen oder ändern kann der Connector sie nicht. Ergebnis linked: true/false/„nicht prüfbar“, label = Bezeichnung am Kontakt. Bei create_contact mit Firma geschieht das automatisch; dieses Tool ist für vorhandene Kontakte und Zweifelsfälle. Die verknüpften Kontakte eines Kontakts zeigt get_contact (linked_contacts).",
 		linkContactCompanyInput,
 		false,
 		linkContactCompany,

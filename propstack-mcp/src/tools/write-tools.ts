@@ -14,7 +14,6 @@ import { PUBLIC_PRICE_HINT, type CustomOption, loadFieldDefs, mirroredCustomFiel
 import { areaNumber, computedTotal, MEZZANINE_KEY, showArea, totalDiffers } from "../propstack/areas";
 import { availabilityMirror, BEZUG_KEY, bezugDeviation } from "../propstack/availability";
 import { appendNote } from "../propstack/notes";
-import { findCompanyRecord } from "../propstack/companies";
 import { scalar } from "../propstack/mappers";
 import { readUnit, UNVERIFIABLE, type UnitState, unitCustomValue, unitValue } from "../propstack/unit-state";
 import { CRM_BASE, createReviewTask } from "../review-task";
@@ -417,18 +416,6 @@ export async function createContact(deps: WriteDeps, input: z.infer<z.ZodObject<
 	for (const entry of await revertInvalidContactReferences(client, newId, fields, actual, null)) missing.push(entry.message);
 	await finishWrite(deps.db, logId, { entityId: newId, notApplied: missing, status: missing.length ? "done_with_gaps" : "done" });
 
-	// Firma: Der tägliche Import verknüpft jede Person mit ihrem Firmen-Datensatz. Hier geschieht das auf Ansage
-	// (Variante „auf Ansage“, 12.11.2026 – die vorhandenen Tools bleiben im Wortlaut unverändert): Das Ergebnis sagt,
-	// ob es den Firmen-Datensatz schon gibt und was der nächste Schritt ist.
-	let companyRecord: { id: number; name: string } | null | undefined;
-	if (input.company && client.hasV2Key === true) {
-		try {
-			companyRecord = await findCompanyRecord(client, input.company);
-		} catch {
-			// Der Hinweis ist eine Zugabe – scheitert die Suche, bleibt der Kontakt trotzdem angelegt.
-		}
-	}
-
 	return {
 		count: 1,
 		result: {
@@ -441,13 +428,6 @@ export async function createContact(deps: WriteDeps, input: z.infer<z.ZodObject<
 			warnings: dedupe.warnings.length ? dedupe.warnings : undefined,
 			not_applied: missing.length ? missing : undefined,
 			note: missing.length ? "Propstack hat einige Felder nicht übernommen – bitte prüfen." : undefined,
-			company_record: companyRecord ?? undefined,
-			company_hint:
-				companyRecord === undefined
-					? undefined
-					: companyRecord
-						? `Den Firmen-Datensatz „${companyRecord.name}“ (${companyRecord.id}) gibt es schon – die Person mit link_contact_company damit verknüpfen (contact_id ${newId}, company_id ${companyRecord.id}).`
-						: `Für „${input.company}“ gibt es keinen eindeutigen Firmen-Datensatz. Soll die Person an einer Firma hängen: mit search_contacts nach der Firma suchen oder sie mit create_company anlegen, dann link_contact_company.`,
 		},
 	};
 }

@@ -92,7 +92,7 @@ describe("MCP-Protokoll", () => {
 
 	it("führt ein Tool aus, liefert JSON-Text und schreibt das Audit-Log", async () => {
 		const { client, audits } = await connect({
-			getContact: async () => ({ id: 5, identity_number: "GEHEIM", name: "Anna" }),
+			getContactRelationships: async () => ({ id: 5, identity_number: "GEHEIM", name: "Anna" }),
 			listBrokers: async () => [],
 		});
 		const result = await client.callTool({ arguments: { id: 5 }, name: "get_contact" });
@@ -105,7 +105,7 @@ describe("MCP-Protokoll", () => {
 	it("IDs als Ziffern-Text werden angenommen (Clients mit veralteter Tool-Liste), das Schema bleibt integer", async () => {
 		const seen: unknown[] = [];
 		const { client } = await connect({
-			getContact: async (id: number) => {
+			getContactRelationships: async (id: number) => {
 				seen.push(id);
 				return { id, name: "Anna" };
 			},

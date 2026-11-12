@@ -15,6 +15,7 @@ import {
 import {
 	compact,
 	dealPrice,
+	linkedContacts,
 	mapContactDetail,
 	mapContactSummary,
 	mapDeal,
@@ -186,7 +187,9 @@ export async function getContact(client: Client, input: DiagnoseInput): Promise<
 			},
 		};
 	}
-	const contact = mapContactDetail(asObject(await client.getContact(input.id)));
+	// Mit include=relationships: derselbe Datensatz, dazu die verknüpften Kontakte (Firma bzw. Mitarbeiter) – eine Anfrage.
+	const raw = asObject(await client.getContactRelationships(input.id));
+	const contact = { ...mapContactDetail(raw), ...linkedContacts(raw.relationships) };
 	return { count: 1, result: withBrokerName(contact, await brokerNames(client)) };
 }
 
