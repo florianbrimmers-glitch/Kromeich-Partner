@@ -104,9 +104,10 @@ def test_name_duplicate_found_even_if_flagged_as_company(monkeypatch):
     assert ps.check_duplicate_by_name("Robin", "Balsmeier") is True
 
 
-def test_link_labels_company_as_firma(monkeypatch):
-    # Regression 12.11.2026: "Mitarbeiter" an der Zeile der Person beschriftete die
-    # Firma als Mitarbeiter und (Gegenzeile) die Person als Firma.
+def test_link_labels_person_row_as_mitarbeiter(monkeypatch):
+    # name beschreibt client_id (die Person) und wird an der Firma angezeigt.
+    # Am 12.11.2026 irrtümlich auf "Firma" gedreht: Dann steht am Kontakt die
+    # Firma als "Mitarbeiter" (Oberfläche geprüft am 13.11.2026).
     posts = []
 
     def fake_post(url, json=None, headers=None, **kw):
@@ -117,7 +118,7 @@ def test_link_labels_company_as_firma(monkeypatch):
     assert ps.link_contact_to_company(111, 222) is True
     url, body, headers = posts[0]
     assert url == "https://api.propstack.de/v2/relationships"
-    assert body == {"internal_name": "associate", "name": "Firma",
+    assert body == {"internal_name": "associate", "name": "Mitarbeiter",
                     "client_id": 111, "related_client_id": 222}
     assert headers["X-Api-Key"] == "v2"
 
