@@ -198,7 +198,7 @@ describe("create_company", () => {
 			office_city: "Köln",
 			office_country: "Deutschland",
 			office_house_number: "1a",
-			office_phone: "0221 4710199",
+			office_phone: "+49 221 4710199",
 			office_street: "Teststraße",
 			office_url: "https://example.com",
 			office_zip_code: "50667",
@@ -216,6 +216,7 @@ describe("create_company", () => {
 			not_applied: undefined,
 			note: undefined,
 			override_reason: undefined,
+			phone_adjusted: ["phone_office: „0221 4710199“ → „+49 221 4710199“ (auf +49 umgestellt)"],
 			test: true,
 			warnings: undefined,
 		});
@@ -671,11 +672,38 @@ describe("create_contact: Firma automatisch verknüpfen (Entscheidung Florian, 1
 			],
 		});
 		expect(w.aufrufe.find((a) => a.methode === "createContact")!.args[0]).toMatchObject({ office_cell: "+49 171 3920055", office_phone: "+49 2151 123456" });
-		// richtig geschriebene Nummern bleiben, wie sie sind – ohne Hinweis
+		// richtig geschriebene internationale Nummern bleiben, wie sie sind – ohne Hinweis
 		const ok = kontaktWelt([]);
-		const sauber = await lauf(ok, { first_name: "Erika", last_name: "Neu", mobile: "0171 3920055", phone_office: "+49 221 4710-198" });
+		const sauber = await lauf(ok, { first_name: "Erika", last_name: "Neu", mobile: "+49 171 3920055", phone_office: "+49 221 4710-198" });
 		expect(sauber.result).not.toHaveProperty("phone_adjusted", expect.anything());
-		expect(ok.aufrufe.find((a) => a.methode === "createContact")!.args[0]).toMatchObject({ office_cell: "0171 3920055", office_phone: "+49 221 4710-198" });
+		expect(ok.aufrufe.find((a) => a.methode === "createContact")!.args[0]).toMatchObject({ office_cell: "+49 171 3920055", office_phone: "+49 221 4710-198" });
+	});
+
+	it("einheitlich mit Ländervorwahl: Nummern ohne Vorwahl bekommen die des Landes – ohne Landesangabe +49, und das Ergebnis sagt es", async () => {
+		// Entscheidung Florian, 13.11.2026
+		const ohneLand = kontaktWelt([]);
+		const a = await lauf(ohneLand, { first_name: "Erika", last_name: "Neu", mobile: "0171 3920055", phone_office: "(0221) 4710199" });
+		expect(ohneLand.aufrufe.find((x) => x.methode === "createContact")!.args[0]).toMatchObject({ office_cell: "+49 171 3920055", office_phone: "+49 221 4710199" });
+		expect(a.result).toMatchObject({
+			phone_adjusted: [
+				"mobile: „0171 3920055“ → „+49 171 3920055“ (auf +49 umgestellt – kein Land angegeben, als deutsche Nummer gewertet)",
+				"phone_office: „(0221) 4710199“ → „+49 221 4710199“ (auf +49 umgestellt – kein Land angegeben, als deutsche Nummer gewertet)",
+			],
+		});
+		// mit Land: dessen Vorwahl
+		const wien = kontaktWelt([]);
+		const b = await lauf(wien, { country: "Österreich", first_name: "Erika", last_name: "Neu", phone_office: "01 2345678" });
+		expect(wien.aufrufe.find((x) => x.methode === "createContact")!.args[0]).toMatchObject({ office_phone: "+43 1 2345678" });
+		expect(b.result).toMatchObject({ phone_adjusted: ["phone_office: „01 2345678“ → „+43 1 2345678“ (auf +43 umgestellt)"] });
+		// Land, das der Connector nicht kennt: Nummer bleibt, kein Hinweis
+		const fern = kontaktWelt([]);
+		const c = await lauf(fern, { country: "Südafrika", first_name: "Erika", last_name: "Neu", phone_office: "021 1234567" });
+		expect(fern.aufrufe.find((x) => x.methode === "createContact")!.args[0]).toMatchObject({ office_phone: "021 1234567" });
+		expect(c.result).not.toHaveProperty("phone_adjusted", expect.anything());
+		// „00“ wird zu „+“
+		const nullnull = kontaktWelt([]);
+		const d = await lauf(nullnull, { first_name: "Erika", last_name: "Neu", phone_office: "0049 221 4710199" });
+		expect(d.result).toMatchObject({ phone_adjusted: ["phone_office: „0049 221 4710199“ → „+49 221 4710199“ (00 durch + ersetzt)"] });
 	});
 
 	it("dieselbe Mobilnummer mit „(0)“ geschrieben wird als Dublette erkannt", async () => {
