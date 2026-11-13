@@ -45,13 +45,14 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--apply", action="store_true", help="zurückdrehen (schreibt!)")
     ap.add_argument("--limit", type=int, help="höchstens so viele Paare ändern")
+    ap.add_argument("--liste", default=str(LISTE), help="Liste der Paare (JSON, nur Nummern)")
     ap.add_argument("--only", type=int, help="nur das Paar mit dieser Zeile der Person")
     args = ap.parse_args()
     key = os.environ.get("PROPSTACK_API_V2")
     if not key:
         print("PROPSTACK_API_V2 fehlt.", file=sys.stderr)
         return 2
-    pairs = json.loads(LISTE.read_text(encoding="utf-8"))["paare"]
+    pairs = json.loads(Path(args.liste).read_text(encoding="utf-8"))["paare"]
     if args.only:
         pairs = [e for e in pairs if e["zeile_person"] == args.only]
     counts = {"noch verkehrt": 0, "schon richtig": 0, "abweichend": 0, "zurückgedreht": 0}
