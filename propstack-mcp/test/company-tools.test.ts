@@ -98,6 +98,8 @@ function welt(start: Raw[] = [], optionen: { v2Key?: boolean } = {}) {
 		},
 		searchContacts: async (query: Query) => {
 			merke("searchContacts", query);
+			// Suche nach Telefonnummer: Kandidaten liefern – verglichen wird im Connector, unabhängig von der Schreibweise
+			if (query.phone_number !== undefined) return page([...kontakte.values()].filter((k) => k.office_cell || k.office_phone));
 			if (typeof query.q !== "string") return page([]);
 			// wie Propstack: jedes Wort der Eingabe muss als Wortanfang in Name oder Firma vorkommen
 			const gesucht = woerter(query.q);
@@ -223,6 +225,13 @@ describe("create_company", () => {
 		// drei Suchen (ganzer Name, ohne Rechtsform, erstes Wort), ein Schreibzugriff, einmal Gegenlesen
 		expect(w.aufrufe.map((a) => a.methode)).toEqual(["searchContacts", "searchContacts", "searchContacts", "createClientV2", "getContact"]);
 		expect(w.aufrufe.slice(0, 3).map((a) => (a.args[0] as Raw).q)).toEqual(["MCP-TEST Musterfirma GmbH", "MCP-TEST Musterfirma", "MCP-TEST"]);
+	});
+
+	it("die Telefonnummer der Firma wird bereinigt: keine 0 nach der Ländervorwahl", async () => {
+		const w = welt();
+		const out = await createCompany({ client: w.client, db: fakeDb().db, now: NOW, user: USER }, { name: "Neue Firma GmbH", phone_office: "+49 (0)221 4710199" });
+		expect(w.aufrufe.find((a) => a.methode === "createClientV2")!.args[0]).toMatchObject({ office_phone: "+49 221 4710199" });
+		expect(out.result).toMatchObject({ created: true, phone_adjusted: ["phone_office: „+49 (0)221 4710199“ → „+49 221 4710199“ (0 nach der Ländervorwahl entfernt)"] });
 	});
 
 	it("gibt es die Firma schon, wird nichts angelegt – der vorhandene Datensatz kommt zurück", async () => {
@@ -648,6 +657,33 @@ describe("create_contact: Firma automatisch verknüpfen (Entscheidung Florian, 1
 		expect(c.result).toMatchObject({ created: true });
 		expect(c.link).toEqual({ hint: expect.stringContaining("PROPSTACK_API_KEY_V2"), linked: false });
 		expect(schreibZugriffe(ohneSchluessel)).toEqual(["createContact"]);
+	});
+
+	it("Telefonnummern werden beim Anlegen bereinigt: keine 0 nach der Ländervorwahl – und eine solche Mobilnummer gilt als Mobilnummer", async () => {
+		// Befund Florian, 13.11.2026. Vorher: „+49 (0) 171 …“ wurde als „keine deutsche Mobilnummer“ abgewiesen und landete im Festnetz-Feld.
+		const w = kontaktWelt([]);
+		const { result } = await lauf(w, { first_name: "Erika", last_name: "Neu", mobile: "+49 (0) 171 3920055", phone_office: "+49(0)2151 123456" });
+		expect(result).toMatchObject({
+			created: true,
+			phone_adjusted: [
+				"mobile: „+49 (0) 171 3920055“ → „+49 171 3920055“ (0 nach der Ländervorwahl entfernt)",
+				"phone_office: „+49(0)2151 123456“ → „+49 2151 123456“ (0 nach der Ländervorwahl entfernt)",
+			],
+		});
+		expect(w.aufrufe.find((a) => a.methode === "createContact")!.args[0]).toMatchObject({ office_cell: "+49 171 3920055", office_phone: "+49 2151 123456" });
+		// richtig geschriebene Nummern bleiben, wie sie sind – ohne Hinweis
+		const ok = kontaktWelt([]);
+		const sauber = await lauf(ok, { first_name: "Erika", last_name: "Neu", mobile: "0171 3920055", phone_office: "+49 221 4710-198" });
+		expect(sauber.result).not.toHaveProperty("phone_adjusted", expect.anything());
+		expect(ok.aufrufe.find((a) => a.methode === "createContact")!.args[0]).toMatchObject({ office_cell: "0171 3920055", office_phone: "+49 221 4710-198" });
+	});
+
+	it("dieselbe Mobilnummer mit „(0)“ geschrieben wird als Dublette erkannt", async () => {
+		const vorhanden = { first_name: "Karl", id: 5, is_company: false, last_name: "Alt", name: "Karl Alt", office_cell: "0171 3920055" };
+		const w = kontaktWelt([vorhanden]);
+		const { result } = await lauf(w, { first_name: "Erika", last_name: "Neu", mobile: "+49 (0) 171 3920055" });
+		expect(result).toMatchObject({ blocked: "Dublette", created: false, duplicates: [expect.objectContaining({ id: 5 })] });
+		expect(schreibZugriffe(w)).toEqual([]);
 	});
 
 	it("scheitert etwas an der Firma, bleibt der Kontakt angelegt – das Ergebnis sagt, was fehlt und wie es nachgeholt wird", async () => {
