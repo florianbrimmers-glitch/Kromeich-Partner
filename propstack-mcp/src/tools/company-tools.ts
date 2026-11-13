@@ -28,15 +28,20 @@ import {
 // Beides geht nur über die V2-Schnittstelle von Propstack (eigener Schlüssel PROPSTACK_API_KEY_V2):
 //   - Firma: Kontakt mit commercial: true, Name im Feld company, ohne Nachnamen (sonst zeigt Propstack „X (X)“ an).
 //   - Verknüpfung: POST /v2/relationships mit internal_name "associate", client_id = Person, related_client_id = Firma
-//     und name "Firma".
+//     und name "Mitarbeiter".
 //
-// Zur Bezeichnung (live geprüft am 12.11.2026 an allen 5.149 Kontakt-Verknüpfungen des Kontos): Propstack führt jede
-// Verknüpfung als zwei Zeilen – die angelegte und die Gegenrichtung, die es selbst ergänzt. name bezeichnet dabei den
-// verknüpften Kontakt (related_client) aus Sicht von client_id. In der Oberfläche angelegte Verknüpfungen sehen so aus:
-//     Person → Firma: „Firma“          Firma → Person: „Mitarbeiter“
-// Genau das entsteht mit name "Firma" (so macht es auch personalkarussell_handler). Der tägliche Import schickt dagegen
-// name "Mitarbeiter" – dann steht am Kontakt die Firma als „Mitarbeiter“ und an der Firma die Person als „Firma“
-// (rund 220 Verknüpfungen). Das wird hier nicht nachgemacht; solche Verknüpfungen meldet das Tool als vertauscht.
+// Zur Bezeichnung – berichtigt am 13.11.2026 nach einem Blick in die Propstack-Oberfläche (Bildschirmfoto Florian):
+// Propstack führt jede Verknüpfung als zwei Zeilen – die angelegte und die Gegenrichtung, die es selbst ergänzt.
+// name beschreibt client_id und wird am ANDEREN Kontakt angezeigt: Die Zeile {client_id: Person, related: Firma,
+// name: "Mitarbeiter"} erscheint an der Firma als „Person · Mitarbeiter“; die Gegenzeile {client_id: Firma,
+// related: Person, name: "Firma"} erscheint am Kontakt als „Firma · Firma“. Eine Kontaktseite zeigt also die Zeilen,
+// in denen der Kontakt der verknüpfte (related_client) ist – dieselbe Sicht wie GET /v1/contacts/:id?include=relationships.
+//
+// Richtig ist deshalb name "Mitarbeiter" an der Zeile der Person – so macht es der tägliche Import seit jeher, und
+// so sehen 83 von 87 von Hand angelegten Verknüpfungen aus. Die Fassungen 0.11.0–0.12.0 schickten "Firma": Dann
+// steht am Kontakt die Firma als „Mitarbeiter“ und an der Firma die Person als „Firma“. Das war ein Fehlschluss aus
+// den Rohdaten (Annahme: name beschreibe den verknüpften Kontakt), ohne die Oberfläche gesehen zu haben.
+// Verknüpfungen in dieser Form meldet das Tool als vertauscht.
 //
 // Gelesen und geprüft wird weiter über V1 (is_company, Suche), die Verknüpfungen über GET /v2/relationships
 // (liefert zu client_id nur die Zeilen der eigenen Seite). Kein Löschen, kein Ändern bestehender Verknüpfungen.
@@ -45,15 +50,15 @@ type Raw = Record<string, unknown>;
 
 type CompanyClient = Pick<
 	PropstackClient,
-	"searchContacts" | "getContact" | "listGroups" | "createGroup" | "createClientV2" | "updateClientV2" | "listRelationshipsV2" | "createRelationshipV2" | "hasV2Key"
+	"searchContacts" | "getContact" | "getContactRelationships" | "listGroups" | "createGroup" | "createClientV2" | "updateClientV2" | "listRelationshipsV2" | "createRelationshipV2" | "hasV2Key"
 >;
 
 const MISSING_V2_KEY = "Für Firmen und Verknüpfungen zwischen Kontakten fehlt dem Server der zweite Propstack-Schlüssel (PROPSTACK_API_KEY_V2).";
 
-/** Art und Bezeichnung der Verknüpfung aus Sicht der Person: Der verknüpfte Kontakt ist ihre „Firma“. */
-export const COMPANY_RELATION = { internal_name: "associate", name: "Firma" } as const;
-/** So bezeichnet Propstack die Gegenrichtung (Firma → Person). Steht das am Kontakt, ist die Verknüpfung vertauscht beschriftet. */
-const REVERSE_LABEL = "mitarbeiter";
+/** Die Zeile der Person: Sie ist „Mitarbeiter“ der Firma. Diese Bezeichnung zeigt Propstack an der Firma. */
+export const EMPLOYEE_RELATION = { internal_name: "associate", name: "Mitarbeiter" } as const;
+/** Die Gegenzeile ergänzt Propstack selbst: „Firma“ – das zeigt es am Kontakt. */
+const COMPANY_LABEL = "Firma";
 
 // ---------- create_company ----------
 
@@ -201,16 +206,29 @@ export const linkContactCompanyInput = {
 	company_id: id.describe("Propstack-ID des Firmen-Datensatzes (über search_contacts oder create_company)"),
 };
 
+/** Beide Zeilen einer Verknüpfung Person ↔ Firma, soweit vorhanden. */
+type LinkState = {
+	/** Zeile der Person (client_id = Person, related_client_id = Firma) – ihre Bezeichnung zeigt Propstack an der Firma. */
+	own?: Raw;
+	/** Zeile der Firma (client = Firma, related_client = Person) – ihre Bezeichnung zeigt Propstack am Kontakt. */
+	shownAtContact?: Raw;
+};
+
 /**
- * Die Verknüpfung aus Sicht der Person (client_id = Person, related_client_id = Firma), falls es sie gibt.
- * Propstack liefert zu client_id nur die Zeilen der eigenen Seite; die Gegenrichtung steht bei der Firma.
+ * Stand der Verknüpfung lesen. Die Zeile der Person kommt über GET /v2/relationships (liefert zu client_id nur die
+ * eigenen Zeilen), die Gegenzeile über GET /v1/contacts/:id?include=relationships der Person (liefert die Zeilen, in
+ * denen sie der verknüpfte Kontakt ist – das, was ihre Kontaktseite anzeigt).
  */
-async function personSideLink(client: Pick<PropstackClient, "listRelationshipsV2">, contactId: number, companyId: number): Promise<Raw | undefined> {
-	const { rows } = await client.listRelationshipsV2({ client_id: contactId, internal_name: COMPANY_RELATION.internal_name, per: 100 });
-	return rows.find((row) => Number(row.client_id) === contactId && Number(row.related_client_id) === companyId);
+async function linkState(client: CompanyClient, contactId: number, companyId: number, personRaw?: Raw): Promise<LinkState> {
+	const person = personRaw ?? (await asObjectOrThrow(client.getContactRelationships(contactId)));
+	const shown = (Array.isArray(person.relationships) ? person.relationships : []).find((row) => {
+		const raw = (row && typeof row === "object" ? row : {}) as Raw;
+		return Number((raw.client as Raw | null | undefined)?.id) === companyId && !raw.property && !raw.project;
+	}) as Raw | undefined;
+	const { rows } = await client.listRelationshipsV2({ client_id: contactId, internal_name: EMPLOYEE_RELATION.internal_name, per: 100 });
+	return { own: rows.find((row) => Number(row.client_id) === contactId && Number(row.related_client_id) === companyId), shownAtContact: shown };
 }
 
-/** Bezeichnung der Verknüpfung, wie sie am Kontakt steht. */
 function labelOf(row: Raw | undefined): string | undefined {
 	const label = typeof row?.name === "string" ? row.name.trim() : "";
 	return label === "" ? undefined : label;
@@ -222,7 +240,7 @@ export async function linkContactCompany(deps: WriteDeps, input: z.infer<z.ZodOb
 	if (!client.hasV2Key) throw new PropstackError(MISSING_V2_KEY, 0);
 	if (input.contact_id === input.company_id) throw new PropstackError("contact_id und company_id sind derselbe Datensatz.", 400);
 
-	const person = await asObjectOrThrow(client.getContact(input.contact_id));
+	const person = await asObjectOrThrow(client.getContactRelationships(input.contact_id));
 	const company = await asObjectOrThrow(client.getContact(input.company_id));
 	const personName = String(scalar(person.name) ?? `Kontakt ${input.contact_id}`);
 	const companyName = String(scalar(company.name) ?? scalar(company.company) ?? `Kontakt ${input.company_id}`);
@@ -243,23 +261,34 @@ export async function linkContactCompany(deps: WriteDeps, input: z.infer<z.ZodOb
 			? `Am Kontakt steht als Firma „${companyText}“, der Firmen-Datensatz heißt „${companyName}“ – bitte prüfen, ob es dieselbe Firma ist.`
 			: undefined;
 	const base = { company: { id: input.company_id, name: companyName }, contact: { id: input.contact_id, name: personName } };
-	const warningsFor = (row: Raw | undefined) => {
+	const lower = (row: Raw | undefined) => labelOf(row)?.toLowerCase();
+	const warningsFor = (state: LinkState) => {
+		// vertauscht: Am Kontakt erscheint die Firma als „Mitarbeiter“ bzw. an der Firma die Person als „Firma“
 		const swapped =
-			labelOf(row)?.toLowerCase() === REVERSE_LABEL
-				? `Die Verknüpfung ist vertauscht beschriftet: Am Kontakt steht die Firma als „${labelOf(row)}“ statt als „${COMPANY_RELATION.name}“. Korrigieren lässt sich das nur in Propstack.`
+			lower(state.shownAtContact) === EMPLOYEE_RELATION.name.toLowerCase() || lower(state.own) === COMPANY_LABEL.toLowerCase()
+				? `Die Verknüpfung ist vertauscht beschriftet: Am Kontakt steht die Firma als „${labelOf(state.shownAtContact) ?? "?"}“, an der Firma die Person als „${labelOf(state.own) ?? "?"}“ – üblich ist es umgekehrt. Korrigieren lässt sich das nur in Propstack.`
 				: undefined;
 		const list = [mismatch, swapped].filter((entry): entry is string => !!entry);
 		return list.length ? list : undefined;
 	};
-	const linked = (row: Raw, count: number): ToolOutput => ({
+	const linked = (state: LinkState, count: number): ToolOutput => ({
 		count,
-		result: { linked: true, already_linked: count === 0 ? true : undefined, ...base, label: labelOf(row), relationship_id: row.id, warnings: warningsFor(row) },
+		result: {
+			linked: true,
+			already_linked: count === 0 ? true : undefined,
+			...base,
+			label: labelOf(state.shownAtContact),
+			label_at_company: labelOf(state.own),
+			relationship_id: (state.own ?? state.shownAtContact)?.id,
+			warnings: warningsFor(state),
+		},
 	});
+	const exists = (state: LinkState) => !!state.own || !!state.shownAtContact;
 
-	const before = await personSideLink(client, input.contact_id, input.company_id);
-	if (before) return linked(before, 0);
+	const before = await linkState(client, input.contact_id, input.company_id, person);
+	if (exists(before)) return linked(before, 0);
 
-	const request = { ...COMPANY_RELATION, client_id: input.contact_id, related_client_id: input.company_id };
+	const request = { ...EMPLOYEE_RELATION, client_id: input.contact_id, related_client_id: input.company_id };
 	const logId = await beginWrite(deps.db, {
 		action: "update",
 		before: null,
@@ -277,24 +306,24 @@ export async function linkContactCompany(deps: WriteDeps, input: z.infer<z.ZodOb
 		await client.createRelationshipV2(request);
 	} catch (error) {
 		// 422 heißt bei Propstack oft „gibt es schon“ – aber nicht immer. Deshalb nachsehen statt annehmen.
-		const exists = error instanceof PropstackError && error.status === 422 ? await personSideLink(client, input.contact_id, input.company_id).catch(() => undefined) : undefined;
-		if (exists) {
+		const now = error instanceof PropstackError && error.status === 422 ? await linkState(client, input.contact_id, input.company_id).catch(() => undefined) : undefined;
+		if (now && exists(now)) {
 			await finishWrite(deps.db, logId, { status: "done" });
-			return linked(exists, 0);
+			return linked(now, 0);
 		}
 		await finishWrite(deps.db, logId, { error: (error as Error).message, status: "failed" });
 		throw error;
 	}
 
-	// Gegenlesen: Die Verknüpfung muss jetzt in Propstack stehen.
-	let after: Raw | undefined;
+	// Gegenlesen: Die angelegte Zeile muss jetzt in Propstack stehen.
+	let after: LinkState | undefined;
 	let checkError: string | undefined;
 	try {
-		after = await personSideLink(client, input.contact_id, input.company_id);
+		after = await linkState(client, input.contact_id, input.company_id);
 	} catch (error) {
 		checkError = (error as Error).message;
 	}
-	if (after) {
+	if (after?.own) {
 		await finishWrite(deps.db, logId, { status: "done" });
 		return linked(after, 1);
 	}
@@ -307,7 +336,7 @@ export async function linkContactCompany(deps: WriteDeps, input: z.infer<z.ZodOb
 		result: {
 			linked: checkError ? "nicht prüfbar" : false,
 			...base,
-			warnings: warningsFor(undefined),
+			warnings: mismatch ? [mismatch] : undefined,
 			note: "Propstack hat den Aufruf angenommen, die Verknüpfung ließ sich aber nicht bestätigen – bitte am Kontakt unter „Verknüpfte Kontakte“ prüfen.",
 		},
 	};

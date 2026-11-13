@@ -9,7 +9,9 @@ import { getContact } from "../src/tools/read-tools";
 //   - Kontakte: is_company, name, company, first_name (Goodman Germany GmbH 17366550, Stefan Prange 35124656)
 //   - Suche: jedes Wort der Eingabe muss vorkommen („Goodman Germany AG“ findet „Goodman Germany GmbH“ nicht)
 //   - Verknüpfungen: je Verknüpfung zwei Zeilen; GET /v2/relationships?client_id=… liefert nur die der eigenen Seite.
-//     Person → Firma heißt „Firma“, die Gegenrichtung ergänzt Propstack selbst als „Mitarbeiter“ (Kategorie 5787).
+//     Oberfläche (Bildschirmfoto 13.11.2026): Eine Kontaktseite zeigt die Zeilen, in denen der Kontakt der verknüpfte
+//     ist – wie GET /v1/contacts/:id?include=relationships. Richtig ist deshalb: Zeile der Person „Mitarbeiter“
+//     (erscheint an der Firma), Gegenzeile „Firma“ (erscheint am Kontakt, von Propstack ergänzt, Kategorie 5787).
 
 type Raw = Record<string, unknown>;
 const page = (rows: Raw[]): Page => ({ rows, total: rows.length });
@@ -47,7 +49,7 @@ function welt(start: Raw[] = [], optionen: { v2Key?: boolean } = {}) {
 	let naechsteId = 9000;
 	const merke = (methode: string, ...args: unknown[]) => aufrufe.push({ args, methode });
 	/** Eine Verknüpfung, wie Propstack sie führt: die angelegte Zeile und die Gegenrichtung mit der passenden Bezeichnung. */
-	const paar = (von: number, zu: number, id: number, name: string | null = "Firma") => {
+	const paar = (von: number, zu: number, id: number, name: string | null = "Mitarbeiter") => {
 		const gegen = name === "Firma" ? "Mitarbeiter" : name === "Mitarbeiter" ? "Firma" : null;
 		verknuepfungen.push(
 			{ client_id: von, id, internal_name: "associate", name, related_client_id: zu, relationship_category_id: null },
@@ -71,6 +73,16 @@ function welt(start: Raw[] = [], optionen: { v2Key?: boolean } = {}) {
 			const id = 500 + verknuepfungen.length;
 			paar(body.client_id as number, body.related_client_id as number, id, body.name as string);
 			return { id };
+		},
+		// wie Propstack: der Kontakt samt den Zeilen, in denen er der verknüpfte ist – das zeigt auch seine Kontaktseite
+		getContactRelationships: async (id: number) => {
+			merke("getContactRelationships", id);
+			const kontakt = kontakte.get(id);
+			if (!kontakt) throw new PropstackError("Nicht gefunden (404)", 404);
+			const relationships = verknuepfungen
+				.filter((v) => v.related_client_id === id)
+				.map((v) => ({ client: { id: v.client_id, name: String(kontakte.get(v.client_id as number)?.name ?? "") }, id: v.id, internal_name: v.internal_name, name: v.name, project: null, property: null, related_client: { id, name: kontakt.name } }));
+			return { ...structuredClone(kontakt), relationships };
 		},
 		getContact: async (id: number) => {
 			merke("getContact", id);
@@ -305,14 +317,15 @@ describe("link_contact_company", () => {
 	const deps = (w: ReturnType<typeof welt>) => ({ client: w.client, db: fakeDb().db, now: NOW, user: USER });
 	const IDS = { company_id: 17366550, contact_id: 35124656 };
 	const schreibt = (w: ReturnType<typeof welt>) => w.aufrufe.some((a) => a.methode === "createRelationshipV2");
+	const VERTAUSCHT = "Die Verknüpfung ist vertauscht beschriftet: Am Kontakt steht die Firma als „Mitarbeiter“, an der Firma die Person als „Firma“ – üblich ist es umgekehrt. Korrigieren lässt sich das nur in Propstack.";
 
-	it("verknüpft Person und Firma: am Kontakt als „Firma“ – die Gegenrichtung „Mitarbeiter“ ergänzt Propstack – und liest gegen", async () => {
+	it("verknüpft Person und Firma: Die Zeile der Person heißt „Mitarbeiter“ – am Kontakt erscheint die Firma dadurch als „Firma“ – und liest gegen", async () => {
 		const w = welt([GOODMAN, STEFAN]);
 		const { db, rows, updates } = fakeDb();
 		const out = await linkContactCompany({ client: w.client, db, now: NOW, user: USER }, IDS);
-		// name bezeichnet den verknüpften Kontakt aus Sicht von client_id: Für die Person ist das ihre „Firma“.
-		// (Der tägliche Import schickt hier „Mitarbeiter“ – dann stehen beide Bezeichnungen vertauscht in Propstack.)
-		expect(w.aufrufe.find((a) => a.methode === "createRelationshipV2")!.args[0]).toEqual({ client_id: 35124656, internal_name: "associate", name: "Firma", related_client_id: 17366550 });
+		// name beschreibt client_id und wird am anderen Kontakt angezeigt (Oberfläche geprüft am 13.11.2026).
+		// Mit name "Firma" – so in 0.11.0 bis 0.12.0 – stand am Kontakt die Firma als „Mitarbeiter“.
+		expect(w.aufrufe.find((a) => a.methode === "createRelationshipV2")!.args[0]).toEqual({ client_id: 35124656, internal_name: "associate", name: "Mitarbeiter", related_client_id: 17366550 });
 		expect(out).toEqual({
 			count: 1,
 			result: {
@@ -320,68 +333,94 @@ describe("link_contact_company", () => {
 				company: { id: 17366550, name: "Goodman Germany GmbH" },
 				contact: { id: 35124656, name: "Stefan Prange" },
 				label: "Firma",
+				label_at_company: "Mitarbeiter",
 				linked: true,
 				relationship_id: 500,
 				warnings: undefined,
 			},
 		});
 		expect(w.verknuepfungen.map((v) => [v.client_id, v.name, v.related_client_id])).toEqual([
-			[35124656, "Firma", 17366550],
-			[17366550, "Mitarbeiter", 35124656],
+			[35124656, "Mitarbeiter", 17366550],
+			[17366550, "Firma", 35124656],
 		]);
 		expect(rows[0].slice(3, 6)).toEqual(["link_contact_company", "contact", 35124656]);
 		expect(JSON.stringify(updates)).toMatch(/done/);
 		expect(JSON.stringify(updates)).not.toMatch(/done_with_gaps|failed/);
-		// zwei Kontakte lesen, einmal vorher nachsehen, einmal schreiben, einmal gegenlesen
-		expect(w.aufrufe.map((a) => a.methode)).toEqual(["getContact", "getContact", "listRelationshipsV2", "createRelationshipV2", "listRelationshipsV2"]);
+		// Person samt angezeigten Verknüpfungen und Firma lesen, eigene Zeilen nachsehen, schreiben, beides gegenlesen
+		expect(w.aufrufe.map((a) => a.methode)).toEqual(["getContactRelationships", "getContact", "listRelationshipsV2", "createRelationshipV2", "getContactRelationships", "listRelationshipsV2"]);
 		expect(w.aufrufe[2].args[0]).toEqual({ client_id: 35124656, internal_name: "associate", per: 100 });
 	});
 
 	it("schon verknüpft: nichts wird geschrieben und nichts protokolliert – egal, von welcher Seite die Verknüpfung angelegt wurde", async () => {
+		// vom Import: Zeile der Person zuerst
 		const vonPerson = welt([GOODMAN, STEFAN]);
-		vonPerson.paar(35124656, 17366550, 7135440);
+		vonPerson.paar(35124656, 17366550, 7985856);
 		const { db, rows } = fakeDb();
 		const a = await linkContactCompany({ client: vonPerson.client, db, now: NOW, user: USER }, IDS);
 		expect(a).toEqual({
 			count: 0,
-			result: { already_linked: true, company: { id: 17366550, name: "Goodman Germany GmbH" }, contact: { id: 35124656, name: "Stefan Prange" }, label: "Firma", linked: true, relationship_id: 7135440, warnings: undefined },
+			result: {
+				already_linked: true,
+				company: { id: 17366550, name: "Goodman Germany GmbH" },
+				contact: { id: 35124656, name: "Stefan Prange" },
+				label: "Firma",
+				label_at_company: "Mitarbeiter",
+				linked: true,
+				relationship_id: 7985856,
+				warnings: undefined,
+			},
 		});
 		expect(schreibt(vonPerson)).toBe(false);
 		expect(rows).toEqual([]);
 
-		// an der Firma angelegt („Mitarbeiter“): Propstack führt die Gegenrichtung am Kontakt als „Firma“
+		// von Hand am Kontakt angelegt: Zeile der Firma („Firma“) zuerst, die der Person ergänzt Propstack
 		const vonFirma = welt([GOODMAN, STEFAN]);
-		vonFirma.paar(17366550, 35124656, 7983879, "Mitarbeiter");
+		vonFirma.paar(17366550, 35124656, 7946127, "Firma");
 		const b = await linkContactCompany(deps(vonFirma), IDS);
-		expect(b.result).toMatchObject({ already_linked: true, label: "Firma", linked: true, relationship_id: 7983880 });
+		expect(b.result).toMatchObject({ already_linked: true, label: "Firma", label_at_company: "Mitarbeiter", linked: true, relationship_id: 7946128 });
 		expect((b.result as Raw).warnings).toBeUndefined();
 		expect(schreibt(vonFirma)).toBe(false);
 	});
 
-	it("vorhandene Verknüpfung aus dem täglichen Import (am Kontakt „Mitarbeiter“): gilt als verknüpft, wird aber als vertauscht gemeldet", async () => {
+	it("vertauscht beschriftete Verknüpfung (Zeile der Person heißt „Firma“): gilt als verknüpft, wird aber gemeldet", async () => {
+		// so legten es der Connector 0.11.0–0.12.0 und der Import am 12./13.11.2026 an – und so stehen rund 2.000 ältere im Konto
 		const w = welt([GOODMAN, STEFAN]);
-		w.paar(35124656, 17366550, 7985856, "Mitarbeiter");
+		w.paar(35124656, 17366550, 7135440, "Firma");
 		const out = await linkContactCompany(deps(w), IDS);
-		expect(out.result).toMatchObject({
-			already_linked: true,
-			label: "Mitarbeiter",
-			linked: true,
-			relationship_id: 7985856,
-			warnings: ["Die Verknüpfung ist vertauscht beschriftet: Am Kontakt steht die Firma als „Mitarbeiter“ statt als „Firma“. Korrigieren lässt sich das nur in Propstack."],
-		});
+		expect(out.result).toMatchObject({ already_linked: true, label: "Mitarbeiter", label_at_company: "Firma", linked: true, relationship_id: 7135440, warnings: [VERTAUSCHT] });
 		expect(schreibt(w)).toBe(false);
 	});
 
-	it("vorhandene Verknüpfung mit anderer oder ohne Bezeichnung: gilt als verknüpft, die Bezeichnung wird genannt", async () => {
+	it("vorhandene Verknüpfung mit anderer oder ohne Bezeichnung: gilt als verknüpft, die Bezeichnungen werden genannt, keine Warnung", async () => {
 		const vertreter = welt([GOODMAN, STEFAN]);
 		vertreter.paar(35124656, 17366550, 10, "Vertreter");
-		expect((await linkContactCompany(deps(vertreter), IDS)).result).toMatchObject({ already_linked: true, label: "Vertreter", linked: true });
+		const a = (await linkContactCompany(deps(vertreter), IDS)).result as Raw;
+		expect(a).toMatchObject({ already_linked: true, label_at_company: "Vertreter", linked: true });
+		expect(a.label).toBeUndefined();
+		expect(a.warnings).toBeUndefined();
 		const ohne = welt([GOODMAN, STEFAN]);
 		ohne.paar(35124656, 17366550, 20, null);
-		const out = (await linkContactCompany(deps(ohne), IDS)).result as Raw;
-		expect(out).toMatchObject({ already_linked: true, linked: true, relationship_id: 20 });
-		expect(out.label).toBeUndefined();
-		expect(out.warnings).toBeUndefined();
+		const b = (await linkContactCompany(deps(ohne), IDS)).result as Raw;
+		expect(b).toMatchObject({ already_linked: true, linked: true, relationship_id: 20 });
+		expect(b.label).toBeUndefined();
+		expect(b.warnings).toBeUndefined();
+	});
+
+	it("halbe Verknüpfung (nur eine der zwei Zeilen, z. B. nach einem Löschen in Propstack): gilt als vorhanden, nichts wird doppelt angelegt", async () => {
+		// live 12.11.2026: Löschen entfernt nur eine Zeile – die andere bleibt stehen
+		const nurFirma = welt([GOODMAN, STEFAN]);
+		nurFirma.verknuepfungen.push({ client_id: 17366550, id: 6825243, internal_name: "associate", name: "Firma", related_client_id: 35124656 });
+		const a = (await linkContactCompany(deps(nurFirma), IDS)).result as Raw;
+		expect(a).toMatchObject({ already_linked: true, label: "Firma", linked: true, relationship_id: 6825243 });
+		expect(a.label_at_company).toBeUndefined();
+		expect(schreibt(nurFirma)).toBe(false);
+
+		const nurPerson = welt([GOODMAN, STEFAN]);
+		nurPerson.verknuepfungen.push({ client_id: 35124656, id: 6825242, internal_name: "associate", name: "Mitarbeiter", related_client_id: 17366550 });
+		const b = (await linkContactCompany(deps(nurPerson), IDS)).result as Raw;
+		expect(b).toMatchObject({ already_linked: true, label_at_company: "Mitarbeiter", linked: true, relationship_id: 6825242 });
+		expect(b.label).toBeUndefined();
+		expect(schreibt(nurPerson)).toBe(false);
 	});
 
 	it("Verknüpfungen mit anderen Kontakten oder anderer Art (z. B. Eigentümer) zählen nicht", async () => {
@@ -390,7 +429,7 @@ describe("link_contact_company", () => {
 		w.paar(777, 17366550, 40); // andere Person, dieselbe Firma
 		w.verknuepfungen.push({ client_id: 35124656, id: 79, internal_name: "owner", name: null, related_client_id: 17366550 });
 		const out = await linkContactCompany(deps(w), IDS);
-		expect(out.result).toMatchObject({ linked: true, relationship_id: 505 });
+		expect(out.result).toMatchObject({ label: "Firma", linked: true, relationship_id: 505 });
 		expect((out.result as Raw).already_linked).toBeUndefined();
 		expect(schreibt(w)).toBe(true);
 	});
@@ -439,7 +478,7 @@ describe("link_contact_company", () => {
 		await expect(linkContactCompany(deps(stoerung), IDS)).rejects.toThrow(/500/);
 	});
 
-	it("steht die Verknüpfung beim Gegenlesen nicht da, heißt es linked: false statt eines falschen Erfolgs", async () => {
+	it("steht die angelegte Zeile beim Gegenlesen nicht da, heißt es linked: false statt eines falschen Erfolgs", async () => {
 		const w = welt([GOODMAN, STEFAN]);
 		w.roh.createRelationshipV2 = async () => ({ id: 1 }); // angenommen, aber nicht gespeichert
 		const { db, updates } = fakeDb();
@@ -521,8 +560,8 @@ describe("create_contact: Firma automatisch verknüpfen (Entscheidung Florian, 1
 		});
 		expect(schreibZugriffe(w)).toEqual(["createContact", "createRelationshipV2"]);
 		expect(w.verknuepfungen.map((v) => [v.client_id, v.name, v.related_client_id])).toEqual([
-			[8000, "Firma", 17366550],
-			[17366550, "Mitarbeiter", 8000],
+			[8000, "Mitarbeiter", 17366550],
+			[17366550, "Firma", 8000],
 		]);
 		// im Write-Log steht die Verknüpfung unter dem Tool, das sie ausgelöst hat
 		expect(log.rows.map((r) => r[3])).toEqual(["create_contact", "create_contact"]);
@@ -554,7 +593,7 @@ describe("create_contact: Firma automatisch verknüpfen (Entscheidung Florian, 1
 		});
 		expect(link).toMatchObject({ company: { id: 9001, name: "Neue Firma GmbH" }, company_created: true, label: "Firma", linked: true });
 		expect(schreibZugriffe(w)).toEqual(["createContact", "createClientV2", "createRelationshipV2"]);
-		expect(w.verknuepfungen[0]).toMatchObject({ client_id: 8000, name: "Firma", related_client_id: 9001 });
+		expect(w.verknuepfungen[0]).toMatchObject({ client_id: 8000, name: "Mitarbeiter", related_client_id: 9001 });
 		// Kontakt, Firma und Verknüpfung stehen einzeln im Write-Log, alle unter create_contact
 		expect(log.rows.map((r) => r[3])).toEqual(["create_contact", "create_contact", "create_contact"]);
 	});
@@ -650,19 +689,19 @@ describe("create_contact: Firma automatisch verknüpfen (Entscheidung Florian, 1
 });
 
 describe("get_contact: verknüpfte Kontakte", () => {
-	it("zeigt an der Firma die verknüpften Personen und an der Person die Firma – mit einer einzigen Anfrage", async () => {
+	it("zeigt an der Firma die verknüpften Personen und an der Person die Firma – mit der Bezeichnung, die Propstack daneben anzeigt, und einer einzigen Anfrage", async () => {
 		const abrufe: number[] = [];
 		const client = {
 			getContactRelationships: async (id: number) => {
 				abrufe.push(id);
 				return id === 17366550
-					? { ...GOODMAN, relationships: [{ client: { id: 35124656, name: "Stefan Prange" }, internal_name: "associate", name: "Firma", project: null, property: null }] }
-					: { ...STEFAN, relationships: [{ client: { id: 17366550, name: "Goodman Germany GmbH" }, internal_name: "associate", name: "Mitarbeiter", project: null, property: null }] };
+					? { ...GOODMAN, relationships: [{ client: { id: 35124656, name: "Stefan Prange" }, internal_name: "associate", name: "Mitarbeiter", project: null, property: null }] }
+					: { ...STEFAN, relationships: [{ client: { id: 17366550, name: "Goodman Germany GmbH" }, internal_name: "associate", name: "Firma", project: null, property: null }] };
 			},
 			listBrokers: async () => [],
 		} as never;
-		expect((await getContact(client, { id: 17366550 })).result).toMatchObject({ is_company: true, linked_contacts: [{ id: 35124656, name: "Stefan Prange", this_contact_is: "Firma" }] });
-		expect((await getContact(client, { id: 35124656 })).result).toMatchObject({ linked_contacts: [{ id: 17366550, name: "Goodman Germany GmbH", this_contact_is: "Mitarbeiter" }], name: "Stefan Prange" });
+		expect((await getContact(client, { id: 17366550 })).result).toMatchObject({ is_company: true, linked_contacts: [{ id: 35124656, label: "Mitarbeiter", name: "Stefan Prange" }] });
+		expect((await getContact(client, { id: 35124656 })).result).toMatchObject({ linked_contacts: [{ id: 17366550, label: "Firma", name: "Goodman Germany GmbH" }], name: "Stefan Prange" });
 		expect(abrufe).toEqual([17366550, 35124656]);
 	});
 });

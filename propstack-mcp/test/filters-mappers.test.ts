@@ -237,8 +237,8 @@ describe("Kontakt-Einzelansicht: Quelle mit Namen (Live-Abnahme Kontakte, 12.11.
 		]);
 		expect(firma).toEqual({
 			linked_contacts: [
-				{ id: 38366717, name: "Otto MCP-Testkontakt Anderefirma", this_contact_is: "Firma" },
-				{ id: 38363861, name: "Dr. Max MCP-Testkontakt Abnahme", this_contact_is: "Firma" },
+				{ id: 38366717, name: "Otto MCP-Testkontakt Anderefirma", label: "Firma" },
+				{ id: 38363861, name: "Dr. Max MCP-Testkontakt Abnahme", label: "Firma" },
 			],
 		});
 		const person = linkedContacts([
@@ -247,7 +247,7 @@ describe("Kontakt-Einzelansicht: Quelle mit Namen (Live-Abnahme Kontakte, 12.11.
 			{ client: { id: 9, name: "X" }, id: 2, internal_name: "owner", name: null, project: null, property: { id: 7, name: "Objekt" }, related_client: { id: 35124656, name: "Stefan Prange" } },
 			{ client: null, id: 3, internal_name: "owner", name: null, project: null, property: null },
 		]);
-		expect(person).toEqual({ linked_contacts: [{ id: 17366550, name: "Goodman Germany GmbH", this_contact_is: "Mitarbeiter" }] });
+		expect(person).toEqual({ linked_contacts: [{ id: 17366550, name: "Goodman Germany GmbH", label: "Mitarbeiter" }] });
 		// ohne Verknüpfungen fehlt das Feld; bei sehr vielen wird gekürzt und die Gesamtzahl genannt
 		expect(linkedContacts(undefined)).toEqual({});
 		expect(linkedContacts([])).toEqual({});
