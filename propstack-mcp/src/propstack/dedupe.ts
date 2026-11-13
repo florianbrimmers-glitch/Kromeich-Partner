@@ -44,9 +44,46 @@ export function isGenericEmail(email: string): boolean {
 	return GENERIC_LOCAL_PARTS.has(local) || isSystemEmail(email);
 }
 
+// Länder, in denen nach der Ländervorwahl nie eine 0 folgt: Die 0 der Ortsvorwahl entfällt dort bei internationaler
+// Schreibweise (DE, AT, CH, NL, BE, FR, GB …), oder Rufnummern beginnen ohnehin nie mit 0 (DK, NO, PL, ES, PT, CZ, GR).
+const NO_ZERO_AFTER = ["49", "43", "41", "31", "32", "33", "44", "352", "45", "46", "47", "48", "34", "351", "353", "420", "421", "385", "386", "40", "359", "358", "30", "90", "423"];
+// Länder, in denen die 0 zur Rufnummer gehört und mitgewählt wird (Italien, San Marino, Elfenbeinküste, Gabun, Kongo).
+const ZERO_BELONGS = ["39", "378", "225", "241", "242"];
+
+/**
+ * Telefonnummer so schreiben, dass sie sich wählen lässt: Nach einer Ländervorwahl darf keine 0 der Ortsvorwahl
+ * stehen. Aus Signaturen kommt oft „+49 (0) 151 …“ oder „+49 0151 …“ – so gespeichert lässt sich die Nummer nicht
+ * anwählen (Befund Florian, 13.11.2026: 12 der 600 neuesten Kontakte). Entfernt wird nur diese 0; die übrige
+ * Schreibweise bleibt, Nummern ohne Ländervorwahl („0171 …“) bleiben unverändert.
+ * - „(0)“ nach der Ländervorwahl: immer weg – außer in Ländern, in denen die 0 zur Nummer gehört (dort ohne Klammern).
+ * - eine 0 ohne Klammern bzw. „(0171)“: nur bei Ländern, in denen nach der Vorwahl nie eine 0 folgt.
+ */
+export function formatPhone<T extends string | undefined | null>(phone: T): T {
+	if (typeof phone !== "string") return phone;
+	const text = phone.trim();
+	const intl = /^(\+|00)\s*/.exec(text);
+	if (!intl) return phone;
+	const rest = text.slice(intl[0].length);
+	const lead = /^\d+/.exec(rest)?.[0] ?? "";
+	// Ländervorwahl: die bekannte am Anfang (auch bei zusammengeschriebenen Nummern), sonst die Ziffern bis zum ersten Trenner
+	const code = [...NO_ZERO_AFTER, ...ZERO_BELONGS].find((c) => lead.startsWith(c)) ?? (lead.length >= 1 && lead.length <= 3 ? lead : undefined);
+	if (!code) return phone;
+	const tail = rest.slice(code.length);
+	const separator = /^[\s\-/.]*/.exec(tail)?.[0] ?? "";
+	const body = tail.slice(separator.length);
+	const keepZero = ZERO_BELONGS.includes(code);
+	const bracketed = /^\(\s*0\s*\)\s*/.exec(body);
+	if (bracketed) return `${intl[1]}${code} ${keepZero ? "0" : ""}${body.slice(bracketed[0].length)}` as T;
+	if (!NO_ZERO_AFTER.includes(code)) return phone;
+	const inBracket = /^\(\s*0(?=\d)/.exec(body);
+	if (inBracket) return `${intl[1]}${code}${separator}(${body.slice(inBracket[0].length)}` as T;
+	if (/^0\d/.test(body)) return `${intl[1]}${code}${separator}${body.slice(1)}` as T;
+	return phone;
+}
+
 /** Telefonnummer auf Ziffern in internationaler Form (+49 …) bringen. */
 export function normalizePhone(phone: string | undefined | null): string {
-	let digits = (phone ?? "").replace(/[^\d+]/g, "");
+	let digits = (formatPhone(phone) ?? "").replace(/[^\d+]/g, "");
 	if (digits.startsWith("+")) digits = digits.slice(1);
 	else if (digits.startsWith("00")) digits = digits.slice(2);
 	else if (digits.startsWith("0")) digits = `49${digits.slice(1)}`;

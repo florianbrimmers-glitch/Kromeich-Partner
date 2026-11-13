@@ -9,6 +9,7 @@ import type { ToolOutput } from "./read-tools";
 import {
 	asObjectOrThrow,
 	checkOverride,
+	cleanPhones,
 	createContact,
 	type createContactInput,
 	createdId,
@@ -161,9 +162,10 @@ async function insertCompany(
 	return { actual, id: newId, missing };
 }
 
-export async function createCompany(deps: WriteDeps, input: CompanyInput): Promise<ToolOutput> {
+export async function createCompany(deps: WriteDeps, given: CompanyInput): Promise<ToolOutput> {
 	const client: CompanyClient = deps.client;
 	if (!client.hasV2Key) throw new PropstackError(MISSING_V2_KEY, 0);
+	const { adjusted: phoneAdjusted, input } = cleanPhones(given, ["phone_office"]);
 
 	const dedupe = companyDuplicates(input.name, await companyCandidates(client, input.name));
 	if (dedupe.duplicates.length && !input.allow_duplicate_reason) {
@@ -192,6 +194,7 @@ export async function createCompany(deps: WriteDeps, input: CompanyInput): Promi
 			test: input.test || undefined,
 			override_reason: overrideReason ?? undefined,
 			warnings: dedupe.warnings.length ? dedupe.warnings : undefined,
+			phone_adjusted: phoneAdjusted.length ? phoneAdjusted : undefined,
 			not_applied: missing.length ? missing : undefined,
 			note: missing.length ? "Propstack hat nicht alles übernommen – bitte prüfen." : undefined,
 			next: "Personen dieser Firma mit link_contact_company verknüpfen.",

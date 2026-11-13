@@ -2,9 +2,10 @@ import { z } from "zod";
 import type { Props } from "../auth/session";
 import { type GroupEntity, PropstackClient, PropstackError } from "../propstack-client";
 import {
-	type ContactSearchResults,
 	contactDuplicates,
+	type ContactSearchResults,
 	type DedupeResult,
+	formatPhone,
 	isMobile,
 	objectDuplicates,
 	sameAddress,
@@ -255,6 +256,25 @@ export const CONTACT_KEYS: Record<string, string> = {
 	zip_code: "office_zip_code",
 };
 
+/**
+ * Telefonnummern am Eingang bereinigen (0 nach der Ländervorwahl entfernen, siehe formatPhone) – vor Prüfung,
+ * Dublettensuche und Schreiben. Liefert die Eingabe mit bereinigten Nummern und, was geändert wurde.
+ */
+export function cleanPhones<T extends Raw>(input: T, keys: string[] = ["mobile", "phone_office"]): { adjusted: string[]; input: T } {
+	const adjusted: string[] = [];
+	const out: Raw = { ...input };
+	for (const key of keys) {
+		const value = input[key];
+		if (typeof value !== "string") continue;
+		const clean = formatPhone(value);
+		if (clean !== value) {
+			out[key] = clean;
+			adjusted.push(`${key}: „${value}“ → „${clean}“ (0 nach der Ländervorwahl entfernt)`);
+		}
+	}
+	return { adjusted, input: out as T };
+}
+
 function contactPayload(input: Raw): Raw {
 	const out: Raw = {};
 	for (const [from, to] of Object.entries(CONTACT_KEYS)) if (input[from] !== undefined) out[to] = input[from];
@@ -334,9 +354,10 @@ export const createContactInput = {
 	),
 };
 
-export async function createContact(deps: WriteDeps, input: z.infer<z.ZodObject<typeof createContactInput>>): Promise<ToolOutput> {
+export async function createContact(deps: WriteDeps, given: z.infer<z.ZodObject<typeof createContactInput>>): Promise<ToolOutput> {
 	const { client, user } = deps;
 	const now = deps.now?.() ?? new Date();
+	const { adjusted: phoneAdjusted, input } = cleanPhones(given);
 	if (input.mobile && !isMobile(input.mobile)) {
 		throw new PropstackError(`${input.mobile} ist keine deutsche Mobilnummer (015x/016x/017x) – bitte als phone_office angeben.`, 400);
 	}
@@ -426,6 +447,7 @@ export async function createContact(deps: WriteDeps, input: z.infer<z.ZodObject<
 			test: input.test || undefined,
 			override_reason: overrideReason ?? undefined,
 			warnings: dedupe.warnings.length ? dedupe.warnings : undefined,
+			phone_adjusted: phoneAdjusted.length ? phoneAdjusted : undefined,
 			not_applied: missing.length ? missing : undefined,
 			note: missing.length ? "Propstack hat einige Felder nicht übernommen – bitte prüfen." : undefined,
 		},
@@ -443,9 +465,10 @@ export const updateContactInput = {
 	allow_duplicate_reason: optionalText(500).describe("Nur falls die neue E-Mail/Mobilnummer schon bei einem anderen Kontakt steht: Begründung"),
 };
 
-export async function updateContact(deps: WriteDeps, input: z.infer<z.ZodObject<typeof updateContactInput>>): Promise<ToolOutput> {
+export async function updateContact(deps: WriteDeps, given: z.infer<z.ZodObject<typeof updateContactInput>>): Promise<ToolOutput> {
 	const { client, user } = deps;
 	const now = deps.now?.() ?? new Date();
+	const { adjusted: phoneAdjusted, input } = cleanPhones(given);
 	if (input.mobile && !isMobile(input.mobile)) {
 		throw new PropstackError(`${input.mobile} ist keine deutsche Mobilnummer – bitte als phone_office angeben.`, 400);
 	}
@@ -552,6 +575,7 @@ export async function updateContact(deps: WriteDeps, input: z.infer<z.ZodObject<
 			changed,
 			already_present: alreadyPresent.length ? alreadyPresent : undefined,
 			warnings: dedupe.warnings.length ? dedupe.warnings : undefined,
+			phone_adjusted: phoneAdjusted.length ? phoneAdjusted : undefined,
 			not_applied: missing.length ? missing : undefined,
 		},
 	};

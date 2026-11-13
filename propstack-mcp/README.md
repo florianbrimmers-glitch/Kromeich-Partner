@@ -79,6 +79,11 @@ Bewusste Lücken: Ein einzelner Deal per ID und die Kontakt-Status-Liste sind nu
 - **Override** (`allow_duplicate_reason`): nur mit Begründung (≥ 15 Zeichen). Die Begründung wird im Write-Log protokolliert.
 - **Testdaten:** `test: true` setzt das Merkmal `MCP-TEST`. Fehlt es, legt der Connector es einmalig an. Löschen kann nur Florian manuell.
 - Notizen werden bei Updates nur ergänzt (mit Datum und Nutzer), nie ersetzt.
+- **Telefonnummern: keine 0 nach der Ländervorwahl (ab v0.12.3, Befund Florian 13.11.2026).** Aus Signaturen kommt oft „+49 (0) 151 …“ oder „+49 0151 …“. So gespeichert lässt sich die Nummer nicht anwählen; bei 12 der 600 neuesten Kontakte stand sie so in Propstack (8 davon aus dem täglichen Import). Der Connector reichte Nummern unverändert durch und wies eine so geschriebene Mobilnummer sogar als „keine deutsche Mobilnummer“ ab – sie landete dann im Festnetz-Feld.
+  - `create_contact`, `update_contact` und `create_company` bereinigen die Nummer vor Prüfung, Dublettensuche und Schreiben: „(0)“ nach der Ländervorwahl fällt immer weg; eine 0 ohne Klammern dort, wo nach der Vorwahl nie eine 0 folgt (DE, AT, CH, NL, BE, FR, GB und weitere). Die übrige Schreibweise bleibt. Was geändert wurde, steht im Ergebnis unter `phone_adjusted`.
+  - Nummern ohne Ländervorwahl („0171 …“) bleiben unverändert. In Italien und wenigen anderen Ländern gehört die 0 zur Nummer – dort bleibt sie, nur die Klammer fällt weg.
+  - Dublettenprüfung und Mobil-Erkennung sehen durch die 0 hindurch: „+49 (0) 171 …“, „+49 171 …“ und „0171 …“ sind dieselbe Nummer.
+  - Nicht Teil davon: die schon gespeicherten Nummern und der tägliche Import sowie der Visitenkarten-Import (`src/`), die genauso unbereinigt schreiben.
 
 **Kontakte: Live-Abnahme am 12.11.2026 (v0.10.1 → Korrekturen in v0.10.2).** Anlass: Nach Objekten und Dashboard sind die Kontakte dran (Ansage Florian). Geprüft wurde an Testkontakten mit dem Merkmal `MCP-TEST`, so wie der E-Mail-Scan Kontakte anlegt.
 - **Bestanden:**
