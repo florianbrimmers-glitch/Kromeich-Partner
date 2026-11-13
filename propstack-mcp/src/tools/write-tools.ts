@@ -560,7 +560,8 @@ export async function updateContact(deps: WriteDeps, input: z.infer<z.ZodObject<
 // ---------- Objekte ----------
 // Regeln aus dem Notion-Feld-Mapping (Korrekturen), dem Skill propstack-expose-workflow und den Team-How-tos:
 // - Einige Felder verwirft Propstack im POST und in Multi-Feld-PUTs still → einzeln per PUT.
-// - object_type leitet Propstack aus rs_type ab → nicht anbieten.
+// - object_type (Kategorie Wohnen/Gewerbe/Anlage) leitet Propstack aus rs_type ab – aber nicht immer richtig, siehe
+//   ensureCategory: Der Connector prüft die Kategorie nach jedem Schreiben der Objektart und setzt sie bei Bedarf nach.
 // - Öffentliche Preise (price, base_rent, mietpreis_*) nur mit public_price_confirmed (Nutzer hat es
 //   ausdrücklich angesagt bzw. auf Nachfrage bestätigt); interne Preise (intern_*) immer. Sonst price_on_inquiry.
 // - Interne Notizen (How-to: Link, Mandat, Provisionsregelung …) in das Feld note („Notiz“): Es ist über
@@ -699,6 +700,66 @@ async function writeSolo(client: PropstackClient, unitId: number, solo: [string,
 		}
 	}
 	return errors;
+}
+
+// Kategorie (object_type). Propstack leitet sie beim Schreiben der Objektart ab – bei „Grundstück“ (TRADE_SITE)
+// aber als „Wohnen“: Live am 13.11.2026 sprang das Testobjekt 6396742 dabei von COMMERCIAL auf LIVING, und vier über
+// den Connector angelegte Grundstücke (Grenzach-Wyhlen) standen auf Wohnen. Der Connector meldete Erfolg und bot
+// kein Feld, um das zu berichtigen. Die Objektart Grundstück gibt es in Propstack nur einmal, für Wohnen und Gewerbe.
+// Kromeich vermittelt Gewerbe- und Logistikflächen – ein Grundstück gehört hier deshalb zu Gewerbe. Für die übrigen
+// eindeutigen Objektarten wird die Kategorie nur geprüft und bei Abweichung nachgesetzt. GARAGE und
+// SHORT_TERM_ACCOMODATION sind nicht eindeutig und bleiben, wie Propstack sie setzt.
+export const CATEGORY_OF: Record<string, "LIVING" | "COMMERCIAL" | "INVESTMENT"> = {
+	APARTMENT: "LIVING",
+	GASTRONOMY: "COMMERCIAL",
+	HOUSE: "LIVING",
+	INDUSTRY: "COMMERCIAL",
+	INVESTMENT: "INVESTMENT",
+	OFFICE: "COMMERCIAL",
+	SPECIAL_PURPOSE: "COMMERCIAL",
+	STORE: "COMMERCIAL",
+	TRADE_SITE: "COMMERCIAL",
+};
+const CATEGORY_LABEL: Record<string, string> = { COMMERCIAL: "Gewerbe", INVESTMENT: "Anlage", LIVING: "Wohnen" };
+
+type CategoryResult = {
+	state: UnitState;
+	/** Hinweis fürs Ergebnis, wenn die Kategorie nachgesetzt wurde. */
+	fixed?: string;
+	/** Eintrag für not_applied, wenn sie sich nicht setzen ließ. */
+	missing?: string;
+	/** Die Kategorie ließ sich nicht lesen. */
+	unverified?: boolean;
+};
+
+/** Kategorie zur Objektart sicherstellen: prüfen, bei Abweichung einzeln setzen, gegenlesen. */
+async function ensureCategory(
+	client: Pick<PropstackClient, "getUnit" | "searchUnits" | "updateUnit">,
+	unitId: number,
+	state: UnitState,
+	options: { fresh?: boolean; sleep?: (ms: number) => Promise<void> } = {},
+): Promise<CategoryResult> {
+	const rsType = String(scalar(unitValue(state, "rs_type") as never) ?? "");
+	const expected = CATEGORY_OF[rsType];
+	if (!expected) return { state };
+	const raw = unitValue(state, "object_type");
+	if (raw === UNVERIFIABLE) return { state, unverified: true };
+	const actual = scalar(raw as never);
+	if (actual === expected) return { state };
+	const label = `Kategorie ${CATEGORY_LABEL[expected]}`;
+	try {
+		await client.updateUnit(unitId, { object_type: expected });
+	} catch (error) {
+		return { missing: `object_type (${label}: ${(error as Error).message})`, state };
+	}
+	const after = await readUnit(client, unitId, options);
+	const now = unitValue(after, "object_type");
+	if (now === UNVERIFIABLE) return { state: after, unverified: true };
+	if (scalar(now as never) !== expected) return { missing: `object_type (${label} – Propstack zeigt weiter „${CATEGORY_LABEL[String(scalar(now as never))] ?? scalar(now as never)}“)`, state: after };
+	return {
+		fixed: `${label} gesetzt – Propstack hatte zur Objektart ${rsType} „${CATEGORY_LABEL[String(actual)] ?? actual ?? "nichts"}“ eingetragen.`,
+		state: after,
+	};
 }
 
 function sameUnitValue(key: string, requested: unknown, actual: unknown): boolean {
@@ -948,6 +1009,7 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 			...payload,
 			contact_person_id: input.contact_person_id,
 			einzeln_nachgesetzt: Object.fromEntries(solo.map(([k, v]) => [fieldLabel(k), v])),
+			...(CATEGORY_OF[input.rs_type] ? { kategorie_sicherstellen: CATEGORY_OF[input.rs_type] } : {}),
 			owner_contact_id: input.owner_contact_id,
 			public_price_confirmed: input.public_price_confirmed,
 		},
@@ -964,8 +1026,11 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	}
 
 	const writeErrors = await writeSolo(client, newId, solo);
-	const state = await readUnit(client, newId, { fresh: true, sleep: deps.sleep });
+	const category = await ensureCategory(client, newId, await readUnit(client, newId, { fresh: true, sleep: deps.sleep }), { sleep: deps.sleep });
+	const state = category.state;
 	const { missing, unverified } = verifyObject(state, fields, customExpect);
+	if (category.missing) missing.push(category.missing);
+	if (category.unverified) unverified.push("object_type");
 	const groups = groupIdsOfUnit(state);
 	for (const tag of tags) if (!groups.includes(tag)) missing.push(`tag ${TEST_TAG}`);
 	const noteHint = noteLines.length ? await settleInternalNote(client, newId, String(fields.note), noteLines.join("\n"), missing) : undefined;
@@ -1060,6 +1125,7 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 			coordinates,
 			inherited_from_project: inherited.length ? inherited : undefined,
 			derived: derived.length ? derived : undefined,
+			category_note: category.fixed,
 			mirrored_custom_fields: Object.keys(mirrored).length || Object.keys(provision).length ? [...Object.keys(mirrored), ...Object.keys(provision)] : undefined,
 			warnings: dedupe.warnings.length || bezugNote ? [...dedupe.warnings, ...(bezugNote ? [bezugNote] : [])] : undefined,
 			text_warnings: textWarnings.length ? textWarnings : undefined,
@@ -1351,7 +1417,13 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 	if (Object.keys(customBefore).length) before.custom_fields = customBefore;
 
 	const coordsRequested = input.lat !== undefined && input.lng !== undefined;
-	if (!Object.keys(fields).length && !Object.keys(customSend).length && !coordsRequested) {
+	// Kategorie: geprüft wird immer dann, wenn der Aufruf die Objektart nennt – auch wenn sie schon so gesetzt ist.
+	// Damit lässt sich eine falsche Kategorie an einem Bestandsobjekt berichtigen (rs_type erneut angeben).
+	const categoryExpected = input.rs_type !== undefined ? CATEGORY_OF[input.rs_type] : undefined;
+	const categoryCurrent = unitValue(current, "object_type");
+	const categoryOff = categoryExpected !== undefined && categoryCurrent !== UNVERIFIABLE && scalar(categoryCurrent as never) !== categoryExpected;
+	if (categoryOff) before.object_type = scalar(categoryCurrent as never) ?? null;
+	if (!Object.keys(fields).length && !Object.keys(customSend).length && !coordsRequested && !categoryOff) {
 		return {
 			count: 0,
 			result: {
@@ -1388,6 +1460,7 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 			einzeln_nachgesetzt: Object.fromEntries(solo.map(([k, v]) => [fieldLabel(k), v])),
 			public_price_confirmed: input.public_price_confirmed,
 			...(coordsRequested ? { lat: input.lat, lng: input.lng } : {}),
+			...(categoryExpected ? { kategorie_sicherstellen: categoryExpected } : {}),
 		},
 		tool: deps.logTool ?? "update_object",
 		userEmail: user.email,
@@ -1407,8 +1480,13 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 		throw new PropstackError(`Nichts geändert: ${writeErrors.join("; ")}`, 0);
 	}
 
-	const state = await readUnit(client, input.id);
+	const category = categoryExpected ? await ensureCategory(client, input.id, await readUnit(client, input.id)) : { state: await readUnit(client, input.id) };
+	const state = category.state;
 	const { missing, unverified } = verifyObject(state, fields, customExpect);
+	if ("missing" in category && category.missing) missing.push(category.missing);
+	if ("unverified" in category && category.unverified) unverified.push("object_type");
+	const categoryFixed = "fixed" in category ? category.fixed : undefined;
+	if (categoryFixed) notes.push(categoryFixed);
 	if (noteAddition) {
 		// Hält die Notiz auch einzeln gesetzt nicht: Hinweis mit dem Text zum Eintragen von Hand
 		const hint = await settleInternalNote(client, input.id, String(fields.note), noteAddition, missing);
@@ -1443,6 +1521,7 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 				...Object.keys(fields).map((k) => (k === "note" ? "internal_note (angehängt)" : fieldLabel(k))),
 				...Object.keys(customSend).map((k) => (k === "bemerkung" && bemerkungAppended ? "bemerkung (angehängt)" : `custom_fields.${k}`)),
 				...(coordsRequested ? ["lat/lng"] : []),
+				...(categoryFixed ? ["object_type (Kategorie)"] : []),
 			],
 			already_present: alreadyPresent.length ? alreadyPresent : undefined,
 			warnings: warnings.length ? warnings : undefined,

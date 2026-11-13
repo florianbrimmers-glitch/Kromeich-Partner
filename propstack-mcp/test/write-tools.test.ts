@@ -603,6 +603,11 @@ describe("create_object / update_object", () => {
 				if (options.dropInMulti !== false && solo.includes(key) && keys.length > 1) continue;
 				stored[key] = payload[key];
 			}
+			// Kategorie: Propstack leitet sie beim Schreiben der Objektart ab – bei Grundstück (TRADE_SITE) aber als „Wohnen“
+			// (live 13.11.2026, Testobjekt 6396742: COMMERCIAL → LIVING). Direkt gesetzt bleibt sie stehen.
+			if ("rs_type" in payload && !("object_type" in payload)) {
+				stored.object_type = ["INDUSTRY", "OFFICE", "STORE", "GASTRONOMY", "SPECIAL_PURPOSE"].includes(String(payload.rs_type)) ? "COMMERCIAL" : "LIVING";
+			}
 			Object.assign(custom, payload.partial_custom_fields ?? {});
 			if (payload.group_ids) stored.group_ids = payload.group_ids;
 		};
@@ -871,6 +876,76 @@ describe("create_object / update_object", () => {
 			createObject({ client, db: fakeDb().db, now: NOW, sleep, user: USER }, { ...input, custom_fields: { gibtsnicht: 1, spekulative_entwicklung: "Vielleicht" } }),
 		).rejects.toThrow(/unbekanntes Feld "gibtsnicht".*spekulative_entwicklung.*Ja \(1\)/);
 		expect(calls.some((c) => c.method === "createUnit")).toBe(false);
+	});
+
+	it("Grundstück: Propstack trägt als Kategorie „Wohnen“ ein – der Connector setzt „Gewerbe“ nach und sagt es (Befund 13.11.2026)", async () => {
+		const unit = fakeUnit();
+		const { client } = fakeClient(unit.impl);
+		const { db, rows } = fakeDb();
+		const out = await createObject({ client, db, now: NOW, sleep, user: USER }, { ...input, rs_category: "TRADE_SITE", rs_type: "TRADE_SITE" });
+		// die Kategorie wird einzeln geschrieben – nach Objektart und Unterart, damit Propstack sie nicht wieder ableitet
+		expect(unit.puts).toContainEqual({ object_type: "COMMERCIAL" });
+		expect(unit.puts.findIndex((p) => "object_type" in p)).toBeGreaterThan(unit.puts.findIndex((p) => "rs_category" in p));
+		expect(unit.stored).toMatchObject({ object_type: "COMMERCIAL", rs_category: "TRADE_SITE", rs_type: "TRADE_SITE" });
+		expect(out.result).toMatchObject({ category_note: "Kategorie Gewerbe gesetzt – Propstack hatte zur Objektart TRADE_SITE „Wohnen“ eingetragen.", created: true });
+		expect((out.result as { not_applied?: string[] }).not_applied).toBeUndefined();
+		expect(JSON.parse(rows[0][8] as string)).toMatchObject({ kategorie_sicherstellen: "COMMERCIAL" });
+	});
+
+	it("Halle: Die Kategorie stimmt schon – kein zusätzlicher Schreibzugriff, kein Hinweis", async () => {
+		const unit = fakeUnit();
+		const { client } = fakeClient(unit.impl);
+		const out = await createObject({ client, db: fakeDb().db, now: NOW, sleep, user: USER }, input);
+		expect(unit.puts.some((p) => "object_type" in p)).toBe(false);
+		expect(out.result as Record<string, unknown>).not.toHaveProperty("category_note", expect.anything());
+	});
+
+	it("update_object: Wechsel der Objektart auf Grundstück zieht die Kategorie nach; dieselbe Objektart erneut genannt berichtigt einen Altfall", async () => {
+		const unit = fakeUnit();
+		Object.assign(unit.stored, { marketing_type: "RENT", object_type: "COMMERCIAL", rs_category: "HALL", rs_type: "INDUSTRY", title: "Alt" });
+		const { client } = fakeClient(unit.impl);
+		const { db, rows } = fakeDb();
+		const out = await updateObject({ client, db, now: NOW, sleep, user: USER }, { id: 900, rs_category: "TRADE_SITE", rs_type: "TRADE_SITE" });
+		expect(unit.puts).toEqual([{ rs_type: "TRADE_SITE" }, { rs_category: "TRADE_SITE" }, { object_type: "COMMERCIAL" }]);
+		expect(unit.stored).toMatchObject({ object_type: "COMMERCIAL", rs_category: "TRADE_SITE", rs_type: "TRADE_SITE" });
+		expect(out.result).toMatchObject({ updated: true, warnings: ["Kategorie Gewerbe gesetzt – Propstack hatte zur Objektart TRADE_SITE „Wohnen“ eingetragen."] });
+		expect((out.result as { changed: string[] }).changed).toEqual(["rs_type", "rs_category", "object_type (Kategorie)"]);
+		expect(JSON.parse(rows[0][8] as string)).toMatchObject({ kategorie_sicherstellen: "COMMERCIAL" });
+
+		// Altfall: Grundstück steht auf Wohnen (so angelegt mit Connector bis v0.12.1) – rs_type erneut nennen genügt
+		const alt = fakeUnit();
+		Object.assign(alt.stored, { marketing_type: "RENT", object_type: "LIVING", rs_category: "TRADE_SITE", rs_type: "TRADE_SITE", title: "Alt" });
+		const zweiter = fakeDb();
+		const again = await updateObject({ client: fakeClient(alt.impl).client, db: zweiter.db, now: NOW, sleep, user: USER }, { id: 900, rs_type: "TRADE_SITE" });
+		expect(alt.puts).toEqual([{ object_type: "COMMERCIAL" }]);
+		expect(again.result).toMatchObject({ changed: ["object_type (Kategorie)"], updated: true });
+		// Stand vorher steht im Write-Log
+		expect(JSON.parse(zweiter.rows[0][7] as string)).toMatchObject({ object_type: "LIVING" });
+
+		// stimmt die Kategorie schon und ändert sich sonst nichts: kein Schreibzugriff
+		const passt = fakeUnit();
+		Object.assign(passt.stored, { marketing_type: "RENT", object_type: "COMMERCIAL", rs_category: "TRADE_SITE", rs_type: "TRADE_SITE", title: "Alt" });
+		const nichts = await updateObject({ client: fakeClient(passt.impl).client, db: fakeDb().db, now: NOW, sleep, user: USER }, { id: 900, rs_type: "TRADE_SITE" });
+		expect(passt.puts).toEqual([]);
+		expect(nichts.result).toMatchObject({ updated: false });
+	});
+
+	it("update_object ohne Objektart lässt die Kategorie in Ruhe – auch wenn sie nicht zur Objektart passt", async () => {
+		const unit = fakeUnit();
+		Object.assign(unit.stored, { marketing_type: "RENT", object_type: "LIVING", rs_category: "TRADE_SITE", rs_type: "TRADE_SITE", title: "Alt" });
+		const out = await updateObject({ client: fakeClient(unit.impl).client, db: fakeDb().db, now: NOW, sleep, user: USER }, { id: 900, plot_area: 12000 });
+		expect(unit.puts.some((p) => "object_type" in p)).toBe(false);
+		expect(out.result).toMatchObject({ updated: true });
+	});
+
+	it("hält die Kategorie nicht, steht das unter not_applied statt eines stillen Erfolgs", async () => {
+		const unit = fakeUnit();
+		Object.assign(unit.stored, { marketing_type: "RENT", object_type: "LIVING", rs_category: "TRADE_SITE", rs_type: "TRADE_SITE", title: "Alt" });
+		const impl = { ...unit.impl, updateUnit: (_id: unknown, payload: unknown) => unit.puts.push(payload as Record<string, unknown>) }; // Propstack nimmt an, speichert aber nicht
+		const { db, updates } = fakeDb();
+		const out = await updateObject({ client: fakeClient(impl).client, db, now: NOW, sleep, user: USER }, { id: 900, rs_type: "TRADE_SITE" });
+		expect((out.result as { not_applied?: string[] }).not_applied).toEqual(["object_type (Kategorie Gewerbe – Propstack zeigt weiter „Wohnen“)"]);
+		expect(JSON.stringify(updates)).toMatch(/done_with_gaps/);
 	});
 
 	it("update_object: Status und rented einzeln, Bemerkung angehängt, Snapshot vorher", async () => {
