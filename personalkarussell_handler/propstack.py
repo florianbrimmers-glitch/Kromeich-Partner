@@ -108,14 +108,20 @@ def update_contact(contact_id: int, fields: dict) -> None:
 
 
 def link_company(person_id: int, company_id: int) -> None:
-    """Verknüpfung 'Firma' anlegen (sichtbar unter 'Verknüpfte Kontakte')."""
+    """Person mit ihrer Firma verknüpfen (sichtbar unter 'Verknüpfte Kontakte').
+
+    `name` beschreibt client_id und wird am ANDEREN Kontakt angezeigt: Die Zeile
+    der Person heißt "Mitarbeiter" und erscheint an der Firma; die Gegenzeile
+    ("Firma", erscheint an der Person) ergänzt Propstack selbst. Bis 13.11.2026
+    stand hier "Firma" – dann zeigt Propstack am Kontakt die Firma als
+    "Mitarbeiter" (in der Oberfläche geprüft)."""
     if config.no_write():
         logger.info("[NO_WRITE] Würde %s mit Firma %s verknüpfen", person_id, company_id)
         return
     response = httpx.post(
         f"{PROPSTACK_V2}/relationships",
         headers={"X-API-KEY": config.propstack_key_v2(), "Content-Type": "application/json"},
-        json={"internal_name": "associate", "name": "Firma",
+        json={"internal_name": "associate", "name": "Mitarbeiter",
               "client_id": person_id, "related_client_id": company_id},
         timeout=30.0,
     )
