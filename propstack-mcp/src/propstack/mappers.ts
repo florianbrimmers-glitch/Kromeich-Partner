@@ -236,9 +236,10 @@ export function imageList(value: unknown, max = 40): Raw[] | undefined {
  */
 /**
  * Verknüpfte Kontakte aus GET /contacts/:id?include=relationships. Propstack liefert dort die Zeilen, in denen der
- * abgerufene Kontakt der verknüpfte ist (live 12.11.2026): bei einer Person {name: "Mitarbeiter", client: Firma},
- * bei einer Firma {name: "Firma", client: Person}. this_contact_is sagt also, was der abgerufene Kontakt für den
- * genannten ist. Zeilen mit Objekt oder Projekt (Eigentümer, Ansprechpartner) gehören nicht dazu.
+ * abgerufene Kontakt der verknüpfte ist – genau das, was seine Kontaktseite unter „Verknüpfte Kontakte“ zeigt
+ * (Oberfläche geprüft am 13.11.2026). label ist die Bezeichnung, die Propstack neben dem genannten Kontakt anzeigt:
+ * bei richtig beschrifteten Verknüpfungen an der Person „Firma“, an der Firma „Mitarbeiter“.
+ * Zeilen mit Objekt oder Projekt (Eigentümer, Ansprechpartner) gehören nicht dazu.
  */
 export function linkedContacts(value: unknown, max = 50): Raw {
 	const rows = (Array.isArray(value) ? value : []).filter((row): row is Raw => {
@@ -247,7 +248,7 @@ export function linkedContacts(value: unknown, max = 50): Raw {
 	});
 	if (!rows.length) return {};
 	return compact({
-		linked_contacts: rows.slice(0, max).map((row) => compact({ id: (row.client as Raw).id, name: scalar((row.client as Raw).name), this_contact_is: scalar(row.name) })),
+		linked_contacts: rows.slice(0, max).map((row) => compact({ id: (row.client as Raw).id, name: scalar((row.client as Raw).name), label: scalar(row.name) })),
 		linked_contacts_total: rows.length > max ? rows.length : undefined,
 	});
 }
