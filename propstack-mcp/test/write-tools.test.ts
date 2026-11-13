@@ -299,7 +299,7 @@ describe("create_contact", () => {
 		);
 		expect(out.result).toMatchObject({ broker: "Florian Brimmers", created: true, id: 500, test: true });
 		expect((out.result as { not_applied?: string[] }).not_applied).toBeUndefined();
-		expect(sent).toMatchObject({ broker_id: 347158, email: "anna.test@example.com", group_ids: [999], office_cell: "0171 1234567" });
+		expect(sent).toMatchObject({ broker_id: 347158, email: "anna.test@example.com", group_ids: [999], office_cell: "+49 171 1234567" });
 		expect(sent.description).toMatch(/Angelegt über Claude \(Propstack MCP\) von Florian Brimmers am 2026-10-14/);
 		// Reihenfolge: Write-Log vor createContact
 		expect(rows).toHaveLength(1);
@@ -399,6 +399,36 @@ describe("update_contact", () => {
 		name: "Anna Muster",
 		position: "CEO",
 	};
+
+	it("Telefonnummer ohne Ländervorwahl: bekommt die Vorwahl des am Kontakt gespeicherten Landes – ein neu angegebenes Land geht vor", async () => {
+		// Entscheidung Florian, 13.11.2026: einheitlich mit Ländervorwahl
+		const lauf = async (gespeichert: Record<string, unknown>, input: Record<string, unknown>) => {
+			let sent: Record<string, unknown> = {};
+			const { client } = fakeClient({
+				getContact: () => ({ ...current, ...gespeichert, ...sent }),
+				updateContact: (_id, payload) => {
+					sent = payload as Record<string, unknown>;
+					return {};
+				},
+			});
+			const out = await updateContact({ client, db: fakeDb().db, now: NOW, user: USER }, { id: 7, ...input });
+			return { result: out.result as Record<string, unknown>, sent };
+		};
+		const wien = await lauf({ office_country: "Österreich" }, { phone_office: "01 2345678" });
+		expect(wien.sent).toEqual({ office_phone: "+43 1 2345678" });
+		expect(wien.result).toMatchObject({ phone_adjusted: ["phone_office: „01 2345678“ → „+43 1 2345678“ (auf +43 umgestellt)"], updated: true });
+		// kein Land gespeichert: als deutsche Nummer gewertet
+		const ohne = await lauf({}, { phone_office: "0221 4710199" });
+		expect(ohne.sent).toEqual({ office_phone: "+49 221 4710199" });
+		expect((ohne.result.phone_adjusted as string[])[0]).toContain("kein Land angegeben, als deutsche Nummer gewertet");
+		// das im selben Aufruf angegebene Land geht dem gespeicherten vor
+		const umzug = await lauf({ office_country: "Österreich" }, { country: "Schweiz", phone_office: "044 123 45 67" });
+		expect(umzug.sent).toMatchObject({ office_country: "Schweiz", office_phone: "+41 44 123 45 67" });
+		// steht die Nummer schon so da, wird nichts geschrieben
+		const gleich = await lauf({ office_phone: "+49 221 4710199" }, { phone_office: "0221 4710199" });
+		expect(gleich.sent).toEqual({});
+		expect(gleich.result).toMatchObject({ updated: false });
+	});
 
 	it("schreibt nur Änderungen, hängt Notiz an, sichert vorherigen Stand", async () => {
 		const { db, rows } = fakeDb();

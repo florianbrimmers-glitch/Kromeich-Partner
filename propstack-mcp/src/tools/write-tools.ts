@@ -4,6 +4,7 @@ import { type GroupEntity, PropstackClient, PropstackError } from "../propstack-
 import {
 	contactDuplicates,
 	type ContactSearchResults,
+	countryCallingCode,
 	type DedupeResult,
 	formatPhone,
 	isMobile,
@@ -257,20 +258,30 @@ export const CONTACT_KEYS: Record<string, string> = {
 };
 
 /**
- * Telefonnummern am Eingang bereinigen (0 nach der Ländervorwahl entfernen, siehe formatPhone) – vor Prüfung,
- * Dublettensuche und Schreiben. Liefert die Eingabe mit bereinigten Nummern und, was geändert wurde.
+ * Telefonnummern am Eingang einheitlich schreiben (siehe formatPhone): keine 0 nach der Ländervorwahl, „00“ → „+“,
+ * Nummern ohne Ländervorwahl mit der des Landes (ohne Landesangabe: +49). Vor Prüfung, Dublettensuche und Schreiben.
+ * Liefert die Eingabe mit den geänderten Nummern und, was geändert wurde und warum.
  */
-export function cleanPhones<T extends Raw>(input: T, keys: string[] = ["mobile", "phone_office"]): { adjusted: string[]; input: T } {
+export function cleanPhones<T extends Raw>(input: T, country: unknown, keys: string[] = ["mobile", "phone_office"]): { adjusted: string[]; input: T } {
 	const adjusted: string[] = [];
 	const out: Raw = { ...input };
+	const digits = (text: string) => text.replace(/\D/g, "");
 	for (const key of keys) {
 		const value = input[key];
 		if (typeof value !== "string") continue;
-		const clean = formatPhone(value);
-		if (clean !== value) {
-			out[key] = clean;
-			adjusted.push(`${key}: „${value}“ → „${clean}“ (0 nach der Ländervorwahl entfernt)`);
+		const clean = formatPhone(value, country);
+		if (clean === value) continue;
+		out[key] = clean;
+		const before = value.trim();
+		const reasons: string[] = [];
+		if (/^(\+|00)/.test(before)) {
+			if (before.startsWith("00")) reasons.push("00 durch + ersetzt");
+			if (digits(clean).length < digits(before.replace(/^00/, "")).length) reasons.push("0 nach der Ländervorwahl entfernt");
+		} else {
+			const code = /^\+\d+/.exec(clean)?.[0] ?? "";
+			reasons.push(countryCallingCode(country) === undefined ? `auf ${code} umgestellt – kein Land angegeben, als deutsche Nummer gewertet` : `auf ${code} umgestellt`);
 		}
+		adjusted.push(`${key}: „${value}“ → „${clean}“${reasons.length ? ` (${reasons.join(", ")})` : ""}`);
 	}
 	return { adjusted, input: out as T };
 }
@@ -357,7 +368,7 @@ export const createContactInput = {
 export async function createContact(deps: WriteDeps, given: z.infer<z.ZodObject<typeof createContactInput>>): Promise<ToolOutput> {
 	const { client, user } = deps;
 	const now = deps.now?.() ?? new Date();
-	const { adjusted: phoneAdjusted, input } = cleanPhones(given);
+	const { adjusted: phoneAdjusted, input } = cleanPhones(given, given.country);
 	if (input.mobile && !isMobile(input.mobile)) {
 		throw new PropstackError(`${input.mobile} ist keine deutsche Mobilnummer (015x/016x/017x) – bitte als phone_office angeben.`, 400);
 	}
@@ -468,11 +479,12 @@ export const updateContactInput = {
 export async function updateContact(deps: WriteDeps, given: z.infer<z.ZodObject<typeof updateContactInput>>): Promise<ToolOutput> {
 	const { client, user } = deps;
 	const now = deps.now?.() ?? new Date();
-	const { adjusted: phoneAdjusted, input } = cleanPhones(given);
+	const current = await asObjectOrThrow(client.getContact(given.id));
+	// Land für Nummern ohne Ländervorwahl: das neu angegebene, sonst das am Kontakt gespeicherte
+	const { adjusted: phoneAdjusted, input } = cleanPhones(given, given.country ?? scalar(current.office_country));
 	if (input.mobile && !isMobile(input.mobile)) {
 		throw new PropstackError(`${input.mobile} ist keine deutsche Mobilnummer – bitte als phone_office angeben.`, 400);
 	}
-	const current = await asObjectOrThrow(client.getContact(input.id));
 
 	// Nur echte Änderungen schreiben
 	const requested = contactPayload(input);

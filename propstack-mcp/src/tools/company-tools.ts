@@ -165,7 +165,7 @@ async function insertCompany(
 export async function createCompany(deps: WriteDeps, given: CompanyInput): Promise<ToolOutput> {
 	const client: CompanyClient = deps.client;
 	if (!client.hasV2Key) throw new PropstackError(MISSING_V2_KEY, 0);
-	const { adjusted: phoneAdjusted, input } = cleanPhones(given, ["phone_office"]);
+	const { adjusted: phoneAdjusted, input } = cleanPhones(given, given.country, ["phone_office"]);
 
 	const dedupe = companyDuplicates(input.name, await companyCandidates(client, input.name));
 	if (dedupe.duplicates.length && !input.allow_duplicate_reason) {
