@@ -84,7 +84,7 @@ def test_fehlender_wert_ist_kein_ausschluss_sondern_eine_luecke():
 
 
 @pytest.mark.parametrize("aenderung", [
-    {"status": 163676}, {"status": None}, {"rented": True}, {"archived": True}, {"logistik": "Inaktiv"},
+    {"status": 163676}, {"status": 163673}, {"rented": True}, {"archived": True}, {"logistik": "Inaktiv"},
 ])
 def test_nur_was_in_vermarktung_ist(aenderung):
     assert gm.in_vermarktung(_unit(1, "Wuppertal", 51.25, 7.15, 10000.0)) is True
@@ -117,3 +117,27 @@ def test_flaeche_als_bereich_oder_einzelne_zahl():
     assert gm._bereich("10000") == (8500.0, 11500.0)
     with pytest.raises(Exception):
         gm._bereich("viel")
+
+
+def test_altbestand_ohne_propstack_status_zaehlt_wenn_status_logistik_aktiv():
+    """19.11.2026: 204 Einheiten sind in „Status Logistik“ aktiv und frei, haben aber keinen
+    Propstack-Status (Import 01/2025). Fläche steht dort oft nur als Text."""
+    alt = _unit(20, "Hamm", 51.18, 7.19, None, hoehe=10, rampen="21 Stk.", status=None)
+    alt["custom_fields"]["lagerflache_verfugbar"] = "9.170 m²"
+    alt["property_space_value"] = None
+    assert gm.verfuegbar_als(alt) == gm.ALTBESTAND
+
+    k = gm.pruefe(alt, GESUCH)
+    assert (k.gruppe, k.flaeche, k.rampen) == (gm.ALTBESTAND, 9170, 21.0)
+
+
+@pytest.mark.parametrize("logistik", ["Inaktiv", None])
+def test_ohne_status_und_nicht_aktiv_zaehlt_nicht(logistik):
+    assert gm.verfuegbar_als(_unit(21, "Hamm", 51.18, 7.19, 9000.0, status=None, logistik=logistik)) is None
+
+
+def test_vermarktung_steht_vor_dem_altbestand():
+    alt = _unit(30, "Remscheid", 51.14, 7.22, 9000.0, hoehe=12, rampen="6", status=None)      # näher, aber Altbestand
+    neu = _unit(31, "Wuppertal", 51.25, 7.15, 10500.0, hoehe=10.5, rampen="20")
+    kandidaten, verfuegbar, _ = gm.finde([alt, neu], GESUCH)
+    assert [k.unit_id for k in kandidaten] == [31, 30] and verfuegbar == 2

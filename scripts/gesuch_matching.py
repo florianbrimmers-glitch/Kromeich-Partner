@@ -2,7 +2,8 @@
 
 Prototyp vom 19.11.2026. Anlass: Die ganze Automatisierung pflegt den Bestand – die
 Frage, mit der das Geld verdient wird, beantwortet keine davon. Am 19.11.2026 fanden sich
-für die sechs Gesuche der Website 62 Kandidaten unter 1.116 Einheiten in Vermarktung.
+für die sechs Gesuche der Website 64 Kandidaten unter 1.116 Einheiten in Vermarktung und
+weitere 65 unter 204 aktiven Einheiten des Altbestands ohne Propstack-Status.
 
 Gesucht wird im Umkreis eines Ortes nach Hallenfläche, optional Hallenhöhe und Rampen:
 
@@ -10,23 +11,27 @@ Gesucht wird im Umkreis eines Ortes nach Hallenfläche, optional Hallenhöhe und
   python scripts/gesuch_matching.py --lat 52.575 --lng 13.33 --umkreis 30 --flaeche 1500-3000 --hoehe 7.5
 
 Regeln:
-- In Frage kommt, was in Propstack in Vermarktung ist (Status 163674), nicht vermietet,
-  nicht archiviert und in „Status Logistik“ nicht inaktiv.
-- Fläche = Lagerfläche (Custom-Feld `lagerflache`), sonst die Fläche der Einheit. Eine
-  größere Einheit passt, wenn sie laut `lagerflache_teilbar_ab` teilbar ist.
+- In Frage kommt, was nicht vermietet, nicht archiviert und in „Status Logistik“ nicht
+  inaktiv ist – und entweder in Propstack in Vermarktung steht (Status 163674) oder gar
+  keinen Propstack-Status hat, in „Status Logistik“ aber „Aktiv“ ist. Die zweite Gruppe
+  ist Altbestand aus dem Import 01/2025 (19.11.2026: 204 Einheiten); sie wird als
+  „ohne Propstack-Status“ gekennzeichnet und gehört vor einem Angebot geprüft.
+- Fläche = Lagerfläche (Custom-Feld `lagerflache`, sonst `lagerflache_verfugbar`), sonst
+  die Fläche der Einheit. Eine größere Einheit passt, wenn sie laut
+  `lagerflache_teilbar_ab` teilbar ist.
 - Ist Hallenhöhe oder Rampenzahl an der Einheit nicht gepflegt, bleibt sie Kandidat und
   die Lücke wird genannt – ein fehlender Wert ist kein Ausschluss. Ist der Wert
   gepflegt und zu klein, fällt die Einheit raus.
 - `--ort` ohne Koordinaten nimmt die Mitte der eigenen Einheiten in diesem Ort. Kennt
   der Bestand den Ort nicht, --lat/--lng angeben.
 
-Grenzen (Datenstand 19.11.2026, 1.116 Einheiten in Vermarktung):
-- 248 Einheiten (22 %) haben keine Koordinaten – eine Umkreissuche sieht sie nicht.
+Grenzen (Datenstand 19.11.2026, 1.320 Einheiten kommen in Frage):
+- 270 Einheiten (20 %) haben keine Koordinaten – eine Umkreissuche sieht sie nicht.
   Das Skript nennt ihre Zahl bei jedem Lauf.
-- Rampen sind bei 45 % gepflegt, Hallenhöhe bei 70 %.
+- Rampen sind bei 42 % gepflegt, Hallenhöhe bei 71 %.
 - „Bezug“ ist Freitext („sofort“, „Q2 2027“, „laut Flächenupdate …“), als Datum nur bei
-  25 %. Nach Verfügbarkeit lässt sich deshalb nicht filtern; der Text wird angezeigt.
-- Kühlung ist an 2 Einheiten gepflegt: Ein Kühlgesuch lässt sich nicht aus Feldern beantworten.
+  26 %. Nach Verfügbarkeit lässt sich deshalb nicht filtern; der Text wird angezeigt.
+- Kühlung ist an 3 Einheiten gepflegt: Ein Kühlgesuch lässt sich nicht aus Feldern beantworten.
 
 Umgebung: PROPSTACK_API_KEY oder PROPSTACK_API_V1 (wird nie ausgegeben).
 """
@@ -87,14 +92,29 @@ def koordinaten(unit: dict) -> tuple[float, float] | None:
     return (lat, lng) if lat and lng else None
 
 
-def in_vermarktung(unit: dict) -> bool:
+VERMARKTUNG = "Vermarktung"
+ALTBESTAND = "ohne Propstack-Status"
+
+
+def verfuegbar_als(unit: dict) -> str | None:
+    """Kommt die Einheit für ein Angebot in Frage – und in welcher Gruppe? None = nein.
+
+    Propstack führt zwei Angaben nebeneinander: den Objekt-Status und das Custom-Feld
+    „Status Logistik“. Am 19.11.2026 waren 204 Einheiten dort „Aktiv“ und frei, hatten
+    aber keinen Propstack-Status – wer nur nach Status filtert, sieht sie nicht."""
+    if _scalar(unit.get("rented")) is True or _scalar(unit.get("archived")) is True:
+        return None
+    logistik = _custom(unit, "status_logistik")
+    if logistik == "Inaktiv":
+        return None
     status = unit.get("property_status")
-    return (
-        isinstance(status, dict) and status.get("id") == STATUS_VERMARKTUNG
-        and _scalar(unit.get("rented")) is not True
-        and _scalar(unit.get("archived")) is not True
-        and _custom(unit, "status_logistik") != "Inaktiv"
-    )
+    if isinstance(status, dict):
+        return VERMARKTUNG if status.get("id") == STATUS_VERMARKTUNG else None
+    return ALTBESTAND if logistik == "Aktiv" else None
+
+
+def in_vermarktung(unit: dict) -> bool:
+    return verfuegbar_als(unit) is not None
 
 
 def ortsmitte(units: list[dict], ort: str) -> tuple[float, float] | None:
@@ -132,6 +152,7 @@ class Kandidat:
     rampen: float | None
     bezug: str | None
     projekt_id: int | None
+    gruppe: str = VERMARKTUNG
     luecken: list[str] = field(default_factory=list)
 
 
@@ -153,7 +174,11 @@ def pruefe(unit: dict, gesuch: Gesuch) -> Kandidat | None:
     if abstand > gesuch.umkreis_km:
         return None
 
-    flaeche = zahl(_custom(unit, "lagerflache")) or zahl(_scalar(unit.get("property_space_value")))
+    flaeche = (
+        zahl(_custom(unit, "lagerflache"))
+        or zahl(_custom(unit, "lagerflache_verfugbar"))   # Altbestand: nur als Text „20.170 m²“
+        or zahl(_scalar(unit.get("property_space_value")))
+    )
     if not flaeche:
         return None
     teilbar_ab = zahl(_custom(unit, "lagerflache_teilbar_ab"))
@@ -189,17 +214,18 @@ def pruefe(unit: dict, gesuch: Gesuch) -> Kandidat | None:
         rampen=rampen,
         bezug=str(bezug) if bezug else None,
         projekt_id=_scalar(unit.get("project_id")),
+        gruppe=verfuegbar_als(unit) or VERMARKTUNG,
         luecken=luecken,
     )
 
 
 def finde(units: list[dict], gesuch: Gesuch) -> tuple[list[Kandidat], int, int]:
-    """(Kandidaten, Einheiten in Vermarktung, davon ohne Koordinaten).
-    Sortiert: erst die ohne Datenlücke, dann nach Entfernung."""
+    """(Kandidaten, in Frage kommende Einheiten, davon ohne Koordinaten).
+    Sortiert: erst Vermarktung, dann Altbestand; darin erst ohne Datenlücke, dann nach Entfernung."""
     verfuegbar = [u for u in units if in_vermarktung(u)]
     ohne_koordinaten = sum(1 for u in verfuegbar if not koordinaten(u))
     kandidaten = [k for u in verfuegbar if (k := pruefe(u, gesuch))]
-    kandidaten.sort(key=lambda k: (len(k.luecken), k.entfernung_km, -k.flaeche))
+    kandidaten.sort(key=lambda k: (k.gruppe != VERMARKTUNG, len(k.luecken), k.entfernung_km, -k.flaeche))
     return kandidaten, len(verfuegbar), ohne_koordinaten
 
 
@@ -277,9 +303,11 @@ def main() -> int:
         return 0
 
     vollstaendig = sum(1 for k in kandidaten if not k.luecken)
+    altbestand = sum(1 for k in kandidaten if k.gruppe == ALTBESTAND)
     von, bis = (f"{wert:,.0f}".replace(",", ".") for wert in (gesuch.flaeche_von, gesuch.flaeche_bis))
     print(f"{len(kandidaten)} Kandidaten im Umkreis von {args.umkreis:g} km ({von}–{bis} m²), "
-          f"davon {vollstaendig} mit allen Angaben.")
+          f"davon {vollstaendig} mit allen Angaben"
+          + (f", {altbestand} aus dem Altbestand ohne Propstack-Status (vor einem Angebot prüfen)." if altbestand else "."))
     for k in kandidaten:
         teile = [f"Einheit {k.unit_id}", f"{k.ort} ({k.entfernung_km} km)", f"{k.flaeche:,} m²".replace(",", ".")]
         if k.teilbar_ab:
@@ -289,11 +317,13 @@ def main() -> int:
         teile.append(f"Bezug: {k.bezug}" if k.bezug else "Bezug –")
         if k.projekt_id:
             teile.append(f"https://crm.propstack.de/app/projects/{k.projekt_id}")
+        if k.gruppe == ALTBESTAND:
+            teile.append("OHNE PROPSTACK-STATUS")
         if k.luecken:
             teile.append(f"NICHT GEPFLEGT: {', '.join(k.luecken)}")
         print("  " + " · ".join(teile))
         print(f"      {k.name}")
-    print(f"\nGeprüft: {verfuegbar} Einheiten in Vermarktung. {ohne_koordinaten} davon haben keine Koordinaten "
+    print(f"\nGeprüft: {verfuegbar} Einheiten, die in Frage kommen. {ohne_koordinaten} davon haben keine Koordinaten "
           "und konnten nicht berücksichtigt werden.")
     return 0
 

@@ -89,38 +89,57 @@ Passiert ist davon nach Datenlage nichts. **Geändert**, ohne die fünf festgele
 Offen: Stufe A setzt nur `rented=true`. Deine Regel vom 11.11.2026 schließt mit `rented: true` **und**
 Status 163676. Am 19.11. standen 7 Einheiten als vermietet und zugleich in „Vermarktung“.
 
-## Befund 4 – Der Bestand: ein Drittel sind Karteileichen
+## Befund 4 – Zwei Status-Angaben laufen auseinander
 
-2.536 aktive Einheiten, davon 1.123 in Vermarktung und nicht vermietet – das ist der eigentliche Bestand.
+Propstack führt für jede Einheit zwei Angaben nebeneinander: den **Objekt-Status** (Akquise … Abgeschlossen)
+und euer Custom-Feld **„Status Logistik“** (Aktiv/Inaktiv), dazu das Kennzeichen „vermietet“. Sie
+widersprechen sich an vielen Stellen (2.536 aktive Einheiten):
 
-- **933 Einheiten (37 %) haben keinen Status.** 661 davon stammen aus dem Import 01/2025 (757 Datensätze:
-  695 ohne Fläche, 687 ohne Betreuer, 683 ohne Bild, 536 als „Wohnung“ typisiert).
-- Diese Altdaten sind nicht harmlos: 29 der 156 Newsletter-Aufgaben zeigten auf Einheiten ohne Status – die
-  KI ordnet Marktmeldungen Datensätzen zu, die niemand pflegt. Jede Auswertung „nach Status“ übersieht sie.
-- Der gepflegte Bestand ist ordentlich: Lagerfläche bei 95 %, Hallenhöhe 70 %, Preisangabe 83 %.
-- 124 Einheiten sind „Abgeschlossen“, aber nicht als vermietet markiert; 82 offene Deals hängen an
-  vermieteten oder abgeschlossenen Einheiten (80 davon ohne Pipeline).
+| Was | Zahl | Folge |
+|---|---|---|
+| Kein Objekt-Status, aber „Aktiv“ und frei | **204** | Fast alle aus dem Import 01/2025. Jede Suche „nach Status“ übersieht sie – der Connector-Filter, das Dashboard, anfangs auch mein Gesuch-Abgleich. |
+| Weder Objekt-Status noch „Status Logistik“ | 263 | Überwiegend 2026 neu angelegt – nicht einzuordnen, ob verfügbar. |
+| „Abgeschlossen“, aber „Aktiv“ | 18 | Nach euren Feldregeln hängt am Aktiv-Feld, was in Exposéversand und Website bleibt. |
+| „Vermarktung“, aber vermietet oder „Inaktiv“ | 14 | Erscheinen in Status-Auswertungen als verfügbar. |
+| „Abgeschlossen“, aber nicht als vermietet markiert | 124 | |
+| Kein Objekt-Status und „Inaktiv“ | 463 | In Ordnung – bewusst stillgelegter Altbestand. |
 
-Nichts geändert – das ist eine Entscheidung (Punkt 5).
+Insgesamt haben **933 Einheiten (37 %) keinen Objekt-Status**. Der Bestand, der wirklich angeboten werden
+kann, ist damit nicht 1.123 („Vermarktung“ und frei), sondern rund **1.320** – 204 davon sieht nur, wer
+nach „Status Logistik“ sucht.
+
+Das wirkt in die Automatisierung hinein: 29 der 156 Newsletter-Aufgaben zeigten auf Einheiten ohne Status.
+Außerdem hängen 82 offene Deals an vermieteten oder abgeschlossenen Einheiten (80 davon ohne Pipeline).
+
+Der gepflegte Kern ist ordentlich: Fläche bei 99 % bestimmbar, Hallenhöhe bei 71 %, Preisangabe bei 83 %.
+
+Nichts geändert – das ist eine Entscheidung (Punkt 5). *Berichtigung im Lauf der Prüfung:* Ich hatte die
+Datensätze aus dem Import 01/2025 zuerst für leere Karteileichen gehalten (kein Status, keine Fläche im
+Standardfeld, kein Betreuer, kein Bild). Das war falsch: Sie tragen eure Custom-Felder und wurden im August
+und September überarbeitet. Archivieren wäre die falsche Antwort gewesen.
 
 ## Befund 5 – Automatisiert ist die Pflege, nicht das Geschäft
 
 Sechs Automatisierungen halten den Bestand aktuell. Keine beantwortet die Frage, mit der ihr Geld verdient:
 *Welche unserer Flächen passen auf dieses Gesuch?* Dabei geben die Daten das schon her:
 
-| Gesuch (Website) | Kandidaten im eigenen Bestand | davon mit allen Angaben |
+| Gesuch (Website) | Kandidaten in Vermarktung | zusätzlich im Altbestand ohne Status |
 |---|---|---|
-| Düsseldorf/Haan, ~10.000 m² + Werkstatt | 10 | 2 |
+| Düsseldorf/Haan, ~10.000 m² + Werkstatt | 10 | 13 |
 | Berlin-Reinickendorf, Kühlfläche 2.000 m² | 12 | 3 |
-| Östliches Ruhrgebiet, 30.000–40.000 m² | 2 | 1 |
-| Wermelskirchen +30 km, 8.000–12.000 m², ≥ 9 m | 13 | 10 |
-| Mönchengladbach, Interim 3.000 m² | 6 | 2 |
-| Duisburg/Essen/MG, 4.000–5.000 m², ≥ 6 Rampen | 19 | 11 |
+| Östliches Ruhrgebiet, 30.000–40.000 m² | 2 | 7 |
+| Wermelskirchen +30 km, 8.000–12.000 m², ≥ 9 m | 13 | 11 |
+| Mönchengladbach, Interim 3.000 m² | 6 | 8 |
+| Duisburg/Essen/MG, 4.000–5.000 m², ≥ 6 Rampen | 21 | 23 |
+| **Summe** | **64** | **65** |
+
+Die rechte Spalte ist der Punkt aus Befund 4: Die Hälfte der möglichen Treffer liegt in Datensätzen, die
+eine Suche nach Status nicht zeigt. Sie gehören vor einem Angebot geprüft, aber sie gehören auf die Liste.
 
 `scripts/gesuch_matching.py` macht das für jedes Gesuch in unter einer Minute (nur lesend). Drei Lücken
-bremsen: **22 % der Einheiten haben keine Koordinaten** (eine Umkreissuche sieht sie nicht), **Rampen sind
-nur bei 45 % gepflegt**, und **„Bezug“ ist Freitext** („sofort“, „Q2 2027“, „Datum“) – nach Verfügbarkeit
-lässt sich nicht filtern. Kühlung ist an 2 von 1.116 Einheiten gepflegt.
+bremsen: **20 % der Einheiten haben keine Koordinaten** (eine Umkreissuche sieht sie nicht), **Rampen sind
+nur bei 42 % gepflegt**, und **„Bezug“ ist Freitext** („sofort“, „Q2 2027“, „Datum“) – nach Verfügbarkeit
+lässt sich nicht filtern. Kühlung ist an 3 von 1.320 Einheiten gepflegt.
 
 Wenn du die nächste Stunde Pflegeaufwand vergibst: in diese drei Felder, nicht in einen siebten Handler.
 
@@ -162,8 +181,11 @@ Branch `ccr-9cae85c4-4jlmdv`, 478 Tests grün (Python 3.12 und 3.13), vorher 250
    Empfehlung: das Zweite. Im Kanal wird gearbeitet, in der Aufgabenliste nicht.
 4. **Newsletter-Handler behalten?** 157 Aufgaben, eine erledigt. Empfehlung: abschalten oder auf eine
    wöchentliche Sammelnachricht in Slack umstellen. Im heutigen Zuschnitt erzeugt er keinen Nutzen.
-5. **Altimport 01/2025.** 661 Datensätze ohne Status, die meisten ohne Fläche, Betreuer und Bild. Empfehlung: archivieren – vorher
-   die Liste gegen Deals und Verknüpfungen prüfen (kann eine Sitzung in einer Stunde vorbereiten).
+5. **Eine Status-Angabe, die gilt.** Entweder der Objekt-Status wird für die 204 aktiven Einheiten ohne
+   Status nachgezogen (und für die 263 ohne beides entschieden), oder „Status Logistik“ wird zur einzigen
+   Wahrheit und alle Werkzeuge filtern danach. Empfehlung: Objekt-Status nachziehen – das kann eine Sitzung
+   über den Connector als Sammeländerung mit Rücknahme vorbereiten. Die 18 „Abgeschlossen, aber Aktiv“
+   gleich mit.
 6. **Stufe A soll auch den Status setzen?** Empfehlung: ja, wie in deiner Regel vom 11.11.
 7. **Apollo-Schlüssel prüfen**, falls der erste Lauf nach dem Merge weiter 401 meldet.
 8. **Personalkarussell nicht scharf schalten**, bevor die vier offenen Punkte im README erledigt sind.
