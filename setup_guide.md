@@ -83,8 +83,12 @@ Kontakte ganz normal angelegt, nur ohne ergänzte Felder.
   angenommen“ – oder der Lauf endet rot mit „Apollo nimmt den Schlüssel nicht an (HTTP 401)“.
 - **Dauerhaft einschalten:** unter *Settings → Secrets and variables → Actions → Variables* die Variable
   `APOLLO_ENABLED` mit dem Wert `true` anlegen.
-- **Wenn der Test 401 meldet:** in Apollo einen neuen Schlüssel erzeugen und als Secret `APOLLO_API_KEY`
-  hinterlegen. Beim Anlegen des Schlüssels muss der Zugriff auf *People Enrichment* (`people/match`) erlaubt
+- **Stand des Tests vom 19.11.2026** (Dry-Run auf dem Branch, 20:27 UTC): Apollo antwortet auf die
+  Schlüsselprüfung mit „nicht angemeldet“ (`is_logged_in=false`). Der im Secret hinterlegte Schlüssel ist
+  Apollo also unbekannt – gelöscht, abgelaufen oder aus einem anderen Konto. Die korrigierte Übergabe im
+  Header allein reicht deshalb nicht.
+- **Wenn der Test den Schlüssel ablehnt:** in Apollo einen neuen Schlüssel erzeugen und als Secret
+  `APOLLO_API_KEY` hinterlegen. Beim Anlegen des Schlüssels muss der Zugriff auf *People Enrichment* (`people/match`) erlaubt
   sein – oder der Schlüssel als „Master Key“ für alle Endpunkte gesetzt werden. Hat der Apollo-Tarif keinen
   API-Zugang, hilft kein Schlüssel.
 

@@ -187,9 +187,15 @@ Serverfehler; `office_country` ist bei jedem importierten Kontakt „Deutschland
 
 ## Was nicht geprüft ist
 
-- Kein Handler ist nach den Änderungen gegen Slack oder die KI gelaufen (dafür fehlen hier die Schlüssel).
-  Geprüft ist mit Tests und – wo es um Propstack-Lesezugriffe geht – gegen die Live-Schnittstelle.
-- Der Apollo-Fix folgt der Dokumentation, ein echter Aufruf steht aus.
+- Die vier Handler sind nach den Änderungen nicht gegen Slack oder die KI gelaufen. Geprüft ist mit Tests
+  und – wo es um Propstack-Lesezugriffe geht – gegen die Live-Schnittstelle.
+- **Der Kontakt-Import ist live gelaufen** (Dry-Run auf dem Branch, 19.11.2026, 20:27 UTC, nichts angelegt):
+  75 Mails aus 5 Postfächern über 48 Stunden, 39 bekannte Absender ohne KI-Aufruf übersprungen, 30 weitere
+  Mails derselben Absender, 6 ohne verwertbaren Kontakt, kein neuer Kontakt. Laufzeit 84 Sekunden (der
+  Lauf vom Morgen: 12 Minuten für 37 Mails).
+- **Apollo:** Im selben Lauf hat Apollo die Schlüsselprüfung mit „nicht angemeldet“ beantwortet. Der im Secret
+  hinterlegte Schlüssel ist Apollo unbekannt; die korrigierte Übergabe im Header allein hilft nicht. Apollo
+  steht deshalb auf „aus“, bis ein neuer Schlüssel hinterlegt ist.
 - Das Schließen von Aufgaben (`done=true`) ist nicht erprobt; das Skript prüft deshalb die erste Aufgabe
   einzeln und bricht sonst ab.
 - Der Connector (`propstack-mcp`) wurde nicht geprüft. Aufgefallen ist dort nur: `aggregate` für Deals nach

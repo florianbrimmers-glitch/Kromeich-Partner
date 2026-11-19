@@ -62,10 +62,10 @@ def starte_lauf() -> bool:
     except ValueError:
         pass
     if response.status_code != 200 or not angemeldet:
-        problems.melde(
-            "Apollo nimmt den Schlüssel nicht an – Anreicherung für diesen Lauf aus",
-            f"HTTP {response.status_code}",
-        )
+        # Testlauf vom 19.11.2026: Apollo antwortete mit 200 und is_logged_in=false –
+        # der hinterlegte Schlüssel ist Apollo unbekannt (gelöscht, abgelaufen, anderes Konto).
+        grund = "Apollo kennt den Schlüssel nicht (is_logged_in=false)" if response.status_code == 200 else f"HTTP {response.status_code}"
+        problems.melde("Apollo nimmt den Schlüssel nicht an – Anreicherung für diesen Lauf aus", grund)
         return False
     logger.info("Apollo: Schlüssel angenommen")
     _bereit = True

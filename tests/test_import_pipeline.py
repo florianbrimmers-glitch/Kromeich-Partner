@@ -419,6 +419,8 @@ def test_apollo_schluessel_abgelehnt_ein_problem_und_dann_ruhe(monkeypatch, stat
     bereit, _ = _apollo_lauf(monkeypatch, status=status, daten=daten)
     assert bereit is False
     assert len(problems.zusammenfassung()) == 1 and "nimmt den Schlüssel nicht an" in problems.zusammenfassung()[0]
+    # so antwortete Apollo im Testlauf vom 19.11.2026: HTTP 200, aber nicht angemeldet
+    assert ("is_logged_in=false" in problems.zusammenfassung()[0]) == (status == 200)
 
     monkeypatch.setattr(apollo_client.httpx, "post", lambda *a, **k: pytest.fail("kein Aufruf erwartet"))
     assert apollo_client.enrich_contact(ContactData(email="a@b.de")) is None
