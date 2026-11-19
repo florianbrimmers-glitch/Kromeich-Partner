@@ -64,6 +64,10 @@ def match_person(records: list[dict], vorname: str | None, nachname: str | None)
     markiert sind, haben einen Vornamen und zählen mit."""
     if not nachname:
         return PersonMatch(status=MatchStatus.NONE, grund="Kein Nachname erkannt")
+    if not vorname:
+        # „Setz ist jetzt bei Goodman“: Ohne Vornamen würde die einzige Person mit
+        # diesem Nachnamen umgestellt – das ist kein exakter Abgleich. -> Stufe B.
+        return PersonMatch(status=MatchStatus.NONE, grund="Kein Vorname erkannt – Nachname allein reicht nicht")
 
     treffer: dict[int, Person] = {}
     for r in records:

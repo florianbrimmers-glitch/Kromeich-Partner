@@ -33,6 +33,21 @@ Am 05.10.2026 hat das Ändern des Firmenfelds einer Person (Tim Hamacher) die bi
 
 **Start im Testbetrieb:** Der Cron läuft zunächst mit `DRY_RUN=true`. Nach einigen Nächten mit plausiblen Review-Aufgaben in der Workflow-Datei auf `false` umstellen.
 
+### Vor dem Scharfschalten (Prüfung vom 19.11.2026)
+
+Der gerade Durchlauf von Stufe A ist richtig und vorsichtig. Gefährlich sind die Abbruchpfade. **Noch nicht scharf schalten**, solange die offenen Punkte nicht erledigt sind.
+
+Mit der Änderung vom 19.11.2026 erledigt:
+- Ein Lauf endet rot, wenn eine Meldung nicht verarbeitet werden konnte oder Slack nicht lesbar war (vorher: grün, die Meldung war am Folgetag außerhalb des 26-h-Fensters und damit verloren).
+- Nachname allein reicht nicht mehr für einen Treffer („Setz ist jetzt bei Goodman“ → Stufe B).
+- Die neue Verknüpfung wird gegengelesen, bevor die alte gelöscht wird (HTTP 422 heißt nicht immer „besteht bereits“).
+
+Offen:
+1. **Abbruch mitten in Stufe A hinterlässt einen Teilzustand ohne Spur.** Scheitert das Entfernen der alten Verknüpfung, das Ändern des Firmenfelds oder die Notiz, bleibt der Kontakt halb umgestellt; welche Verknüpfung schon gelöscht ist, steht nirgends. Nötig: Exception in `_stufe_a` fangen, Review-Aufgabe „teilweise ausgeführt“ mit den erledigten Schritten anlegen.
+2. **Die Absicherung gegen Firmen-Umbenennung greift nur im geraden Durchlauf.** Wirft der PUT nach dem Schreiben (Timeout) oder die Namensprüfung selbst, bleibt ein falsch umbenannter Firmenname stehen, und der nächste Lauf meldet „bereits aktuell“. Nötig: Prüfung in ein `finally`, jede Firma einzeln.
+3. **Wechsel innerhalb einer Gruppe** („von Swiss Life Deutschland zu Swiss Life Logistics“) wird als „steht bereits bei …“ bestätigt – ohne Änderung, ohne Aufgabe, auch im Testbetrieb.
+4. **Ein beaufsichtigter Live-Lauf an einem Testkontakt** (`workflow_dispatch`, `dry_run=false`, enges Fenster), danach Kontrolle in der Propstack-Oberfläche: Verknüpfung entfernen, Firmenfeld ändern, Firma zurückbenennen und die Notiz sind im Cron noch nie gelaufen und haben keinen Test.
+
 ## Einrichtung
 
 - **Slack:** Der bestehende Bot wird mitgenutzt. Da der Kanal **privat** ist, braucht er zusätzlich `groups:history` und `groups:read` (neben `chat:write`, `reactions:read`, `reactions:write`) und muss im Kanal Mitglied sein: in #personalkarussel-logistik `/invite @Bot`.

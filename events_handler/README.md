@@ -67,6 +67,13 @@ pip install -r requirements-dev.txt
 pytest tests/events_handler/ -v
 ```
 
+## Änderung vom 19.11.2026
+
+- Scheitert die Anlage eines Events in Asana (z. B. Token abgelaufen), bekommt die Nachricht **kein** ✅ und keine Erfolgsmeldung mehr, und der Lauf endet rot. Vorher: ✅ und „… angelegt“, obwohl das Event nie in der Liste ankam – bei totem Token jede Nacht, bei grünem Lauf. Beim Nachholen (`workflow_dispatch` mit größerem Fenster) schützt der Dublettencheck die schon angelegten Events.
+- Die Antwort im Thread nennt die echten Zahlen (angelegt / stand schon in der Liste).
+- Nur ein echtes Datum `JJJJ-MM-TT` geht als Fälligkeit an Asana; liefert die KI etwas anderes („2027-06-16/17“), wird die Aufgabe ohne Fälligkeit angelegt statt gar nicht.
+- Slack nicht lesbar (z. B. Bot nicht mehr im Kanal) ist ein Fehler, kein Lauf mit „0 Nachrichten“.
+
 ## Bekannte Einschränkungen
 
 - Aufgaben werden **an den Abschnitt „Events" angehängt**, nicht an eine bestimmte Position einsortiert. Chronologisch sortieren lässt sich der Abschnitt über das gesetzte Fälligkeitsdatum (Starttag des Events).
