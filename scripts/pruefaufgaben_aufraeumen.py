@@ -7,7 +7,8 @@ sind ohne inhaltliche Prüfung überflüssig:
   gegenstandslos   „Newsletter-Vermietung prüfen“, deren Einheiten in Propstack schon
                    vermietet, „Abgeschlossen“ (Status 163676) oder archiviert sind.
   dublette         „Newsletter-Vermietung prüfen“, zu deren Einheit es eine ältere
-                   offene Aufgabe derselben Art gibt. Die älteste bleibt offen.
+                   offene Aufgabe mit derselben Meldung gibt. Die älteste bleibt offen;
+                   eine Aufgabe mit anderem Objektnamen zur selben Einheit auch.
   vollzugsmeldung  Aufgaben des #objekte-Handlers („Objekt fehlt in Propstack“,
                    „Flächenupdate abgleichen“, „Slack #objekte prüfen“), die auf einen
                    Bericht über Erledigtes antworten: „neues Objekt angelegt …“ oder
@@ -22,9 +23,9 @@ Zuerst wird EINE Aufgabe geschlossen und zurückgelesen; erscheint sie danach ni
 erledigt, bricht das Skript ab. Jede geschlossene Aufgabe steht im Protokoll (JSON),
 mit --undo <Protokoll> --apply werden genau diese wieder geöffnet (ohne --apply nur gezeigt).
 
-ACHTUNG: Die Schreibform done=true ist nicht live erprobt (am 19.11.2026 wurde nur
-gelesen). Erprobt ist PUT /v1/tasks/:id mit broker_id (Migration vom 02.10.2026). Genau
-deshalb die Probe mit einer einzelnen Aufgabe.
+Die Schreibform ist live erprobt: Am 19.11.2026 wurden damit 34 Dubletten geschlossen
+(Protokoll: scripts/pruefaufgaben_geschlossen_2026-11-19.json). Die Probe mit einer einzelnen
+Aufgabe bleibt trotzdem – sie kostet nichts und fängt eine geänderte Schnittstelle ab.
 
 Aufruf:   python scripts/pruefaufgaben_aufraeumen.py                 # nur lesen
           python scripts/pruefaufgaben_aufraeumen.py --apply [--limit N] [--nur gegenstandslos|dublette|vollzugsmeldung]
@@ -99,34 +100,68 @@ def offene_newsletter_aufgaben(aufgaben: list[dict]) -> list[dict]:
     return sorted(eigene, key=lambda a: str(a.get("original_created_at") or ""))
 
 
+# Wörter, die in fast jedem Titel stehen und nichts über das Objekt sagen
+_ALLGEMEIN = {
+    "park", "logistik", "logistikpark", "logistikzentrum", "logistikhalle", "logistikneubau", "industrial",
+    "neubau", "neubaufläche", "gmbh", "real", "estate", "deutschland", "germany", "unternehmerpark",
+    "gewerbepark", "projekt", "halle", "brownfield", "der", "die", "das", "und", "von", "bei", "des", "the",
+}
+
+
+def _namenswoerter(titel: str | None) -> set[str]:
+    name = str(titel or "").split(":", 1)[-1].lower()
+    return {w for w in re.findall(r"[a-zäöüß0-9]{3,}", name)} - _ALLGEMEIN
+
+
+def gleiche_meldung(titel_a: str | None, titel_b: str | None) -> bool:
+    """Meinen zwei Aufgaben zur selben Einheit dieselbe Meldung? Der Titel nennt das Objekt
+    so, wie der Radar es nannte: „Garbe“ und „Garbe Industrial“ sind dasselbe, „Ixocon“ und
+    „Prologis Park Hamburg-Steinwerder“ nicht – dann hat die KI zwei verschiedene Meldungen
+    derselben Einheit zugeordnet, und genau das soll ein Mensch sehen."""
+    a, b = _namenswoerter(titel_a), _namenswoerter(titel_b)
+    if a & b:
+        return True
+    kompakt = [re.sub(r"[^a-zäöüß0-9]", "", str(t or "").split(":", 1)[-1].lower()) for t in (titel_a, titel_b)]
+    return bool(kompakt[0]) and bool(kompakt[1]) and (kompakt[0] in kompakt[1] or kompakt[1] in kompakt[0])
+
+
 def plane(aufgaben: list[dict], einheiten: dict[int, dict]) -> list[dict]:
     """Welche Aufgaben können zu? Gibt je Aufgabe {task_id, titel, angelegt, grund, units, behalten} zurück.
 
-    aufgaben:  Zeilen aus GET /v1/activities?item_type=reminder (alle des Sitzes)
+    aufgaben:  Zeilen aus GET /v1/activities?item_type=reminder (alle Nutzer)
     einheiten: Unit-ID -> Zeile aus GET /v1/units?expand=1. Fehlt eine Einheit dort,
                gilt sie als offen (lieber eine Aufgabe zu viel offen lassen).
+
+    Dublette ist eine Aufgabe nur, wenn zu JEDER ihrer Einheiten eine ältere offene Aufgabe
+    mit derselben Meldung bleibt (gleiche_meldung). Eine zweite Aufgabe zur selben Einheit
+    mit anderem Objektnamen bleibt offen.
     """
     plan: list[dict] = []
-    erste_je_einheit: dict[int, int] = {}  # Unit-ID -> Task-ID der ältesten Aufgabe, die offen bleibt
+    bleibt_je_einheit: dict[int, list[tuple[int, str]]] = {}  # Unit-ID -> [(Task-ID, Titel)], die offen bleiben
     for aufgabe in offene_newsletter_aufgaben(aufgaben):
         task_id = aufgabe["activatable_id"]
+        titel = str(_scalar(aufgabe.get("title")) or "")
         units = [u for u in (aufgabe.get("property_ids") or []) if isinstance(u, int)]
         if not units:
             continue  # ohne Einheit keine Aussage möglich
         eintrag = {
             "task_id": task_id,
-            "titel": _scalar(aufgabe.get("title")),
+            "titel": titel,
             "angelegt": str(aufgabe.get("original_created_at") or "")[:10],
             "units": units,
         }
         if all(u in einheiten and einheit_abgeschlossen(einheiten[u]) for u in units):
             plan.append({**eintrag, "grund": GEGENSTANDSLOS, "behalten": None})
             continue
-        if all(u in erste_je_einheit for u in units) and erste_je_einheit[units[0]] != task_id:
-            plan.append({**eintrag, "grund": DUBLETTE, "behalten": erste_je_einheit[units[0]]})
+        gleiche = [
+            next((tid for tid, t in bleibt_je_einheit.get(u, []) if tid != task_id and gleiche_meldung(titel, t)), None)
+            for u in units
+        ]
+        if all(gleiche):
+            plan.append({**eintrag, "grund": DUBLETTE, "behalten": gleiche[0]})
             continue
         for u in units:
-            erste_je_einheit.setdefault(u, task_id)
+            bleibt_je_einheit.setdefault(u, []).append((task_id, titel))
     return plan
 
 

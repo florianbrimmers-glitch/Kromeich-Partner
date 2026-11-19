@@ -170,3 +170,27 @@ def test_undo_bricht_ab_wenn_die_probe_nicht_wirkt(tmp_path, monkeypatch):
     ps = _Wirkungslos()
     assert skript._undo(ps, str(protokoll), apply=True) == 1
     assert ps.geschrieben == [(11, False)]   # nur die Probe
+
+
+def test_andere_meldung_zur_selben_einheit_ist_keine_dublette():
+    """Rückfrage Florian, 19.11.2026: „Die Dubletten klar, aber die Newsletter müssen doch noch
+    geprüft werden?“ – Zwei verschiedene Meldungen, die die KI derselben Einheit zugeordnet hat,
+    sind genau der Fall für einen Menschen. Echte Titel vom Review-Sitz."""
+    aufgaben = [
+        _aufgabe(1, "Newsletter-Vermietung prüfen: Ixocon", [5768805], "2026-10-20T10:19:13.812+02:00"),
+        _aufgabe(2, "Newsletter-Vermietung prüfen: Prologis Park Hamburg-Steinwerder DC1", [5768805], "2026-10-23T10:22:05.358+02:00"),
+        _aufgabe(3, "Newsletter-Vermietung prüfen: Prologis Park Hamburg-Steinwerder", [5768805], "2026-10-27T09:46:48.420+01:00"),
+    ]
+    plan = _plan(aufgaben, {5768805: OFFEN})
+    assert set(plan) == {3} and plan[3]["behalten"] == 2   # Dublette der zweiten, nicht der ersten
+
+
+def test_gleiche_meldung():
+    g = skript.gleiche_meldung
+    assert g("Newsletter-Vermietung prüfen: Garbe", "Newsletter-Vermietung prüfen: Garbe Industrial")
+    assert g("Newsletter-Vermietung prüfen: CTP", "Newsletter-Vermietung prüfen: CTP")
+    assert g("Newsletter-Vermietung prüfen: Flex City", "Newsletter-Vermietung prüfen: FlexCity")
+    assert g("Newsletter-Vermietung prüfen: Panattoni-Park Herleshausen", "Newsletter-Vermietung prüfen: Panattoni Park Bad Hersfeld Ost")
+    assert not g("Newsletter-Vermietung prüfen: Hamburger Triport", "Newsletter-Vermietung prüfen: Maersk Deutschland")
+    assert not g("Newsletter-Vermietung prüfen: Log Plaza Colonia 3", "Newsletter-Vermietung prüfen: Unternehmerpark Köln-Porz")
+    assert not g("Newsletter-Vermietung prüfen: Dream Advisors", "Newsletter-Vermietung prüfen: Garbe Gewerbepark Soest")
