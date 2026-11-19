@@ -23,9 +23,17 @@ from src.models import ContactData, ContactResult, ContactStatus, EmailData, Enr
 
 @pytest.fixture(autouse=True)
 def _sauber(monkeypatch):
+    from src import slack_import
+
     problems.leeren()
     monkeypatch.setattr(main, "DRY_RUN", False)
     monkeypatch.setattr(main.time, "sleep", lambda s: None)
+    # Kein Test spricht mit Apollo: Die Prüfung des Schlüssels am Anfang eines Laufs ist
+    # ersetzt, und für die Tests von enrich_contact gilt der Schlüssel als angenommen.
+    monkeypatch.setattr(main, "apollo_starte_lauf", lambda: True)
+    monkeypatch.setattr(slack_import, "apollo_starte_lauf", lambda: True)
+    monkeypatch.setattr(apollo_client, "_bereit", True)
+    monkeypatch.delenv("APOLLO_ENABLED", raising=False)
     yield
     problems.leeren()
 
@@ -372,6 +380,63 @@ def test_apollo_401_wird_gemeldet(monkeypatch):
     monkeypatch.setattr(apollo_client.httpx, "post", lambda url, **kw: _Resp({}, status_code=401))
     assert apollo_client.enrich_contact(ContactData(email="a@b.de")) is None
     assert problems.zusammenfassung() == ["Apollo-Anreicherung fehlgeschlagen: HTTP 401"]
+
+
+def _apollo_lauf(monkeypatch, *, status=200, daten=None, enabled=None, key="geheim"):
+    """starte_lauf() mit ersetztem Netz; gibt (Ergebnis, Aufrufe) zurück."""
+    aufrufe = []
+    monkeypatch.setattr(apollo_client, "_bereit", None)
+    if key:
+        monkeypatch.setenv("APOLLO_API_KEY", key)
+    else:
+        monkeypatch.delenv("APOLLO_API_KEY", raising=False)
+    if enabled is not None:
+        monkeypatch.setenv("APOLLO_ENABLED", enabled)
+    monkeypatch.setattr(apollo_client.httpx, "get",
+                        lambda url, headers=None, **kw: aufrufe.append((url, headers)) or _Resp(daten or {}, status_code=status))
+    return apollo_client.starte_lauf(), aufrufe
+
+
+def test_apollo_abgeschaltet_kein_aufruf_kein_problem(monkeypatch):
+    """So laufen die Workflows, bis der Schlüssel geklärt ist: ohne Apollo und ohne roten Lauf."""
+    bereit, aufrufe = _apollo_lauf(monkeypatch, enabled="false")
+    assert bereit is False and aufrufe == [] and problems.zusammenfassung() == []
+
+    monkeypatch.setattr(apollo_client.httpx, "post", lambda *a, **k: pytest.fail("kein Aufruf erwartet"))
+    assert apollo_client.enrich_contact(ContactData(email="a@b.de")) is None
+
+
+def test_apollo_schluessel_wird_einmal_je_lauf_geprueft(monkeypatch):
+    bereit, aufrufe = _apollo_lauf(monkeypatch, daten={"healthy": True, "is_logged_in": True})
+    assert bereit is True and problems.zusammenfassung() == []
+    assert aufrufe[0][0] == "https://api.apollo.io/api/v1/auth/health"
+    assert aufrufe[0][1]["x-api-key"] == "geheim"
+
+
+@pytest.mark.parametrize("status,daten", [(401, {}), (403, {}), (200, {"healthy": True, "is_logged_in": False})])
+def test_apollo_schluessel_abgelehnt_ein_problem_und_dann_ruhe(monkeypatch, status, daten):
+    """19.11.2026: 11 von 11 Aufrufen scheiterten mit 401 – einmal melden genügt."""
+    bereit, _ = _apollo_lauf(monkeypatch, status=status, daten=daten)
+    assert bereit is False
+    assert len(problems.zusammenfassung()) == 1 and "nimmt den Schlüssel nicht an" in problems.zusammenfassung()[0]
+
+    monkeypatch.setattr(apollo_client.httpx, "post", lambda *a, **k: pytest.fail("kein Aufruf erwartet"))
+    assert apollo_client.enrich_contact(ContactData(email="a@b.de")) is None
+    assert problems.anzahl() == 1
+
+
+def test_apollo_ohne_schluessel_ist_kein_problem(monkeypatch):
+    bereit, aufrufe = _apollo_lauf(monkeypatch, key=None)
+    assert bereit is False and aufrufe == [] and problems.zusammenfassung() == []
+
+
+def test_apollo_401_mitten_im_lauf_schaltet_fuer_den_rest_ab(monkeypatch):
+    monkeypatch.setenv("APOLLO_API_KEY", "geheim")
+    aufrufe = []
+    monkeypatch.setattr(apollo_client.httpx, "post", lambda url, **kw: aufrufe.append(1) or _Resp({}, status_code=401))
+    apollo_client.enrich_contact(ContactData(email="a@b.de"))
+    apollo_client.enrich_contact(ContactData(email="c@d.de"))
+    assert len(aufrufe) == 1 and problems.anzahl() == 1
 
 
 def _apollo_person():

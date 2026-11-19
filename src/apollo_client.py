@@ -16,9 +16,71 @@ logger = logging.getLogger(__name__)
 APOLLO_MATCH_URL = "https://api.apollo.io/api/v1/people/match"
 
 
+APOLLO_HEALTH_URL = "https://api.apollo.io/api/v1/auth/health"
+
+# Ob Apollo in diesem Lauf benutzt wird: None = noch nicht geprüft
+_bereit: bool | None = None
+
+
+def eingeschaltet() -> bool:
+    """Schalter APOLLO_ENABLED (Standard: an). Die Workflows setzen ihn aus der
+    Repository-Variable APOLLO_ENABLED und stehen ohne sie auf „aus“ – Apollo ist eine
+    Zugabe, kein Teil der Anlage; ein kaputter Schlüssel soll nicht jeden Lauf rot machen."""
+    return os.environ.get("APOLLO_ENABLED", "true").strip().lower() not in ("false", "0", "no", "aus", "")
+
+
+def starte_lauf() -> bool:
+    """Einmal je Lauf: Ist Apollo eingeschaltet und nimmt Apollo den Schlüssel an?
+
+    Geprüft wird mit GET /api/v1/auth/health (docs.apollo.io/reference/authentication).
+    Wird der Schlüssel abgelehnt, steht das EINMAL unter den Problemen des Laufs und die
+    Anreicherung bleibt für diesen Lauf aus – statt bei jedem Kontakt erneut zu scheitern
+    (19.11.2026: 11 von 11 Aufrufen mit 401)."""
+    global _bereit
+    _bereit = False
+    api_key = os.environ.get("APOLLO_API_KEY")
+    if not eingeschaltet():
+        logger.info("Apollo ist abgeschaltet (APOLLO_ENABLED) – Kontakte werden ohne Anreicherung angelegt")
+        return False
+    if not api_key:
+        logger.warning("APOLLO_API_KEY not set, skipping enrichment")
+        return False
+    try:
+        response = httpx.get(
+            APOLLO_HEALTH_URL,
+            headers={"x-api-key": api_key, "Content-Type": "application/json", "Cache-Control": "no-cache"},
+            timeout=30.0,
+        )
+    except httpx.HTTPError as e:
+        problems.melde("Apollo nicht erreichbar – Anreicherung für diesen Lauf aus", type(e).__name__)
+        return False
+    angemeldet = True
+    try:
+        daten = response.json()
+        if isinstance(daten, dict) and daten.get("is_logged_in") is False:
+            angemeldet = False
+    except ValueError:
+        pass
+    if response.status_code != 200 or not angemeldet:
+        problems.melde(
+            "Apollo nimmt den Schlüssel nicht an – Anreicherung für diesen Lauf aus",
+            f"HTTP {response.status_code}",
+        )
+        return False
+    logger.info("Apollo: Schlüssel angenommen")
+    _bereit = True
+    return True
+
+
 def enrich_contact(contact: ContactData) -> EnrichmentResult | None:
+    global _bereit
     if not contact.email:
         logger.info("No email for contact, skipping Apollo enrichment")
+        return None
+
+    if _bereit is None:
+        starte_lauf()
+    if not _bereit:
         return None
 
     api_key = os.environ.get("APOLLO_API_KEY")
@@ -43,6 +105,8 @@ def enrich_contact(contact: ContactData) -> EnrichmentResult | None:
     except httpx.HTTPStatusError as e:
         # Ohne Adresse im Text: gleiche Ursache soll in der Zusammenfassung gezählt werden
         problems.melde("Apollo-Anreicherung fehlgeschlagen", f"HTTP {e.response.status_code}")
+        if e.response.status_code in (401, 403):
+            _bereit = False  # abgelehnt bleibt abgelehnt – nicht bei jedem Kontakt erneut versuchen
         return None
     except (httpx.HTTPError, ValueError) as e:
         problems.melde("Apollo-Anreicherung fehlgeschlagen", type(e).__name__)

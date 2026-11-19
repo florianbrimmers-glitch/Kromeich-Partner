@@ -16,6 +16,14 @@ on:
         options:
           - "false"
           - "true"
+      apollo:
+        description: "Apollo-Anreicherung in diesem Lauf (zum Testen des Schlüssels: true + dry_run true)"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
       scan_hours:
         description: "Wie viele Stunden zurück lesen (Standard 48; zum Nachholen z. B. 168)"
         required: false
@@ -56,6 +64,12 @@ jobs:
           GOOGLE_REFRESH_TOKEN_5: ${{ secrets.GOOGLE_REFRESH_TOKEN_5 }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           APOLLO_API_KEY: ${{ secrets.APOLLO_API_KEY }}
+          # Apollo ist aus, bis der Schlüssel wieder angenommen wird (19.11.2026: 401 bei jedem
+          # Aufruf). Einschalten: Repository-Variable APOLLO_ENABLED=true anlegen
+          # (Settings → Secrets and variables → Actions → Variables). Testen ohne Folgen:
+          # diesen Workflow von Hand starten mit dry_run=true und apollo=true – der Lauf prüft
+          # den Schlüssel gleich am Anfang und meldet, ob Apollo ihn annimmt.
+          APOLLO_ENABLED: ${{ github.event.inputs.apollo || vars.APOLLO_ENABLED || 'false' }}
           PROPSTACK_API_KEY: ${{ secrets.PROPSTACK_API_KEY }}
           PROPSTACK_API_V2_CONTACTS: ${{ secrets.PROPSTACK_API_V2_CONTACTS }}
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}

@@ -74,6 +74,20 @@ Secret: `APOLLO_API_KEY`
 3. Kopieren Sie den API Key
 4. Legen Sie ihn als GitHub Secret `APOLLO_API_KEY` an
 
+**Apollo ist eine Zugabe und steht seit 19.11.2026 auf „aus“.** An dem Tag wies Apollo jeden Aufruf mit 401 ab
+(der Schlüssel stand im Body; Apollo verlangt ihn im Header `x-api-key` – das ist behoben). Ohne Apollo werden
+Kontakte ganz normal angelegt, nur ohne ergänzte Felder.
+
+- **Testen, ohne dass etwas angelegt wird:** *Actions → Daily Contact Import → Run workflow* mit `dry_run: true`
+  und `apollo: true`. Der Lauf prüft den Schlüssel gleich am Anfang. Im Log steht dann „Apollo: Schlüssel
+  angenommen“ – oder der Lauf endet rot mit „Apollo nimmt den Schlüssel nicht an (HTTP 401)“.
+- **Dauerhaft einschalten:** unter *Settings → Secrets and variables → Actions → Variables* die Variable
+  `APOLLO_ENABLED` mit dem Wert `true` anlegen.
+- **Wenn der Test 401 meldet:** in Apollo einen neuen Schlüssel erzeugen und als Secret `APOLLO_API_KEY`
+  hinterlegen. Beim Anlegen des Schlüssels muss der Zugriff auf *People Enrichment* (`people/match`) erlaubt
+  sein – oder der Schlüssel als „Master Key“ für alle Endpunkte gesetzt werden. Hat der Apollo-Tarif keinen
+  API-Zugang, hilft kein Schlüssel.
+
 ---
 
 ### 4. Propstack API Key

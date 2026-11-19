@@ -72,9 +72,9 @@ schiefgeht, steht in der Slack-Zusammenfassung und macht den Lauf rot.
 - Der Visitenkarten-Import setzt an jede verarbeitete Karte ein ✅ (wie die Handler in ihren Kanälen). Ohne
   diesen Marker ginge bei 48 Stunden Rückblick jede Karte zweimal durch die Bild-KI.
 - Die Zusammenfassung in `#visitenkarten` nennt Probleme des Laufs – auch an Tagen ohne neuen Kontakt.
-- Der erste Lauf kann rot sein; genau das ist jetzt die Absicht. Bleibt Apollo bei 401, ist der Schlüssel
-  selbst ungültig (in Apollo unter Settings → Integrations → API prüfen). Wird Apollo nicht mehr gebraucht:
-  Secret `APOLLO_API_KEY` entfernen, dann ruft der Import es nicht mehr auf.
+- Apollo steht auf „aus“, bis der Schlüssel geklärt ist (Rückmeldung Florian, 19.11.2026: „bekomme ich grad
+  nicht ans Laufen“). Kontakte werden ohne Anreicherung angelegt, der Lauf bleibt davon unberührt. Testen und
+  Einschalten: `setup_guide.md`, Abschnitt Apollo.
 
 ## Befund 3 – Der scharfe #objekte-Handler tut fast nichts automatisch, hatte aber offene Flanken
 

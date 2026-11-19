@@ -27,7 +27,7 @@ from .contact_extractor import (
     extract_contact_from_text,
     categorize_contact,
 )
-from .apollo_client import enrich_contact, apply_enrichment
+from .apollo_client import enrich_contact, apply_enrichment, starte_lauf as apollo_starte_lauf
 from .propstack_client import (
     check_duplicate,
     check_duplicate_by_name,
@@ -58,6 +58,7 @@ def run_pipeline() -> PipelineReport:
 
     if DRY_RUN:
         logger.info("=== DRY RUN MODE – keine Kontakte werden angelegt ===")
+    apollo_starte_lauf()
 
     # 48 h bei täglichem Lauf: Jede Karte wird zweimal gesehen, ein verspäteter oder
     # ausgefallener Lauf reißt keine Lücke. Die Dublettenprüfung macht das folgenlos.

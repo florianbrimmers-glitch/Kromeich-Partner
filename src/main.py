@@ -16,7 +16,7 @@ from .models import (
 )
 from .gmail_client import search_recent_emails
 from .contact_extractor import extract_contact, categorize_contact
-from .apollo_client import enrich_contact, apply_enrichment
+from .apollo_client import enrich_contact, apply_enrichment, starte_lauf as apollo_starte_lauf
 from .propstack_client import check_duplicate, create_contact, find_or_create_company, link_contact_to_company
 from .slack_client import send_summary
 from . import problems
@@ -102,6 +102,7 @@ def run_pipeline() -> PipelineReport:
 
     if DRY_RUN:
         logger.info("=== DRY RUN MODE – keine Kontakte werden angelegt ===")
+    apollo_starte_lauf()
 
     # Step 1: Search emails
     logger.info("Step 1: Searching Gmail for recent emails (last %dh)...", scan_hours())
