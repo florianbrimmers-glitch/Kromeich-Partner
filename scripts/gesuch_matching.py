@@ -2,7 +2,7 @@
 
 Prototyp vom 19.11.2026. Anlass: Die ganze Automatisierung pflegt den Bestand – die
 Frage, mit der das Geld verdient wird, beantwortet keine davon. Am 19.11.2026 fanden sich
-für die sechs Gesuche der Website 62 Kandidaten unter 1.117 Einheiten in Vermarktung.
+für die sechs Gesuche der Website 62 Kandidaten unter 1.116 Einheiten in Vermarktung.
 
 Gesucht wird im Umkreis eines Ortes nach Hallenfläche, optional Hallenhöhe und Rampen:
 
@@ -20,7 +20,7 @@ Regeln:
 - `--ort` ohne Koordinaten nimmt die Mitte der eigenen Einheiten in diesem Ort. Kennt
   der Bestand den Ort nicht, --lat/--lng angeben.
 
-Grenzen (Datenstand 19.11.2026, 1.117 Einheiten in Vermarktung):
+Grenzen (Datenstand 19.11.2026, 1.116 Einheiten in Vermarktung):
 - 248 Einheiten (22 %) haben keine Koordinaten – eine Umkreissuche sieht sie nicht.
   Das Skript nennt ihre Zahl bei jedem Lauf.
 - Rampen sind bei 45 % gepflegt, Hallenhöhe bei 70 %.
@@ -205,20 +205,26 @@ def finde(units: list[dict], gesuch: Gesuch) -> tuple[list[Kandidat], int, int]:
 
 def lade_einheiten(key: str) -> list[dict]:
     """GET /v1/units?expand=1 – alle Seiten (rund 2.600 Einheiten = 26 Seiten)."""
-    units: list[dict] = []
+    # Feste Reihenfolge und je ID nur einmal: Ohne Sortierung verschieben sich Einheiten
+    # zwischen den Seiten – zwei Läufe hintereinander zählten 1.115 und 1.118.
+    units: dict[int, dict] = {}
     page = 1
     with httpx.Client(timeout=60.0, headers={"X-API-KEY": key, "Accept": "application/json"}) as client:
         while True:
-            response = client.get(f"{BASE}/units", params={"expand": 1, "per": 100, "page": page})
+            response = client.get(f"{BASE}/units", params={
+                "expand": 1, "per": 100, "page": page, "sort_by": "created_at", "order": "asc",
+            })
             if response.status_code == 429 or response.status_code >= 500:
                 time.sleep(3)
                 continue
             response.raise_for_status()
             data = response.json()
             rows = data if isinstance(data, list) else (data or {}).get("data", [])
-            units.extend(r for r in rows if isinstance(r, dict) and r.get("id"))
+            for row in rows:
+                if isinstance(row, dict) and row.get("id"):
+                    units[row["id"]] = row
             if len(rows) < 100:
-                return units
+                return list(units.values())
             page += 1
             time.sleep(0.3)
 
