@@ -79,7 +79,8 @@ def _national(text: str, original: str, country: object) -> str:
     bracket = re.match(r"\(\s*0\s*(\d[\d\s]*?)\s*\)\s*", text)
     if bracket:
         return f"+{code} {'0' if keep_zero else ''}{bracket.group(1)} {text[bracket.end():]}".strip()
-    return f"+{code} {text if keep_zero else re.sub(r'^0\s*', '', text)}"
+    rest = text if keep_zero else re.sub(r"^0\s*", "", text)
+    return f"+{code} {rest}"
 
 
 def format_phone(phone: str | None, country: object = None) -> str | None:
