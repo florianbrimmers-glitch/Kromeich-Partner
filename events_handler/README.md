@@ -8,7 +8,7 @@ Eigenständiges Paket – kein Code-Sharing mit `src/` oder den anderen Handlern
 
 ## Ablauf
 
-1. Nachrichten der letzten 27h aus #events lesen. Eigene ✅-markierte Nachrichten werden übersprungen (Verarbeitungsmarker, idempotent). Bot-/Slackbot-Posts werden **mitgelesen** (dort landen die Einladungen).
+1. Nachrichten der letzten 50 h aus #events lesen (Cron; lokal Standard 27 h). Eigene ✅-markierte Nachrichten werden übersprungen (Verarbeitungsmarker, idempotent). Bot-/Slackbot-Posts werden **mitgelesen** (dort landen die Einladungen).
 2. Pro Post: Datei-Anhänge laden (weitergeleitete Mails sind meist **text/html**), grob zu Text reduzieren, zusammen mit Dateititel + Nachrichtentext an Claude (`claude-opus-4-8`) geben.
 3. Extraktion: alle konkreten Veranstaltungen (mit Termin) → `Datum, Event, Branche, Ort, Kosten, Anmeldelink`. Reine Werbung/Newsletter ohne Termin → `ist_event=false` (ignoriert).
 4. Je erkanntem Event eine Asana-Aufgabe im Abschnitt „Events":
@@ -69,7 +69,7 @@ pytest tests/events_handler/ -v
 
 ## Änderung vom 19.11.2026
 
-- Scheitert die Anlage eines Events in Asana (z. B. Token abgelaufen), bekommt die Nachricht **kein** ✅ und keine Erfolgsmeldung mehr, und der Lauf endet rot. Vorher: ✅ und „… angelegt“, obwohl das Event nie in der Liste ankam – bei totem Token jede Nacht, bei grünem Lauf. Beim Nachholen (`workflow_dispatch` mit größerem Fenster) schützt der Dublettencheck die schon angelegten Events.
+- Scheitert die Anlage eines Events in Asana (z. B. Token abgelaufen), bekommt die Nachricht **kein** ✅ und keine Erfolgsmeldung mehr, und der Lauf endet rot. Vorher: ✅ und „… angelegt“, obwohl das Event nie in der Liste ankam – bei totem Token jede Nacht, bei grünem Lauf. Der Cron liest 50 h zurück, der nächste Lauf versucht es also von selbst erneut; der Dublettencheck schützt die schon angelegten Events.
 - Die Antwort im Thread nennt die echten Zahlen (angelegt / stand schon in der Liste).
 - Nur ein echtes Datum `JJJJ-MM-TT` geht als Fälligkeit an Asana; liefert die KI etwas anderes („2027-06-16/17“), wird die Aufgabe ohne Fälligkeit angelegt statt gar nicht.
 - Slack nicht lesbar (z. B. Bot nicht mehr im Kanal) ist ein Fehler, kein Lauf mit „0 Nachrichten“.

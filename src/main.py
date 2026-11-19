@@ -40,6 +40,18 @@ def scan_hours() -> int:
     return int(os.environ.get("SCAN_HOURS") or "48")
 
 
+# Adressen, hinter denen wechselnde Personen schreiben
+SAMMELADRESSEN = (
+    "info", "kontakt", "contact", "office", "mail", "post", "hallo", "hello", "team", "service",
+    "vertrieb", "sales", "vermietung", "leasing", "anfrage", "anfragen", "empfang", "sekretariat",
+    "buero", "büro", "verwaltung", "zentrale", "welcome", "germany", "deutschland",
+)
+
+
+def _ist_sammeladresse(adresse: str) -> bool:
+    return adresse.split("@", 1)[0].strip().lower() in SAMMELADRESSEN
+
+
 def _absender_name(email_data) -> str:
     name, _ = parseaddr(email_data.sender or "")
     return name.strip() or email_data.sender_email
@@ -54,7 +66,10 @@ def run_pipeline() -> PipelineReport:
 
     def in_propstack(adresse: str) -> bool | None:
         if adresse not in bekannt:
-            bekannt[adresse] = check_duplicate(adresse)
+            ergebnis = check_duplicate(adresse)
+            if ergebnis is None:
+                return None  # nicht merken: die nächste Mail desselben Absenders prüft neu
+            bekannt[adresse] = ergebnis
         return bekannt[adresse]
 
     def pruefe(adresse: str, name: str) -> bool:
@@ -107,7 +122,10 @@ def run_pipeline() -> PipelineReport:
             # Step 2: Ist der Absender schon in Propstack? Dann ohne einen KI-Aufruf weiter.
             # Am 19.11.2026 waren 18 von 19 erkannten Kontakten längst vorhanden – jeder
             # lief vorher durch Extraktion, Apollo und Kategorisierung mit Websuche.
-            if not pruefe(email_data.sender_email, _absender_name(email_data)):
+            # Ausnahme Sammeladressen (info@, vertrieb@ …): Dahinter schreiben wechselnde
+            # Personen mit eigener Adresse in der Signatur – die wären sonst unsichtbar.
+            sammeladresse = _ist_sammeladresse(email_data.sender_email)
+            if not sammeladresse and not pruefe(email_data.sender_email, _absender_name(email_data)):
                 continue
 
             # Step 3: Extract contact from signature
@@ -130,8 +148,9 @@ def run_pipeline() -> PipelineReport:
 
             name = f"{contact.first_name or ''} {contact.last_name or ''}".strip() or contact.email
 
-            # Step 4: Die Signatur nennt eine andere Adresse als der Absender – auch die prüfen
-            if contact.email != email_data.sender_email and not pruefe(contact.email, name):
+            # Step 4: Die Signatur nennt eine andere Adresse als der Absender (oder der
+            # Absender ist eine Sammeladresse und wurde oben nicht geprüft) – jetzt prüfen
+            if (sammeladresse or contact.email != email_data.sender_email) and not pruefe(contact.email, name):
                 continue
 
             # Step 5: Apollo enrichment if fields are missing

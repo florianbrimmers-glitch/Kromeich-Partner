@@ -6,7 +6,7 @@ Eigenständiges Paket – **kein Code-Sharing** mit `src/` oder `objekte_handler
 
 ## Ablauf
 
-1. Digest-Nachrichten der letzten 27h aus #newsletter lesen. **Bot-Nachrichten werden hier NICHT übersprungen** – der Digest selbst ist bot-generiert. Nachrichten mit eigenem ✅ des Bots werden übersprungen (Verarbeitungsmarker, macht das Polling idempotent).
+1. Digest-Nachrichten der letzten 50 h aus #newsletter lesen (Cron; lokal Standard 27 h). **Bot-Nachrichten werden hier NICHT übersprungen** – der Digest selbst ist bot-generiert. Nachrichten mit eigenem ✅ des Bots werden übersprungen (Verarbeitungsmarker, macht das Polling idempotent).
 2. Extraktion per Claude (`claude-opus-4-8`): eine Nachricht → Liste aller Deal-Items, je mit `deal_typ` (`vermietung` / `transaktion` / `neubau` / `sonstiges`), `ist_vermietung`, Ort/Straße/Größe/Mieter/Vermieter/Projektname.
 3. Nur **Vermietungen** werden gegen `GET /v1/units?q=` gematcht (lokale Nachfilterung: Straße + exakte Hausnummer + Stadt, Größen-Hinweis). Alles andere wird ignoriert.
 4. Entscheidung je Deal:
@@ -14,9 +14,10 @@ Eigenständiges Paket – **kein Code-Sharing** mit `src/` oder `objekte_handler
    - **Stufe A** (Vermietung eindeutig einem eigenen Objekt zugeordnet, `DRY_RUN=false`): `rented=true` setzen, Doku-Notiz, offene Deals per Absage-Aktivität (Grund 256998) schließen.
    - **Stufe B** (mehrdeutig / geringe Confidence / `DRY_RUN=true`): Review-Aufgabe an den Objekt-Verantwortlichen (Fallback: Sammelpostfach 254958, heute Lena Klinnert), fällig +2 Werktage.
    - **Keine Aufgabe, wenn es nichts zu tun gibt** (Änderung vom 19.11.2026, gilt in beiden Betriebsarten):
-     - Die zugeordnete Einheit ist in Propstack schon vermietet, „Abgeschlossen“ (Status 163676) oder archiviert → nur Log. Gibt es am selben Ort eine Einheit in Vermarktung, wählt die KI ein zweites Mal nur unter diesen (z. B. der richtige Datensatz neben einer stillgelegten Dublette).
-     - Zur Einheit liegt beim Review-Sitz schon eine offene Aufgabe „Newsletter-Vermietung prüfen“ → keine zweite. Verglichen wird über die Objekt-ID der Aufgabe (`GET /v1/activities`, Feld `property_ids`), nicht über den Titel – der wechselt von Tag zu Tag („Garbe“, „Garbe Industrial“).
-     - Aufgaben ohne zugeordnete Einheit werden wie bisher immer angelegt. Lässt sich der Bestand der offenen Aufgaben nicht lesen, wird ebenfalls angelegt: eine doppelte Aufgabe schadet weniger als eine verlorene Meldung.
+     - Die zugeordnete Einheit ist in Propstack schon vermietet, „Abgeschlossen“ (Status 163676) oder archiviert → die KI wählt ein zweites Mal nur unter Einheiten in Vermarktung: bei sicherer erster Wahl nur am selben Ort (z. B. der richtige Datensatz neben einer stillgelegten Dublette), bei unsicherer unter allen Kandidaten. Bleibt das ohne Treffer → nur Log.
+     - Zur Einheit liegt beim Review-Sitz schon eine offene Aufgabe „Newsletter-Vermietung prüfen“ aus den letzten 30 Tagen → keine zweite. (Der Radar wiederholt über Tage; eine Meldung Monate später ist meist eine neue Vermietung.) Verglichen wird über die Objekt-ID der Aufgabe (`GET /v1/activities`, Feld `property_ids`), nicht über den Titel – der wechselt von Tag zu Tag („Garbe“, „Garbe Industrial“).
+     - Aufgaben ohne zugeordnete Einheit werden wie bisher immer angelegt. Lässt sich der Bestand der offenen Aufgaben nicht lesen, wird ebenfalls angelegt (eine doppelte Aufgabe schadet weniger als eine verlorene Meldung) – der Lauf endet dann aber rot.
+   - Scheitert die Verarbeitung eines Deals, bekommt der Digest **kein** ✅; der nächste Lauf versucht es erneut.
 5. Nach Verarbeitung **aller** Deals einer Nachricht: eine Sammel-Antwort als Thread-Reply + ✅-Reaction. Jeder Deal landet als JSONL-Zeile im Entscheidungslog (nur lokal, siehe unten).
 
 ## Betriebsmodi

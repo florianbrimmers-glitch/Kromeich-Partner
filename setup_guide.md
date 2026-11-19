@@ -115,7 +115,10 @@ Secret: `SLACK_BOT_TOKEN`
 ### Automatischer Lauf
 Der Workflow läuft automatisch **täglich** (Cron 01:00 UTC; GitHub startet ihn in diesem Konto
 erfahrungsgemäß erst zwischen 05:00 und 08:30 UTC) und liest jeweils die letzten 48 Stunden. Jeder Tag wird
-so zweimal gesehen; die Dublettenprüfung sorgt dafür, dass niemand doppelt angelegt wird.
+so zweimal gesehen. Beim E-Mail-Import fängt das die Dublettenprüfung über die Adresse ab. Der
+Visitenkarten-Import setzt an jede verarbeitete Karte ein ✅ und überspringt sie beim zweiten Mal – sonst
+ginge sie erneut durch die Bild-KI, und eine abweichend gelesene Adresse ergäbe einen zweiten Kontakt.
+HEIC-Fotos und sehr große Bilder gehen als Slack-Vorschau an die KI.
 
 Ein Lauf ist **rot**, sobald etwas schiefging (Postfach nicht lesbar, Apollo oder Claude nicht erreichbar,
 Firma nicht verknüpft …). Dieselben Probleme stehen in der Slack-Zusammenfassung in `#visitenkarten`.

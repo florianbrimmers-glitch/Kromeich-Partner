@@ -26,20 +26,20 @@ Mensch die Aufgabe auch öffnet. Die Aufgabenliste in Propstack ist kein Ort, an
 von Hand angelegte Aufgaben gibt es dort kaum (Denise: 9 insgesamt). Was dort landet, ist abgelegt, nicht
 zugestellt.
 
-Dazu kam vermeidbares Rauschen. **129 der 609 offenen Aufgaben** hätten nie entstehen müssen:
+Dazu kam vermeidbares Rauschen. **128 der 609 offenen Aufgaben** hätten nie entstehen müssen:
 
 | Ursache | Zahl | Beleg |
 |---|---|---|
 | Dieselbe Vermietung an mehreren Tagen gemeldet → jedes Mal neue Aufgabe | 41 (58 inkl. Überschneidung) | Westring 8 in Dissen: 7 Aufgaben in 14 Tagen |
 | Einheit war schon vermietet/abgeschlossen | 40 | Dissen war seit 12.10. abgeschlossen, alle 7 Aufgaben entstanden danach |
-| Vollzugsmeldung als Auftrag gelesen | 48 | „neues Objekt angelegt – SEGRO Herford“ wurde zu „Objekt fehlt in Propstack: bitte anlegen“ (26 von 30 Aufgaben dieser Art); 27 Berichte aus Claude-Sitzungen wurden zu „Flächenupdate abgleichen“ |
+| Vollzugsmeldung als Auftrag gelesen | 47 | „neues Objekt angelegt – SEGRO Herford“ wurde zu „Objekt fehlt in Propstack: bitte anlegen“ (25 von 30 Aufgaben dieser Art); 27 Berichte aus Claude-Sitzungen wurden zu „Flächenupdate abgleichen“ und Ähnlichem |
 
 Der dritte Punkt ist der unangenehmste: Die Automatisierung hat ihre eigenen Erfolgsmeldungen als Arbeit
 zurückgespielt.
 
 **Geändert:** Newsletter-Handler legt je Einheit höchstens eine offene Aufgabe an und keine für
 abgeschlossene Einheiten. #objekte-Handler überspringt Vollzugsmeldungen vor jeder KI.
-`scripts/pruefaufgaben_aufraeumen.py` listet die 129 Aufgaben und schließt sie mit `--apply`.
+`scripts/pruefaufgaben_aufraeumen.py` listet die 128 Aufgaben und schließt sie mit `--apply`.
 
 **Deine Entscheidung:** siehe unten, Punkte 2–4.
 
@@ -63,12 +63,18 @@ Aus dem Produktionslog des Laufs vom 19.11.2026 („success“, „Fehler: 0“)
 Alle 100 abrufbaren Läufe seit Juni sind „success“. Grün hieß hier nur: Das Programm ist nicht abgestürzt.
 
 **Geändert:** beide Importe täglich mit 48 Stunden Rückblick; Gmail seitenweise; ist der Absender schon in
-Propstack, endet die Mail ohne KI-Aufruf; Apollo mit Header (laut Doku, nicht live erprobt);
-Telefonnummern wie im Connector (`+49 (0) 151 …` → `+49 151 …`); was schiefgeht, steht in der
-Slack-Zusammenfassung und macht den Lauf rot.
+Propstack, endet die Mail ohne KI-Aufruf (Sammeladressen wie info@ ausgenommen – dahinter schreiben
+wechselnde Personen); Apollo mit Header (laut Doku, nicht live erprobt); Telefonnummern wie im Connector
+(`+49 (0) 151 …` → `+49 151 …`; `+49` wird nur ergänzt, wenn PLZ oder Adresse für Deutschland sprechen); was
+schiefgeht, steht in der Slack-Zusammenfassung und macht den Lauf rot.
 
-**Erwartung nach dem Merge:** Der erste Lauf kann rot sein – genau das ist jetzt die Absicht. Bleibt Apollo
-bei 401, ist der Schlüssel selbst ungültig (in Apollo unter Settings → Integrations → API prüfen).
+**Sichtbar neu nach dem Merge:**
+- Der Visitenkarten-Import setzt an jede verarbeitete Karte ein ✅ (wie die Handler in ihren Kanälen). Ohne
+  diesen Marker ginge bei 48 Stunden Rückblick jede Karte zweimal durch die Bild-KI.
+- Die Zusammenfassung in `#visitenkarten` nennt Probleme des Laufs – auch an Tagen ohne neuen Kontakt.
+- Der erste Lauf kann rot sein; genau das ist jetzt die Absicht. Bleibt Apollo bei 401, ist der Schlüssel
+  selbst ungültig (in Apollo unter Settings → Integrations → API prüfen). Wird Apollo nicht mehr gebraucht:
+  Secret `APOLLO_API_KEY` entfernen, dann ruft der Import es nicht mehr auf.
 
 ## Befund 3 – Der scharfe #objekte-Handler tut fast nichts automatisch, hatte aber offene Flanken
 
@@ -84,7 +90,8 @@ ein Aufgaben-Erzeuger. Die Wege in Stufe A waren trotzdem weiter als nötig:
   76.660 gelesen.
 
 Passiert ist davon nach Datenlage nichts. **Geändert**, ohne die fünf festgelegten Regressionsfälle vom
-08.07.2026 anzufassen; Einzelheiten im README des Pakets.
+08.07.2026 anzufassen; Einzelheiten im README des Pakets. Alle vier Handler lesen jetzt 50 Stunden zurück:
+Was gescheitert ist (roter Lauf), holt der nächste Lauf von selbst nach; was verarbeitet ist, trägt das ✅.
 
 Offen: Stufe A setzt nur `rented=true`. Der Connector schließt nach euren Feldregeln vollständig – Status
 163676, „Status Logistik“ und „Aktiv“ auf Inaktiv, Fläche „(vermietet)“ –, damit die Einheit aus
@@ -147,16 +154,36 @@ Wenn du die nächste Stunde Pflegeaufwand vergibst: in diese drei Felder, nicht 
 
 ## Was geändert wurde
 
-Branch `ccr-9cae85c4-4jlmdv`, 478 Tests grün (Python 3.12 und 3.13), vorher 250.
+Branch `ccr-9cae85c4-4jlmdv`, 521 Tests grün (Python 3.12 und 3.13), vorher 250.
 
-| Commit | Inhalt |
+| Bereich | Inhalt |
 |---|---|
-| `9a43d55` | Newsletter: keine Aufgabe, wenn schon eine offen ist oder die Einheit abgeschlossen ist; Aufräum-Skript |
-| `d18ba21` | Kontakt-Import: Telefonnummern wie im Connector |
-| `2b4e4de` | Kontakt-Import: lückenlos lesen, erst prüfen dann KI, Apollo-Header, Fehler sichtbar |
-| `7332bf9` | #objekte: Vollzugsmeldungen, Absage-Sicherung, Größen- und Adressprüfung; alle Handler: Fehler machen den Lauf rot |
-| `eb8d156` | #events: kein Haken ohne Asana-Aufgabe; Personalkarussell vorsichtiger |
-| folgende | Gesuch-Abgleich, `CLAUDE.md`, dieser Bericht |
+| Newsletter-Handler | Je Einheit höchstens eine offene Aufgabe (30 Tage), keine für abgeschlossene Einheiten, kein ✅ bei gescheitertem Deal |
+| Kontakt-Import | Lückenlos lesen, erst prüfen dann KI, Apollo-Header, Telefonnummern, Fehler sichtbar, ✅-Marker für Visitenkarten |
+| #objekte-Handler | Vollzugsmeldungen, Absage-Sicherung, Größen- und Adressprüfung, Stufe A läuft nach einem Fehlschritt weiter |
+| #events, Personalkarussell | Kein ✅ ohne Asana-Aufgabe; Nachname allein reicht nicht, Verknüpfung gegenlesen |
+| Alle Handler | Fehler machen den Lauf rot, Slack-Lesefehler sind Fehler, 50 Stunden Rückblick |
+| Skripte | `pruefaufgaben_aufraeumen.py` (128 Aufgaben), `gesuch_matching.py` |
+| Doku | `CLAUDE.md`, `README.md`, dieser Bericht, READMEs der Pakete |
+
+### Gegenlesen der eigenen Änderungen
+
+Ein unabhängiger Prüflauf hat den Branch gegen `main` gelesen und 14 Schwächen **in meinen Änderungen**
+gefunden. Die wichtigsten, alle behoben und mit Test belegt:
+
+- **„Die kleine Einheit ist vermietet“ hätte die falsche Einheit treffen können.** Ich hatte schon vermietete
+  Einheiten aus der Auswahl genommen – war die kleinste schon vermietet, wäre die nächste freie gesetzt
+  worden. Jetzt entscheidet in diesem Fall ein Mensch.
+- Ein einzelner Serverfehler beim Schreiben hätte einen halben Zustand hinterlassen (Einheit vermietet, keine
+  Absage, keine Antwort). Jetzt läuft der Rest weiter, und die Antwort sagt, was nicht geklappt hat.
+- Die Regel für Vollzugsmeldungen verschluckte echte Bitten („Neu angelegt werden muss bitte …“).
+- Visitenkarten wären bei 48 Stunden Rückblick doppelt ausgewertet worden; `+49` wäre an österreichische und
+  niederländische Nummern geraten; `--undo` im Aufräum-Skript schrieb ohne `--apply`.
+- Der Dublettenschutz hätte eine Einheit mit alter offener Aufgabe für immer stummgeschaltet.
+
+Nicht behoben, weil vorher schon so und außerhalb dieser Änderungen: Scheitert in #events nur das Einsortieren
+in den Abschnitt, bleibt eine Aufgabe ohne Abschnitt zurück; die Asana-Aufrufe wiederholen ein POST nach
+Serverfehler; `office_country` ist bei jedem importierten Kontakt „Deutschland“.
 
 ## Was nicht geprüft ist
 
@@ -176,8 +203,8 @@ Branch `ccr-9cae85c4-4jlmdv`, 478 Tests grün (Python 3.12 und 3.13), vorher 250
 
 1. **Mergen.** Empfehlung: ja, als Pull Request, damit die CI läuft. Danach laufen die Importe täglich
    (auch am Wochenende), und Läufe mit Fehlern sind rot.
-2. **Die 129 Aufgaben schließen.** `python scripts/pruefaufgaben_aufraeumen.py` zeigt die Liste, `--apply`
-   schließt (erst eine als Probe, mit Protokoll und `--undo`). Empfehlung: ja.
+2. **Die 128 Aufgaben schließen.** `python scripts/pruefaufgaben_aufraeumen.py` zeigt die Liste, `--apply`
+   schließt (erst eine als Probe, mit Protokoll; `--undo <Protokoll> --apply` öffnet sie wieder). Empfehlung: ja.
 3. **Wohin mit Prüfaufträgen?** Propstack-Aufgaben werden nicht abgearbeitet. Entweder jemand bekommt dafür
    feste Zeit – oder die Handler antworten nur noch im Slack-Thread und legen keine Aufgabe mehr an.
    Empfehlung: das Zweite. Im Kanal wird gearbeitet, in der Aufgabenliste nicht.
@@ -200,7 +227,7 @@ Branch `ccr-9cae85c4-4jlmdv`, 478 Tests grün (Python 3.12 und 3.13), vorher 250
 ## Nachrechnen
 
 ```bash
-python scripts/pruefaufgaben_aufraeumen.py            # die 129 Aufgaben, nur lesend
+python scripts/pruefaufgaben_aufraeumen.py            # die 128 Aufgaben, nur lesend
 python scripts/gesuch_matching.py --lat 51.195 --lng 6.44 --umkreis 20 --flaeche 2000-4500 --hoehe 6 --rampen 2
 pytest tests/ -q
 ```

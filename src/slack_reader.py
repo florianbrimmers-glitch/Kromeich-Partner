@@ -88,17 +88,39 @@ def _is_bot_summary(msg: dict) -> bool:
     return "KI-Scan" in text and "Neue Kontakte" in text
 
 
+# Bildformate, die die Claude-API annimmt, und die Größe, bis zu der wir das Original schicken
+_API_BILDTYPEN = ("image/jpeg", "image/png", "image/gif", "image/webp")
+_MAX_BILD_BYTES = 4_500_000
+# Vorschaubilder, die Slack zu jedem Bild erzeugt – größte zuerst
+_VORSCHAUEN = ("thumb_1024", "thumb_960", "thumb_800", "thumb_720", "thumb_480", "thumb_360")
+
+
+def _bildquelle(f: dict) -> tuple[str | None, str]:
+    """(URL, Mimetype) des Bildes, das an die KI geht.
+
+    Normal das Original. Bei einem Format, das die Claude-API nicht annimmt (HEIC vom
+    iPhone), oder einem sehr großen Foto die größte Vorschau, die Slack erzeugt hat."""
+    mimetype = f.get("mimetype", "")
+    original = f.get("url_private_download") or f.get("url_private")
+    passt = mimetype in _API_BILDTYPEN or mimetype == "image/jpg"
+    if passt and (f.get("size") or 0) <= _MAX_BILD_BYTES:
+        return original, mimetype
+    for key in _VORSCHAUEN:
+        if f.get(key):
+            return f[key], ""  # Typ steht erst in der Antwort
+    return original, mimetype
+
+
 def get_message_images(msg: dict) -> list[tuple[bytes, str]]:
     """Lädt Bilder aus einer Slack-Nachricht herunter: je Bild (Inhalt, Mimetype)."""
     images: list[tuple[bytes, str]] = []
     files = msg.get("files", [])
 
     for f in files:
-        mimetype = f.get("mimetype", "")
-        if not mimetype.startswith("image/"):
+        if not f.get("mimetype", "").startswith("image/"):
             continue
 
-        url = f.get("url_private_download") or f.get("url_private")
+        url, mimetype = _bildquelle(f)
         if not url:
             continue
 
@@ -110,14 +132,65 @@ def get_message_images(msg: dict) -> list[tuple[bytes, str]]:
                 follow_redirects=True,
             )
             if response.status_code == 200:
+                if not mimetype:
+                    mimetype = response.headers.get("content-type", "image/jpeg").split(";")[0].strip()
                 images.append((response.content, mimetype))
-                logger.info("Image downloaded: %s (%d bytes)", f.get("name", "unknown"), len(response.content))
+                logger.info("Image downloaded: %s (%d bytes, %s)", f.get("name", "unknown"), len(response.content), mimetype)
             else:
                 problems.melde("Visitenkarte nicht ladbar", f"HTTP {response.status_code}")
         except httpx.HTTPError as e:
             problems.melde("Visitenkarte nicht ladbar", type(e).__name__)
 
     return images
+
+
+# --- Verarbeitungsmarker ---------------------------------------------------------------
+# Der Lauf liest 48 h zurück, damit ein verspäteter oder ausgefallener Lauf keine Karte
+# kostet. Ohne Marker ginge jede Karte zweimal durch die Bild-KI – liest sie am zweiten
+# Tag ein Zeichen anders, entstünde ein zweiter Kontakt. Deshalb wie in den Handlern:
+# eigenes ✅ an der Nachricht = verarbeitet.
+
+CHECK_EMOJI = "white_check_mark"
+
+
+def get_bot_user_id() -> str | None:
+    """Eigene Bot-User-ID (auth.test). None, wenn Slack sie nicht liefert."""
+    try:
+        data = httpx.post(f"{SLACK_API_URL}/auth.test", headers=_headers(), timeout=30.0).json()
+    except (httpx.HTTPError, ValueError) as e:
+        problems.melde("Slack auth.test fehlgeschlagen", type(e).__name__)
+        return None
+    if not data.get("ok"):
+        problems.melde("Slack auth.test fehlgeschlagen", str(data.get("error")))
+        return None
+    return data.get("user_id")
+
+
+def ist_verarbeitet(msg: dict, bot_user_id: str | None) -> bool:
+    """Trägt die Nachricht schon das eigene ✅? Fremde ✅ zählen nicht."""
+    if not bot_user_id:
+        return False
+    for reaction in msg.get("reactions", []):
+        if reaction.get("name") == CHECK_EMOJI and bot_user_id in (reaction.get("users") or []):
+            return True
+    return False
+
+
+def markiere_verarbeitet(ts: str) -> bool:
+    try:
+        data = httpx.post(
+            f"{SLACK_API_URL}/reactions.add",
+            headers=_headers(),
+            json={"channel": VISITENKARTEN_CHANNEL, "timestamp": ts, "name": CHECK_EMOJI},
+            timeout=30.0,
+        ).json()
+    except (httpx.HTTPError, ValueError) as e:
+        problems.melde("Verarbeitungsmarker nicht setzbar", type(e).__name__)
+        return False
+    if data.get("ok") or data.get("error") == "already_reacted":
+        return True
+    problems.melde("Verarbeitungsmarker nicht setzbar", str(data.get("error")))
+    return False
 
 
 def has_images(msg: dict) -> bool:

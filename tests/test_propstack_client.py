@@ -28,6 +28,7 @@ class _Resp:
 def _keys(monkeypatch):
     monkeypatch.setenv("PROPSTACK_API_KEY", "v1")
     monkeypatch.setenv("PROPSTACK_API_V2_CONTACTS", "v2")
+    monkeypatch.setattr(ps.time, "sleep", lambda s: None)   # Wiederholungen ohne Wartezeit
 
 
 def _search_returns(monkeypatch, records):
@@ -264,3 +265,36 @@ def test_create_contact_keeps_foreign_and_non_numbers(monkeypatch):
     ))
     assert client["office_phone"] == "+31 20 1234567"
     assert client["office_cell"] == "Zentrale"
+
+
+# --- Nachträge aus dem Gegenlesen (19.11.2026) ----------------------------------------
+
+@pytest.mark.parametrize("contact,erwartet", [
+    # Beleg für Deutschland: fünfstellige PLZ oder Adresse auf .de -> +49
+    (ContactData(email="a@firma.com", zip_code="51373", phone="0221 4710199"), "+49 221 4710199"),
+    (ContactData(email="a@firma.de", phone="0221 4710199"), "+49 221 4710199"),
+    # Kein Beleg: Die Nummer bleibt, wie sie ist – „0664 …“ ist Wien, nicht +49
+    (ContactData(email="a@firma.at", zip_code="1010", phone="0664 1234567"), "0664 1234567"),
+    (ContactData(email="a@firma.nl", phone="06 12345678"), "06 12345678"),
+    (ContactData(email="a@firma.com", phone="0171 3920055"), "0171 3920055"),
+    # Die „(0)“ nach einer vorhandenen Ländervorwahl fällt in jedem Fall weg
+    (ContactData(email="a@firma.at", phone="+43 (0) 1 2345678"), "+43 1 2345678"),
+    (ContactData(email="a@firma.com", phone="+49 (0) 151 12345678"), "+49 151 12345678"),
+])
+def test_vorwahl_nur_mit_beleg_fuer_das_land(monkeypatch, contact, erwartet):
+    contact.first_name, contact.last_name = "Max", "Muster"
+    assert _created_payload(monkeypatch, contact)["office_phone"] == erwartet
+
+
+def test_dublettenpruefung_wiederholt_ein_429(monkeypatch):
+    antworten = [_Resp({}, status_code=429), _Resp([{"id": 7}])]
+    monkeypatch.setattr(ps.httpx, "get", lambda url, **kw: antworten.pop(0))
+    assert ps.check_duplicate("a@b.de") is True
+    assert antworten == []
+
+
+def test_dublettenpruefung_gibt_nach_drei_versuchen_auf(monkeypatch):
+    aufrufe = []
+    monkeypatch.setattr(ps.httpx, "get", lambda url, **kw: aufrufe.append(1) or _Resp({}, status_code=503))
+    assert ps.check_duplicate("a@b.de") is None
+    assert len(aufrufe) == 3

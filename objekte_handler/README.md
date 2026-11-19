@@ -6,15 +6,16 @@ Eigenständiges Paket – **kein Code-Sharing mit `src/`** (Visitenkarten-Pipeli
 
 ## Ablauf
 
-1. Nachrichten (inkl. Thread-Antworten) der letzten 26h aus #objekte lesen; Nachrichten mit eigenem ✅ des Bots werden übersprungen (Verarbeitungsmarker, macht das Polling idempotent).
+1. Nachrichten (inkl. Thread-Antworten) der letzten 50 h aus #objekte lesen (Cron; lokal Standard 26 h); Nachrichten mit eigenem ✅ des Bots werden übersprungen (Verarbeitungsmarker, macht das Polling idempotent).
 2. **Vollzugsmeldungen aussortieren** (Änderung vom 19.11.2026, vor jeder KI): Berichte über Erledigtes sind kein Auftrag – keine Klassifikation, keine Aufgabe, kein ✅. Erkannt werden „neues Objekt angelegt …“ am Anfang der Nachricht und die Signatur „Gesendet mit Claude“ (Berichte aus Claude-Sitzungen). Regel und Belege: `vollzug.py`.
 3. Klassifikation per Claude: `status_anweisung` / `fehlt_in_ps` / `flaechenupdate` / `ignorieren` + Extraktion von Adresse, Objektname, Aktion, Größen-Hinweis.
 4. Objekt-Matching gegen `GET /v1/units?q=` mit lokaler Nachfilterung (Straße + **exakte Hausnummer**; mehrere Einheiten am selben Objekt über Flächenangabe wie "die kleine Einheit").
 5. Entscheidung:
    - **Stufe A** (eindeutig + reversibel, nur bei `DRY_RUN=false`): `rented=true` setzen (Objekt-Status bleibt unberührt), Doku-Notiz, offene Deals per Absage-Aktivität (Grund 256998 "Fläche nicht mehr verfügbar") schließen.
      - Abgesagt werden nur Deals der Vermietung (Pipelines „300 …“ und Deals ohne Pipeline), nie ein Deal in der Abschluss-Phase (100 %) und nie Deals der Verkaufs-Pipelines („200 …“, „Kaltenkirchen“). Was nicht angetastet wurde, steht in der Slack-Antwort.
-     - Mehrere Einheiten an einer Adresse gelten nur dann als „ganzes Objekt“, wenn die Nachricht keine einzelne Einheit nennt („Halle 2“, „Unit 1 und 2“, „Teilfläche“) – sonst Stufe B.
-     - Eine Quadratmeterzahl muss auf ±15 % zu genau einer Einheit passen; schon vermietete Einheiten zählen bei „die kleine/große“ nicht mit.
+     - Mehrere Einheiten an einer Adresse gelten nur dann als „ganzes Objekt“, wenn weder die Nachricht noch ihr Thread eine einzelne Einheit nennt („Halle 2“, „Hallen 1 und 2“, „die hintere Halle“, „Teilfläche“) – sonst Stufe B.
+     - Eine Quadratmeterzahl muss auf ±15 % zu genau einer Einheit passen. Ist bei „die kleine/große Einheit“ die kleinste/größte schon vermietet, entscheidet ein Mensch – der Handler weicht nie auf die nächste freie aus.
+     - Ist die Einheit gesetzt und scheitert ein späterer Schritt (Doku-Notiz, eine Absage), läuft der Rest trotzdem; die Antwort im Thread lautet dann „Nur teilweise erledigt …“ und der Lauf endet rot.
    - **Stufe B** (mehrdeutig oder konsequenzreich): Review-Aufgabe an den Objekt-Verantwortlichen (Fallback: Sammelpostfach 254958, heute Lena Klinnert), fällig +2 Werktage, mit Original-Text, Permalink und vorbereiteter Aktion.
 6. Rückmeldung als Thread-Reply + ✅-Reaction; jede Entscheidung landet als JSONL-Zeile im Entscheidungslog (nur lokal, siehe unten).
 
@@ -88,9 +89,9 @@ jq -r 'select(.fehler) | "\(.message_ts)  \(.fehler)"' objekte_decisions.jsonl
 Nur gelesen, über alle Nutzer:
 
 - **Stufe A lief seit Juli zweimal** (08/2026 und 09/2026). Praktisch erzeugt der Handler Review-Aufgaben – 82 davon sind offen.
-- **48 dieser 82 (59 %) antworten auf Vollzugsmeldungen.** 21× „neues Objekt angelegt …“ wurde zu „Objekt fehlt in Propstack: bitte anlegen“ (26 von 30 offenen Aufgaben dieser Art), 27× wurde ein Bericht aus einer Claude-Sitzung („… – Abgleich mit Propstack“, „Update: …“) zur Aufgabe „Flächenupdate abgleichen“ oder „Slack #objekte prüfen“. Die Automatisierung hat hier ihre eigenen Erfolgsmeldungen als Arbeit zurückgespielt. Abgestellt mit Schritt 2; der Bestand lässt sich mit `scripts/pruefaufgaben_aufraeumen.py` schließen (erst nach Freigabe).
-- **Ein Lauf ist jetzt rot, wenn eine Nachricht nicht verarbeitet werden konnte** oder Slack nicht lesbar war. Der nächste Lauf sieht eine gescheiterte Nachricht meist nicht mehr (26-h-Fenster): nachholen per `workflow_dispatch` mit größerem `scan_from_hours`.
-- Schreibende Propstack-Aufrufe werden nach einem Serverfehler oder Timeout nicht mehr wiederholt (sonst drohen doppelte Aufgaben und Absagen); nur 429 wird wiederholt.
+- **47 dieser 82 (57 %) antworten auf Vollzugsmeldungen.** 20× „neues Objekt angelegt …“ wurde zu „Objekt fehlt in Propstack: bitte anlegen“ (zusammen mit 5 Berichten 25 von 30 offenen Aufgaben dieser Art), 27× wurde ein Bericht aus einer Claude-Sitzung („… – Abgleich mit Propstack“, „Update: …“) zur Aufgabe „Flächenupdate abgleichen“ oder „Slack #objekte prüfen“. Die Automatisierung hat hier ihre eigenen Erfolgsmeldungen als Arbeit zurückgespielt. Abgestellt mit Schritt 2; der Bestand lässt sich mit `scripts/pruefaufgaben_aufraeumen.py` schließen (erst nach Freigabe).
+- **Ein Lauf ist jetzt rot, wenn eine Nachricht nicht verarbeitet werden konnte** oder Slack nicht lesbar war. Der Cron liest 50 h zurück: Was gescheitert ist, holt der nächste Lauf von selbst nach; was verarbeitet ist, trägt das ✅ und wird übersprungen. Älteres per `workflow_dispatch` mit größerem `scan_from_hours`.
+- Ein POST (Aufgabe, Notiz, Absage) wird nach einem Serverfehler oder Timeout nicht mehr wiederholt (sonst drohen doppelte Aufgaben und Absagen); nur 429 wird wiederholt. GET und PUT (`rented=true`) werden weiter wiederholt.
 
 Offen (Entscheidung nötig, nicht geändert): Stufe A setzt nur `rented=true`. Der Connector schließt nach den Feldregeln vollständig – Status „Abgeschlossen“ (163676), „Status Logistik“ und „Aktiv“ auf Inaktiv –, damit die Einheit aus Exposéversand und Website fällt (`propstack-mcp/src/propstack/field-rules.ts`). Was der Handler schließt, bleibt dort aktiv. Am 19.11.2026 standen 7 Einheiten als vermietet **und** in „Vermarktung“.
 

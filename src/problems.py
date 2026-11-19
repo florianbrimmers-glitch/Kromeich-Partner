@@ -30,5 +30,10 @@ def zusammenfassung() -> list[str]:
     return zeilen
 
 
+def anzahl() -> int:
+    """Wie viele Probleme bisher gemeldet wurden (jede Meldung einzeln gezählt)."""
+    return sum(len(details) for details in _probleme.values())
+
+
 def leeren() -> None:
     _probleme.clear()

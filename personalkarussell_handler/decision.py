@@ -66,6 +66,14 @@ def decide_wechsel(
             geplante_aktionen=["Review-Aufgabe: neuen Arbeitgeber ermitteln"],
         )
 
+    if person is not None and person.status == MatchStatus.NONE and not (wechsel.vorname and wechsel.nachname):
+        # Ohne vollständigen Namen wurde gar nicht gesucht – „nicht gefunden, neu anlegen“
+        # wäre eine Einladung zur Dublette.
+        return Decision(
+            tier=Tier.B,
+            grund=f"{name}: {person.grund} – die Person kann in Propstack vorhanden sein",
+            geplante_aktionen=[f"Review-Aufgabe: {name} in Propstack suchen, dann Wechsel zu {wechsel.neue_firma} nachziehen"],
+        )
     if person is None or person.status == MatchStatus.NONE:
         return Decision(
             tier=Tier.B,

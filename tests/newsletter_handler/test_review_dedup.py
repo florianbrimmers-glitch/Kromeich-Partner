@@ -128,7 +128,7 @@ def test_offene_reviews_liest_alle_seiten(monkeypatch):
 # --- OffeneReviews ----------------------------------------------------------------
 
 def test_vorhanden_nur_wenn_jede_einheit_abgedeckt(monkeypatch):
-    monkeypatch.setattr(review_dedup, "fetch_open_review_units", lambda broker, praefix: {11: 105})
+    monkeypatch.setattr(review_dedup, "fetch_open_review_units", lambda broker, praefix, tage=None: {11: 105})
     offene = OffeneReviews()
     assert offene.vorhanden([11]) == (True, 105)
     assert offene.vorhanden([11, 12]) == (False, None)   # Einheit 12 hätte sonst nie eine Aufgabe
@@ -138,7 +138,7 @@ def test_vorhanden_nur_wenn_jede_einheit_abgedeckt(monkeypatch):
 def test_bestand_wird_einmal_je_lauf_geladen_und_ergaenzt(monkeypatch):
     aufrufe = []
     monkeypatch.setattr(review_dedup, "fetch_open_review_units",
-                        lambda broker, praefix: aufrufe.append(1) or {})
+                        lambda broker, praefix, tage=None: aufrufe.append(1) or {})
     offene = OffeneReviews()
     assert offene.vorhanden([7]) == (False, None)
     offene.merke([7], 4711)
@@ -147,7 +147,7 @@ def test_bestand_wird_einmal_je_lauf_geladen_und_ergaenzt(monkeypatch):
 
 
 def test_laden_fehlgeschlagen_dann_wird_angelegt(monkeypatch):
-    def kaputt(broker, praefix):
+    def kaputt(broker, praefix, tage=None):
         raise RuntimeError("HTTP 500")
 
     monkeypatch.setattr(review_dedup, "fetch_open_review_units", kaputt)
@@ -191,9 +191,10 @@ def test_offene_wahl_bleibt_unveraendert(monkeypatch):
     assert len(aufrufe) == 1
 
 
-def test_abgeschlossene_wahl_ohne_offene_einheit_am_ort_ist_erledigt(monkeypatch):
-    """Dissen: Das Objekt ist abgeschlossen, die offene Einheit in Salzgitter ist ein anderer Ort."""
-    fake, aufrufe = _ki([MatchResult(status=MatchStatus.AMBIGUOUS, units=[DISSEN_ZU],
+def test_sichere_wahl_abgeschlossen_ohne_offene_einheit_am_ort_ist_erledigt(monkeypatch):
+    """Dissen: Die KI ist sicher, das Objekt ist abgeschlossen, die offene Einheit in Salzgitter
+    ist ein anderer Ort."""
+    fake, aufrufe = _ki([MatchResult(status=MatchStatus.UNIQUE, units=[DISSEN_ZU],
                                      kandidaten=[DISSEN_ZU, SALZGITTER_OFFEN])])
     monkeypatch.setattr(match_ai, "select_match", fake)
 
@@ -201,6 +202,28 @@ def test_abgeschlossene_wahl_ohne_offene_einheit_am_ort_ist_erledigt(monkeypatch
     assert match.status == MatchStatus.NONE and schon_zu is True
     assert "bereits vermietet/abgeschlossen" in match.grund
     assert len(aufrufe) == 1  # kein zweiter KI-Aufruf
+
+
+def test_unsichere_wahl_abgeschlossen_zweite_wahl_unter_allen_offenen(monkeypatch):
+    """Eine unsichere erste Wahl kann schlicht falsch sein – dann zählt auch eine offene
+    Einheit an einem anderen Ort (Befund des Gegenlesens, 19.11.2026)."""
+    erste = MatchResult(status=MatchStatus.AMBIGUOUS, units=[DISSEN_ZU], kandidaten=[DISSEN_ZU, SALZGITTER_OFFEN])
+    zweite = MatchResult(status=MatchStatus.AMBIGUOUS, units=[SALZGITTER_OFFEN], kandidaten=[SALZGITTER_OFFEN], grund="KI-Treffer unsicher")
+    fake, aufrufe = _ki([erste, zweite])
+    monkeypatch.setattr(match_ai, "select_match", fake)
+
+    match, schon_zu = match_ai.select_open_match(DEAL, [DISSEN_ZU, SALZGITTER_OFFEN])
+    assert schon_zu is False and [u.id for u in match.units] == [SALZGITTER_OFFEN.id]
+    assert aufrufe[1] == [SALZGITTER_OFFEN.id]
+
+
+def test_unsichere_wahl_abgeschlossen_und_kein_offener_passt_ist_erledigt(monkeypatch):
+    erste = MatchResult(status=MatchStatus.AMBIGUOUS, units=[DISSEN_ZU], kandidaten=[DISSEN_ZU, SALZGITTER_OFFEN])
+    fake, aufrufe = _ki([erste, MatchResult(status=MatchStatus.NONE, grund="KI: kein passendes Objekt")])
+    monkeypatch.setattr(match_ai, "select_match", fake)
+
+    match, schon_zu = match_ai.select_open_match(DEAL, [DISSEN_ZU, SALZGITTER_OFFEN])
+    assert match.status == MatchStatus.NONE and schon_zu is True and len(aufrufe) == 2
 
 
 def test_stillgelegte_dublette_zweite_wahl_unter_offenen_am_selben_ort(monkeypatch):
@@ -260,7 +283,7 @@ def _lauf(monkeypatch, deals, wahl, bestand):
     monkeypatch.setattr(main, "extract_deals", lambda text: NewsletterExtraction(deals=deals))
     monkeypatch.setattr(main, "gather_candidates", lambda deal, extra_queries=None: [SALZGITTER_OFFEN])
     monkeypatch.setattr(main, "select_open_match", lambda deal, candidates: wahl[deal.objekt_name])
-    monkeypatch.setattr(review_dedup, "fetch_open_review_units", lambda broker, praefix: dict(bestand))
+    monkeypatch.setattr(review_dedup, "fetch_open_review_units", lambda broker, praefix, tage=None: dict(bestand))
     report = RunReport()
     main._process_message({"ts": "1763550000.000100", "text": "Logistik-Deal Radar"}, "run1", report, OffeneReviews())
     return report
@@ -310,3 +333,57 @@ def test_ohne_objekt_wird_weiter_jede_aufgabe_angelegt(ablauf, monkeypatch):
     assert len(angelegt) == 2
     assert all(a.property_ids is None for a in angelegt)
     assert (report.stufe_b, report.bereits_offen) == (2, 0)
+
+
+# --- Nachträge aus dem Gegenlesen (19.11.2026) ----------------------------------------
+
+def test_alte_offene_aufgabe_unterdrueckt_keine_neue_meldung(monkeypatch):
+    """Der Radar wiederholt über Tage – eine Meldung Monate später ist meist eine neue
+    Vermietung. Ohne Grenze bekäme eine Einheit nie wieder eine Aufgabe."""
+    from datetime import datetime, timedelta, timezone
+
+    jetzt = datetime.now(timezone.utc)
+    seite = {"data": [
+        _aufgabe(1, 101, "Newsletter-Vermietung prüfen: frisch", [11], angelegt=(jetzt - timedelta(days=3)).isoformat()),
+        _aufgabe(2, 102, "Newsletter-Vermietung prüfen: alt", [12], angelegt=(jetzt - timedelta(days=90)).isoformat()),
+    ]}
+    monkeypatch.setattr(propstack, "_request", lambda *a, **k: _Response(seite))
+    monkeypatch.setenv("PROPSTACK_API_KEY", "x")
+
+    assert fetch_open_review_units(254958, config.REVIEW_TITEL_PRAEFIX, 30) == {11: 101}
+    assert fetch_open_review_units(254958, config.REVIEW_TITEL_PRAEFIX) == {11: 101, 12: 102}
+
+
+def test_dublettenschutz_nicht_ladbar_macht_den_lauf_rot(monkeypatch):
+    """Angelegt wird trotzdem – aber nicht mehr still: sonst entstehen wieder Dubletten in einem grünen Lauf."""
+    def kaputt(broker, praefix, tage=None):
+        raise RuntimeError("HTTP 500")
+
+    monkeypatch.setattr(review_dedup, "fetch_open_review_units", kaputt)
+    monkeypatch.setattr(main, "get_bot_user_id", lambda: "UBOT")
+    monkeypatch.setattr(main, "_collect_messages", lambda: [{"ts": "1.1", "text": "Radar"}])
+    monkeypatch.setattr(main, "has_bot_checkmark", lambda msg, bot: False)
+
+    def verarbeite(msg, run_id, report, offene_reviews):
+        offene_reviews.vorhanden([7])   # löst das Laden aus
+
+    monkeypatch.setattr(main, "_process_message", verarbeite)
+    report = main.run_pipeline()
+    assert len(report.fehler) == 1 and "ohne Dublettenschutz" in report.fehler[0]
+
+
+def test_scheitert_ein_deal_gibt_es_keinen_haken(ablauf, monkeypatch):
+    """Sonst gälte der Digest als ausgewertet, obwohl ein Deal verloren ging."""
+    angelegt, antworten = ablauf
+    haken = []
+    monkeypatch.setattr(main, "add_checkmark", lambda ts: haken.append(ts) or True)
+
+    def kaputt(payload):
+        raise RuntimeError("HTTP 502")
+
+    monkeypatch.setattr(main, "create_task", kaputt)
+    treffer = (MatchResult(status=MatchStatus.AMBIGUOUS, units=[SALZGITTER_OFFEN], kandidaten=[SALZGITTER_OFFEN]), False)
+    report = _lauf(monkeypatch, [_deal("Garbe Industrial")], {"Garbe Industrial": treffer}, bestand={})
+
+    assert haken == [] and antworten == []
+    assert len(report.fehler) == 1

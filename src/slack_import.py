@@ -13,7 +13,15 @@ from .models import (
     GROUP_ID_MAP,
     PipelineReport,
 )
-from .slack_reader import fetch_recent_messages, get_message_images, get_message_text, has_images
+from .slack_reader import (
+    fetch_recent_messages,
+    get_bot_user_id,
+    get_message_images,
+    get_message_text,
+    has_images,
+    ist_verarbeitet,
+    markiere_verarbeitet,
+)
 from .contact_extractor import (
     extract_contact_from_image,
     extract_contact_from_text,
@@ -62,11 +70,18 @@ def run_pipeline() -> PipelineReport:
     messages = fetch_recent_messages(hours=scan_hours, latest_hours=scan_latest_hours)
     report.emails_searched = len(messages)
     logger.info("Found %d messages in #visitenkarten", len(messages))
+    bot_user_id = get_bot_user_id()
 
     for i, msg in enumerate(messages, 1):
         msg_text = get_message_text(msg)
         msg_preview = msg_text[:80] if msg_text else "(Bild)"
         logger.info("--- Processing message %d/%d: %s ---", i, len(messages), msg_preview)
+
+        if ist_verarbeitet(msg, bot_user_id):
+            logger.info("Bereits verarbeitet (eigenes ✅) – übersprungen")
+            continue
+        fehler_vorher = len(report.errors) + problems.anzahl()
+        erkannt = 0
 
         try:
             contacts: list = []
@@ -94,6 +109,7 @@ def run_pipeline() -> PipelineReport:
                 report.contacts_skipped_no_email += 1
                 continue
 
+            erkannt = len(contacts)
             for contact in contacts:
                 if not contact.first_name or not contact.last_name:
                     logger.info("Skipping – missing name: %s %s", contact.first_name, contact.last_name)
@@ -208,6 +224,12 @@ def run_pipeline() -> PipelineReport:
                 status=ContactStatus.ERROR,
                 error=f"{type(e).__name__}: {str(e)[:200]}",
             ))
+
+        # ✅ nur, wenn eine Karte erkannt wurde und nichts schiefging: Eine Nachricht mit
+        # Fehler sieht der nächste Lauf wieder; Geplauder ohne Karte bekommt keinen Haken.
+        ohne_fehler = len(report.errors) + problems.anzahl() == fehler_vorher
+        if erkannt and ohne_fehler and not DRY_RUN and msg.get("ts"):
+            markiere_verarbeitet(msg["ts"])
 
     # Was unterwegs schiefging (Slack, Apollo, Bilder, Firmen …), gehört in den Report
     for zeile in problems.zusammenfassung():

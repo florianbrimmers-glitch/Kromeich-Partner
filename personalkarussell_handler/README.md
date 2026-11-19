@@ -6,7 +6,7 @@ Eigenständiges Paket – **kein Code-Sharing mit `src/`** oder den anderen Hand
 
 ## Ablauf
 
-1. Nachrichten (inkl. Thread-Antworten) der letzten 26h lesen; Nachrichten mit eigenem ✅ des Bots werden übersprungen.
+1. Nachrichten (inkl. Thread-Antworten) der letzten 50 h lesen (Cron; lokal Standard 26 h); Nachrichten mit eigenem ✅ des Bots werden übersprungen.
 2. Klassifikation per Claude: `wechsel` / `abgang` / `umfirmierung` / `linkedin` / `ignorieren`, dazu pro Person Vorname, Nachname, alte und neue Firma. Eine Nachricht kann mehrere Wechsel enthalten („Moritz Kalisch und Patrick Frank sind jetzt beide Marq").
 3. Abgleich mit Propstack (`matcher.py`):
    - Person: exakter Vor- und Nachname (Umlaute egal: Fröhlich = Froehlich). Zwei Treffer = Dublette → Stufe B.
@@ -38,8 +38,8 @@ Am 05.10.2026 hat das Ändern des Firmenfelds einer Person (Tim Hamacher) die bi
 Der gerade Durchlauf von Stufe A ist richtig und vorsichtig. Gefährlich sind die Abbruchpfade. **Noch nicht scharf schalten**, solange die offenen Punkte nicht erledigt sind.
 
 Mit der Änderung vom 19.11.2026 erledigt:
-- Ein Lauf endet rot, wenn eine Meldung nicht verarbeitet werden konnte oder Slack nicht lesbar war (vorher: grün, die Meldung war am Folgetag außerhalb des 26-h-Fensters und damit verloren).
-- Nachname allein reicht nicht mehr für einen Treffer („Setz ist jetzt bei Goodman“ → Stufe B).
+- Ein Lauf endet rot, wenn eine Meldung nicht verarbeitet werden konnte oder Slack nicht lesbar war, und der Cron liest 50 h zurück – der nächste Lauf holt sie nach (vorher: grün, die Meldung war am Folgetag außerhalb des 26-h-Fensters und damit verloren).
+- Nachname allein reicht nicht mehr für einen Treffer („Setz ist jetzt bei Goodman“ → Stufe B, mit dem Hinweis, dass die Person vorhanden sein kann – nicht „neu anlegen“).
 - Die neue Verknüpfung wird gegengelesen, bevor die alte gelöscht wird (HTTP 422 heißt nicht immer „besteht bereits“).
 
 Offen:

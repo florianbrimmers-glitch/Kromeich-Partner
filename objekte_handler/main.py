@@ -134,8 +134,15 @@ def _stufe_a(msg: dict, cls: Classification, match: MatchResult, permalink: str)
         is_reminder=False,
         property_ids=unit_ids,
     )
-    doku_id = create_task(doku)
-    aktionen.append(f"Doku-Notiz angelegt (Task {doku_id})")
+    # Ab hier ist die Einheit vermietet gesetzt. Scheitert ein weiterer Schritt, läuft der
+    # Rest trotzdem – sonst bliebe ein halber Zustand ohne Antwort und ohne ✅ zurück, und
+    # die Nachricht fiele am nächsten Tag aus dem Fenster.
+    try:
+        doku_id = create_task(doku)
+        aktionen.append(f"Doku-Notiz angelegt (Task {doku_id})")
+    except Exception as e:
+        logger.exception("Doku-Notiz für %s nicht angelegt", unit_ids)
+        aktionen.append(f"{WARNUNG} Doku-Notiz nicht angelegt ({e})")
 
     # Abgesagt werden nur Deals der Vermietung, nie ein Deal in der Abschluss-Phase
     try:
@@ -145,10 +152,22 @@ def _stufe_a(msg: dict, cls: Classification, match: MatchResult, permalink: str)
         vermietungs_pipelines = None
         aktionen.append(f"{WARNUNG} Deal-Pipelines nicht lesbar ({e}) – Deals mit Pipeline nicht abgesagt")
 
+    if vermietungs_pipelines is not None and not vermietungs_pipelines:
+        aktionen.append(
+            f"{WARNUNG} Keine Pipeline, deren Name mit „{config.VERMIETUNGS_PIPELINE_PRAEFIX}“ beginnt – "
+            "nur Deals ohne Pipeline werden abgesagt"
+        )
+
     absagen = 0
     unangetastet: list[str] = []
     for unit in match.units:
-        for deal in get_open_deals(unit.id):
+        try:
+            offene_deals = get_open_deals(unit.id)
+        except Exception as e:
+            logger.exception("Deals der Unit %s nicht lesbar", unit.id)
+            aktionen.append(f"{WARNUNG} Deals der Unit {unit.id} nicht lesbar ({e}) – keine Absagen")
+            continue
+        for deal in offene_deals:
             hindernis = absage_hindernis(deal, vermietungs_pipelines)
             if hindernis:
                 unangetastet.append(hindernis)
@@ -165,16 +184,30 @@ def _stufe_a(msg: dict, cls: Classification, match: MatchResult, permalink: str)
                 client_ids=[client_id],
                 property_ids=[unit.id],
             )
-            task_id = create_task(absage)
+            try:
+                task_id = create_task(absage)
+            except Exception as e:
+                logger.exception("Absage für Deal %s nicht angelegt", deal.get("id"))
+                aktionen.append(f"{WARNUNG} Absage für Deal {deal.get('id')} (Unit {unit.id}) nicht angelegt ({e})")
+                continue
             aktionen.append(f"Absage Deal (Kunde {client_id}, Unit {unit.id}, Task {task_id})")
             absagen += 1
 
     add_checkmark(msg["ts"])
-    reply = (
-        f"✅ Erledigt: {match.units[0].adresse()} auf vermietet gesetzt"
-        f" ({len(unit_ids)} Einheit{'en' if len(unit_ids) != 1 else ''}), "
-        f"{absagen} offene Deals abgesagt, Doku-Notiz angelegt."
-    )
+    unvollstaendig = [a for a in aktionen if a.startswith(WARNUNG)]
+    if unvollstaendig:
+        reply = (
+            f"⚠️ Nur teilweise erledigt: {match.units[0].adresse()} ist auf vermietet gesetzt"
+            f" ({len(unit_ids)} Einheit{'en' if len(unit_ids) != 1 else ''}), {absagen} offene Deals abgesagt. "
+            f"Nicht geklappt – bitte in Propstack nachsehen: "
+            + "; ".join(a[len(WARNUNG):].strip() for a in unvollstaendig)
+        )
+    else:
+        reply = (
+            f"✅ Erledigt: {match.units[0].adresse()} auf vermietet gesetzt"
+            f" ({len(unit_ids)} Einheit{'en' if len(unit_ids) != 1 else ''}), "
+            f"{absagen} offene Deals abgesagt, Doku-Notiz angelegt."
+        )
     if unangetastet:
         gruende = ", ".join(f"{n}× {g}" for g, n in sorted(Counter(unangetastet).items()))
         reply += f" {len(unangetastet)} Deal(s) nicht angetastet ({gruende}) – bitte selbst prüfen."
@@ -264,15 +297,14 @@ def _process_message(msg: dict, context: str | None, run_id: str, report: RunRep
         record.classification = cls
 
         if cls is None:
-            # Der nächste Lauf sieht die Nachricht meist nicht mehr (26-h-Fenster) –
-            # der Fehler macht den Lauf rot, nachholen lässt sie sich per workflow_dispatch.
+            # Kein ✅: Der Lauf endet rot, der nächste Lauf (Fenster 50 h) versucht es erneut.
             report.fehler.append(f"Nachricht {msg['ts']}: nicht klassifizierbar")
             record.fehler = "Klassifikation fehlgeschlagen"
             return
 
         match: MatchResult | None = None
         if cls.typ in (MessageType.STATUS_ANWEISUNG, MessageType.FLAECHENUPDATE):
-            match = find_unit(cls, text)
+            match = find_unit(cls, "\n".join(t for t in (context, text) if t))
             record.match = match
 
         decision = decide(cls, match)

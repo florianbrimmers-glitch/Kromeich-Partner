@@ -221,6 +221,7 @@ def _process_message(
     reviews = 0
     schon_offen = 0
     schon_zu = 0
+    gescheitert = 0
 
     for idx, deal in enumerate(extraction.deals):
         record = DecisionRecord(
@@ -277,8 +278,16 @@ def _process_message(
             logger.exception("Fehler bei Deal %s#%d", msg.get("ts"), idx)
             record.fehler = str(e)
             report.fehler.append(f"Deal {msg.get('ts')}#{idx}: {e}")
+            gescheitert += 1
         finally:
             append_record(record)
+
+    if gescheitert:
+        # Kein ✅ und keine Sammel-Antwort: Sonst gälte der Digest als ausgewertet, obwohl
+        # ein Deal verloren ging. Der Lauf endet rot, der nächste Lauf sieht den Digest
+        # wieder (Fenster 50 h) – was schon eine Aufgabe hat, schützt der Dublettenschutz.
+        logger.error("Nachricht %s: %d Deal(s) nicht verarbeitet – kein ✅", msg["ts"], gescheitert)
+        return
 
     # ✅ + Sammel-Antwort erst nach allen Deals der Message
     add_checkmark(msg["ts"])
@@ -327,6 +336,11 @@ def run_pipeline() -> RunReport:
             continue
 
         _process_message(msg, run_id, report, offene_reviews)
+
+    if offene_reviews.laden_fehlgeschlagen:
+        report.fehler.append(
+            f"Offene Review-Aufgaben nicht lesbar ({offene_reviews.fehler}) – in diesem Lauf ohne Dublettenschutz angelegt"
+        )
 
     _print_summary(report)
     return report

@@ -121,3 +121,52 @@ def test_vollzugsmeldungen_koennen_zu_auftraege_bleiben():
     plan = {e["task_id"]: e for e in skript.plane_vollzug(aufgaben, texte)}
     assert set(plan) == {1, 2}
     assert all(e["grund"] == skript.VOLLZUG for e in plan.values())
+
+
+# --- Nachträge aus dem Gegenlesen (19.11.2026) ----------------------------------------
+
+def test_doppelt_gelieferte_zeile_ist_keine_dublette_ihrer_selbst():
+    """Die Liste wird seitenweise gelesen, während Leute arbeiten – eine Zeile kann zweimal kommen.
+    Die einzige offene Aufgabe zu einer Einheit darf dadurch nicht geschlossen werden."""
+    zeile = _aufgabe(1, "Newsletter-Vermietung prüfen: CTP", [5769426], "2026-09-30T10:00:00.000+02:00")
+    assert skript.plane([zeile, dict(zeile)], {5769426: OFFEN}) == []
+
+
+class _FakePropstack:
+    def __init__(self):
+        self.geschrieben = []
+        self.erledigt = {}
+
+    def setze_erledigt(self, task_id, erledigt):
+        self.geschrieben.append((task_id, erledigt))
+        self.erledigt[task_id] = erledigt
+
+    def ist_erledigt(self, task_id):
+        return self.erledigt.get(task_id)
+
+
+def test_undo_schreibt_nur_mit_apply(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(skript.time, "sleep", lambda s: None)
+    protokoll = tmp_path / "protokoll.json"
+    protokoll.write_text('{"geschlossen": [11, 12], "unklar": [13]}', encoding="utf-8")
+
+    ps = _FakePropstack()
+    assert skript._undo(ps, str(protokoll), apply=False) == 0
+    assert ps.geschrieben == [] and "Nur gelesen" in capsys.readouterr().out
+
+    assert skript._undo(ps, str(protokoll), apply=True) == 0
+    assert ps.geschrieben == [(11, False), (12, False), (13, False)]
+
+
+def test_undo_bricht_ab_wenn_die_probe_nicht_wirkt(tmp_path, monkeypatch):
+    monkeypatch.setattr(skript.time, "sleep", lambda s: None)
+    protokoll = tmp_path / "protokoll.json"
+    protokoll.write_text('{"geschlossen": [11, 12]}', encoding="utf-8")
+
+    class _Wirkungslos(_FakePropstack):
+        def ist_erledigt(self, task_id):
+            return True   # Propstack hat das Feld still verworfen
+
+    ps = _Wirkungslos()
+    assert skript._undo(ps, str(protokoll), apply=True) == 1
+    assert ps.geschrieben == [(11, False)]   # nur die Probe

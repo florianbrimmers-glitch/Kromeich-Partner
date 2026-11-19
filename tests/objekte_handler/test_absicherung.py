@@ -1,8 +1,8 @@
 """Absicherung des scharf laufenden #objekte-Handlers (Stand 19.11.2026).
 
 Zwei Dinge, beide an Live-Daten geprüft (nur gelesen):
-1. 48 der 82 offenen Aufgaben dieses Handlers antworteten auf Vollzugsmeldungen –
-   „neues Objekt angelegt …“ oder Berichte aus Claude-Sitzungen. 26 von 30 Aufgaben
+1. 47 der 82 offenen Aufgaben dieses Handlers antworteten auf Vollzugsmeldungen –
+   „neues Objekt angelegt …“ oder Berichte aus Claude-Sitzungen. 25 von 30 Aufgaben
    „Objekt fehlt in Propstack: bitte anlegen“ betrafen gerade angelegte Objekte.
 2. Stufe A lief seit Juli zweimal. Die Wege dorthin waren weiter als nötig: Absagen
    auch an Deals in der Abschluss-Phase und in Verkaufs-Pipelines, „nächstliegende“
@@ -147,6 +147,45 @@ def test_stufe_a_laesst_abschluss_und_verkauf_unangetastet(monkeypatch):
     assert sum("nicht abgesagt" in a for a in aktionen) == 2
 
 
+def test_stufe_a_scheitert_die_notiz_laufen_die_absagen_trotzdem(monkeypatch):
+    """Die Einheit ist dann schon vermietet gesetzt. Ohne den Rest bliebe ein halber Zustand
+    ohne Antwort und ohne ✅ zurück – und die Nachricht fiele am nächsten Tag aus dem Fenster."""
+    angelegt, antworten, haken = [], [], []
+
+    def create_task(payload):
+        if not payload.reservation_reason_id:
+            raise httpx.HTTPStatusError("HTTP 502", request=None, response=None)
+        angelegt.append(payload)
+        return 7
+
+    monkeypatch.setattr(main, "set_rented", lambda unit_id: True)
+    monkeypatch.setattr(main, "create_task", create_task)
+    monkeypatch.setattr(main, "get_open_deals", lambda unit_id: [{"id": 1, "client_id": 11, "property_id": 5, "deal_pipeline_id": None}])
+    monkeypatch.setattr(main, "fetch_vermietungs_pipelines", lambda: VERMIETUNG)
+    monkeypatch.setattr(main, "add_checkmark", lambda ts: haken.append(ts) or True)
+    monkeypatch.setattr(main, "post_thread_reply", lambda ts, text: antworten.append(text) or True)
+
+    unit = Unit(id=5, street="Hamburgring", house_number="48", city="Mönchengladbach")
+    match = MatchResult(status=MatchStatus.UNIQUE, units=[unit], kandidaten=[unit])
+    aktionen = main._stufe_a({"ts": "1.1", "text": "Hamburgring 48 ist vermietet"}, _cls(), match, "https://x")
+
+    assert len(angelegt) == 1 and haken == ["1.1"]
+    assert antworten[0].startswith("⚠️ Nur teilweise erledigt") and "Doku-Notiz nicht angelegt" in antworten[0]
+    assert any(a.startswith(main.WARNUNG) for a in aktionen)   # macht den Lauf rot
+
+
+def test_stufe_a_ohne_vermietungs_pipeline_wird_gemeldet(monkeypatch):
+    monkeypatch.setattr(main, "set_rented", lambda unit_id: True)
+    monkeypatch.setattr(main, "create_task", lambda payload: 1)
+    monkeypatch.setattr(main, "get_open_deals", lambda unit_id: [])
+    monkeypatch.setattr(main, "fetch_vermietungs_pipelines", lambda: set())
+    monkeypatch.setattr(main, "add_checkmark", lambda ts: True)
+    monkeypatch.setattr(main, "post_thread_reply", lambda ts, text: True)
+    unit = Unit(id=5, street="Hamburgring", house_number="48")
+    aktionen = main._stufe_a({"ts": "1.1", "text": "x"}, _cls(), MatchResult(status=MatchStatus.UNIQUE, units=[unit]), "")
+    assert any(a.startswith(main.WARNUNG) and "Keine Pipeline" in a for a in aktionen)
+
+
 # --- Schreiben wird nach einem Serverfehler nicht wiederholt ----------------------
 
 class _Antwort:
@@ -192,8 +231,24 @@ def test_post_timeout_kein_zweiter_versuch(monkeypatch):
     monkeypatch.setattr(propstack.httpx, "request", request)
     monkeypatch.setattr(propstack.time, "sleep", lambda s: None)
     with pytest.raises(httpx.ReadTimeout):
-        propstack._request("PUT", "/units/1", key="k", json={})
-    assert aufrufe == ["PUT"]
+        propstack._request("POST", "/tasks", key="k", json={})
+    assert aufrufe == ["POST"]
+
+
+def test_put_wird_wiederholt(monkeypatch):
+    """rented=true ein zweites Mal zu setzen ändert nichts – also darf PUT wiederholt werden.
+    Sonst bliebe nach einem einzelnen 502 die Einheit unverändert und die Meldung verloren."""
+    aufrufe = []
+
+    class _Ok(_Antwort):
+        def raise_for_status(self):
+            return None
+
+    folge = [_Antwort(502), _Ok(200)]
+    monkeypatch.setattr(propstack.httpx, "request", lambda method, url, **kw: aufrufe.append(method) or folge[len(aufrufe) - 1])
+    monkeypatch.setattr(propstack.time, "sleep", lambda s: None)
+    assert propstack._request("PUT", "/units/1", key="k", json={}).status_code == 200
+    assert aufrufe == ["PUT", "PUT"]
 
 
 def test_get_wird_weiter_wiederholt(monkeypatch):
@@ -234,14 +289,30 @@ def test_zahl_passt_auf_zwei_einheiten_ist_kein_treffer():
     assert pick_by_size_hint(units, "5.100") is None
 
 
-def test_schon_vermietete_einheit_zaehlt_nicht_mit():
-    """„Die kleine Einheit ist vermietet“ meint die kleinste, die noch frei ist."""
+def test_kleinste_ist_schon_vermietet_dann_entscheidet_ein_mensch():
+    """Zwei Lesarten: Die Vermietung der 3.000er wird ein zweites Mal gemeldet – oder gemeint
+    ist die kleinste noch freie. Nie auf die nächste freie ausweichen: Das träfe eine
+    Einheit, von der niemand gesprochen hat (Befund des Gegenlesens, 19.11.2026)."""
     units = [
         Unit(id=1, property_space_value=3000.0, rented=True),
         Unit(id=2, property_space_value=7666.0, rented=False),
         Unit(id=3, property_space_value=9024.0, rented=False),
     ]
-    assert pick_by_size_hint(units, "kleinste").id == 2
+    assert pick_by_size_hint(units, "kleinste") is None
+    assert pick_by_size_hint(units, "groesste").id == 3     # die größte ist frei -> eindeutig
+
+
+def test_vermietete_einheit_die_nicht_gemeint_sein_kann_stoert_nicht():
+    units = [
+        Unit(id=1, property_space_value=3000.0, rented=False),
+        Unit(id=2, property_space_value=7666.0, rented=True),
+    ]
+    assert pick_by_size_hint(units, "kleinste").id == 1
+
+
+def test_zahl_trifft_schon_vermietete_einheit_dann_entscheidet_ein_mensch():
+    units = [Unit(id=1, property_space_value=3000.0, rented=True), Unit(id=2, property_space_value=7666.0)]
+    assert pick_by_size_hint(units, "3.000 m²") is None
 
 
 # --- Ganzes Objekt nur, wenn die Nachricht keine einzelne Einheit nennt ---------------
@@ -249,6 +320,8 @@ def test_schon_vermietete_einheit_zaehlt_nicht_mit():
 @pytest.mark.parametrize("text", [
     "Hamburgring 48 Halle 2 ist vermietet", "Unit 1 und 2 sind vermietet", "Halle B ist weg", "Gebäude 17 EG vermietet",
     "BA 2 ist vermietet", "DC3 vermietet", "Teilfläche vermietet", "ist teilweise vermietet", "eine der Hallen ist vermietet",
+    "Hallen 1 und 2 sind vermietet", "Units 1 und 2 sind weg", "Einheiten 3 und 4 vermietet", "Teilflächen vermietet",
+    "die 1. Halle ist vermietet", "die hintere Halle ist vermietet", "ein Teil der Fläche ist vermietet",
 ])
 def test_nachricht_nennt_einzelne_einheit(text):
     assert nennt_einzelne_einheit(text)
@@ -273,6 +346,14 @@ def test_halle_2_schliesst_nicht_alle_einheiten_der_adresse(monkeypatch):
     teil = find_unit(cls, "Hamburgring 48 Halle 2 ist vermietet")
     assert teil.status == MatchStatus.AMBIGUOUS and teil.units == []
     assert "Halle 2" in teil.grund and len(teil.kandidaten) == 2
+
+
+def test_einzelne_einheit_steht_im_thread_die_antwort_sagt_nur_vermietet(monkeypatch):
+    monkeypatch.setattr(matcher, "search_units", lambda q: HAMBURGRING_UNITS)
+    cls = _cls(strasse="Hamburgring", hausnummer="48", stadt="Mönchengladbach")
+    kontext = "Ursprungsnachricht: Hamburgring 48 Halle 2 – Besichtigung nächste Woche"
+    result = find_unit(cls, f"{kontext}\nist jetzt vermietet")
+    assert result.status == MatchStatus.AMBIGUOUS
 
 
 # --- Adresse und Name --------------------------------------------------------------

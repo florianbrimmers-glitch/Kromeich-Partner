@@ -159,6 +159,34 @@ def test_anlage_scheitert_zweite_mail_versucht_es_erneut(monkeypatch):
     assert [e.error for e in report.errors] == ["Propstack create failed"]
 
 
+def test_sammeladresse_wird_nicht_vorab_aussortiert(monkeypatch):
+    """Hinter info@ schreiben wechselnde Personen mit eigener Adresse in der Signatur.
+    Ist info@ schon in Propstack, darf die neue Person trotzdem nicht unsichtbar bleiben."""
+    welt = _Welt(monkeypatch, [_mail("info@firma.de")], in_propstack={"info@firma.de"},
+                 kontakte={"info@firma.de": _kontakt("neue.person@firma.de")})
+    report = main.run_pipeline()
+
+    assert welt.aufrufe[:2] == ["ki:info@firma.de", "propstack?neue.person@firma.de"]
+    assert [r.email for r in report.contacts_created] == ["neue.person@firma.de"]
+
+
+def test_sammeladresse_ohne_eigene_adresse_in_der_signatur_ist_bekannt(monkeypatch):
+    welt = _Welt(monkeypatch, [_mail("info@firma.de")], in_propstack={"info@firma.de"},
+                 kontakte={"info@firma.de": _kontakt("info@firma.de")})
+    report = main.run_pipeline()
+
+    assert welt.aufrufe == ["ki:info@firma.de", "propstack?info@firma.de"]
+    assert report.contacts_created == [] and len(report.contacts_skipped_duplicate) == 1
+
+
+def test_gescheiterte_pruefung_wird_nicht_gemerkt(monkeypatch):
+    """Eine zweite Mail desselben Absenders prüft neu – ein einzelner Aussetzer kostet nicht den Tag."""
+    mails = [_mail("kaputt@x.de", message_id="m1"), _mail("kaputt@x.de", message_id="m2")]
+    welt = _Welt(monkeypatch, mails)
+    main.run_pipeline()
+    assert welt.aufrufe == ["propstack?kaputt@x.de", "propstack?kaputt@x.de"]
+
+
 # --- Fehler bleiben nicht im Log -------------------------------------------------
 
 def test_claude_fehler_zaehlt_als_fehler_nicht_als_kein_kontakt(monkeypatch):
@@ -264,6 +292,36 @@ def test_gmail_eine_kaputte_mail_kostet_nicht_das_postfach(monkeypatch):
     mails = gmail_client._fetch_emails_for_account("t", "id", "secret", "Postfach")
     assert [m.message_id for m in mails] == ["a1", "a3"]
     assert any("Mails nicht lesbar" in z for z in problems.zusammenfassung())
+
+
+def test_gmail_verschwundene_mail_ist_kein_fehler(monkeypatch):
+    """Zwischen Liste und Abruf gelöscht oder als Entwurf gesendet: 404 – nichts zu melden."""
+    class _Weg(Exception):
+        resp = SimpleNamespace(status=404)
+
+    service = _GmailService([["a1", "a2"]])
+    echtes_get = service.get
+
+    def get(userId, id, format):
+        if id == "a1":
+            def execute():
+                raise _Weg("notFound")
+            return SimpleNamespace(execute=execute)
+        return echtes_get(userId=userId, id=id, format=format)
+
+    service.get = get
+    monkeypatch.setattr(gmail_client, "_get_gmail_service", lambda *a: service)
+    mails = gmail_client._fetch_emails_for_account("t", "id", "secret", "Postfach")
+    assert [m.message_id for m in mails] == ["a2"] and problems.zusammenfassung() == []
+
+
+def test_gmail_obergrenze_waechst_mit_dem_fenster(monkeypatch):
+    """Nachhol-Lauf über 168 h: Gmail liefert die neuesten zuerst – mit fester Grenze fielen
+    genau die alten Mails weg, um die es beim Nachholen geht."""
+    service = _GmailService([[f"s{seite}m{i}" for i in range(100)] for seite in range(6)])
+    monkeypatch.setattr(gmail_client, "_get_gmail_service", lambda *a: service)
+    mails = gmail_client._fetch_emails_for_account("t", "id", "secret", "Postfach", hours=168, limit=300)
+    assert len(mails) == 600 and problems.zusammenfassung() == []
 
 
 def test_postfach_mit_abgelaufenem_token_wird_gemeldet(monkeypatch):
@@ -466,6 +524,8 @@ def _karten_welt(monkeypatch, nachrichten, bilder, kontakte, in_propstack=()):
     from src import slack_import
 
     aufrufe: list[str] = []
+    monkeypatch.setattr(slack_import, "get_bot_user_id", lambda: "UBOT")
+    monkeypatch.setattr(slack_import, "markiere_verarbeitet", lambda ts: aufrufe.append(f"haken:{ts}") or True)
     monkeypatch.setattr(slack_import, "DRY_RUN", False)
     monkeypatch.setattr(slack_import.time, "sleep", lambda s: None)
     monkeypatch.setattr(slack_import, "fetch_recent_messages", lambda hours, latest_hours=0: list(nachrichten))
@@ -498,6 +558,62 @@ def test_visitenkarte_bekannter_kontakt_ohne_apollo_und_kategorie(monkeypatch):
 
     assert aufrufe == ["ki:image/jpeg", "propstack?max@firma.de"]
     assert len(report.contacts_skipped_duplicate) == 1 and report.errors == []
+
+
+def test_visitenkarte_bekommt_nach_der_anlage_einen_haken_und_wird_nicht_erneut_gelesen(monkeypatch):
+    """48 h Rückblick: Ohne Marker ginge jede Karte zweimal durch die Bild-KI – liest sie am
+    zweiten Tag ein Zeichen anders (h.mueller@ / h.muller@), entstünde ein zweiter Kontakt."""
+    karte = ContactData(email="max@firma.de", first_name="Max", last_name="Muster")
+    nachricht = {"ts": "1763550000.000100", "text": ""}
+    slack_import, aufrufe = _karten_welt(monkeypatch, [nachricht], [(b"k1", "image/jpeg")], {b"k1": karte})
+
+    slack_import.run_pipeline()
+    assert aufrufe[-1] == "haken:1763550000.000100"
+
+    # zweiter Lauf: Slack liefert die Nachricht jetzt mit dem eigenen ✅
+    nachricht["reactions"] = [{"name": "white_check_mark", "users": ["UBOT"], "count": 1}]
+    aufrufe.clear()
+    report = slack_import.run_pipeline()
+    assert aufrufe == [] and report.contacts_created == []
+
+
+def test_fremdes_haekchen_zaehlt_nicht(monkeypatch):
+    from src.slack_reader import ist_verarbeitet
+
+    msg = {"reactions": [{"name": "white_check_mark", "users": ["UKOLLEGE"], "count": 1}]}
+    assert ist_verarbeitet(msg, "UBOT") is False
+    assert ist_verarbeitet(msg, None) is False
+    assert ist_verarbeitet({"reactions": [{"name": "white_check_mark", "users": ["UBOT"]}]}, "UBOT") is True
+
+
+def test_kein_haken_wenn_etwas_schiefging_oder_keine_karte_erkannt_wurde(monkeypatch):
+    karte = ContactData(email="max@firma.de", first_name="Max", last_name="Muster")
+    bilder = [(b"kaputt", "image/png"), (b"k1", "image/png")]
+    slack_import, aufrufe = _karten_welt(monkeypatch, [{"ts": "1.1", "text": ""}], bilder,
+                                         {b"kaputt": RuntimeError("400 invalid image"), b"k1": karte})
+    slack_import.run_pipeline()
+    assert not any(a.startswith("haken:") for a in aufrufe)   # der nächste Lauf sieht die Nachricht wieder
+
+    slack_import, aufrufe = _karten_welt(monkeypatch, [{"ts": "2.2", "text": ""}], [(b"leer", "image/png")], {b"leer": None})
+    slack_import.run_pipeline()
+    assert not any(a.startswith("haken:") for a in aufrufe)   # Geplauder ohne Karte bekommt keinen Haken
+
+
+def test_heic_und_grosse_fotos_gehen_als_vorschau_an_die_ki():
+    from src.slack_reader import _bildquelle
+
+    jpg = {"mimetype": "image/jpeg", "size": 800_000, "url_private_download": "https://files/orig.jpg", "thumb_1024": "https://files/t1024.jpg"}
+    assert _bildquelle(jpg) == ("https://files/orig.jpg", "image/jpeg")
+
+    heic = {"mimetype": "image/heic", "size": 2_000_000, "url_private_download": "https://files/orig.heic",
+            "thumb_720": "https://files/t720.jpg", "thumb_1024": "https://files/t1024.jpg"}
+    assert _bildquelle(heic) == ("https://files/t1024.jpg", "")      # größte Vorschau, Typ aus der Antwort
+
+    gross = {"mimetype": "image/jpeg", "size": 9_000_000, "url_private_download": "https://files/gross.jpg", "thumb_960": "https://files/t960.jpg"}
+    assert _bildquelle(gross) == ("https://files/t960.jpg", "")
+
+    ohne_vorschau = {"mimetype": "image/heic", "size": 2_000_000, "url_private_download": "https://files/orig.heic"}
+    assert _bildquelle(ohne_vorschau) == ("https://files/orig.heic", "image/heic")   # wird dann als Problem gemeldet
 
 
 def test_visitenkarte_ein_kaputtes_bild_kostet_nicht_die_anderen(monkeypatch):

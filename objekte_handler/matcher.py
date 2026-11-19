@@ -88,20 +88,30 @@ def parse_qm(text: str) -> float | None:
 def pick_by_size_hint(units: list[Unit], hint: str) -> Unit | None:
     """"die kleine Einheit" -> kleinste Fläche; Zahl -> die Einheit mit dieser Fläche.
 
-    Schon vermietete Einheiten zählen nicht mit: „die kleine ist vermietet“ meint die
-    kleinste, die noch frei ist. Eine Zahl muss auf ±15 % passen, und keine zweite
-    Einheit darf fast genauso gut passen – sonst None (-> Stufe B). Früher gewann
-    immer die „nächstliegende“: „3.000 m² vermietet“ traf eine Einheit mit 7.666 m²."""
-    offen = [u for u in units if u.rented is not True]
-    sized = [u for u in offen if u.property_space_value is not None]
-    if len(sized) != len(offen) or not sized:
+    Ist die kleinste (größte) Einheit schon vermietet, ist offen, welche gemeint ist: die
+    schon vermietete (zweite Meldung derselben Vermietung) oder die kleinste noch freie.
+    Dann None (-> Stufe B). Nie auf die nächste freie ausweichen – das träfe eine Einheit,
+    von der niemand gesprochen hat.
+
+    Eine Zahl muss auf ±15 % passen, und keine zweite Einheit darf fast genauso gut
+    passen – sonst None. Früher gewann immer die „nächstliegende“: „3.000 m² vermietet“
+    traf eine Einheit mit 7.666 m²."""
+    sized = [u for u in units if u.property_space_value is not None]
+    if len(sized) != len(units) or not sized:
         return None  # fehlende Flächenwerte -> nicht ableitbar -> Stufe B
 
     hint = hint.strip().lower()
+    wahl = None
     if hint in ("kleinste", "klein", "kleiner"):
-        return min(sized, key=lambda u: u.property_space_value)
-    if hint in ("groesste", "größte", "gross", "groß", "groesser", "größer"):
-        return max(sized, key=lambda u: u.property_space_value)
+        wahl = min
+    elif hint in ("groesste", "größte", "gross", "groß", "groesser", "größer"):
+        wahl = max
+    if wahl:
+        gewaehlt = wahl(sized, key=lambda u: u.property_space_value)
+        freie = [u for u in sized if u.rented is not True]
+        if not freie or wahl(freie, key=lambda u: u.property_space_value).id != gewaehlt.id:
+            return None
+        return gewaehlt
 
     wanted = parse_qm(hint)
     if not wanted or wanted <= 0:
@@ -116,18 +126,22 @@ def pick_by_size_hint(units: list[Unit], hint: str) -> Unit | None:
         # oder mindestens dreimal so weit weg (gemessen an mindestens 1 % der Zahl).
         if zweiter <= SIZE_TOLERANCE * wanted and zweiter < 3 * max(bester, 0.01 * wanted):
             return None
+    if nach_abstand[0].rented is True:
+        return None  # die passende Einheit steht schon auf vermietet -> ein Mensch sieht nach
     return nach_abstand[0]
 
 
 # Die Nachricht nennt eine bestimmte Einheit oder nur einen Teil – dann ist nicht das
 # ganze Objekt gemeint ("Halle 2 ist vermietet", "Unit 1 und 2", "Teilfläche").
-_BEZEICHNER = r"(?:halle|unit|einheit|geb(?:ä|ae)ude|bauabschnitt|modul|abschnitt|block|haus)"
+_BEZEICHNER = r"(?:hallen?|units?|einheit(?:en)?|geb(?:ä|ae)uden?|bauabschnitte?n?|module?n?|abschnitte?n?|bl(?:o|ö)cke?n?|h(?:a|ä)user?n?)"
 _EINZELNE_EINHEIT = re.compile(
-    rf"\b{_BEZEICHNER}\s*[-.:#]?\s*\d+[a-z]?\b"         # "Halle 2", "Unit 1.2", "Gebäude 17"
-    rf"|\b{_BEZEICHNER}\s+(?:[a-h]|[ivx]{{1,4}})\b"      # "Halle B", "Unit E", "Block II" – nur nach Leerzeichen
-    r"|\b(?:ba|bt|dc)\s*\d+\b"                          # "BA 2", "DC3"
-    r"|\bteil(?:fl(?:ä|ae)che|vermiet\w*|weise)\b|\bzum\s+teil\b"
-    r"|\beine\s+(?:der\s+)?(?:einheit|halle|unit)\w*",
+    rf"\b{_BEZEICHNER}\s*[-.:#]?\s*\d+[a-z]?\b"          # "Halle 2", "Hallen 1 und 2", "Unit 1.2"
+    rf"|\b{_BEZEICHNER}\s+(?:[a-h]|[ivx]{{1,4}})\b"       # "Halle B", "Unit E", "Block II" – nur nach Leerzeichen
+    rf"|\b\d+\.\s*{_BEZEICHNER}\b"                        # "1. Halle"
+    r"|\b(?:ba|bt|dc)\s*\d+\b"                             # "BA 2", "DC3"
+    rf"|\b(?:vorder|hinter|link|recht|ober|unter|mittler|erst|zweit|dritt|viert|letzt)e[nrs]?\s+{_BEZEICHNER}\b"
+    r"|\bteil(?:fl(?:ä|ae)chen?|vermiet\w*|weise)\b|\bzum\s+teil\b|\bein(?:e[nrs]?)?\s+teil\b"
+    r"|\beine[rn]?\s+(?:der\s+)?(?:einheit|halle|unit)\w*",
     re.IGNORECASE,
 )
 
@@ -168,8 +182,9 @@ def _build_queries(cls: Classification) -> list[str]:
 def find_unit(cls: Classification, text: str | None = None) -> MatchResult:
     """Sucht die Unit zur Nachricht. Nur bei eindeutigem Treffer UNIQUE.
 
-    text: Wortlaut der Nachricht – nur um zu erkennen, ob sie eine einzelne Einheit
-    nennt, wenn an der Adresse mehrere liegen."""
+    text: Wortlaut der Nachricht samt Thread-Kontext – nur um zu erkennen, ob von einer
+    einzelnen Einheit die Rede ist, wenn an der Adresse mehrere liegen. („Musterstr. 5
+    Halle 2 …“ im Thread, darunter „ist jetzt vermietet“.)"""
     queries = _build_queries(cls)
     if not queries:
         return MatchResult(status=MatchStatus.NONE, grund="Keine Adresse/Objektname extrahiert")

@@ -46,9 +46,10 @@ def _request(method: str, path: str, *, key: str, params: dict | None = None, js
                 json=json,
                 timeout=30.0,
             )
-            # Schreibende Aufrufe nach 5xx nicht wiederholen: Kam der erste Versuch doch
-            # an, entstünde die Aufgabe bzw. Absage doppelt. 429 ist sicher (nichts geschrieben).
-            if response.status_code >= 500 and method != "GET":
+            # Ein POST wird nach 5xx nicht wiederholt: Kam der erste Versuch doch an,
+            # entstünde die Aufgabe bzw. Absage doppelt. 429 ist sicher (nichts geschrieben),
+            # GET und PUT sind es ohnehin (ein zweites rented=true ändert nichts).
+            if response.status_code >= 500 and method == "POST":
                 logger.error("Propstack %s %s: HTTP %s – Status unklar, kein zweiter Versuch", method, path, response.status_code)
                 response.raise_for_status()
             if response.status_code == 429 or response.status_code >= 500:
@@ -70,8 +71,8 @@ def _request(method: str, path: str, *, key: str, params: dict | None = None, js
         except httpx.HTTPStatusError:
             raise
         except httpx.HTTPError as e:
-            if method != "GET":
-                # Timeout/Abbruch beim Schreiben: ob Propstack es übernommen hat, ist offen
+            if method == "POST":
+                # Timeout/Abbruch beim Anlegen: ob Propstack es übernommen hat, ist offen
                 logger.error("Propstack %s %s: %s – Status unklar, kein zweiter Versuch", method, path, e)
                 raise
             logger.warning("Propstack %s %s: %s (Versuch %d/%d)", method, path, e, attempt + 1, MAX_ATTEMPTS)
@@ -190,7 +191,10 @@ def absage_hindernis(deal: dict, vermietungs_pipelines: set[int] | None) -> str 
       genau verkehrt. (19.11.2026: zwei Deals in „Abgeschlossen Vermietung“.)
     - Deal in einer anderen als einer Vermietungs-Pipeline: Verkaufsprozess läuft weiter.
     - Pipelines nicht lesbar (None): dann nur Deals ohne Pipeline absagen.
-    """
+
+    Die Zeilen aus GET /v1/client_properties tragen deal_stage_chance und
+    deal_pipeline_id (geprüft am 19.11.2026 an allen 1.932 Deals: Werte 0.0–1.0 bzw.
+    leer bei Deals ohne Pipeline)."""
     chance = deal.get("deal_stage_chance")
     if isinstance(chance, (int, float)) and chance >= 1:
         return "Abschluss-Phase"

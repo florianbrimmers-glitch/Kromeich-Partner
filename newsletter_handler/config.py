@@ -30,6 +30,13 @@ STATUS_ABGESCHLOSSEN = 163676
 # mitzuziehen.
 REVIEW_TITEL_PRAEFIX = "Newsletter-Vermietung prüfen"
 
+# Eine offene Review-Aufgabe verhindert eine weitere zur selben Einheit nur so lange.
+# Der Radar wiederholt dieselbe Vermietung über Tage (Dissen: 7 Aufgaben in 14 Tagen) –
+# eine Meldung Monate später ist dagegen meist eine neue Vermietung. Ohne diese Grenze
+# bekäme eine Einheit nie wieder eine Aufgabe, solange die alte offen ist (und von 157
+# Aufgaben war bis 19.11.2026 eine einzige erledigt).
+REVIEW_DEDUP_TAGE = 30
+
 CHECK_EMOJI = "white_check_mark"
 CONFIDENCE_THRESHOLD = 0.8
 

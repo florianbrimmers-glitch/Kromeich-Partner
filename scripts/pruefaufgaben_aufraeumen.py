@@ -13,14 +13,14 @@ sind ohne inhaltliche Prüfung überflüssig:
                    Bericht über Erledigtes antworten: „neues Objekt angelegt …“ oder
                    ein Bericht aus einer Claude-Sitzung („Gesendet mit Claude“).
 
-Am 19.11.2026 waren das 40 + 41 + 48 = 129 Aufgaben. Alles andere bleibt unangetastet –
+Am 19.11.2026 waren das 40 + 41 + 47 = 128 Aufgaben. Alles andere bleibt unangetastet –
 auch Newsletter-Aufgaben ohne verknüpfte Einheit und alle von Hand angelegten Aufgaben.
 
 Liest standardmäßig nur und druckt die Liste. Mit --apply werden die gelisteten
 Aufgaben als erledigt markiert (PUT /v1/tasks/:id, done=true). Gelöscht wird nichts.
 Zuerst wird EINE Aufgabe geschlossen und zurückgelesen; erscheint sie danach nicht als
 erledigt, bricht das Skript ab. Jede geschlossene Aufgabe steht im Protokoll (JSON),
-mit --undo <Protokoll> werden genau diese wieder geöffnet.
+mit --undo <Protokoll> --apply werden genau diese wieder geöffnet (ohne --apply nur gezeigt).
 
 ACHTUNG: Die Schreibform done=true ist nicht live erprobt (am 19.11.2026 wurde nur
 gelesen). Erprobt ist PUT /v1/tasks/:id mit broker_id (Migration vom 02.10.2026). Genau
@@ -28,7 +28,7 @@ deshalb die Probe mit einer einzelnen Aufgabe.
 
 Aufruf:   python scripts/pruefaufgaben_aufraeumen.py                 # nur lesen
           python scripts/pruefaufgaben_aufraeumen.py --apply [--limit N] [--nur gegenstandslos|dublette|vollzugsmeldung]
-          python scripts/pruefaufgaben_aufraeumen.py --undo pruefaufgaben_geschlossen_<Zeit>.json
+          python scripts/pruefaufgaben_aufraeumen.py --undo pruefaufgaben_geschlossen_<Zeit>.json --apply
 Umgebung: PROPSTACK_API_KEY oder PROPSTACK_API_V1 (wird nie ausgegeben).
 """
 from __future__ import annotations
@@ -78,13 +78,23 @@ def einheit_abgeschlossen(unit: dict) -> bool:
     )
 
 
+def _je_aufgabe_einmal(aufgaben: list[dict]) -> list[dict]:
+    """Jede Aufgabe nur einmal. Die Liste wird seitenweise gelesen, während Leute arbeiten –
+    eine Zeile kann zweimal kommen und gälte sonst als Dublette ihrer selbst."""
+    gesehen: dict[int, dict] = {}
+    for a in aufgaben:
+        task_id = a.get("activatable_id")
+        if task_id and task_id not in gesehen:
+            gesehen[task_id] = a
+    return list(gesehen.values())
+
+
 def offene_newsletter_aufgaben(aufgaben: list[dict]) -> list[dict]:
     """Nur offene Aufgaben dieser Art, älteste zuerst."""
     eigene = [
-        a for a in aufgaben
+        a for a in _je_aufgabe_einmal(aufgaben)
         if not _scalar(a.get("done"))
         and str(_scalar(a.get("title")) or "").startswith(TITEL_PRAEFIX)
-        and a.get("activatable_id")
     ]
     return sorted(eigene, key=lambda a: str(a.get("original_created_at") or ""))
 
@@ -112,7 +122,7 @@ def plane(aufgaben: list[dict], einheiten: dict[int, dict]) -> list[dict]:
         if all(u in einheiten and einheit_abgeschlossen(einheiten[u]) for u in units):
             plan.append({**eintrag, "grund": GEGENSTANDSLOS, "behalten": None})
             continue
-        if all(u in erste_je_einheit for u in units):
+        if all(u in erste_je_einheit for u in units) and erste_je_einheit[units[0]] != task_id:
             plan.append({**eintrag, "grund": DUBLETTE, "behalten": erste_je_einheit[units[0]]})
             continue
         for u in units:
@@ -123,10 +133,9 @@ def plane(aufgaben: list[dict], einheiten: dict[int, dict]) -> list[dict]:
 def offene_objekte_aufgaben(aufgaben: list[dict]) -> list[dict]:
     """Offene Aufgaben des #objekte-Handlers, älteste zuerst."""
     eigene = [
-        a for a in aufgaben
+        a for a in _je_aufgabe_einmal(aufgaben)
         if not _scalar(a.get("done"))
         and str(_scalar(a.get("title")) or "").startswith(OBJEKTE_PRAEFIXE)
-        and a.get("activatable_id")
     ]
     return sorted(eigene, key=lambda a: str(a.get("original_created_at") or ""))
 
@@ -247,13 +256,28 @@ def _drucke(plan: list[dict]) -> None:
             print(f"  Task {e['task_id']}  {e['angelegt']}  {e['titel']}  (Units {e['units']}){zusatz}")
 
 
-def _undo(ps: Propstack, datei: str) -> int:
+def _undo(ps: Propstack, datei: str, apply: bool) -> int:
+    """Die im Protokoll genannten Aufgaben wieder öffnen – schreibt nur mit --apply,
+    und auch dann erst eine Aufgabe als Probe mit Gegenlesen."""
     protokoll = json.loads(Path(datei).read_text(encoding="utf-8"))
-    for task_id in protokoll["geschlossen"]:
+    task_ids = list(protokoll.get("geschlossen", [])) + list(protokoll.get("unklar", []))
+    if not apply:
+        print(f"Würde {len(task_ids)} Aufgaben wieder öffnen: {task_ids[:10]}{' …' if len(task_ids) > 10 else ''}")
+        print("Nur gelesen. Zum Öffnen: --undo <Protokoll> --apply")
+        return 0
+    if not task_ids:
+        return 0
+    ps.setze_erledigt(task_ids[0], False)
+    time.sleep(1.5)
+    if ps.ist_erledigt(task_ids[0]) is not False:
+        print(f"ABBRUCH: Probe Task {task_ids[0]} erscheint nach dem Schreiben nicht als offen. "
+              "Nur diese eine Aufgabe wurde angefasst.", file=sys.stderr)
+        return 1
+    print(f"Probe ok: Task {task_ids[0]} ist wieder offen.")
+    for task_id in task_ids[1:]:
         ps.setze_erledigt(task_id, False)
-        print(f"wieder geöffnet: Task {task_id}")
         time.sleep(0.4)
-    print(f"{len(protokoll['geschlossen'])} Aufgaben wieder geöffnet.")
+    print(f"{len(task_ids)} Aufgaben wieder geöffnet.")
     return 0
 
 
@@ -271,7 +295,7 @@ def main() -> int:
         return 2
     ps = Propstack(key)
     if args.undo:
-        return _undo(ps, args.undo)
+        return _undo(ps, args.undo, args.apply)
 
     aufgaben = ps.aufgaben()
     alle_offenen = [a for a in aufgaben if not _scalar(a.get("done"))]
@@ -298,9 +322,10 @@ def main() -> int:
 
     protokoll = Path(f"pruefaufgaben_geschlossen_{datetime.now():%Y%m%d-%H%M%S}.json")
     geschlossen: list[int] = []
+    unklar: list[int] = []  # Schreiben gescheitert, Ausgang offen (Timeout, 5xx) – --undo öffnet sie mit
 
     def sichere() -> None:
-        protokoll.write_text(json.dumps({"geschlossen": geschlossen}, indent=1), encoding="utf-8")
+        protokoll.write_text(json.dumps({"geschlossen": geschlossen, "unklar": unklar}, indent=1), encoding="utf-8")
 
     probe = plan[0]
     ps.setze_erledigt(probe["task_id"], True)
@@ -322,6 +347,8 @@ def main() -> int:
             sichere()
         except httpx.HTTPError as e:
             fehler.append((eintrag["task_id"], str(e)))
+            unklar.append(eintrag["task_id"])
+            sichere()
         time.sleep(0.4)
 
     print(f"Geschlossen: {len(geschlossen)} von {len(plan)}. Fehler: {len(fehler)} {fehler[:5]}")

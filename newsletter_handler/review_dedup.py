@@ -18,25 +18,31 @@ class OffeneReviews:
     offenen Aufgaben wiederholten nur eine ältere offene Aufgabe zur selben Einheit.
 
     Der Bestand wird beim ersten Bedarf einmal je Lauf geladen und um die im Lauf
-    neu angelegten Aufgaben ergänzt. Scheitert das Laden, wird wie bisher angelegt:
-    eine doppelte Aufgabe ist weniger schädlich als eine verlorene Meldung.
+    neu angelegten Aufgaben ergänzt. Verglichen wird nur mit Aufgaben der letzten
+    config.REVIEW_DEDUP_TAGE Tage. Scheitert das Laden, wird wie bisher angelegt (eine
+    doppelte Aufgabe ist weniger schädlich als eine verlorene Meldung) – der Lauf
+    meldet es aber als Fehler, statt still wieder Dubletten zu erzeugen.
     """
 
     def __init__(self) -> None:
         self._by_unit: dict[int, int | None] | None = None
         self.laden_fehlgeschlagen = False
+        self.fehler = ""
 
     def _bestand(self) -> dict[int, int | None]:
         if self._by_unit is None:
             try:
                 self._by_unit = dict(
-                    fetch_open_review_units(config.BROKER_REVIEW, config.REVIEW_TITEL_PRAEFIX)
+                    fetch_open_review_units(
+                        config.BROKER_REVIEW, config.REVIEW_TITEL_PRAEFIX, config.REVIEW_DEDUP_TAGE
+                    )
                 )
             except Exception as e:  # bewusst breit: der Schutz darf den Lauf nie stoppen
                 logger.error(
                     "Offene Review-Aufgaben nicht lesbar (%s) – Dublettenschutz für diesen Lauf aus", e
                 )
                 self.laden_fehlgeschlagen = True
+                self.fehler = str(e)
                 self._by_unit = {}
         return self._by_unit
 

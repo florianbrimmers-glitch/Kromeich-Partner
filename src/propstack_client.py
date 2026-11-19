@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import time
 import unicodedata
 from datetime import date
 
@@ -126,15 +127,31 @@ def _api_key_v2() -> str | None:
     return os.environ.get("PROPSTACK_API_V2_CONTACTS")
 
 
+def _get(url: str, *, params: dict, versuche: int = 3) -> httpx.Response:
+    """GET mit Wiederholung bei 429, 5xx und Netzfehlern (lesen ist gefahrlos wiederholbar).
+
+    Seit die Dublettenprüfung vor der KI läuft, folgen die Abfragen dicht aufeinander –
+    ein einzelnes 429 darf nicht „Prüfung fehlgeschlagen, Kontakt übersprungen“ heißen."""
+    letzter: Exception | None = None
+    for versuch in range(versuche):
+        if versuch:
+            time.sleep(2 ** versuch)
+        try:
+            response = httpx.get(url, params=params, timeout=30.0)
+            if response.status_code == 429 or response.status_code >= 500:
+                letzter = httpx.HTTPStatusError(f"HTTP {response.status_code}", request=None, response=response)
+                continue
+            return response
+        except httpx.HTTPError as e:
+            letzter = e
+    raise letzter if letzter else httpx.HTTPError("GET fehlgeschlagen")
+
+
 def check_duplicate(email: str) -> bool | None:
     """Prüft, ob ein Kontakt mit dieser Email bereits existiert.
     Gibt None zurück, wenn die Prüfung fehlschlägt (damit kein Duplikat angelegt wird)."""
     try:
-        response = httpx.get(
-            f"{PROPSTACK_BASE_URL}/contacts",
-            params={"api_key": _api_key(), "email": email},
-            timeout=30.0,
-        )
+        response = _get(f"{PROPSTACK_BASE_URL}/contacts", params={"api_key": _api_key(), "email": email})
         response.raise_for_status()
         data = response.json()
         exists = isinstance(data, list) and len(data) > 0
@@ -150,10 +167,9 @@ def check_duplicate_by_name(first_name: str, last_name: str) -> bool | None:
     """Duplikat-Prüfung über Vor- und Nachname (für Kontakte ohne Email, z.B. Visitenkarten).
     Gibt None zurück, wenn die Prüfung fehlschlägt."""
     try:
-        response = httpx.get(
+        response = _get(
             f"{PROPSTACK_BASE_URL}/contacts",
             params={"api_key": _api_key(), "q": f"{first_name} {last_name}", "per": 25},
-            timeout=30.0,
         )
         response.raise_for_status()
         data = response.json()
@@ -212,10 +228,9 @@ def find_company(company_name: str) -> int | None:
     records: list[dict] = []
     try:
         for term in _company_search_terms(company_name):
-            response = httpx.get(
+            response = _get(
                 f"{PROPSTACK_BASE_URL}/contacts",
                 params={"api_key": _api_key(), "q": term, "per": 50},
-                timeout=30.0,
             )
             response.raise_for_status()
             data = response.json()
@@ -367,6 +382,20 @@ def link_contact_to_company(person_id: int, company_id: int) -> bool:
         return False
 
 
+def _land_fuer_vorwahl(contact: ContactData) -> str:
+    """Welches Land gilt für eine Nummer OHNE Ländervorwahl?
+
+    Der Import kennt das Land nicht aus der Signatur – contact.country ist immer
+    „Deutschland“. Blind +49 zu ergänzen machte aus „0664 1234567“ (Wien) eine deutsche
+    Nummer. Deshalb nur bei einem Beleg: fünfstellige PLZ oder E-Mail-Adresse auf .de.
+    Sonst „unbekannt“ – dann bleibt eine Nummer ohne Ländervorwahl, wie sie ist; die
+    „(0)“ nach einer vorhandenen Ländervorwahl fällt trotzdem weg."""
+    plz = (contact.zip_code or "").strip()
+    if re.fullmatch(r"\d{5}", plz) or (contact.email or "").strip().lower().endswith(".de"):
+        return "Deutschland"
+    return "unbekannt"
+
+
 def _clean_phone(number: str, country: str | None) -> str:
     clean = format_phone(number, country) or number
     if clean != number:
@@ -392,12 +421,13 @@ def create_contact(
     # Nummern einheitlich und wählbar schreiben – dieselbe Regel wie im Connector
     # (src/phone.py): keine 0 nach der Ländervorwahl, "00" -> "+", ohne Vorwahl +49
     # bzw. die des Landes. Aus Signaturen kommt oft "+49 (0) 151 …".
+    land = _land_fuer_vorwahl(contact)
     if contact.phone:
-        client_data["office_phone"] = _clean_phone(contact.phone, contact.country)
+        client_data["office_phone"] = _clean_phone(contact.phone, land)
     # Mobilnummern gehören in office_cell – ein Feld "mobile" kennt die
     # Propstack-API nicht, sie verwirft es ohne Fehlermeldung (HTTP 200).
     if contact.mobile:
-        client_data["office_cell"] = _clean_phone(contact.mobile, contact.country)
+        client_data["office_cell"] = _clean_phone(contact.mobile, land)
     if contact.company:
         client_data["company"] = contact.company
     if contact.position:

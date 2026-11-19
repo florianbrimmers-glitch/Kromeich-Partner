@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
+from datetime import datetime, timedelta, timezone
 
 import httpx
 from pydantic import BaseModel
@@ -46,9 +47,10 @@ def _request(method: str, path: str, *, key: str, params: dict | None = None, js
                 json=json,
                 timeout=30.0,
             )
-            # Schreibende Aufrufe nach 5xx nicht wiederholen: Kam der erste Versuch doch
-            # an, entstünde die Aufgabe bzw. Absage doppelt. 429 ist sicher (nichts geschrieben).
-            if response.status_code >= 500 and method != "GET":
+            # Ein POST wird nach 5xx nicht wiederholt: Kam der erste Versuch doch an,
+            # entstünde die Aufgabe bzw. Absage doppelt. 429 ist sicher (nichts geschrieben),
+            # GET und PUT sind es ohnehin (ein zweites rented=true ändert nichts).
+            if response.status_code >= 500 and method == "POST":
                 logger.error("Propstack %s %s: HTTP %s – Status unklar, kein zweiter Versuch", method, path, response.status_code)
                 response.raise_for_status()
             if response.status_code == 429 or response.status_code >= 500:
@@ -70,8 +72,8 @@ def _request(method: str, path: str, *, key: str, params: dict | None = None, js
         except httpx.HTTPStatusError:
             raise
         except httpx.HTTPError as e:
-            if method != "GET":
-                # Timeout/Abbruch beim Schreiben: ob Propstack es übernommen hat, ist offen
+            if method == "POST":
+                # Timeout/Abbruch beim Anlegen: ob Propstack es übernommen hat, ist offen
                 logger.error("Propstack %s %s: %s – Status unklar, kein zweiter Versuch", method, path, e)
                 raise
             logger.warning("Propstack %s %s: %s (Versuch %d/%d)", method, path, e, attempt + 1, MAX_ATTEMPTS)
@@ -178,6 +180,15 @@ def get_open_deals(property_id: int) -> list[dict]:
     return open_deals
 
 
+def _zeitpunkt(text: str):
+    """ISO-Zeitstempel aus Propstack als datetime mit Zeitzone; None, wenn nicht lesbar."""
+    try:
+        wert = datetime.fromisoformat(text)
+    except (TypeError, ValueError):
+        return None
+    return wert if wert.tzinfo else wert.replace(tzinfo=timezone.utc)
+
+
 def fetch_vermietungs_pipelines() -> set[int]:
     """GET /deal_pipelines – IDs der Pipelines, deren Deals bei einer Vermietung
     abgesagt werden dürfen (Name beginnt mit config.VERMIETUNGS_PIPELINE_PRAEFIX)."""
@@ -201,7 +212,10 @@ def absage_hindernis(deal: dict, vermietungs_pipelines: set[int] | None) -> str 
       genau verkehrt. (19.11.2026: zwei Deals in „Abgeschlossen Vermietung“.)
     - Deal in einer anderen als einer Vermietungs-Pipeline: Verkaufsprozess läuft weiter.
     - Pipelines nicht lesbar (None): dann nur Deals ohne Pipeline absagen.
-    """
+
+    Die Zeilen aus GET /v1/client_properties tragen deal_stage_chance und
+    deal_pipeline_id (geprüft am 19.11.2026 an allen 1.932 Deals: Werte 0.0–1.0 bzw.
+    leer bei Deals ohne Pipeline)."""
     chance = deal.get("deal_stage_chance")
     if isinstance(chance, (int, float)) and chance >= 1:
         return "Abschluss-Phase"
@@ -215,14 +229,19 @@ def absage_hindernis(deal: dict, vermietungs_pipelines: set[int] | None) -> str 
     return None
 
 
-def fetch_open_review_units(broker_id: int, titel_praefix: str) -> dict[int, int]:
+def fetch_open_review_units(broker_id: int, titel_praefix: str, max_alter_tage: int | None = None) -> dict[int, int]:
     """Einheiten, zu denen beim Review-Sitz schon eine offene Review-Aufgabe liegt.
 
     GET /activities?item_type=reminder&broker_id=… – jede Zeile trägt title, done und
     property_ids (geprüft am 19.11.2026; rund 560 Aufgaben = 3 Seiten à 200).
     activatable_id ist die Task-ID, id die der Aktivität. Rückgabe: Unit-ID → Task-ID
-    der ältesten offenen Aufgabe. Fehler werden geworfen – der Aufrufer entscheidet,
-    wie er ohne diese Liste weitermacht."""
+    der ältesten offenen Aufgabe. Mit max_alter_tage zählen nur Aufgaben, die höchstens
+    so alt sind. Fehler werden geworfen – der Aufrufer entscheidet, wie er ohne diese
+    Liste weitermacht."""
+    ab = (
+        (datetime.now(timezone.utc) - timedelta(days=max_alter_tage)).isoformat()
+        if max_alter_tage else None
+    )
     per_page = 200
     aelteste: dict[int, tuple[str, int]] = {}  # Unit-ID -> (angelegt, Task-ID)
     page = 1
@@ -246,6 +265,8 @@ def fetch_open_review_units(broker_id: int, titel_praefix: str) -> dict[int, int
                 continue
             task_id = row.get("activatable_id") or row.get("id")
             angelegt = str(row.get("original_created_at") or "")
+            if ab and _zeitpunkt(angelegt) and _zeitpunkt(angelegt) < _zeitpunkt(ab):
+                continue  # zu alt, um eine neue Meldung zu unterdrücken
             for unit_id in row.get("property_ids") or []:
                 if not isinstance(unit_id, int):
                     continue

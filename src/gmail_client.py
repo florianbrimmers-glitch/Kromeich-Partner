@@ -166,6 +166,9 @@ def _fetch_emails_for_account(
     days = max(1, math.ceil(hours / 24))
     query = f"newer_than:{days}d -in:sent"
 
+    # Die Obergrenze wächst mit dem Fenster (Nachhol-Lauf über 168 h): Gmail liefert die
+    # neuesten zuerst – mit fester Grenze fielen genau die alten Mails weg, um die es geht.
+    limit = max(limit, 150 * days)
     message_ids, abgeschnitten = _list_message_ids(service, query, limit)
     if not message_ids:
         logger.info("[%s] No emails found in the last %d hours", account_label, hours)
@@ -187,6 +190,10 @@ def _fetch_emails_for_account(
                 .execute()
             )
         except Exception as e:
+            if getattr(getattr(e, "resp", None), "status", None) == 404:
+                # Zwischen Liste und Abruf verschwunden (gelöscht, Entwurf gesendet) – kein Fehler
+                logger.info("[%s] Mail %s gibt es nicht mehr – übersprungen", account_label, message_id)
+                continue
             nicht_lesbar += 1
             logger.warning("[%s] Mail %s nicht lesbar: %s", account_label, message_id, e)
             continue
