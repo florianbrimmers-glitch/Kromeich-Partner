@@ -8,6 +8,8 @@ from datetime import datetime, timedelta, timezone
 
 import httpx
 
+from . import problems
+
 logger = logging.getLogger(__name__)
 
 SLACK_API_URL = "https://slack.com/api"
@@ -56,7 +58,9 @@ def fetch_recent_messages(hours: int = 24, latest_hours: int = 0) -> list[dict]:
             )
             data = response.json()
             if not data.get("ok"):
-                logger.error("Slack conversations.history error: %s", data.get("error"))
+                # z. B. not_in_channel oder ratelimited: sonst sähe ein Lauf ohne
+                # gelesene Nachrichten aus wie ein ruhiger Tag
+                problems.melde("Slack #visitenkarten nicht lesbar", str(data.get("error")))
                 break
 
             for msg in data.get("messages", []):
@@ -69,8 +73,8 @@ def fetch_recent_messages(hours: int = 24, latest_hours: int = 0) -> list[dict]:
                 time.sleep(1)
             else:
                 break
-        except httpx.HTTPError as e:
-            logger.error("Slack API error: %s", e)
+        except (httpx.HTTPError, ValueError) as e:
+            problems.melde("Slack #visitenkarten nicht lesbar", type(e).__name__)
             break
 
     # Skip messages from our own bot (KI-Scan summaries)
@@ -84,9 +88,9 @@ def _is_bot_summary(msg: dict) -> bool:
     return "KI-Scan" in text and "Neue Kontakte" in text
 
 
-def get_message_images(msg: dict) -> list[bytes]:
-    """Lädt Bilder aus einer Slack-Nachricht herunter."""
-    images: list[bytes] = []
+def get_message_images(msg: dict) -> list[tuple[bytes, str]]:
+    """Lädt Bilder aus einer Slack-Nachricht herunter: je Bild (Inhalt, Mimetype)."""
+    images: list[tuple[bytes, str]] = []
     files = msg.get("files", [])
 
     for f in files:
@@ -106,12 +110,12 @@ def get_message_images(msg: dict) -> list[bytes]:
                 follow_redirects=True,
             )
             if response.status_code == 200:
-                images.append(response.content)
+                images.append((response.content, mimetype))
                 logger.info("Image downloaded: %s (%d bytes)", f.get("name", "unknown"), len(response.content))
             else:
-                logger.warning("Failed to download image %s: HTTP %s", f.get("name"), response.status_code)
+                problems.melde("Visitenkarte nicht ladbar", f"HTTP {response.status_code}")
         except httpx.HTTPError as e:
-            logger.error("Image download failed: %s", e)
+            problems.melde("Visitenkarte nicht ladbar", type(e).__name__)
 
     return images
 

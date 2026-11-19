@@ -113,4 +113,9 @@ Secret: `SLACK_BOT_TOKEN`
 3. Prüfen Sie den Slack-Channel `#visitenkarten` auf die Zusammenfassung
 
 ### Automatischer Lauf
-Der Workflow läuft automatisch **Montag bis Freitag um 8:00 Uhr CET** (6:00 UTC).
+Der Workflow läuft automatisch **täglich** (Cron 01:00 UTC; GitHub startet ihn in diesem Konto
+erfahrungsgemäß erst zwischen 05:00 und 08:30 UTC) und liest jeweils die letzten 48 Stunden. Jeder Tag wird
+so zweimal gesehen; die Dublettenprüfung sorgt dafür, dass niemand doppelt angelegt wird.
+
+Ein Lauf ist **rot**, sobald etwas schiefging (Postfach nicht lesbar, Apollo oder Claude nicht erreichbar,
+Firma nicht verknüpft …). Dieselben Probleme stehen in der Slack-Zusammenfassung in `#visitenkarten`.

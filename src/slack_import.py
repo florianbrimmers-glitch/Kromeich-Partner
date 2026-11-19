@@ -28,6 +28,7 @@ from .propstack_client import (
     link_contact_to_company,
 )
 from .slack_client import send_summary
+from . import problems
 
 logging.basicConfig(
     level=logging.INFO,
@@ -42,15 +43,18 @@ GROUP_LABEL_MAP: dict[str, str] = {v: k.value for k, v in GROUP_ID_MAP.items()}
 
 
 def run_pipeline() -> PipelineReport:
+    problems.leeren()
     report = PipelineReport(run_date=date.today().isoformat())
     processed_emails: set[str] = set()
-    company_cache: dict[str, int | None] = {}
+    company_cache: dict[str, int] = {}
 
     if DRY_RUN:
         logger.info("=== DRY RUN MODE – keine Kontakte werden angelegt ===")
 
-    scan_hours = int(os.environ.get("SCAN_HOURS", "24"))
-    scan_latest_hours = int(os.environ.get("SCAN_LATEST_HOURS", "0"))
+    # 48 h bei täglichem Lauf: Jede Karte wird zweimal gesehen, ein verspäteter oder
+    # ausgefallener Lauf reißt keine Lücke. Die Dublettenprüfung macht das folgenlos.
+    scan_hours = int(os.environ.get("SCAN_HOURS") or "48")
+    scan_latest_hours = int(os.environ.get("SCAN_LATEST_HOURS") or "0")
     if scan_latest_hours:
         logger.info("Step 1: Reading #visitenkarten (Fenster: %dh bis %dh zurück)...", scan_hours, scan_latest_hours)
     else:
@@ -68,9 +72,13 @@ def run_pipeline() -> PipelineReport:
             contacts: list = []
 
             if has_images(msg):
-                images = get_message_images(msg)
-                for img_data in images:
-                    contact = extract_contact_from_image(img_data)
+                for image_data, media_type in get_message_images(msg):
+                    # Ein Bild, das scheitert, darf die übrigen Bilder der Nachricht nicht kosten
+                    try:
+                        contact = extract_contact_from_image(image_data, media_type)
+                    except Exception as e:
+                        problems.melde("Visitenkarte nicht auswertbar", f"{type(e).__name__}: {str(e)[:100]}")
+                        contact = None
                     time.sleep(3)
                     if contact:
                         contacts.append(contact)
@@ -97,9 +105,36 @@ def run_pipeline() -> PipelineReport:
                     logger.info("Session duplicate: %s", dedup_key)
                     report.contacts_skipped_session_duplicate += 1
                     continue
-                processed_emails.add(dedup_key)
 
                 name = f"{contact.first_name} {contact.last_name}".strip()
+
+                # Propstack duplicate check (ohne Email: über Vor-/Nachname) – VOR Apollo
+                # und Kategorisierung: Für einen längst bekannten Kontakt lohnt beides nicht.
+                if contact.email:
+                    is_duplicate = check_duplicate(contact.email)
+                else:
+                    is_duplicate = check_duplicate_by_name(contact.first_name, contact.last_name)
+                if is_duplicate is None:
+                    # Prüfung fehlgeschlagen – nicht anlegen, sonst drohen Dubletten
+                    report.errors.append(ContactResult(
+                        email=contact.email or name,
+                        name=name,
+                        status=ContactStatus.ERROR,
+                        error="Propstack-Duplikat-Prüfung fehlgeschlagen – Kontakt übersprungen",
+                    ))
+                    logger.warning("Duplikat-Prüfung fehlgeschlagen, überspringe %s", name)
+                    continue
+                if is_duplicate:
+                    processed_emails.add(dedup_key)
+                    result = ContactResult(
+                        email=contact.email,
+                        name=name,
+                        company=contact.company,
+                        status=ContactStatus.SKIPPED_DUPLICATE,
+                    )
+                    report.contacts_skipped_duplicate.append(result)
+                    logger.info("Übersprungen (existiert bereits): %s", contact.email or name)
+                    continue
 
                 # Apollo enrichment
                 apollo_enriched = False
@@ -118,39 +153,11 @@ def run_pipeline() -> PipelineReport:
                 group_labels = [GROUP_LABEL_MAP.get(gid, str(gid)) for gid in group_ids]
                 time.sleep(3)
 
-                # Propstack duplicate check (ohne Email: über Vor-/Nachname)
-                if contact.email:
-                    is_duplicate = check_duplicate(contact.email)
-                else:
-                    is_duplicate = check_duplicate_by_name(contact.first_name, contact.last_name)
-                if is_duplicate is None:
-                    # Prüfung fehlgeschlagen – nicht anlegen, sonst drohen Dubletten
-                    report.errors.append(ContactResult(
-                        email=contact.email or name,
-                        name=name,
-                        status=ContactStatus.ERROR,
-                        error="Propstack-Duplikat-Prüfung fehlgeschlagen – Kontakt übersprungen",
-                    ))
-                    logger.warning("Duplikat-Prüfung fehlgeschlagen, überspringe %s", name)
-                    continue
-                if is_duplicate:
-                    result = ContactResult(
-                        email=contact.email,
-                        name=name,
-                        company=contact.company,
-                        status=ContactStatus.SKIPPED_DUPLICATE,
-                        group_ids=group_ids,
-                        group_labels=group_labels,
-                    )
-                    report.contacts_skipped_duplicate.append(result)
-                    logger.info("Übersprungen (existiert bereits): %s", contact.email or name)
-                    continue
-
                 # Create contact
                 if DRY_RUN:
                     logger.info("[DRY RUN] Would create: %s (%s) groups=%s", name, contact.email, group_labels)
                 else:
-                    propstack_result = create_contact(contact, group_ids if group_ids else None)
+                    propstack_result = create_contact(contact, group_ids if group_ids else None, quelle="Visitenkarte")
                     if not propstack_result:
                         report.errors.append(ContactResult(
                             email=contact.email or name,
@@ -163,12 +170,19 @@ def run_pipeline() -> PipelineReport:
                     person_id = propstack_result.get("id")
                     if person_id and contact.company:
                         cache_key = contact.company.strip().lower()
-                        if cache_key not in company_cache:
-                            company_cache[cache_key] = find_or_create_company(contact)
-                        company_id = company_cache[cache_key]
+                        company_id = company_cache.get(cache_key)
+                        if company_id is None:
+                            # Scheitert die Firma, steht es unter den Problemen des Laufs.
+                            company_id = find_or_create_company(contact)
+                            if company_id:
+                                company_cache[cache_key] = company_id
                         if company_id:
                             link_contact_to_company(person_id, company_id)
                         time.sleep(0.5)
+
+                # Erst nach Anlage als verarbeitet merken: Scheitert sie, darf dieselbe
+                # Karte aus einer zweiten Nachricht es noch einmal versuchen.
+                processed_emails.add(dedup_key)
 
                 result = ContactResult(
                     email=contact.email or "",
@@ -181,7 +195,10 @@ def run_pipeline() -> PipelineReport:
                     enriched_fields=enriched_fields,
                 )
                 report.contacts_created.append(result)
-                logger.info("Kontakt angelegt: %s – %s", name, group_labels)
+                if DRY_RUN:
+                    logger.info("[DRY RUN] Nicht angelegt: %s – %s", name, group_labels)
+                else:
+                    logger.info("Kontakt angelegt: %s – %s", name, group_labels)
                 time.sleep(3)
 
         except Exception as e:
@@ -189,13 +206,17 @@ def run_pipeline() -> PipelineReport:
             report.errors.append(ContactResult(
                 email=msg_preview,
                 status=ContactStatus.ERROR,
-                error=str(e),
+                error=f"{type(e).__name__}: {str(e)[:200]}",
             ))
+
+    # Was unterwegs schiefging (Slack, Apollo, Bilder, Firmen …), gehört in den Report
+    for zeile in problems.zusammenfassung():
+        report.errors.append(ContactResult(email="Lauf", status=ContactStatus.ERROR, error=zeile))
 
     if not DRY_RUN:
         logger.info("Sending Slack notification...")
         try:
-            send_summary(report)
+            send_summary(report, quelle="Visitenkarte")
         except Exception as e:
             logger.error("Slack notification failed: %s", e)
 
@@ -210,7 +231,7 @@ def _print_summary(report: PipelineReport) -> None:
     logger.info("Nachrichten verarbeitet: %d", report.emails_searched)
     logger.info("Übersprungen (kein Kontakt): %d", report.contacts_skipped_no_email)
     logger.info("Übersprungen (Duplikat): %d", len(report.contacts_skipped_duplicate))
-    logger.info("Neu angelegt: %d", len(report.contacts_created))
+    logger.info("%s: %d", "Würde anlegen (DRY RUN)" if DRY_RUN else "Neu angelegt", len(report.contacts_created))
     for cr in report.contacts_created:
         fields_info = f" [Apollo: {', '.join(cr.enriched_fields)}]" if cr.apollo_enriched else ""
         logger.info("  + %s (%s) – %s%s", cr.name, cr.email or "keine Email", ", ".join(cr.group_labels) if cr.group_labels else "Kein Merkmal", fields_info)
@@ -222,4 +243,5 @@ def _print_summary(report: PipelineReport) -> None:
 
 
 if __name__ == "__main__":
-    run_pipeline()
+    # Rot, wenn etwas schiefging: Ein grüner Lauf mit Fehlern fällt niemandem auf.
+    sys.exit(1 if run_pipeline().errors else 0)

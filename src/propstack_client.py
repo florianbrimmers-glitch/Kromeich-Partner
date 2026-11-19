@@ -8,6 +8,7 @@ from datetime import date
 
 import httpx
 
+from . import problems
 from .models import ContactData
 from .phone import format_phone
 
@@ -189,8 +190,16 @@ def _is_short_form_of(company_name: str, record: dict) -> bool:
     return not _has_legal_form(shorter)
 
 
+class CompanyLookupError(Exception):
+    """Die Firmensuche ist gescheitert – ob es die Firma gibt, ist unbekannt."""
+
+
 def find_company(company_name: str) -> int | None:
     """Sucht einen bestehenden Firmen-Datensatz (is_company=true) anhand des Namens.
+
+    None heißt: gesucht und nicht gefunden. Scheitert die Suche selbst (Timeout, 429,
+    5xx), wird CompanyLookupError geworfen – früher galt die Firma dann als „nicht
+    gefunden“ und wurde neu angelegt, auch wenn es sie längst gab.
 
     Dieselbe Firma wird auch mit anderer Rechtsform oder Schreibweise wiedererkannt
     und verwendet.
@@ -213,9 +222,7 @@ def find_company(company_name: str) -> int | None:
             if isinstance(data, list):
                 records.extend(data)
     except (httpx.HTTPError, ValueError) as e:
-        # Unverändert zu vorher: Bei einem Suchfehler gilt die Firma als nicht gefunden.
-        logger.error("Propstack company search failed for '%s': %s", company_name, e)
-        return None
+        raise CompanyLookupError(f"Firmensuche für '{company_name}' fehlgeschlagen: {e}") from e
 
     exact, same, similar = _match_companies(company_name, records)
     for label, hits in (("gleicher Name", exact), ("gleicher Name, andere Rechtsform/Schreibweise", same)):
@@ -253,6 +260,7 @@ def create_company(contact: ContactData) -> int | None:
         client_data["office_country"] = contact.country
     client_data["description"] = f"KI-Scan (GitHub Actions) vom {date.today().isoformat()} – Firma automatisch angelegt"
 
+    company_id: int | None = None
     try:
         response = httpx.post(
             f"{PROPSTACK_BASE_URL}/contacts",
@@ -264,6 +272,7 @@ def create_company(contact: ContactData) -> int | None:
         response.raise_for_status()
         company_id = response.json().get("id")
         if not company_id:
+            problems.melde("Firma nicht angelegt", f"{contact.company}: Propstack lieferte keine ID")
             return None
 
         v2_key = _api_key_v2()
@@ -279,21 +288,36 @@ def create_company(contact: ContactData) -> int | None:
             if v2_resp.status_code == 200:
                 logger.info("Firma angelegt: %s (id=%s, commercial=true)", contact.company, company_id)
             else:
-                logger.warning("Firma angelegt aber commercial nicht gesetzt: %s (%s)", contact.company, v2_resp.status_code)
+                # Der Datensatz steht jetzt mit last_name=Firma und ohne Firmen-Kennzeichen
+                # in Propstack. find_company() findet ihn nie wieder – ohne Nacharbeit
+                # entsteht bei jedem weiteren Kontakt dieser Firma eine Dublette.
+                problems.melde(
+                    "Firma angelegt, aber nicht als Firma gekennzeichnet – bitte in Propstack nachziehen",
+                    f"{contact.company} (id {company_id}, HTTP {v2_resp.status_code})",
+                )
         else:
-            logger.warning("Firma angelegt ohne commercial (V2-Key fehlt): %s", contact.company)
+            problems.melde(
+                "Firma angelegt, aber nicht als Firma gekennzeichnet – bitte in Propstack nachziehen",
+                f"{contact.company} (id {company_id}, zweiter Propstack-Schlüssel fehlt)",
+            )
 
         return company_id
     except (httpx.HTTPError, ValueError) as e:
-        logger.error("Propstack create company failed for '%s': %s", contact.company, e)
-        return None
+        zusatz = f" – Datensatz {company_id} ist angelegt, aber nicht als Firma gekennzeichnet" if company_id else ""
+        problems.melde("Firma nicht angelegt", f"{contact.company}: {type(e).__name__}{zusatz}")
+        return company_id
 
 
 def find_or_create_company(contact: ContactData) -> int | None:
     """Sucht die Firma oder legt sie neu an. Gibt die Firmen-ID zurück."""
     if not contact.company:
         return None
-    company_id = find_company(contact.company)
+    try:
+        company_id = find_company(contact.company)
+    except CompanyLookupError as e:
+        # Nicht anlegen: Ohne Suchergebnis wäre das womöglich eine Dublette.
+        problems.melde("Firma nicht verknüpft – Firmensuche fehlgeschlagen", str(e)[:120])
+        return None
     if company_id:
         return company_id
     return create_company(contact)
@@ -311,7 +335,7 @@ def link_contact_to_company(person_id: int, company_id: int) -> bool:
     13.11.2026). Nicht wieder umdrehen, ohne in der Oberfläche nachzusehen."""
     v2_key = _api_key_v2()
     if not v2_key:
-        logger.warning("PROPSTACK_API_V2_CONTACTS not set, skipping company linking")
+        problems.melde("Kontakt angelegt, Firma nicht verknüpft", "zweiter Propstack-Schlüssel (PROPSTACK_API_V2_CONTACTS) fehlt")
         return False
     try:
         response = httpx.post(
@@ -328,15 +352,18 @@ def link_contact_to_company(person_id: int, company_id: int) -> bool:
         if response.status_code in (200, 201, 204):
             logger.info("Person %s mit Firma %s verknüpft (Mitarbeiter)", person_id, company_id)
             return True
-        if response.status_code == 422:
-            logger.info("Person %s bereits mit Firma %s verknüpft", person_id, company_id)
-            return True
-        logger.error(
-            "Verknüpfung fehlgeschlagen (%s): %s", response.status_code, response.text
+        # 422 heißt bei Propstack oft „gibt es schon“ – aber nicht immer. Dieser Import
+        # verknüpft nur eben angelegte Personen; „schon verknüpft“ kann hier nicht stimmen.
+        problems.melde(
+            "Kontakt angelegt, Firma nicht verknüpft",
+            f"Person {person_id} -> Firma {company_id}: HTTP {response.status_code}",
         )
         return False
     except httpx.HTTPError as e:
-        logger.error("Verknüpfung Person %s -> Firma %s fehlgeschlagen: %s", person_id, company_id, e)
+        problems.melde(
+            "Kontakt angelegt, Firma nicht verknüpft",
+            f"Person {person_id} -> Firma {company_id}: {type(e).__name__}",
+        )
         return False
 
 
@@ -350,6 +377,7 @@ def _clean_phone(number: str, country: str | None) -> str:
 def create_contact(
     contact: ContactData,
     group_ids: list[str] | None = None,
+    quelle: str = "Email-Signatur",
 ) -> dict | None:
     client_data: dict = {}
 
@@ -393,7 +421,7 @@ def create_contact(
     if group_ids:
         client_data["mailchimp_interest_ids"] = group_ids
 
-    client_data["description"] = f"KI-Scan (GitHub Actions) vom {date.today().isoformat()} aus Email-Signatur"
+    client_data["description"] = f"KI-Scan (GitHub Actions) vom {date.today().isoformat()} aus {quelle}"
 
     payload = {"client": client_data}
 

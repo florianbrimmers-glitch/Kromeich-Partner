@@ -5,6 +5,7 @@ import os
 import sys
 import time
 from datetime import date
+from email.utils import parseaddr
 
 from .models import (
     ContactResult,
@@ -18,6 +19,7 @@ from .contact_extractor import extract_contact, categorize_contact
 from .apollo_client import enrich_contact, apply_enrichment
 from .propstack_client import check_duplicate, create_contact, find_or_create_company, link_contact_to_company
 from .slack_client import send_summary
+from . import problems
 
 logging.basicConfig(
     level=logging.INFO,
@@ -31,21 +33,68 @@ DRY_RUN = os.environ.get("DRY_RUN", "").lower() in ("true", "1", "yes")
 GROUP_LABEL_MAP: dict[str, str] = {v: k.value for k, v in GROUP_ID_MAP.items()}
 
 
+def scan_hours() -> int:
+    """Wie weit zurück gelesen wird. 48 h bei täglichem Lauf: Jeder Tag wird zweimal
+    gesehen, ein verspäteter oder ausgefallener Lauf reißt keine Lücke. Die
+    Dublettenprüfung macht das Wiedersehen folgenlos."""
+    return int(os.environ.get("SCAN_HOURS") or "48")
+
+
+def _absender_name(email_data) -> str:
+    name, _ = parseaddr(email_data.sender or "")
+    return name.strip() or email_data.sender_email
+
+
 def run_pipeline() -> PipelineReport:
+    problems.leeren()
     report = PipelineReport(run_date=date.today().isoformat())
     processed_emails: set[str] = set()
-    company_cache: dict[str, int | None] = {}
+    bekannt: dict[str, bool | None] = {}  # Propstack-Prüfung je Adresse, einmal je Lauf
+    company_cache: dict[str, int] = {}
+
+    def in_propstack(adresse: str) -> bool | None:
+        if adresse not in bekannt:
+            bekannt[adresse] = check_duplicate(adresse)
+        return bekannt[adresse]
+
+    def pruefe(adresse: str, name: str) -> bool:
+        """True = neu, weiter verarbeiten. Sonst ist der Fall im Report vermerkt."""
+        if adresse in processed_emails:
+            logger.info("Session duplicate: %s", adresse)
+            report.contacts_skipped_session_duplicate += 1
+            return False
+        vorhanden = in_propstack(adresse)
+        if vorhanden is None:
+            # Prüfung fehlgeschlagen – nicht anlegen, sonst drohen Dubletten
+            report.errors.append(
+                ContactResult(
+                    email=adresse,
+                    name=name,
+                    status=ContactStatus.ERROR,
+                    error="Propstack-Duplikat-Prüfung fehlgeschlagen – Kontakt übersprungen",
+                )
+            )
+            logger.warning("Duplikat-Prüfung fehlgeschlagen, überspringe %s", adresse)
+            return False
+        if vorhanden:
+            processed_emails.add(adresse)
+            report.contacts_skipped_duplicate.append(
+                ContactResult(email=adresse, name=name, status=ContactStatus.SKIPPED_DUPLICATE)
+            )
+            logger.info("Übersprungen (existiert bereits in Propstack): %s", adresse)
+            return False
+        return True
 
     if DRY_RUN:
         logger.info("=== DRY RUN MODE – keine Kontakte werden angelegt ===")
 
     # Step 1: Search emails
-    logger.info("Step 1: Searching Gmail for recent emails...")
+    logger.info("Step 1: Searching Gmail for recent emails (last %dh)...", scan_hours())
     try:
-        emails = search_recent_emails(hours=24, limit=50)
+        emails = search_recent_emails(hours=scan_hours())
     except Exception as e:
-        logger.error("Failed to search emails: %s", e)
-        return report
+        problems.melde("Gmail-Suche fehlgeschlagen", str(e)[:120])
+        emails = []
 
     report.emails_searched = len(emails)
     logger.info("Found %d emails after initial filtering", len(emails))
@@ -55,6 +104,12 @@ def run_pipeline() -> PipelineReport:
         logger.info("--- Processing email %d/%d: %s ---", i, len(emails), email_data.sender_email)
 
         try:
+            # Step 2: Ist der Absender schon in Propstack? Dann ohne einen KI-Aufruf weiter.
+            # Am 19.11.2026 waren 18 von 19 erkannten Kontakten längst vorhanden – jeder
+            # lief vorher durch Extraktion, Apollo und Kategorisierung mit Websuche.
+            if not pruefe(email_data.sender_email, _absender_name(email_data)):
+                continue
+
             # Step 3: Extract contact from signature
             contact = extract_contact(email_data)
             time.sleep(3)
@@ -73,16 +128,13 @@ def run_pipeline() -> PipelineReport:
                 report.contacts_skipped_no_email += 1
                 continue
 
-            # Step 6: Session deduplication
-            if contact.email in processed_emails:
-                logger.info("Session duplicate: %s", contact.email)
-                report.contacts_skipped_session_duplicate += 1
-                continue
-            processed_emails.add(contact.email)
-
             name = f"{contact.first_name or ''} {contact.last_name or ''}".strip() or contact.email
 
-            # Step 4: Apollo enrichment if fields are missing
+            # Step 4: Die Signatur nennt eine andere Adresse als der Absender – auch die prüfen
+            if contact.email != email_data.sender_email and not pruefe(contact.email, name):
+                continue
+
+            # Step 5: Apollo enrichment if fields are missing
             apollo_enriched = False
             enriched_fields: list[str] = []
             if contact.has_missing_fields():
@@ -95,39 +147,12 @@ def run_pipeline() -> PipelineReport:
                     logger.info("Apollo enriched %s: %s", contact.email, enriched_fields)
                 time.sleep(3)
 
-            # Step 5: Categorize contact
+            # Step 6: Categorize contact
             group_ids = categorize_contact(contact, email_data.subject, email_data.body[:2000])
             group_labels = [GROUP_LABEL_MAP.get(gid, str(gid)) for gid in group_ids]
             time.sleep(3)
 
-            # Step 7: Propstack duplicate check
-            is_duplicate = check_duplicate(contact.email)
-            if is_duplicate is None:
-                # Prüfung fehlgeschlagen – nicht anlegen, sonst drohen Dubletten
-                report.errors.append(
-                    ContactResult(
-                        email=contact.email,
-                        name=name,
-                        status=ContactStatus.ERROR,
-                        error="Propstack-Duplikat-Prüfung fehlgeschlagen – Kontakt übersprungen",
-                    )
-                )
-                logger.warning("Duplikat-Prüfung fehlgeschlagen, überspringe %s", contact.email)
-                continue
-            if is_duplicate:
-                result = ContactResult(
-                    email=contact.email,
-                    name=name,
-                    company=contact.company,
-                    status=ContactStatus.SKIPPED_DUPLICATE,
-                    group_ids=group_ids,
-                    group_labels=group_labels,
-                )
-                report.contacts_skipped_duplicate.append(result)
-                logger.info("Übersprungen (existiert bereits in Propstack): %s", contact.email)
-                continue
-
-            # Step 8: Person anlegen und (falls Firma existiert) als Mitarbeiter verknüpfen
+            # Step 7: Person anlegen und mit dem Firmen-Datensatz verknüpfen
             if DRY_RUN:
                 company_info = f" | Firma: {contact.company}" if contact.company else ""
                 logger.info(
@@ -149,12 +174,21 @@ def run_pipeline() -> PipelineReport:
                 person_id = propstack_result.get("id")
                 if person_id and contact.company:
                     cache_key = contact.company.strip().lower()
-                    if cache_key not in company_cache:
-                        company_cache[cache_key] = find_or_create_company(contact)
-                    company_id = company_cache[cache_key]
+                    company_id = company_cache.get(cache_key)
+                    if company_id is None:
+                        # Scheitert die Firma, steht es unter den Problemen des Laufs.
+                        # None wird nicht gemerkt: der nächste Kontakt versucht es neu.
+                        company_id = find_or_create_company(contact)
+                        if company_id:
+                            company_cache[cache_key] = company_id
                     if company_id:
                         link_contact_to_company(person_id, company_id)
                     time.sleep(0.5)
+
+            # Erst jetzt gilt die Adresse als verarbeitet: Scheitert die Anlage, darf
+            # eine zweite Mail desselben Absenders es noch einmal versuchen.
+            processed_emails.update({contact.email, email_data.sender_email})
+            bekannt[contact.email] = bekannt[email_data.sender_email] = True
 
             result = ContactResult(
                 email=contact.email,
@@ -167,7 +201,10 @@ def run_pipeline() -> PipelineReport:
                 enriched_fields=enriched_fields,
             )
             report.contacts_created.append(result)
-            logger.info("Kontakt angelegt: %s (%s) – Merkmale: %s", name, contact.email, group_labels)
+            if DRY_RUN:
+                logger.info("[DRY RUN] Nicht angelegt: %s (%s) – Merkmale: %s", name, contact.email, group_labels)
+            else:
+                logger.info("Kontakt angelegt: %s (%s) – Merkmale: %s", name, contact.email, group_labels)
 
             time.sleep(3)
 
@@ -177,9 +214,13 @@ def run_pipeline() -> PipelineReport:
                 ContactResult(
                     email=email_data.sender_email,
                     status=ContactStatus.ERROR,
-                    error=str(e),
+                    error=f"{type(e).__name__}: {str(e)[:200]}",
                 )
             )
+
+    # Was unterwegs schiefging (Apollo, Postfächer, Firmen …), gehört in den Report
+    for zeile in problems.zusammenfassung():
+        report.errors.append(ContactResult(email="Lauf", status=ContactStatus.ERROR, error=zeile))
 
     # Step 9: Slack notification
     if not DRY_RUN:
@@ -206,7 +247,7 @@ def _print_summary(report: PipelineReport) -> None:
         "Übersprungen (bereits in Propstack): %d",
         len(report.contacts_skipped_duplicate),
     )
-    logger.info("Neu angelegt: %d", len(report.contacts_created))
+    logger.info("%s: %d", "Würde anlegen (DRY RUN)" if DRY_RUN else "Neu angelegt", len(report.contacts_created))
 
     for cr in report.contacts_created:
         fields_info = ""
@@ -229,4 +270,5 @@ def _print_summary(report: PipelineReport) -> None:
 
 
 if __name__ == "__main__":
-    run_pipeline()
+    # Rot, wenn etwas schiefging: Ein grüner Lauf mit Fehlern fällt niemandem auf.
+    sys.exit(1 if run_pipeline().errors else 0)

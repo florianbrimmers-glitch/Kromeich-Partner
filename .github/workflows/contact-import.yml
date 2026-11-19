@@ -2,8 +2,10 @@ name: Daily Contact Import
 
 on:
   schedule:
-    # Mo-Fr um 1:00 UTC = 3:00 MESZ / 2:00 MEZ
-    - cron: "0 1 * * 1-5"
+    # Täglich um 1:00 UTC = 3:00 MESZ / 2:00 MEZ, auch am Wochenende: Der Lauf liest
+    # die letzten 48 h (SCAN_HOURS). Bis 19.11.2026 lief er Mo-Fr mit 24 h – der
+    # Freitag wurde nie gelesen, und jede Verspätung des Starts riss eine Lücke.
+    - cron: "0 1 * * *"
   workflow_dispatch:
     inputs:
       dry_run:
@@ -14,6 +16,16 @@ on:
         options:
           - "false"
           - "true"
+      scan_hours:
+        description: "Wie viele Stunden zurück lesen (Standard 48; zum Nachholen z. B. 168)"
+        required: false
+        default: "48"
+
+# Nie zwei Läufe gleichzeitig (manueller Lauf neben dem verspäteten Cron):
+# beide würden dieselben Kontakte anlegen.
+concurrency:
+  group: contact-import
+  cancel-in-progress: false
 
 jobs:
   import-contacts:
@@ -48,4 +60,5 @@ jobs:
           PROPSTACK_API_V2_CONTACTS: ${{ secrets.PROPSTACK_API_V2_CONTACTS }}
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+          SCAN_HOURS: ${{ github.event.inputs.scan_hours || '48' }}
         run: python -m src.main

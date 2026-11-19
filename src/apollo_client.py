@@ -5,11 +5,15 @@ import os
 
 import httpx
 
+from . import problems
 from .models import ContactData, EnrichmentResult
 
 logger = logging.getLogger(__name__)
 
-APOLLO_MATCH_URL = "https://api.apollo.io/v1/people/match"
+# Apollo verlangt den Schlüssel im Header x-api-key (docs.apollo.io/reference/authentication).
+# Bis 19.11.2026 stand er im JSON-Body und die Adresse war /v1/people/match: Apollo wies
+# jeden Aufruf mit 401 ab, die Anreicherung war still aus.
+APOLLO_MATCH_URL = "https://api.apollo.io/api/v1/people/match"
 
 
 def enrich_contact(contact: ContactData) -> EnrichmentResult | None:
@@ -25,13 +29,23 @@ def enrich_contact(contact: ContactData) -> EnrichmentResult | None:
     try:
         response = httpx.post(
             APOLLO_MATCH_URL,
-            json={"api_key": api_key, "email": contact.email},
+            json={"email": contact.email},
+            headers={
+                "x-api-key": api_key,
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "Cache-Control": "no-cache",
+            },
             timeout=30.0,
         )
         response.raise_for_status()
         data = response.json()
+    except httpx.HTTPStatusError as e:
+        # Ohne Adresse im Text: gleiche Ursache soll in der Zusammenfassung gezählt werden
+        problems.melde("Apollo-Anreicherung fehlgeschlagen", f"HTTP {e.response.status_code}")
+        return None
     except (httpx.HTTPError, ValueError) as e:
-        logger.error("Apollo API error for %s: %s", contact.email, e)
+        problems.melde("Apollo-Anreicherung fehlgeschlagen", type(e).__name__)
         return None
 
     person = data.get("person")
@@ -84,18 +98,22 @@ def enrich_contact(contact: ContactData) -> EnrichmentResult | None:
     if position and not contact.position:
         result.position = position
         enriched_fields.append("position")
-    if street and not contact.street:
-        result.street = street
-        enriched_fields.append("street")
-    if house_number and not contact.house_number:
-        result.house_number = house_number
-        enriched_fields.append("house_number")
-    if zip_code and not contact.zip_code:
-        result.zip_code = zip_code
-        enriched_fields.append("zip_code")
-    if city and not contact.city:
-        result.city = city
-        enriched_fields.append("city")
+    # Adresse nur als Ganzes übernehmen – und nur, wenn die Signatur gar keine nennt.
+    # Feldweises Auffüllen mischt zwei Orte: Signatur "Hamburg" + Apollo-Hauptsitz
+    # ergab "Leopoldstraße 4, 80802 Hamburg".
+    if not (contact.street or contact.zip_code or contact.city):
+        if street:
+            result.street = street
+            enriched_fields.append("street")
+        if street and house_number:
+            result.house_number = house_number
+            enriched_fields.append("house_number")
+        if zip_code:
+            result.zip_code = zip_code
+            enriched_fields.append("zip_code")
+        if city:
+            result.city = city
+            enriched_fields.append("city")
 
     result.enriched_fields = enriched_fields
 

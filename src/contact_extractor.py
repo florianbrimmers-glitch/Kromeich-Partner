@@ -7,6 +7,7 @@ import os
 
 import anthropic
 
+from . import problems
 from .models import ContactData, EmailData, GroupCategory, GROUP_ID_MAP
 
 logger = logging.getLogger(__name__)
@@ -92,10 +93,46 @@ Gib am Ende deiner Antwort ausschließlich ein JSON-Objekt aus (nach eventueller
 
 
 def _get_client() -> anthropic.Anthropic:
-    return anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+    # Das SDK wartet sonst bis zu 10 Minuten je Versuch – bei 90 Minuten Job-Timeout
+    # reichen wenige hängende Aufrufe, um den Lauf ohne Zusammenfassung abzubrechen.
+    return anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"], timeout=120.0, max_retries=2)
+
+
+class KeinJson(ValueError):
+    """Die Antwort enthält gar kein JSON-Objekt (z. B. „Die Mail hat keine Signatur.“).
+    Das ist kein Fehler des Laufs, sondern „kein Kontakt“."""
+
+
+def _json_object(text: str) -> dict:
+    """Das JSON-Objekt aus einer Modellantwort lesen – auch wenn Text davor oder danach
+    steht oder ein Zeilenumbruch in einem Wert (strict=False). Am 19.11.2026 scheiterten
+    zwei von 21 Extraktionen an „Expecting value: line 1 column 1“; die Mails fielen als
+    „kein Kontakt“ weg."""
+    text = text.strip()
+    if text.startswith("```"):
+        text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip() if "\n" in text else text.strip("`")
+    start, end = text.find("{"), text.rfind("}")
+    if start == -1 or end <= start:
+        raise KeinJson(text[:80])
+    data = json.loads(text[start : end + 1], strict=False)
+    if not isinstance(data, dict):
+        raise json.JSONDecodeError("Antwort ist kein JSON-Objekt", text, 0)
+    return data
+
+
+def _text_or_none(value) -> str | None:
+    """Feldwert als Text. Das Modell liefert gelegentlich eine Zahl (PLZ, Hausnummer);
+    ohne Umwandlung verwirft pydantic den ganzen Kontakt."""
+    if value is None or isinstance(value, (dict, list, bool)):
+        return None
+    text = str(value).strip()
+    return text or None
 
 
 def extract_contact(email_data: EmailData) -> ContactData | None:
+    """Kontakt aus der Signatur. None = die Mail enthält keinen verwertbaren Kontakt.
+    Fehler der Claude-API werden NICHT geschluckt (früher: „kein Kontakt“, Lauf grün) –
+    der Aufrufer zählt sie als Fehler."""
     client = _get_client()
 
     body_truncated = email_data.body[:8000] if len(email_data.body) > 8000 else email_data.body
@@ -114,36 +151,32 @@ def extract_contact(email_data: EmailData) -> ContactData | None:
             messages=[{"role": "user", "content": prompt}],
         )
 
-        text = response.content[0].text.strip()
-        if text.startswith("```"):
-            text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+        data = _json_object(response.content[0].text)
 
-        data = json.loads(text)
-
-        contact_email = data.get("email") or email_data.sender_email
+        contact_email = _text_or_none(data.get("email")) or email_data.sender_email
         if not contact_email:
             logger.warning("No email found for sender %s", email_data.sender)
             return None
 
         return ContactData(
-            first_name=data.get("first_name") or None,
-            last_name=data.get("last_name") or None,
+            first_name=_text_or_none(data.get("first_name")),
+            last_name=_text_or_none(data.get("last_name")),
             email=contact_email.lower().strip(),
-            phone=data.get("phone") or None,
-            mobile=data.get("mobile") or None,
-            company=data.get("company") or None,
-            position=data.get("position") or None,
-            street=data.get("street") or None,
-            house_number=data.get("house_number") or None,
-            zip_code=data.get("zip_code") or None,
-            city=data.get("city") or None,
+            phone=_text_or_none(data.get("phone")),
+            mobile=_text_or_none(data.get("mobile")),
+            company=_text_or_none(data.get("company")),
+            position=_text_or_none(data.get("position")),
+            street=_text_or_none(data.get("street")),
+            house_number=_text_or_none(data.get("house_number")),
+            zip_code=_text_or_none(data.get("zip_code")),
+            city=_text_or_none(data.get("city")),
             salutation=(data.get("salutation") if data.get("salutation") in ("mr", "ms") else None),
         )
-    except (json.JSONDecodeError, KeyError, IndexError) as e:
-        logger.error("Failed to parse extraction response for %s: %s", email_data.sender_email, e)
+    except KeinJson as e:
+        logger.warning("Kein JSON in der Antwort für %s – als „kein Kontakt“ gewertet: %s", email_data.sender_email, e)
         return None
-    except anthropic.APIError as e:
-        logger.error("Claude API error during extraction: %s", e)
+    except (json.JSONDecodeError, KeyError, IndexError) as e:
+        problems.melde("Antwort der KI nicht lesbar (Signatur)", str(e)[:80])
         return None
 
 
@@ -151,7 +184,10 @@ def _extract_json_from_blocks(response) -> str:
     """Bei Web-Search liefert die API mehrere Content-Blöcke. Wir sammeln
     alle Text-Blöcke und nehmen den letzten, der ein JSON-Objekt enthält."""
     text_parts = [block.text for block in response.content if block.type == "text"]
-    full_text = "\n".join(text_parts).strip()
+    # Ohne Trenner zusammensetzen: Mit Websuche teilt die API den Text an Zitatgrenzen
+    # in mehrere Blöcke. Ein eingefügter Zeilenumbruch mitten in einem JSON-Wert machte
+    # die Antwort unlesbar – die Kategorie fiel dann still auf „Sonstiges“.
+    full_text = "".join(text_parts).strip()
 
     # JSON-Objekt aus dem Text extrahieren (letzte {...}-Klammer)
     start = full_text.rfind("{")
@@ -193,12 +229,8 @@ def categorize_contact(
             messages=[{"role": "user", "content": prompt}],
         )
 
-        text = _extract_json_from_blocks(response)
-        if text.startswith("```"):
-            text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
-
-        data = json.loads(text)
-        categories = data.get("categories", [])
+        data = _json_object(_extract_json_from_blocks(response))
+        categories = data.get("categories") or []
         reasoning = data.get("reasoning", "")
 
         group_ids: list[str] = []
@@ -215,11 +247,12 @@ def categorize_contact(
             logger.info("Categorized %s as %s: %s", contact.email, categories, reasoning)
 
         return group_ids
-    except (json.JSONDecodeError, KeyError, IndexError) as e:
-        logger.error("Failed to parse categorization response for %s: %s", contact.email, e)
+    except (KeinJson, json.JSONDecodeError, KeyError, IndexError) as e:
+        # Der Kontakt wird trotzdem angelegt (Merkmal „Sonstiges“) – aber nicht unbemerkt.
+        problems.melde("Kategorie nicht bestimmbar – „Sonstiges“ gesetzt", f"Antwort nicht lesbar: {str(e)[:60]}")
         return [GROUP_ID_MAP[GroupCategory.SONSTIGES]]
     except anthropic.APIError as e:
-        logger.error("Claude API error during categorization: %s", e)
+        problems.melde("Kategorie nicht bestimmbar – „Sonstiges“ gesetzt", f"Claude-API: {type(e).__name__}")
         return [GROUP_ID_MAP[GroupCategory.SONSTIGES]]
 
 
@@ -280,42 +313,48 @@ Slack-Nachricht:
 
 
 def _parse_contact_json(text: str, source: str) -> ContactData | None:
-    if text.startswith("```"):
-        text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip()
+    data = _json_object(text)
 
-    start = text.rfind("{")
-    end = text.rfind("}")
-    if start != -1 and end != -1 and end > start:
-        text = text[start : end + 1]
-
-    data = json.loads(text)
-
-    first_name = data.get("first_name") or None
-    last_name = data.get("last_name") or None
+    first_name = _text_or_none(data.get("first_name"))
+    last_name = _text_or_none(data.get("last_name"))
 
     if not first_name and not last_name:
         logger.info("No name found in %s", source)
         return None
 
-    contact_email = data.get("email") or None
+    contact_email = _text_or_none(data.get("email"))
 
     return ContactData(
         first_name=first_name,
         last_name=last_name,
         email=contact_email.lower().strip() if contact_email else "",
-        phone=data.get("phone") or None,
-        mobile=data.get("mobile") or None,
-        company=data.get("company") or None,
-        position=data.get("position") or None,
-        street=data.get("street") or None,
-        house_number=data.get("house_number") or None,
-        zip_code=data.get("zip_code") or None,
-        city=data.get("city") or None,
+        phone=_text_or_none(data.get("phone")),
+        mobile=_text_or_none(data.get("mobile")),
+        company=_text_or_none(data.get("company")),
+        position=_text_or_none(data.get("position")),
+        street=_text_or_none(data.get("street")),
+        house_number=_text_or_none(data.get("house_number")),
+        zip_code=_text_or_none(data.get("zip_code")),
+        city=_text_or_none(data.get("city")),
         salutation=(data.get("salutation") if data.get("salutation") in ("mr", "ms") else None),
     )
 
 
-def extract_contact_from_image(image_data: bytes) -> ContactData | None:
+# Bildformate, die die Claude-API annimmt. Slack liefert auch HEIC (iPhone) u. a.
+SUPPORTED_IMAGE_TYPES = ("image/jpeg", "image/png", "image/gif", "image/webp")
+
+
+def extract_contact_from_image(image_data: bytes, media_type: str = "image/jpeg") -> ContactData | None:
+    """Kontakt von einem Visitenkartenfoto. None = kein Name erkennbar.
+    Fehler der Claude-API werden nicht geschluckt – der Aufrufer zählt sie als Fehler."""
+    if media_type == "image/jpg":
+        media_type = "image/jpeg"
+    if media_type not in SUPPORTED_IMAGE_TYPES:
+        # Früher ging jedes Bild als image/jpeg an die API; ein PNG oder HEIC wurde
+        # abgelehnt und die Karte zählte still als „kein Kontakt“.
+        problems.melde("Visitenkarte nicht lesbar", f"Bildformat {media_type} wird nicht unterstützt – bitte als JPG oder PNG posten")
+        return None
+
     client = _get_client()
     b64 = base64.standard_b64encode(image_data).decode("utf-8")
 
@@ -328,19 +367,18 @@ def extract_contact_from_image(image_data: bytes) -> ContactData | None:
                 "content": [
                     {
                         "type": "image",
-                        "source": {"type": "base64", "media_type": "image/jpeg", "data": b64},
+                        "source": {"type": "base64", "media_type": media_type, "data": b64},
                     },
                     {"type": "text", "text": BUSINESSCARD_PROMPT},
                 ],
             }],
         )
-        text = response.content[0].text.strip()
-        return _parse_contact_json(text, "business card image")
-    except (json.JSONDecodeError, KeyError, IndexError) as e:
-        logger.error("Failed to parse business card extraction: %s", e)
+        return _parse_contact_json(response.content[0].text, "business card image")
+    except KeinJson as e:
+        logger.warning("Kein JSON in der Antwort (Visitenkarte) – als „kein Kontakt“ gewertet: %s", e)
         return None
-    except anthropic.APIError as e:
-        logger.error("Claude API error during business card extraction: %s", e)
+    except (json.JSONDecodeError, KeyError, IndexError) as e:
+        problems.melde("Antwort der KI nicht lesbar (Visitenkarte)", str(e)[:80])
         return None
 
 
@@ -354,11 +392,10 @@ def extract_contact_from_text(slack_text: str) -> ContactData | None:
             max_tokens=1024,
             messages=[{"role": "user", "content": prompt}],
         )
-        resp_text = response.content[0].text.strip()
-        return _parse_contact_json(resp_text, "slack text")
-    except (json.JSONDecodeError, KeyError, IndexError) as e:
-        logger.error("Failed to parse slack text extraction: %s", e)
+        return _parse_contact_json(response.content[0].text, "slack text")
+    except KeinJson as e:
+        logger.warning("Kein JSON in der Antwort (Slack-Text) – als „kein Kontakt“ gewertet: %s", e)
         return None
-    except anthropic.APIError as e:
-        logger.error("Claude API error during slack text extraction: %s", e)
+    except (json.JSONDecodeError, KeyError, IndexError) as e:
+        problems.melde("Antwort der KI nicht lesbar (Slack-Text)", str(e)[:80])
         return None

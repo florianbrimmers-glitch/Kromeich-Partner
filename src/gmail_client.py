@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import logging
+import math
 import os
 import re
 from email.utils import parseaddr
@@ -10,6 +11,7 @@ from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 
+from . import problems
 from .models import EmailData
 
 logger = logging.getLogger(__name__)
@@ -129,41 +131,65 @@ def _decode_body(payload: dict) -> str:
     return ""
 
 
+def _list_message_ids(service, query: str, limit: int) -> tuple[list[str], bool]:
+    """Alle Treffer der Suche, seitenweise (Gmail liefert höchstens 100 je Seite).
+    Rückgabe: (IDs, abgeschnitten) – abgeschnitten, wenn es mehr als `limit` gibt."""
+    ids: list[str] = []
+    page_token = None
+    while True:
+        results = (
+            service.users()
+            .messages()
+            .list(userId="me", q=query, maxResults=min(100, limit - len(ids)), pageToken=page_token)
+            .execute()
+        )
+        ids.extend(m["id"] for m in results.get("messages", []))
+        page_token = results.get("nextPageToken")
+        if not page_token:
+            return ids, False
+        if len(ids) >= limit:
+            return ids, True
+
+
 def _fetch_emails_for_account(
     refresh_token: str,
     client_id: str,
     client_secret: str,
     account_label: str,
-    hours: int = 24,
-    limit: int = 50,
+    hours: int = 48,
+    limit: int = 300,
 ) -> list[EmailData]:
     service = _get_gmail_service(refresh_token, client_id, client_secret)
-    # Gmail-Suche unterstützt nur ganze Tage (d), keine Stunden
-    days = max(1, hours // 24)
-    query = f"newer_than:{days}d"
+    # Gmail-Suche unterstützt nur ganze Tage (d), keine Stunden – aufrunden, nie abrunden.
+    # Selbst gesendete Mails sind nie ein neuer Kontakt; sie zählten bisher aber in die
+    # Obergrenze (19.11.2026: ein Postfach mit 50 von 50, der Rest fiel still weg).
+    days = max(1, math.ceil(hours / 24))
+    query = f"newer_than:{days}d -in:sent"
 
-    results = (
-        service.users()
-        .messages()
-        .list(userId="me", q=query, maxResults=limit)
-        .execute()
-    )
-
-    messages = results.get("messages", [])
-    if not messages:
+    message_ids, abgeschnitten = _list_message_ids(service, query, limit)
+    if not message_ids:
         logger.info("[%s] No emails found in the last %d hours", account_label, hours)
         return []
+    if abgeschnitten:
+        problems.melde("Postfach über der Obergrenze", f"{account_label}: mehr als {limit} Mails im Fenster, der Rest wurde nicht gelesen")
 
-    logger.info("[%s] Found %d emails in the last %d hours", account_label, len(messages), hours)
+    logger.info("[%s] Found %d emails in the last %d hours", account_label, len(message_ids), hours)
     emails: list[EmailData] = []
+    nicht_lesbar = 0
 
-    for msg_ref in messages:
-        msg = (
-            service.users()
-            .messages()
-            .get(userId="me", id=msg_ref["id"], format="full")
-            .execute()
-        )
+    for message_id in message_ids:
+        # Eine einzelne nicht lesbare Mail darf nicht das ganze Postfach kosten
+        try:
+            msg = (
+                service.users()
+                .messages()
+                .get(userId="me", id=message_id, format="full")
+                .execute()
+            )
+        except Exception as e:
+            nicht_lesbar += 1
+            logger.warning("[%s] Mail %s nicht lesbar: %s", account_label, message_id, e)
+            continue
 
         headers = {h["name"].lower(): h["value"] for h in msg.get("payload", {}).get("headers", [])}
         sender = headers.get("from", "")
@@ -185,7 +211,7 @@ def _fetch_emails_for_account(
 
         emails.append(
             EmailData(
-                message_id=msg_ref["id"],
+                message_id=message_id,
                 sender=sender,
                 sender_email=sender_email.lower(),
                 subject=subject,
@@ -194,11 +220,13 @@ def _fetch_emails_for_account(
             )
         )
 
+    if nicht_lesbar:
+        problems.melde("Mails nicht lesbar", f"{account_label}: {nicht_lesbar} von {len(message_ids)}")
     logger.info("[%s] Returning %d emails after filtering", account_label, len(emails))
     return emails
 
 
-def search_recent_emails(hours: int = 24, limit: int = 50) -> list[EmailData]:
+def search_recent_emails(hours: int = 48, limit: int = 300) -> list[EmailData]:
     all_emails: list[EmailData] = []
     account_count = 0
 
@@ -220,7 +248,12 @@ def search_recent_emails(hours: int = 24, limit: int = 50) -> list[EmailData]:
             try:
                 all_emails.extend(_fetch_emails_for_account(token, client_id, client_secret, label, hours, limit))
             except Exception as e:
-                logger.error("[%s] Fehler beim Abrufen: %s – überspringe Account", label, e)
+                # z. B. abgelaufenes Refresh-Token: Das Postfach fehlt dann ganz – das
+                # darf nicht nur eine Logzeile in einem grünen Lauf sein.
+                problems.melde("Postfach nicht lesbar", f"{label}: {e}")
+
+    if account_count == 0:
+        problems.melde("Kein Postfach konfiguriert", "kein GOOGLE_REFRESH_TOKEN gesetzt")
 
     logger.info("Total: %d emails from %d account(s)", len(all_emails), account_count)
     return all_emails

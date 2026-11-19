@@ -2,8 +2,10 @@ name: Visitenkarten Import
 
 on:
   schedule:
-    # Mo-Fr um 01:30 UTC (kurz nach dem Email-Job)
-    - cron: "30 1 * * 1-5"
+    # Täglich um 01:30 UTC (kurz nach dem Email-Job), auch am Wochenende, mit 2 Tagen
+    # Rückblick: Bis 19.11.2026 lief er Mo-Fr mit 1 Tag – Karten vom Freitag und
+    # Samstag wurden nie gelesen.
+    - cron: "30 1 * * *"
   workflow_dispatch:
     inputs:
       dry_run:
@@ -15,13 +17,18 @@ on:
           - "false"
           - "true"
       scan_from_days:
-        description: "Untere Grenze: wie viele Tage zurück (Standard: 1)"
+        description: "Untere Grenze: wie viele Tage zurück (Standard: 2)"
         required: false
-        default: "1"
+        default: "2"
       scan_to_days:
         description: "Obere Grenze: bis wie viele Tage zurück (0 = bis jetzt). Für Etappen z.B. von=150, bis=120"
         required: false
         default: "0"
+
+# Nie zwei Läufe gleichzeitig: beide würden dieselben Kontakte anlegen.
+concurrency:
+  group: visitenkarten-import
+  cancel-in-progress: false
 
 jobs:
   import-visitenkarten:
@@ -50,7 +57,7 @@ jobs:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
           DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
         run: |
-          FROM_DAYS="${{ github.event.inputs.scan_from_days || '1' }}"
+          FROM_DAYS="${{ github.event.inputs.scan_from_days || '2' }}"
           TO_DAYS="${{ github.event.inputs.scan_to_days || '0' }}"
           export SCAN_HOURS=$(( FROM_DAYS * 24 ))
           export SCAN_LATEST_HOURS=$(( TO_DAYS * 24 ))

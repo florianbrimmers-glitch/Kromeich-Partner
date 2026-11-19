@@ -210,11 +210,26 @@ def test_find_company_person_flagged_as_company_not_matched_loosely(monkeypatch)
     assert ps.find_company("Goodman Germany AG") is None
 
 
-def test_find_company_search_error_returns_none(monkeypatch):
+def test_find_company_search_error_is_not_not_found(monkeypatch):
+    """Scheitert die Suche, ist unbekannt, ob es die Firma gibt – das ist nicht „nicht
+    gefunden“. Früher gab find_company dann None zurück und die Firma wurde neu angelegt."""
     def boom(url, params=None, **kw):
         raise httpx.ConnectError("down")
     monkeypatch.setattr(ps.httpx, "get", boom)
-    assert ps.find_company("Goodman Germany GmbH") is None
+    with pytest.raises(ps.CompanyLookupError):
+        ps.find_company("Goodman Germany GmbH")
+
+
+def test_search_error_does_not_create_a_company(monkeypatch):
+    def boom(url, params=None, **kw):
+        raise httpx.ConnectError("down")
+    posts = []
+    monkeypatch.setattr(ps.httpx, "get", boom)
+    monkeypatch.setattr(ps.httpx, "post", lambda url, **kw: posts.append(url) or _Resp({"id": 99}))
+    ps.problems.leeren()
+    assert ps.find_or_create_company(ContactData(email="a@b.de", company="Goodman Germany GmbH")) is None
+    assert posts == []  # keine Dublette auf Verdacht
+    assert any("Firmensuche fehlgeschlagen" in z for z in ps.problems.zusammenfassung())
 
 
 # --- Telefonnummern beim Anlegen (Befund 13.11.2026: "+49 (0) 151 …" lässt sich nicht anwählen) ---
