@@ -86,8 +86,10 @@ ein Aufgaben-Erzeuger. Die Wege in Stufe A waren trotzdem weiter als nötig:
 Passiert ist davon nach Datenlage nichts. **Geändert**, ohne die fünf festgelegten Regressionsfälle vom
 08.07.2026 anzufassen; Einzelheiten im README des Pakets.
 
-Offen: Stufe A setzt nur `rented=true`. Deine Regel vom 11.11.2026 schließt mit `rented: true` **und**
-Status 163676. Am 19.11. standen 7 Einheiten als vermietet und zugleich in „Vermarktung“.
+Offen: Stufe A setzt nur `rented=true`. Der Connector schließt nach euren Feldregeln vollständig – Status
+163676, „Status Logistik“ und „Aktiv“ auf Inaktiv, Fläche „(vermietet)“ –, damit die Einheit aus
+Exposéversand und Website fällt (`propstack-mcp/src/propstack/field-rules.ts`). Was der Handler schließt,
+bleibt dort also aktiv. Am 19.11. standen 7 Einheiten als vermietet und zugleich in „Vermarktung“.
 
 ## Befund 4 – Zwei Status-Angaben laufen auseinander
 
@@ -186,7 +188,8 @@ Branch `ccr-9cae85c4-4jlmdv`, 478 Tests grün (Python 3.12 und 3.13), vorher 250
    Wahrheit und alle Werkzeuge filtern danach. Empfehlung: Objekt-Status nachziehen – das kann eine Sitzung
    über den Connector als Sammeländerung mit Rücknahme vorbereiten. Die 18 „Abgeschlossen, aber Aktiv“
    gleich mit.
-6. **Stufe A soll auch den Status setzen?** Empfehlung: ja, wie in deiner Regel vom 11.11.
+6. **Stufe A soll vollständig schließen?** Heute setzt sie nur „vermietet“; Status und „Status Logistik“
+   bleiben stehen. Empfehlung: an den Connector angleichen (Status 163676, Inaktiv).
 7. **Apollo-Schlüssel prüfen**, falls der erste Lauf nach dem Merge weiter 401 meldet.
 8. **Personalkarussell nicht scharf schalten**, bevor die vier offenen Punkte im README erledigt sind.
 9. **Schlüssel in der Cloud-Umgebung.** Dort liegen Propstack-Schlüssel mit Schreibrecht. Jede Sitzung kann

@@ -92,7 +92,7 @@ Nur gelesen, über alle Nutzer:
 - **Ein Lauf ist jetzt rot, wenn eine Nachricht nicht verarbeitet werden konnte** oder Slack nicht lesbar war. Der nächste Lauf sieht eine gescheiterte Nachricht meist nicht mehr (26-h-Fenster): nachholen per `workflow_dispatch` mit größerem `scan_from_hours`.
 - Schreibende Propstack-Aufrufe werden nach einem Serverfehler oder Timeout nicht mehr wiederholt (sonst drohen doppelte Aufgaben und Absagen); nur 429 wird wiederholt.
 
-Offen (Entscheidung nötig, nicht geändert): Stufe A setzt nur `rented=true`. Die Regel vom 11.11.2026 für Eigentümer-Updates schließt mit `rented: true` **und** Status „Abgeschlossen“ (163676). Am 19.11.2026 standen 7 Einheiten als vermietet **und** in „Vermarktung“.
+Offen (Entscheidung nötig, nicht geändert): Stufe A setzt nur `rented=true`. Der Connector schließt nach den Feldregeln vollständig – Status „Abgeschlossen“ (163676), „Status Logistik“ und „Aktiv“ auf Inaktiv –, damit die Einheit aus Exposéversand und Website fällt (`propstack-mcp/src/propstack/field-rules.ts`). Was der Handler schließt, bleibt dort aktiv. Am 19.11.2026 standen 7 Einheiten als vermietet **und** in „Vermarktung“.
 
 ## Bekannte Einschränkungen
 
