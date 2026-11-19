@@ -215,3 +215,37 @@ def test_find_company_search_error_returns_none(monkeypatch):
         raise httpx.ConnectError("down")
     monkeypatch.setattr(ps.httpx, "get", boom)
     assert ps.find_company("Goodman Germany GmbH") is None
+
+
+# --- Telefonnummern beim Anlegen (Befund 13.11.2026: "+49 (0) 151 …" lässt sich nicht anwählen) ---
+
+def _created_payload(monkeypatch, contact: ContactData) -> dict:
+    sent = []
+    monkeypatch.setattr(ps.httpx, "post", lambda url, json=None, **kw: sent.append(json) or _Resp({"id": 1}))
+    assert ps.create_contact(contact) == {"id": 1}
+    return sent[0]["client"]
+
+
+def test_create_contact_writes_dialable_numbers(monkeypatch):
+    client = _created_payload(monkeypatch, ContactData(
+        email="a@b.de", first_name="Max", last_name="Muster",
+        phone="+49 (0) 2151 123456", mobile="+49 (0) 151 12345678",
+    ))
+    assert client["office_phone"] == "+49 2151 123456"
+    assert client["office_cell"] == "+49 151 12345678"
+
+
+def test_create_contact_adds_country_code(monkeypatch):
+    client = _created_payload(monkeypatch, ContactData(
+        email="a@b.de", first_name="Max", last_name="Muster", phone="0221 4710199", mobile="0171/3920055",
+    ))
+    assert client["office_phone"] == "+49 221 4710199"
+    assert client["office_cell"] == "+49 171/3920055"
+
+
+def test_create_contact_keeps_foreign_and_non_numbers(monkeypatch):
+    client = _created_payload(monkeypatch, ContactData(
+        email="a@b.nl", first_name="Jan", last_name="Jansen", phone="+31 (0)20 1234567", mobile="Zentrale",
+    ))
+    assert client["office_phone"] == "+31 20 1234567"
+    assert client["office_cell"] == "Zentrale"

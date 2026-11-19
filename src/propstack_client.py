@@ -9,6 +9,7 @@ from datetime import date
 import httpx
 
 from .models import ContactData
+from .phone import format_phone
 
 logger = logging.getLogger(__name__)
 
@@ -339,6 +340,13 @@ def link_contact_to_company(person_id: int, company_id: int) -> bool:
         return False
 
 
+def _clean_phone(number: str, country: str | None) -> str:
+    clean = format_phone(number, country) or number
+    if clean != number:
+        logger.info("Telefonnummer bereinigt: %r -> %r", number, clean)
+    return clean
+
+
 def create_contact(
     contact: ContactData,
     group_ids: list[str] | None = None,
@@ -353,12 +361,15 @@ def create_contact(
     if contact.email:
         client_data["email"] = contact.email
 
+    # Nummern einheitlich und wählbar schreiben – dieselbe Regel wie im Connector
+    # (src/phone.py): keine 0 nach der Ländervorwahl, "00" -> "+", ohne Vorwahl +49
+    # bzw. die des Landes. Aus Signaturen kommt oft "+49 (0) 151 …".
     if contact.phone:
-        client_data["office_phone"] = contact.phone
+        client_data["office_phone"] = _clean_phone(contact.phone, contact.country)
     # Mobilnummern gehören in office_cell – ein Feld "mobile" kennt die
     # Propstack-API nicht, sie verwirft es ohne Fehlermeldung (HTTP 200).
     if contact.mobile:
-        client_data["office_cell"] = contact.mobile
+        client_data["office_cell"] = _clean_phone(contact.mobile, contact.country)
     if contact.company:
         client_data["company"] = contact.company
     if contact.position:
