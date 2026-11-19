@@ -84,7 +84,7 @@ Nur 33 der 129 Aufgaben (26 %) verlangen also eine Handlung. Was die Durchsicht 
 Zuordnung gelehrt hat:
 
 - **Die Regel „Einheit geschlossen → Aufgabe gegenstandslos“ reicht nicht.** Sie trifft 40
-  Aufgaben; bei drei davon hing die Aufgabe an der falschen Einheit, und die gemeinte ist
+  Aufgaben; bei zwei davon hing die Aufgabe an der falschen Einheit, und die gemeinte ist
   noch offen (Frankfurt (Oder): 94.000 m² vermietet, neun Einheiten stehen auf „sofort“).
   Geschlossen wird deshalb nach Urteil, nicht nach dieser Regel (`--urteile`).
 - **Der Eigentümer trennt Treffer von Rauschen, und die KI bekommt ihn nicht zu sehen.**

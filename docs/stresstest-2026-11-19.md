@@ -268,7 +268,7 @@ womöglich freie Hallen aus dem Angebot genommen. Die neun stehen in der Arbeits
 | Schwache Spur – nur der Ort passt | 19 | 16 |
 
 Florians Einwand „die Newsletter müssen doch noch geprüft werden“ war berechtigt: Meine Regel „Einheit
-geschlossen → Aufgabe gegenstandslos“ hätte 40 Aufgaben geschlossen, und bei drei davon hing die Aufgabe an der
+geschlossen → Aufgabe gegenstandslos“ hätte 40 Aufgaben geschlossen, und bei zwei davon hing die Aufgabe an der
 falschen Einheit. Darunter die größte Meldung überhaupt (Frankfurt (Oder), 94.000 m², neun Einheiten stehen bei
 uns auf „sofort“ frei).
 
