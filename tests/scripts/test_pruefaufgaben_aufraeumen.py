@@ -82,3 +82,42 @@ def test_unangetastet_bleiben_andere_arten_erledigte_und_aufgaben_ohne_einheit()
 def test_einheit_nicht_geladen_gilt_als_offen():
     aufgaben = [_aufgabe(1, "Newsletter-Vermietung prüfen: X", [99], "2026-08-01T10:00:00.000+02:00")]
     assert skript.plane(aufgaben, {}) == []
+
+
+# --- Aufgaben des #objekte-Handlers, die auf eine Vollzugsmeldung antworten ------------
+
+def _text(zitat):
+    """So legt der Handler den Aufgabentext an (objekte_handler/main.py, _stufe_b)."""
+    return (f"Slack-Nachricht vom 2026-11-09:<br><br><blockquote>{zitat}</blockquote><br><br>"
+            "Permalink: https://example.invalid/p1<br><br>Einordnung: Objekt fehlt in Propstack – Anlage nur manuell")
+
+
+def test_zitierte_nachricht():
+    text = _text("neues Objekt angelegt<br> SEGRO - (32) Herford &amp; Umgebung")
+    assert skript.zitierte_nachricht(text) == "neues Objekt angelegt\n SEGRO - (32) Herford & Umgebung"
+    assert skript.zitierte_nachricht("ohne Zitat") == ""
+    assert skript.zitierte_nachricht(None) == ""
+
+
+def test_vollzugsmeldungen_koennen_zu_auftraege_bleiben():
+    aufgaben = [
+        _aufgabe(1, "Objekt fehlt in Propstack: SEGRO Herford", [], "2026-11-10T10:23:28.701+01:00"),
+        _aufgabe(2, "Flächenupdate abgleichen: P3 Verfügbarkeiten 11/2026", [], "2026-11-03T10:07:04.325+01:00"),
+        _aufgabe(3, "Objekt fehlt in Propstack: bitte anlegen", [], "2026-10-05T10:32:08.682+02:00"),       # echter Auftrag
+        _aufgabe(4, "Flächenupdate abgleichen: Newsletter Hillwood", [], "2026-11-12T10:24:39.655+01:00"),  # echter Auftrag
+        _aufgabe(5, "Slack #objekte prüfen: ohne lesbaren Text", [], "2026-11-12T10:24:39.655+01:00"),
+        _aufgabe(6, "Objekt fehlt in Propstack: erledigt", [], "2026-11-10T10:23:28.701+01:00", done=True),
+        _aufgabe(7, "Pruefung: Mileway Immo-Blitz 09.11. - 15 Objekte neu + Updates", [], "2026-11-09T16:07:18.646+01:00"),
+    ]
+    texte = {
+        1: _text("neues Objekt angelegt<br> SEGRO - (32) Herford"),
+        2: _text("_P3 Verfügbarkeiten 11/2026 – Abgleich mit Propstack_ …<br>_Gesendet mit_ Claude<br>*Gesendet mit* Claude"),
+        3: _text("bitte anlegen"),
+        4: _text("Newsletter Hillwood 11/26 INKLUSIVE Mietpreise"),
+        5: None,
+        6: _text("neues Objekt angelegt"),
+        7: _text("neues Objekt angelegt"),   # andere Art von Aufgabe: nie angefasst
+    }
+    plan = {e["task_id"]: e for e in skript.plane_vollzug(aufgaben, texte)}
+    assert set(plan) == {1, 2}
+    assert all(e["grund"] == skript.VOLLZUG for e in plan.values())

@@ -46,6 +46,11 @@ def _request(method: str, path: str, *, key: str, params: dict | None = None, js
                 json=json,
                 timeout=30.0,
             )
+            # Schreibende Aufrufe nach 5xx nicht wiederholen: Kam der erste Versuch doch
+            # an, entstünde die Aufgabe bzw. Absage doppelt. 429 ist sicher (nichts geschrieben).
+            if response.status_code >= 500 and method != "GET":
+                logger.error("Propstack %s %s: HTTP %s – Status unklar, kein zweiter Versuch", method, path, response.status_code)
+                response.raise_for_status()
             if response.status_code == 429 or response.status_code >= 500:
                 logger.warning(
                     "Propstack %s %s: HTTP %s (Versuch %d/%d)",
@@ -65,6 +70,10 @@ def _request(method: str, path: str, *, key: str, params: dict | None = None, js
         except httpx.HTTPStatusError:
             raise
         except httpx.HTTPError as e:
+            if method != "GET":
+                # Timeout/Abbruch beim Schreiben: ob Propstack es übernommen hat, ist offen
+                logger.error("Propstack %s %s: %s – Status unklar, kein zweiter Versuch", method, path, e)
+                raise
             logger.warning("Propstack %s %s: %s (Versuch %d/%d)", method, path, e, attempt + 1, MAX_ATTEMPTS)
             last_error = e
 
@@ -167,6 +176,43 @@ def get_open_deals(property_id: int) -> list[dict]:
     ]
     logger.info("Unit %s: %d Deals gefunden, %d offen", property_id, len(deals), len(open_deals))
     return open_deals
+
+
+def fetch_vermietungs_pipelines() -> set[int]:
+    """GET /deal_pipelines – IDs der Pipelines, deren Deals bei einer Vermietung
+    abgesagt werden dürfen (Name beginnt mit config.VERMIETUNGS_PIPELINE_PRAEFIX)."""
+    response = _request("GET", "/deal_pipelines", key=config.propstack_key_objekte())
+    data = response.json()
+    rows = data if isinstance(data, list) else (data or {}).get("data", [])
+    ids = {
+        p["id"] for p in rows
+        if isinstance(p, dict) and isinstance(p.get("id"), int)
+        and str(p.get("name") or "").strip().startswith(config.VERMIETUNGS_PIPELINE_PRAEFIX)
+    }
+    logger.info("Vermietungs-Pipelines: %s", sorted(ids))
+    return ids
+
+
+def absage_hindernis(deal: dict, vermietungs_pipelines: set[int] | None) -> str | None:
+    """Warum dieser Deal NICHT automatisch abgesagt werden darf – None = absagen.
+
+    - Abschluss-Phase (Wahrscheinlichkeit 100 %): Das ist der Deal des Mieters selbst
+      bzw. ein eigener Abschluss – ihm „Fläche nicht mehr verfügbar“ zu schicken, wäre
+      genau verkehrt. (19.11.2026: zwei Deals in „Abgeschlossen Vermietung“.)
+    - Deal in einer anderen als einer Vermietungs-Pipeline: Verkaufsprozess läuft weiter.
+    - Pipelines nicht lesbar (None): dann nur Deals ohne Pipeline absagen.
+    """
+    chance = deal.get("deal_stage_chance")
+    if isinstance(chance, (int, float)) and chance >= 1:
+        return "Abschluss-Phase"
+    pipeline_id = deal.get("deal_pipeline_id")
+    if pipeline_id is None:
+        return None
+    if vermietungs_pipelines is None:
+        return "Pipelines nicht lesbar"
+    if pipeline_id not in vermietungs_pipelines:
+        return "keine Vermietungs-Pipeline"
+    return None
 
 
 def fetch_open_review_units(broker_id: int, titel_praefix: str) -> dict[int, int]:

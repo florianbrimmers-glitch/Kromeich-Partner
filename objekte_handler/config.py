@@ -16,6 +16,12 @@ BROKER_REVIEW_FALLBACK_NAME = "Lena Klinnert"
 # Absagegrund "Fläche nicht mehr verfügbar" (Standard für Fremdvermietung)
 RESERVATION_REASON_ABSAGE = 256998
 
+# Abgesagt werden nur Deals der Vermietung: Pipelines, deren Name so beginnt
+# ("300 Mieter", "300 Leverkusen", "300 Sontra"), und Deals ohne Pipeline. Deals der
+# Verkaufs-Pipelines ("200 …", "Kaltenkirchen") an derselben Einheit bleiben offen –
+# eine Vermietung beendet keinen Verkaufsprozess (19.11.2026: 321 solche Deals).
+VERMIETUNGS_PIPELINE_PRAEFIX = "300"
+
 CHECK_EMOJI = "white_check_mark"
 CONFIDENCE_THRESHOLD = 0.8
 

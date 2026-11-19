@@ -345,7 +345,11 @@ def _print_summary(report: RunReport) -> None:
 
 if __name__ == "__main__":
     try:
-        run_pipeline()
+        ergebnis = run_pipeline()
     except Exception:
         logger.exception("Pipeline-Totalausfall")
         sys.exit(1)
+    # Rot, wenn etwas nicht verarbeitet werden konnte: Der nächste Lauf sieht die
+    # Nachricht meist nicht mehr, und ein grüner Lauf mit Fehlern fällt niemandem auf.
+    # Nachholen: workflow_dispatch mit größerem Scan-Fenster.
+    sys.exit(1 if ergebnis.fehler else 0)

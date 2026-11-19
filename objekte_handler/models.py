@@ -19,6 +19,10 @@ class AktionsTyp(str, Enum):
 
 
 class Classification(BaseModel):
+    # Das Modell liefert gelegentlich eine Zahl, wo Text erwartet wird ("hausnummer": 48,
+    # "groessen_hinweis": 6000). Ohne Umwandlung verwirft pydantic die ganze Nachricht.
+    model_config = ConfigDict(coerce_numbers_to_str=True)
+
     typ: MessageType
     aktion: AktionsTyp | None = None
     strasse: str | None = None
@@ -100,6 +104,7 @@ class RunReport(BaseModel):
     nachrichten_gesehen: int = 0
     bereits_verarbeitet: int = 0
     ignoriert: int = 0
+    vollzugsmeldungen: int = 0  # Berichte über Erledigtes – kein Auftrag, keine Aufgabe
     stufe_a: int = 0
     stufe_b: int = 0
     fehler: list[str] = Field(default_factory=list)

@@ -1,14 +1,20 @@
-"""Sichtet die offenen Aufgaben „Newsletter-Vermietung prüfen“ und schließt die überflüssigen.
+"""Sichtet die offenen Prüfaufgaben der Slack-Handler und schließt die überflüssigen.
 
-Anlass (Stand 19.11.2026, Review-Sitz 254958): 156 offene Aufgaben dieser Art, eine
-einzige je erledigt. Zwei Gruppen sind ohne inhaltliche Prüfung überflüssig:
+Stand 19.11.2026 (nur gelesen): 609 offene Aufgaben über alle Nutzer, davon 510 am
+Review-Sitz 254958. In 91 Tagen kamen dort 213 dazu, 26 wurden erledigt. Drei Gruppen
+sind ohne inhaltliche Prüfung überflüssig:
 
-  gegenstandslos  Jede verknüpfte Einheit ist in Propstack schon vermietet,
-                  „Abgeschlossen“ (Status 163676) oder archiviert.
-  Dublette        Zur selben Einheit gibt es eine ältere offene Aufgabe derselben Art.
-                  Die älteste bleibt offen, die jüngeren Wiederholungen gehen zu.
+  gegenstandslos   „Newsletter-Vermietung prüfen“, deren Einheiten in Propstack schon
+                   vermietet, „Abgeschlossen“ (Status 163676) oder archiviert sind.
+  dublette         „Newsletter-Vermietung prüfen“, zu deren Einheit es eine ältere
+                   offene Aufgabe derselben Art gibt. Die älteste bleibt offen.
+  vollzugsmeldung  Aufgaben des #objekte-Handlers („Objekt fehlt in Propstack“,
+                   „Flächenupdate abgleichen“, „Slack #objekte prüfen“), die auf einen
+                   Bericht über Erledigtes antworten: „neues Objekt angelegt …“ oder
+                   ein Bericht aus einer Claude-Sitzung („Gesendet mit Claude“).
 
-Alles andere bleibt unangetastet – auch Aufgaben ohne verknüpfte Einheit.
+Am 19.11.2026 waren das 40 + 41 + 48 = 129 Aufgaben. Alles andere bleibt unangetastet –
+auch Newsletter-Aufgaben ohne verknüpfte Einheit und alle von Hand angelegten Aufgaben.
 
 Liest standardmäßig nur und druckt die Liste. Mit --apply werden die gelisteten
 Aufgaben als erledigt markiert (PUT /v1/tasks/:id, done=true). Gelöscht wird nichts.
@@ -21,15 +27,17 @@ gelesen). Erprobt ist PUT /v1/tasks/:id mit broker_id (Migration vom 02.10.2026)
 deshalb die Probe mit einer einzelnen Aufgabe.
 
 Aufruf:   python scripts/pruefaufgaben_aufraeumen.py                 # nur lesen
-          python scripts/pruefaufgaben_aufraeumen.py --apply [--limit N] [--nur gegenstandslos|dublette]
+          python scripts/pruefaufgaben_aufraeumen.py --apply [--limit N] [--nur gegenstandslos|dublette|vollzugsmeldung]
           python scripts/pruefaufgaben_aufraeumen.py --undo pruefaufgaben_geschlossen_<Zeit>.json
 Umgebung: PROPSTACK_API_KEY oder PROPSTACK_API_V1 (wird nie ausgegeben).
 """
 from __future__ import annotations
 
 import argparse
+import html
 import json
 import os
+import re
 import sys
 import time
 from datetime import datetime
@@ -37,13 +45,17 @@ from pathlib import Path
 
 import httpx
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from objekte_handler.vollzug import vollzugsmeldung  # noqa: E402 – dieselbe Regel wie im Handler
+
 BASE = "https://api.propstack.de/v1"
-BROKER_REVIEW = 254958
 TITEL_PRAEFIX = "Newsletter-Vermietung prüfen"
+OBJEKTE_PRAEFIXE = ("Objekt fehlt in Propstack", "Flächenupdate abgleichen", "Slack #objekte prüfen")
 STATUS_ABGESCHLOSSEN = 163676
 
 GEGENSTANDSLOS = "gegenstandslos"
 DUBLETTE = "dublette"
+VOLLZUG = "vollzugsmeldung"
 
 
 def _scalar(value):
@@ -108,6 +120,48 @@ def plane(aufgaben: list[dict], einheiten: dict[int, dict]) -> list[dict]:
     return plan
 
 
+def offene_objekte_aufgaben(aufgaben: list[dict]) -> list[dict]:
+    """Offene Aufgaben des #objekte-Handlers, älteste zuerst."""
+    eigene = [
+        a for a in aufgaben
+        if not _scalar(a.get("done"))
+        and str(_scalar(a.get("title")) or "").startswith(OBJEKTE_PRAEFIXE)
+        and a.get("activatable_id")
+    ]
+    return sorted(eigene, key=lambda a: str(a.get("original_created_at") or ""))
+
+
+def zitierte_nachricht(body: str | None) -> str:
+    """Die Slack-Nachricht, auf die eine Handler-Aufgabe antwortet (steht als Zitat im Text)."""
+    m = re.search(r"<blockquote>(.*?)</blockquote>", body or "", re.S)
+    if not m:
+        return ""
+    return html.unescape(re.sub(r"<br\s*/?>", "\n", m.group(1))).strip()
+
+
+def plane_vollzug(aufgaben: list[dict], texte: dict[int, str | None]) -> list[dict]:
+    """Aufgaben des #objekte-Handlers, die auf eine Vollzugsmeldung antworten.
+
+    texte: Task-ID -> Text der Aufgabe (GET /v1/tasks/:id, Feld body). Fehlt der Text
+    oder enthält er kein Zitat, bleibt die Aufgabe offen."""
+    plan: list[dict] = []
+    for aufgabe in offene_objekte_aufgaben(aufgaben):
+        task_id = aufgabe["activatable_id"]
+        grund = vollzugsmeldung(zitierte_nachricht(texte.get(task_id)))
+        if not grund:
+            continue
+        plan.append({
+            "task_id": task_id,
+            "titel": _scalar(aufgabe.get("title")),
+            "angelegt": str(aufgabe.get("original_created_at") or "")[:10],
+            "units": [u for u in (aufgabe.get("property_ids") or []) if isinstance(u, int)],
+            "grund": VOLLZUG,
+            "behalten": None,
+            "hinweis": grund,
+        })
+    return plan
+
+
 class Propstack:
     def __init__(self, key: str) -> None:
         self.client = httpx.Client(
@@ -126,19 +180,40 @@ class Propstack:
         response.raise_for_status()
         return response
 
+    def nutzer(self) -> list[int]:
+        return [b["id"] for b in _rows(self._request("GET", "/brokers").json()) if isinstance(b.get("id"), int)]
+
     def aufgaben(self) -> list[dict]:
+        """Alle Aufgaben aller Nutzer: Review-Aufgaben liegen nicht nur am Review-Sitz,
+        Status-Meldungen gehen an den Betreuer der Einheit."""
         out: list[dict] = []
-        page = 1
-        while True:
-            batch = _rows(self._request("GET", "/activities", params={
-                "item_type": "reminder", "broker_id": BROKER_REVIEW,
-                "sort_by": "updated_at", "order": "desc", "per": 200, "page": page,
-            }).json())
-            out.extend(batch)
-            if len(batch) < 200:
-                return out
-            page += 1
-            time.sleep(0.5)
+        for broker_id in self.nutzer():
+            page = 1
+            while True:
+                batch = _rows(self._request("GET", "/activities", params={
+                    "item_type": "reminder", "broker_id": broker_id,
+                    "sort_by": "updated_at", "order": "desc", "per": 200, "page": page,
+                }).json())
+                out.extend(batch)
+                if len(batch) < 200:
+                    break
+                page += 1
+                time.sleep(0.5)
+        return out
+
+    def texte(self, task_ids: list[int]) -> dict[int, str | None]:
+        """GET /tasks/:id – die Liste der Aktivitäten liefert den Text nicht mit."""
+        out: dict[int, str | None] = {}
+        for task_id in task_ids:
+            try:
+                data = self._request("GET", f"/tasks/{task_id}").json()
+            except httpx.HTTPError:
+                out[task_id] = None
+                continue
+            task = data.get("task") if isinstance(data.get("task"), dict) else data
+            out[task_id] = _scalar(task.get("body"))
+            time.sleep(0.25)
+        return out
 
     def einheiten(self, unit_ids: list[int]) -> dict[int, dict]:
         out: dict[int, dict] = {}
@@ -163,7 +238,8 @@ class Propstack:
 
 def _drucke(plan: list[dict]) -> None:
     for grund, ueberschrift in ((GEGENSTANDSLOS, "Gegenstandslos (Einheit schon vermietet/abgeschlossen)"),
-                                (DUBLETTE, "Dublette (ältere offene Aufgabe zur selben Einheit bleibt)")):
+                                (DUBLETTE, "Dublette (ältere offene Aufgabe zur selben Einheit bleibt)"),
+                                (VOLLZUG, "Antwort auf eine Vollzugsmeldung (#objekte)")):
         zeilen = [e for e in plan if e["grund"] == grund]
         print(f"\n{ueberschrift}: {len(zeilen)}")
         for e in zeilen:
@@ -185,7 +261,7 @@ def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--apply", action="store_true", help="gelistete Aufgaben als erledigt markieren (schreibt!)")
     ap.add_argument("--limit", type=int, help="höchstens so viele Aufgaben schließen")
-    ap.add_argument("--nur", choices=[GEGENSTANDSLOS, DUBLETTE], help="nur diese Gruppe")
+    ap.add_argument("--nur", choices=[GEGENSTANDSLOS, DUBLETTE, VOLLZUG], help="nur diese Gruppe")
     ap.add_argument("--undo", metavar="PROTOKOLL", help="die in diesem Protokoll genannten Aufgaben wieder öffnen")
     args = ap.parse_args()
 
@@ -198,15 +274,19 @@ def main() -> int:
         return _undo(ps, args.undo)
 
     aufgaben = ps.aufgaben()
+    alle_offenen = [a for a in aufgaben if not _scalar(a.get("done"))]
     offene = offene_newsletter_aufgaben(aufgaben)
+    objekte = offene_objekte_aufgaben(aufgaben)
     unit_ids = sorted({u for a in offene for u in (a.get("property_ids") or []) if isinstance(u, int)})
     plan = plane(aufgaben, ps.einheiten(unit_ids))
+    plan += plane_vollzug(aufgaben, ps.texte([a["activatable_id"] for a in objekte]))
     if args.nur:
         plan = [e for e in plan if e["grund"] == args.nur]
 
-    print(f"Sitz {BROKER_REVIEW}: {len(aufgaben)} Aufgaben, davon {len(offene)} offene „{TITEL_PRAEFIX}“.")
+    print(f"{len(aufgaben)} Aufgaben über alle Nutzer, {len(alle_offenen)} offen – davon {len(offene)} "
+          f"„{TITEL_PRAEFIX}“ und {len(objekte)} aus #objekte.")
     _drucke(plan)
-    print(f"\nKönnen zu: {len(plan)} von {len(offene)}. Offen bleiben {len(offene) - len(plan)}.")
+    print(f"\nKönnen zu: {len(plan)} von {len(alle_offenen)} offenen. Offen bleiben {len(alle_offenen) - len(plan)}.")
 
     if not args.apply:
         print("Nur gelesen. Zum Schließen: --apply (vorher die Liste ansehen).")

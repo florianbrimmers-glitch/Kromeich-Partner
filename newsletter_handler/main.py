@@ -21,7 +21,14 @@ from .models import (
     RunReport,
     Tier,
 )
-from .propstack import TaskPayload, create_task, get_open_deals, set_rented
+from .propstack import (
+    TaskPayload,
+    absage_hindernis,
+    create_task,
+    fetch_vermietungs_pipelines,
+    get_open_deals,
+    set_rented,
+)
 from .review_dedup import OffeneReviews
 from .slack_gateway import (
     add_checkmark,
@@ -96,9 +103,20 @@ def _stufe_a(msg: dict, deal: Deal, match: MatchResult, permalink: str) -> list[
     doku_id = create_task(doku)
     aktionen.append(f"Doku-Notiz angelegt (Task {doku_id})")
 
+    # Abgesagt werden nur Deals der Vermietung, nie ein Deal in der Abschluss-Phase
+    try:
+        vermietungs_pipelines: set[int] | None = fetch_vermietungs_pipelines()
+    except Exception as e:
+        logger.error("Deal-Pipelines nicht lesbar (%s) – nur Deals ohne Pipeline werden abgesagt", e)
+        vermietungs_pipelines = None
+
     absagen = 0
     for unit in match.units:
         for open_deal in get_open_deals(unit.id):
+            hindernis = absage_hindernis(open_deal, vermietungs_pipelines)
+            if hindernis:
+                aktionen.append(f"Deal {open_deal.get('id')} an Unit {unit.id} nicht abgesagt ({hindernis})")
+                continue
             client_id = open_deal.get("client_id") or (open_deal.get("client") or {}).get("id")
             if not client_id:
                 logger.warning("Deal ohne client_id an Unit %s – übersprungen: %s", unit.id, open_deal.get("id"))
@@ -334,7 +352,11 @@ def _print_summary(report: RunReport) -> None:
 
 if __name__ == "__main__":
     try:
-        run_pipeline()
+        ergebnis = run_pipeline()
     except Exception:
         logger.exception("Pipeline-Totalausfall")
         sys.exit(1)
+    # Rot, wenn etwas nicht verarbeitet werden konnte: Der nächste Lauf sieht die
+    # Nachricht meist nicht mehr, und ein grüner Lauf mit Fehlern fällt niemandem auf.
+    # Nachholen: workflow_dispatch mit größerem Scan-Fenster.
+    sys.exit(1 if ergebnis.fehler else 0)

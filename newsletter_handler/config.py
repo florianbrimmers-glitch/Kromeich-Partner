@@ -15,6 +15,11 @@ BROKER_REVIEW_NAME = "Lena Klinnert"
 # Absagegrund "Fläche nicht mehr verfügbar" (Standard für Fremdvermietung)
 RESERVATION_REASON_ABSAGE = 256998
 
+# Abgesagt werden nur Deals der Vermietung: Pipelines, deren Name so beginnt
+# ("300 Mieter", "300 Leverkusen", "300 Sontra"), und Deals ohne Pipeline. Gleiche
+# Regel wie im #objekte-Handler.
+VERMIETUNGS_PIPELINE_PRAEFIX = "300"
+
 # Objekt-Status "Abgeschlossen" (GET /v1/property_statuses). Eine Einheit mit diesem
 # Status ist nicht mehr in der Vermarktung – eine Vermietungsmeldung dazu ist erledigt.
 STATUS_ABGESCHLOSSEN = 163676
