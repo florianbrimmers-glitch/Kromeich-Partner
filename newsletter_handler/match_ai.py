@@ -167,3 +167,48 @@ def select_match(deal: Deal, candidates: list[Unit]) -> MatchResult:
         kandidaten=[chosen] + andere,
         grund=f"KI-Zuordnung (conf {confidence:.2f}): {chosen.adresse()} – {begruendung}",
     )
+
+
+def _ort(unit: Unit) -> str:
+    return " ".join((unit.city or "").casefold().split())
+
+
+def select_open_match(deal: Deal, candidates: list[Unit]) -> tuple[MatchResult, bool]:
+    """Wie select_match, aber eine bereits vermietete/abgeschlossene Einheit zählt nicht
+    als Treffer. Rückgabe: (Ergebnis, bereits_abgeschlossen).
+
+    Anlass (Stand 19.11.2026): 40 von 156 offenen Review-Aufgaben zeigten auf Einheiten,
+    die in Propstack vermietet, abgeschlossen oder archiviert waren – Westring 8 in Dissen bekam sieben
+    Aufgaben, nachdem das Objekt schon abgeschlossen war.
+
+    Die KI wählt weiterhin aus ALLEN Kandidaten: So erkennt sie das gemeinte Objekt
+    auch dann, wenn es schon abgeschlossen ist, statt auf ein anderes auszuweichen.
+    Ist die Wahl abgeschlossen, zählt nur noch, ob es am selben Ort eine Einheit in
+    Vermarktung gibt, die gemeint sein könnte (z. B. eine andere Einheit desselben
+    Parks oder der richtige Datensatz neben einer stillgelegten Dublette):
+    - keine -> NONE, bereits_abgeschlossen=True (nichts zu tun)
+    - doch -> zweite Auswahl nur unter diesen; trifft sie nichts, ebenfalls NONE.
+    """
+    match = select_match(deal, candidates)
+    if not match.units or not all(u.ist_abgeschlossen(config.STATUS_ABGESCHLOSSEN) for u in match.units):
+        return match, False
+
+    gewaehlt = match.units[0]
+    hinweis = f"{gewaehlt.adresse()} (Unit {gewaehlt.id}) ist in Propstack bereits vermietet/abgeschlossen"
+    ort = _ort(gewaehlt)
+    offene_am_ort = [
+        u for u in candidates
+        if ort and _ort(u) == ort and not u.ist_abgeschlossen(config.STATUS_ABGESCHLOSSEN)
+    ]
+    if not offene_am_ort:
+        return MatchResult(status=MatchStatus.NONE, kandidaten=match.kandidaten, grund=hinweis), True
+
+    zweite = select_match(deal, offene_am_ort)
+    if zweite.status == MatchStatus.NONE:
+        return MatchResult(
+            status=MatchStatus.NONE,
+            kandidaten=match.kandidaten,
+            grund=f"{hinweis}; keine der {len(offene_am_ort)} offenen Einheiten am selben Ort passt",
+        ), True
+    zweite.grund = f"Erste Wahl bereits abgeschlossen ({hinweis}). {zweite.grund}"
+    return zweite, False

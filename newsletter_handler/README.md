@@ -13,6 +13,10 @@ Eigenständiges Paket – **kein Code-Sharing** mit `src/` oder `objekte_handler
    - **Kein Match** (Fremd-Deal, nicht im eigenen Bestand) → nur Log, keine Aktion.
    - **Stufe A** (Vermietung eindeutig einem eigenen Objekt zugeordnet, `DRY_RUN=false`): `rented=true` setzen, Doku-Notiz, offene Deals per Absage-Aktivität (Grund 256998) schließen.
    - **Stufe B** (mehrdeutig / geringe Confidence / `DRY_RUN=true`): Review-Aufgabe an den Objekt-Verantwortlichen (Fallback: Sammelpostfach 254958, heute Lena Klinnert), fällig +2 Werktage.
+   - **Keine Aufgabe, wenn es nichts zu tun gibt** (Änderung vom 19.11.2026, gilt in beiden Betriebsarten):
+     - Die zugeordnete Einheit ist in Propstack schon vermietet, „Abgeschlossen“ (Status 163676) oder archiviert → nur Log. Gibt es am selben Ort eine Einheit in Vermarktung, wählt die KI ein zweites Mal nur unter diesen (z. B. der richtige Datensatz neben einer stillgelegten Dublette).
+     - Zur Einheit liegt beim Review-Sitz schon eine offene Aufgabe „Newsletter-Vermietung prüfen“ → keine zweite. Verglichen wird über die Objekt-ID der Aufgabe (`GET /v1/activities`, Feld `property_ids`), nicht über den Titel – der wechselt von Tag zu Tag („Garbe“, „Garbe Industrial“).
+     - Aufgaben ohne zugeordnete Einheit werden wie bisher immer angelegt. Lässt sich der Bestand der offenen Aufgaben nicht lesen, wird ebenfalls angelegt: eine doppelte Aufgabe schadet weniger als eine verlorene Meldung.
 5. Nach Verarbeitung **aller** Deals einer Nachricht: eine Sammel-Antwort als Thread-Reply + ✅-Reaction. Jeder Deal landet als JSONL-Zeile im Entscheidungslog (nur lokal, siehe unten).
 
 ## Betriebsmodi
@@ -37,6 +41,27 @@ einem Menschen, daran ändert der Schalter nichts.
 
 Auf `DRY_RUN=false` umstellen also nur nach bewusster Entscheidung – es ist kein
 überfälliger nächster Schritt.
+
+### Befund vom 19.11.2026: Die Review-Aufgaben werden nicht abgearbeitet
+
+Nur gelesen, Review-Sitz 254958: Von **157** je angelegten Aufgaben „Newsletter-Vermietung
+prüfen“ ist **eine** erledigt, 156 sind offen. Der Handler war damit die größte Quelle
+des Rückstaus an diesem Sitz (156 von 510 offenen Aufgaben).
+
+- **58** der 156 wiederholten nur eine ältere offene Aufgabe zur selben Einheit – der
+  Radar meldet dieselbe Vermietung an mehreren Tagen (Westring 8 in Dissen: 7 Aufgaben
+  in 14 Tagen, Salzgitter 7, Frickenhausen 5).
+- **40** zeigen auf Einheiten, die heute in Propstack vermietet, abgeschlossen oder
+  archiviert sind – die Aufgabe hat sich damit erledigt, egal wann. Bei Dissen ist es
+  belegt: abgeschlossen seit dem 12.10., alle 7 Aufgaben entstanden danach.
+- Zusammen **81 von 156** (52 %) lassen sich ohne inhaltliche Prüfung schließen. Dass
+  solche Aufgaben neu entstehen, stellt die Änderung vom 19.11.2026 ab (Ablauf, Punkt 4).
+
+Der vorhandene Bestand lässt sich mit `scripts/pruefaufgaben_aufraeumen.py` sichten und –
+erst nach Freigabe – schließen. Offen bleibt die eigentliche Frage: Die übrigen 75
+Aufgaben sind echte Prüfaufträge, die ebenfalls niemand erledigt hat. „Die mehrdeutigen
+Fälle landen ohnehin bei einem Menschen“ stimmt für die Zustellung, nicht für die
+Bearbeitung.
 
 ## Umgebungsvariablen
 

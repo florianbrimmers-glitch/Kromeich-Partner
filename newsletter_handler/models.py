@@ -54,6 +54,15 @@ class Unit(BaseModel):
     broker_id: int | None = None
     broker_name: str | None = None
     rented: bool | None = None
+    status_id: int | None = None
+    archived: bool | None = None
+
+    def ist_abgeschlossen(self, status_abgeschlossen: int) -> bool:
+        """Nicht mehr in der Vermarktung: als vermietet geführt, Status „Abgeschlossen“
+        oder archiviert. Fehlt eine Angabe, gilt die Einheit als offen."""
+        return self.rented is True or self.archived is True or (
+            self.status_id is not None and self.status_id == status_abgeschlossen
+        )
 
     def adresse(self) -> str:
         teile = [t for t in (self.street, self.house_number) if t]
@@ -114,4 +123,8 @@ class RunReport(BaseModel):
     ignoriert: int = 0
     stufe_a: int = 0
     stufe_b: int = 0
+    # Vermietungen ohne neue Aufgabe: Einheit schon vermietet/abgeschlossen bzw. zur
+    # Einheit liegt schon eine offene Review-Aufgabe.
+    bereits_abgeschlossen: int = 0
+    bereits_offen: int = 0
     fehler: list[str] = Field(default_factory=list)
