@@ -64,6 +64,49 @@ Aufgaben sind echte Prüfaufträge, die ebenfalls niemand erledigt hat. „Die m
 Fälle landen ohnehin bei einem Menschen“ stimmt für die Zustellung, nicht für die
 Bearbeitung.
 
+### Vorprüfung vom 19.11.2026: alle 129 offenen Aufgaben einzeln gelesen
+
+Am selben Abend wurden 34 Dubletten mit Freigabe geschlossen (sieben weitere Aufgaben zur
+selben Einheit, aber mit anderer Meldung, blieben offen). Die verbleibenden 129 Aufgaben wurden einzeln
+gegen Propstack gelesen – Meldung, gewählte Einheit, Eigentümer, Fläche, Nachbar-Einheiten;
+in drei Fällen auch die Pressemitteilung des Eigentümers. Ergebnis in
+`scripts/radar_vorpruefung_2026-11-19.json` (85 Vorgänge):
+
+| Urteil | Aufgaben |
+|---|---|
+| Erledigt – die gemeinte Einheit ist schon geschlossen | 49 |
+| Betrifft uns nicht – fremdes Objekt, Verlängerung, Verkauf | 28 |
+| Eintragen – laut Meldung vermietet, bei uns offen, Zuordnung eindeutig | 7 |
+| Klären – wahrscheinlich unser Objekt, Einheit oder Umfang offen | 26 |
+| Schwache Spur – nur der Ort passt | 19 |
+
+Nur 33 der 129 Aufgaben (26 %) verlangen also eine Handlung. Was die Durchsicht über die
+Zuordnung gelehrt hat:
+
+- **Die Regel „Einheit geschlossen → Aufgabe gegenstandslos“ reicht nicht.** Sie trifft 40
+  Aufgaben; bei drei davon hing die Aufgabe an der falschen Einheit, und die gemeinte ist
+  noch offen (Frankfurt (Oder): 94.000 m² vermietet, neun Einheiten stehen auf „sofort“).
+  Geschlossen wird deshalb nach Urteil, nicht nach dieser Regel (`--urteile`).
+- **Der Eigentümer trennt Treffer von Rauschen, und die KI bekommt ihn nicht zu sehen.**
+  `_candidate_line` gibt Name, Adresse, Fläche und Makler weiter, das Feld `eigentumer` nicht.
+  Gemessen an den Urteilen: Stimmt der Eigentümer der gewählten Einheit mit dem Vermieter der
+  Meldung überein (43 Aufgaben), fielen 40 unter „erledigt“, „eintragen“ oder „klären“. Widerspricht
+  er (22 Aufgaben), war die gewählte Einheit nur in zwei Fällen erkennbar die gemeinte (Langenselbold,
+  womöglich Oyten) – sonst nicht, darunter Moers (Ixocon-Meldung an einer
+  BEOS-Halle, die Ixocon-Halle lag unter den Kandidaten) und Rostock (VGP-Meldung an einer
+  CTP-Einheit). Bei 48 Aufgaben ist am Objekt kein Eigentümer hinterlegt.
+- **Die KI wählt eine Einheit, Vermietungen betreffen oft mehrere.** Oberhausen (18.400 m² =
+  Unit 1 + Unit 2), Kamen, Mülheim, Rheinau: Die Summe zweier Einheiten passt, eine einzelne nicht.
+- **Verlängerungen und Verkäufe werden als Vermietung gewertet** (Wezel/CTP, Maersk, Decathlon,
+  Sebold): vier Aufgaben, bei denen nichts frei geworden oder vergeben worden ist.
+- **Regel 3 im Auswahl-Prompt** („ein Kandidat in der Gemeinde ist ein STARKER Treffer – auch ohne
+  Projektname und ohne Flächenübereinstimmung“) erzeugt genau die 19 schwachen Spuren.
+
+Nicht geändert: Eine Änderung am Prompt lässt sich ohne Schlüssel hier nicht ausprobieren. Die
+129 Urteile sind aber der erste belastbare Prüfsatz für diesen Handler – der nächste Schritt ist,
+den Eigentümer in die Kandidatenzeile zu nehmen, den Prompt anzupassen und beides gegen diese
+Urteile zu messen, bevor es in den täglichen Lauf geht.
+
 ## Umgebungsvariablen
 
 | Variable | Pflicht | Default | Bedeutung |

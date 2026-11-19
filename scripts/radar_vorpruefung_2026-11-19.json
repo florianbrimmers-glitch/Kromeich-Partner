@@ -1,0 +1,2252 @@
+{
+ "stand": "19.11.2026",
+ "hinweis": "Vorprüfung aller offenen Aufgaben „Newsletter-Vermietung prüfen“ (129 Aufgaben, 85 Vorgänge). Gruppen: eintragen, klaeren, schwach, erledigt, fremd. Rollen der Einheiten: zu = geschlossen, eintragen = soll geschlossen werden, offen = fraglich, finger_weg = von der KI gewählt, aber nicht gemeint.",
+ "faelle": [
+  {
+   "gruppe": "eintragen",
+   "ort": "Erbes-Büdesheim, Am Sand 10",
+   "wer": "Coating Concepts · Panattoni Park Mainz Süd",
+   "qm": 9400,
+   "urteil": "Park laut Meldung vor Fertigstellung vollvermietet. Unsere Einheit hat 9.428 m², Eigentümer Panattoni, steht auf „Reserviert“.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 144322018,
+     "titel": "Panattoni Park Mainz Süd",
+     "datum": "2026-08-14"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 3955049,
+     "rolle": "eintragen"
+    }
+   ]
+  },
+  {
+   "gruppe": "eintragen",
+   "ort": "Hamburg-Steinwerder, Nordersand 1",
+   "wer": "TSIT · Prologis Park Steinwerder DC1",
+   "qm": 8600,
+   "urteil": "Name des Parks steht im Titel unserer Einheit, 8.558 m², Eigentümer Prologis. Steht auf „ab sofort“ frei.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 157524171,
+     "titel": "Prologis Park Hamburg-Steinwerder DC1",
+     "datum": "2026-10-23"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5768805,
+     "rolle": "eintragen"
+    }
+   ]
+  },
+  {
+   "gruppe": "eintragen",
+   "ort": "Kitzingen, ConneKT 34",
+   "wer": "Textildienstleister · Cabot Properties",
+   "qm": 6700,
+   "urteil": "Adresse und Projektname stimmen wörtlich. Einzige Einheit am Standort.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 144194223,
+     "titel": "ConneKT 34 Kitzingen",
+     "datum": "2026-08-12"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 3124232,
+     "rolle": "eintragen"
+    }
+   ]
+  },
+  {
+   "gruppe": "eintragen",
+   "ort": "Soest, Sälzerweg 5",
+   "wer": "Falcon · Dream Advisors",
+   "qm": 23000,
+   "urteil": "Unit 1 und Unit 2 ergeben zusammen 23.053 m². Daneben liegen vier ältere Datensätze derselben Halle ohne Status – die gehören mit geschlossen.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 160263357,
+     "titel": "Dream Advisors",
+     "datum": "2026-11-14"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5422160,
+     "rolle": "eintragen"
+    },
+    {
+     "id": 5422162,
+     "rolle": "eintragen"
+    },
+    {
+     "id": 5422103,
+     "rolle": "eintragen"
+    },
+    {
+     "id": 5422112,
+     "rolle": "eintragen"
+    },
+    {
+     "id": 5422117,
+     "rolle": "eintragen"
+    }
+   ]
+  },
+  {
+   "gruppe": "eintragen",
+   "ort": "Krefeld, CTPark",
+   "wer": "internationaler Stahlkonzern · CTP",
+   "qm": 19000,
+   "urteil": "Unser Platzhalter-Datensatz führt 19.020 m², Eigentümer CTP.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 151949413,
+     "titel": "CTPark Krefeld",
+     "datum": "2026-09-09"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5381316,
+     "rolle": "eintragen"
+    }
+   ]
+  },
+  {
+   "gruppe": "eintragen",
+   "ort": "Wiesloch, Gutenbergring",
+   "wer": "Movianto · VGP Park Wiesloch-Walldorf",
+   "qm": 30000,
+   "urteil": "Einheit 002 hat exakt 30.000 m² und steht auf „sofort“. Eine zweite Meldung nennt 44.400 m² – ob auch Einheit 001 (20.000 m²) weg ist, bitte bei VGP nachfragen.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 154405188,
+     "titel": "VGP Park Wiesloch-Walldorf",
+     "datum": "2026-09-29"
+    },
+    {
+     "id": 153847959,
+     "titel": "VGP Deutschland",
+     "datum": "2026-09-25"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 3181692,
+     "rolle": "eintragen"
+    },
+    {
+     "id": 3181688,
+     "rolle": "offen"
+    },
+    {
+     "id": 5769818,
+     "rolle": "offen"
+    }
+   ]
+  },
+  {
+   "gruppe": "eintragen",
+   "ort": "Köln-Niehl, Geestemünder Straße",
+   "wer": "Alt-Sammelsatz zum Panattoni Park Köln II",
+   "qm": 40200,
+   "urteil": "Der Park ist komplett an Goodcang vermietet, alle zwölf Einheiten sind geschlossen. Dieser dritte, ältere Datensatz zum selben Park steht noch auf „Aktiv“ und „ab Q1 2026“.",
+   "frage": "",
+   "aufgaben": [],
+   "einheiten": [
+    {
+     "id": 2777997,
+     "rolle": "eintragen"
+    }
+   ]
+  },
+  {
+   "gruppe": "klaeren",
+   "ort": "Frankfurt (Oder), Belgische Straße 2",
+   "wer": "Ceva Logistics für Amazon · Alcaro (Log Plaza)",
+   "qm": 94000,
+   "urteil": "Drei Meldungen seit August: „Halle B“, „Logistikhalle 2“ an Ceva, dann 94.000 m² an einen internationalen Logistikdienstleister. Bei uns stehen neun Einheiten der Halle B mit zusammen über 80.000 m² auf „sofort“ frei. Die KI hatte eine Einheit der Halle A gewählt, die schon geschlossen ist.",
+   "frage": "Alcaro: Welche Hallen sind noch frei?",
+   "aufgaben": [
+    {
+     "id": 157045785,
+     "titel": "Log Plaza Frankfurt (Oder)",
+     "datum": "2026-10-20"
+    },
+    {
+     "id": 144510581,
+     "titel": "Alcaro Logistikhalle 2",
+     "datum": "2026-08-17"
+    },
+    {
+     "id": 144132108,
+     "titel": "Alcaro Invest",
+     "datum": "2026-08-11"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5050191,
+     "rolle": "offen"
+    },
+    {
+     "id": 5050066,
+     "rolle": "offen"
+    },
+    {
+     "id": 5054002,
+     "rolle": "offen"
+    },
+    {
+     "id": 5054026,
+     "rolle": "offen"
+    },
+    {
+     "id": 5050565,
+     "rolle": "offen"
+    },
+    {
+     "id": 5050578,
+     "rolle": "offen"
+    },
+    {
+     "id": 5050591,
+     "rolle": "offen"
+    },
+    {
+     "id": 5050043,
+     "rolle": "offen"
+    },
+    {
+     "id": 5033678,
+     "rolle": "zu"
+    }
+   ]
+  },
+  {
+   "gruppe": "klaeren",
+   "ort": "Dombühl",
+   "wer": "Logistikdienstleister · Bauwo",
+   "qm": 52000,
+   "urteil": "Fünf Einheiten à 10.485 m² ergeben 52.425 m² – das passt zum älteren Dombühl-Projekt in Akquise. Die KI wählte Am Schindfeld 1 (Eigentümer DLH, drei Einheiten à 29.760 m²); das ist ein anderes Objekt.",
+   "frage": "Bauwo: Sind die Einheiten 1–5 in Dombühl vermietet?",
+   "aufgaben": [
+    {
+     "id": 143860471,
+     "titel": "Bauwo Grundstücksgesellschaft mbH",
+     "datum": "2026-08-07"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5220244,
+     "rolle": "offen"
+    },
+    {
+     "id": 5220339,
+     "rolle": "offen"
+    },
+    {
+     "id": 5220340,
+     "rolle": "offen"
+    },
+    {
+     "id": 5220341,
+     "rolle": "offen"
+    },
+    {
+     "id": 5220342,
+     "rolle": "offen"
+    },
+    {
+     "id": 5770683,
+     "rolle": "finger_weg"
+    }
+   ]
+  },
+  {
+   "gruppe": "klaeren",
+   "ort": "Nohra bei Weimar, Grunstedter Weg 7",
+   "wer": "Tekpoint · FOCUS Logistikpark (BGO, Prodac)",
+   "qm": 23175,
+   "urteil": "Die Meldung nennt unsere Adresse wörtlich. Der Datensatz führt 32.157 m², hat keinen Status und steht noch auf „Aktiv“.",
+   "frage": "Sind die übrigen rund 9.000 m² noch frei, oder ist der Park voll?",
+   "aufgaben": [
+    {
+     "id": 158058453,
+     "titel": "FOCUS Logistikpark",
+     "datum": "2026-10-28"
+    },
+    {
+     "id": 158198850,
+     "titel": "Grunstedter Weg 7, Nohra",
+     "datum": "2026-10-30"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 2777841,
+     "rolle": "offen"
+    }
+   ]
+  },
+  {
+   "gruppe": "klaeren",
+   "ort": "Günzburg, Hendrik-Lorentz-Straße 4-8",
+   "wer": "Schäflein u. a. · Frasers (Gewerbepark LINK)",
+   "qm": 15200,
+   "urteil": "Frasers meldet 15.200 m² neu vermietet und 73 % Auslastung. Bei uns stehen alle drei Hallen auf „sofort“.",
+   "frage": "Frasers: Welche Halle ist noch frei?",
+   "aufgaben": [
+    {
+     "id": 152037969,
+     "titel": "Frasers Property Industrial",
+     "datum": "2026-09-10"
+    },
+    {
+     "id": 151949435,
+     "titel": "Industrie- und Gewerbepark LINK",
+     "datum": "2026-09-09"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5766119,
+     "rolle": "offen"
+    },
+    {
+     "id": 5766120,
+     "rolle": "offen"
+    },
+    {
+     "id": 5766121,
+     "rolle": "offen"
+    }
+   ]
+  },
+  {
+   "gruppe": "klaeren",
+   "ort": "Hamburg, Seehafenstraße 24",
+   "wer": "HGK Logistics and Intermodal · Four Parx (Triport)",
+   "qm": null,
+   "urteil": "Projektname und Eigentümer passen. Die Meldung nennt keine Fläche. Eine der beiden Aufgaben hatte die KI nach Köln-Niehl gelegt – das ist derselbe Vorgang.",
+   "frage": "Four Parx: Wie viel hat HGK genommen?",
+   "aufgaben": [
+    {
+     "id": 152438255,
+     "titel": "Hamburger Triport",
+     "datum": "2026-09-11"
+    },
+    {
+     "id": 146321501,
+     "titel": "Triport",
+     "datum": "2026-08-28"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5766142,
+     "rolle": "offen"
+    }
+   ]
+  },
+  {
+   "gruppe": "klaeren",
+   "ort": "Salzgitter, Gottfried-Linke-Straße",
+   "wer": "Alstom · Garbe Industrial",
+   "qm": 31000,
+   "urteil": "Ort und Größenordnung passen (28.327 m²). Datensatz ohne Status, steht auf „Aktiv“.",
+   "frage": "Ist das die Halle, die Alstom gemietet hat?",
+   "aufgaben": [
+    {
+     "id": 142863338,
+     "titel": "Garbe Industrial Neubaufläche Salzgitter",
+     "datum": "2026-07-24"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 2777978,
+     "rolle": "offen"
+    }
+   ]
+  },
+  {
+   "gruppe": "klaeren",
+   "ort": "Nieder-Olm, Am Giener 2",
+   "wer": "Transport- und Logistikunternehmen · Logicor",
+   "qm": 28000,
+   "urteil": "Ort und Eigentümer stimmen, Fläche ungefähr (31.285 m²). Bei uns frei ab 01.01.2027.",
+   "frage": "Logicor: Ist Nieder-Olm vergeben?",
+   "aufgaben": [
+    {
+     "id": 153847868,
+     "titel": "Logicor",
+     "datum": "2026-09-25"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5766483,
+     "rolle": "offen"
+    }
+   ]
+  },
+  {
+   "gruppe": "klaeren",
+   "ort": "Bochum, Märkische Straße 10",
+   "wer": "Apex · Thelen",
+   "qm": 24500,
+   "urteil": "Altbestand, in Vermarktung und „Aktiv“. Größe passt laut Objektbeschreibung.",
+   "frage": "Ist die Halle an Apex gegangen?",
+   "aufgaben": [
+    {
+     "id": 143382474,
+     "titel": "Thelen-Objekt Bochum",
+     "datum": "2026-07-31"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 2777873,
+     "rolle": "offen"
+    }
+   ]
+  },
+  {
+   "gruppe": "klaeren",
+   "ort": "Lensahn, Schwienkuhler Weg",
+   "wer": "Dieseo · Garbe Industrial",
+   "qm": null,
+   "urteil": "Einziges Objekt, das wir in Lensahn führen (21.753 m², „sofort“).",
+   "frage": "Garbe: Ist Lensahn vermietet?",
+   "aufgaben": [
+    {
+     "id": 146321490,
+     "titel": "Garbe Industrial Real Estate",
+     "datum": "2026-08-28"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 3228009,
+     "rolle": "offen"
+    }
+   ]
+  },
+  {
+   "gruppe": "klaeren",
+   "ort": "Oyten, Margarete-Steiff-Straße",
+   "wer": "Unizell Medicare · Baytree",
+   "qm": 20000,
+   "urteil": "Ort und Größenordnung passen (22.230 m²). Als Eigentümer steht bei uns Peper & Söhne.",
+   "frage": "Ist das der Baytree-Neubau, und ist er vergeben?",
+   "aufgaben": [
+    {
+     "id": 158058490,
+     "titel": "Baytree Deutschland GmbH",
+     "datum": "2026-10-28"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5772941,
+     "rolle": "offen"
+    }
+   ]
+  },
+  {
+   "gruppe": "klaeren",
+   "ort": "Rostock, Stellmakerstraße",
+   "wer": "Nagel-Group · VGP Park Rostock",
+   "qm": null,
+   "urteil": "Unsere VGP-Einheit führt 46.437 m². Die Einheiten an der Marieneher Straße gehören CTP und sind nicht gemeint.",
+   "frage": "VGP: Was ist in Rostock noch frei?",
+   "aufgaben": [
+    {
+     "id": 155898725,
+     "titel": "VGP-Park Rostock",
+     "datum": "2026-10-08"
+    },
+    {
+     "id": 156004033,
+     "titel": "VGP Park Rostock",
+     "datum": "2026-10-10"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5769821,
+     "rolle": "offen"
+    },
+    {
+     "id": 5765585,
+     "rolle": "finger_weg"
+    }
+   ]
+  },
+  {
+   "gruppe": "klaeren",
+   "ort": "Dortmund, Wulfshofstraße 18",
+   "wer": "Mietvertrag über 7.100 m²",
+   "qm": 7100,
+   "urteil": "Adresse stimmt wörtlich. Der Datensatz führt 12.494 m², hat keinen Status und steht auf „Aktiv“.",
+   "frage": "Bleiben rund 5.400 m² frei?",
+   "aufgaben": [
+    {
+     "id": 153112790,
+     "titel": "Wulfshofstraße 18",
+     "datum": "2026-09-17"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 2778280,
+     "rolle": "offen"
+    }
+   ]
+  },
+  {
+   "gruppe": "klaeren",
+   "ort": "Holzgerlingen, Daimlerstraße",
+   "wer": "MeetPadel · Garbe Industrial",
+   "qm": null,
+   "urteil": "Garbe belegt einen Teil des eigenen Gewerbeparks mit einer Padel-Halle.",
+   "frage": "Wie viel der 15.245 m² ist noch verfügbar?",
+   "aufgaben": [
+    {
+     "id": 156934267,
+     "titel": "GARBE Industrial",
+     "datum": "2026-10-18"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5760545,
+     "rolle": "offen"
+    }
+   ]
+  },
+  {
+   "gruppe": "klaeren",
+   "ort": "Pulheim, Industriestraße 20",
+   "wer": "Maintrans Gruppe",
+   "qm": 9000,
+   "urteil": "Einziges Objekt dieser Größe in Pulheim (10.180 m², frei ab 01/2026).",
+   "frage": "Ist die Fläche an Maintrans gegangen?",
+   "aufgaben": [
+    {
+     "id": 151949399,
+     "titel": "Maintrans Gruppe",
+     "datum": "2026-09-09"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 3637203,
+     "rolle": "offen"
+    }
+   ]
+  },
+  {
+   "gruppe": "klaeren",
+   "ort": "Mülheim an der Ruhr, Flex City",
+   "wer": "eLing (4.250 m²) und ein E-Commerce-Logistiker (8.000 m²) · Frasers",
+   "qm": 8000,
+   "urteil": "Units 1 und 2 sind an JW Fulfilment vergeben und geschlossen. Offen stehen Unit 3 (8.798 m²) und der Turm.",
+   "frage": "Frasers: Ist Unit 3 noch frei?",
+   "aufgaben": [
+    {
+     "id": 156238723,
+     "titel": "FlexCity",
+     "datum": "2026-10-14"
+    },
+    {
+     "id": 143382485,
+     "titel": "Flex City Mülheim",
+     "datum": "2026-07-31"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 4807608,
+     "rolle": "offen"
+    },
+    {
+     "id": 5766104,
+     "rolle": "offen"
+    },
+    {
+     "id": 3873376,
+     "rolle": "finger_weg"
+    }
+   ]
+  },
+  {
+   "gruppe": "klaeren",
+   "ort": "Haan, Siemensstraße",
+   "wer": "chinesischer Logistiker",
+   "qm": 7700,
+   "urteil": "Größe passt ungefähr (7.084 m²), die Meldung nennt keine Straße.",
+   "frage": "Ist die Halle Siemensstraße vergeben?",
+   "aufgaben": [
+    {
+     "id": 158198817,
+     "titel": "Siemensstraße, Haan",
+     "datum": "2026-10-30"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5754689,
+     "rolle": "offen"
+    }
+   ]
+  },
+  {
+   "gruppe": "klaeren",
+   "ort": "Berlin-Weißensee, An der Industriebahn 23",
+   "wer": "O'Donnell Moonshine · Prologis",
+   "qm": 5000,
+   "urteil": "Erstmieter im Neubau auf rund 5.000 m². In Frage kommen Unit 2 (5.155 m²) oder Unit 1 (4.677 m²). Eine der beiden Aufgaben hing am stillgelegten Sammelsatz.",
+   "frage": "Prologis: Welche Unit ist weg?",
+   "aufgaben": [
+    {
+     "id": 158638009,
+     "titel": "Prologis Neubau Berlin-Weißensee",
+     "datum": "2026-11-04"
+    },
+    {
+     "id": 158712169,
+     "titel": "Prologis-Neubau",
+     "datum": "2026-11-05"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5768799,
+     "rolle": "offen"
+    },
+    {
+     "id": 5768884,
+     "rolle": "offen"
+    }
+   ]
+  },
+  {
+   "gruppe": "klaeren",
+   "ort": "Düsseldorf-Flingern, Höherweg",
+   "wer": "Grundfos · SEGRO",
+   "qm": 4300,
+   "urteil": "Eigentümer und Park stimmen. Keine unserer Einheiten hat 4.300 m²; die Units der Phase 2 liegen bei 5.600 m².",
+   "frage": "SEGRO: Welche Fläche hat Grundfos genommen?",
+   "aufgaben": [
+    {
+     "id": 160441766,
+     "titel": "SEGRO Gewerbepark Düsseldorf",
+     "datum": "2026-11-17"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5301725,
+     "rolle": "offen"
+    }
+   ]
+  },
+  {
+   "gruppe": "schwach",
+   "ort": "Ludwigsfelde",
+   "wer": "Fahrzeughersteller · Garbe; Schnellecke · Patron Capital/Inbright",
+   "qm": 16000,
+   "urteil": "Zwei Meldungen, beide ohne Adresse. Wir führen dort einen Garbe-Gewerbepark (14.350 m²). Die KI wählte für die Garbe-Meldung eine VGP-Einheit.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 145564174,
+     "titel": "Garbe",
+     "datum": "2026-08-22"
+    },
+    {
+     "id": 154859866,
+     "titel": "Patron Capital / Inbright",
+     "datum": "2026-10-01"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5885054,
+     "rolle": "offen"
+    },
+    {
+     "id": 5769820,
+     "rolle": "finger_weg"
+    }
+   ]
+  },
+  {
+   "gruppe": "schwach",
+   "ort": "Kerpen",
+   "wer": "GoodCang · TCC und Cain (ganzes Logistikzentrum)",
+   "qm": null,
+   "urteil": "Wir führen in Kerpen drei größere Hallen ohne Eigentümerangabe. Welche gemeint ist, sagt die Meldung nicht.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 142863337,
+     "titel": "TCC / Cain Logistikzentrum Kerpen",
+     "datum": "2026-07-24"
+    },
+    {
+     "id": 142984607,
+     "titel": "TCC Logistikzentrum Kerpen",
+     "datum": "2026-07-25"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 2777871,
+     "rolle": "offen"
+    },
+    {
+     "id": 2777971,
+     "rolle": "offen"
+    },
+    {
+     "id": 2777951,
+     "rolle": "offen"
+    }
+   ]
+  },
+  {
+   "gruppe": "schwach",
+   "ort": "Mannheim, Carl-Reuther-Straße 1",
+   "wer": "Audiotechnik-Hersteller · Aurelis (Turbinenwerk)",
+   "qm": 4100,
+   "urteil": "Größe passt (4.000 m²), als Eigentümer steht bei uns aber Sirius.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 155963981,
+     "titel": "Unternehmerpark Turbinenwerk",
+     "datum": "2026-10-09"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5769413,
+     "rolle": "offen"
+    }
+   ]
+  },
+  {
+   "gruppe": "schwach",
+   "ort": "Köln-Porz, Josef-Linden-Weg 18",
+   "wer": "Aurelis Unternehmerpark, erster Teil vermietet",
+   "qm": null,
+   "urteil": "Datensatz ohne Status. Die Meldung nennt weder Mieter noch Fläche.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 143466922,
+     "titel": "Unternehmerpark Köln-Porz",
+     "datum": "2026-08-02"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5220375,
+     "rolle": "offen"
+    }
+   ]
+  },
+  {
+   "gruppe": "schwach",
+   "ort": "Mönchengladbach, Regioparkring 10",
+   "wer": "Coca-Cola · GLP",
+   "qm": null,
+   "urteil": "Altbestand in Vermarktung. Ob das der GLP-Standort ist, steht nirgends.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 143939299,
+     "titel": "GLP",
+     "datum": "2026-08-08"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 2778486,
+     "rolle": "offen"
+    }
+   ]
+  },
+  {
+   "gruppe": "schwach",
+   "ort": "Düsseldorf-Reisholz, Reisholzer Werftstraße 68",
+   "wer": "Rheindocks / Werft68 · BEOS",
+   "qm": null,
+   "urteil": "Die Meldung nennt weder Mieter noch Fläche. Unsere 13 BEOS-Einheiten dort haben keinen Status.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 153281627,
+     "titel": "Rheindocks (Werft68)",
+     "datum": "2026-09-18"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 2778235,
+     "rolle": "offen"
+    }
+   ]
+  },
+  {
+   "gruppe": "schwach",
+   "ort": "Flörsheim, Schieferstein 11",
+   "wer": "Vermietung über 3.200 m² (Realogis)",
+   "qm": 3200,
+   "urteil": "Unsere beiden BEOS-Einheiten haben zusammen 2.937 m².",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 154919021,
+     "titel": "REALOGIS",
+     "datum": "2026-10-02"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5770055,
+     "rolle": "offen"
+    },
+    {
+     "id": 5770056,
+     "rolle": "offen"
+    }
+   ]
+  },
+  {
+   "gruppe": "schwach",
+   "ort": "Pforzheim, Im Altgefäll 11",
+   "wer": "Prologis, ehemaliges Klingel-Areal",
+   "qm": null,
+   "urteil": "Die Meldung nennt nur den Entwickler. Bei uns frei ab 29.02.2028.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 155898775,
+     "titel": "Prologis (ehem. Areal Klingel Gruppe)",
+     "datum": "2026-10-08"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5768895,
+     "rolle": "offen"
+    }
+   ]
+  },
+  {
+   "gruppe": "schwach",
+   "ort": "Dreieich, In der Luxhohl 2",
+   "wer": "Four Parx Dreieich Airport",
+   "qm": null,
+   "urteil": "BT02 ist geschlossen, BT01 (5.337 m²) steht offen. Die Meldung nennt weder Mieter noch Fläche.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 143382479,
+     "titel": "Four Parx Dreieich Airport",
+     "datum": "2026-07-31"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 2777828,
+     "rolle": "offen"
+    },
+    {
+     "id": 5759605,
+     "rolle": "zu"
+    }
+   ]
+  },
+  {
+   "gruppe": "schwach",
+   "ort": "Duisburg, logport II",
+   "wer": "JD · Garbe Logistikpark Logport II",
+   "qm": null,
+   "urteil": "Die gewählte Einheit Ehinger Straße 139 gehört duisport, nicht Garbe.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 154919149,
+     "titel": "Garbe Logistikpark Logport II",
+     "datum": "2026-10-02"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 2778242,
+     "rolle": "finger_weg"
+    }
+   ]
+  },
+  {
+   "gruppe": "schwach",
+   "ort": "Duisburg",
+   "wer": "Euziel International · Hillwood",
+   "qm": null,
+   "urteil": "Laut Fachpresse eine Hillwood-Halle in Duisburg. Die gewählte Einheit Marseiller Straße 14 gehört duisport.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 156912641,
+     "titel": "Hillwood",
+     "datum": "2026-10-17"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5770423,
+     "rolle": "finger_weg"
+    }
+   ]
+  },
+  {
+   "gruppe": "schwach",
+   "ort": "Köln-Niehl oder Frechen",
+   "wer": "Novatrans · Bauer Property",
+   "qm": 11000,
+   "urteil": "Zwei Meldungen mit zwei verschiedenen Orten. Unsere Einheit in Frechen gehört Logicor.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 146321478,
+     "titel": "Logicor",
+     "datum": "2026-08-28"
+    },
+    {
+     "id": 145260125,
+     "titel": "Bauer Property",
+     "datum": "2026-08-20"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5766481,
+     "rolle": "finger_weg"
+    },
+    {
+     "id": 2778001,
+     "rolle": "offen"
+    }
+   ]
+  },
+  {
+   "gruppe": "schwach",
+   "ort": "Schkeuditz, Paul-Thiersch-Straße 13",
+   "wer": "Verdion VELF-1, vollständig vermietet",
+   "qm": 11872,
+   "urteil": "Die Meldung nennt keinen Ort; die Zuordnung zum Raum Leipzig ist eine Vermutung.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 143450889,
+     "titel": "Verdion VELF-1-Fonds",
+     "datum": "2026-08-01"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 3735442,
+     "rolle": "offen"
+    }
+   ]
+  },
+  {
+   "gruppe": "schwach",
+   "ort": "Ort unbekannt",
+   "wer": "Prodinger · P3",
+   "qm": null,
+   "urteil": "Ohne Ort nicht zuordenbar. Wir führen P3 an vier Standorten.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 142072028,
+     "titel": "P3",
+     "datum": "2026-07-16"
+    }
+   ],
+   "einheiten": []
+  },
+  {
+   "gruppe": "schwach",
+   "ort": "Emmerich",
+   "wer": "Temu, rund 4.000 m² (Logivest)",
+   "qm": 4000,
+   "urteil": "Wir führen in Emmerich drei Hillwood-Einheiten ab 6.298 m²; 4.000 m² passt zu keiner.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 147920896,
+     "titel": "Temu",
+     "datum": "2026-09-02"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 2778249,
+     "rolle": "finger_weg"
+    }
+   ]
+  },
+  {
+   "gruppe": "schwach",
+   "ort": "Wesel, Schepersweg",
+   "wer": "Rhenus, Schwalbe · Logistikzentrum Wesel",
+   "qm": null,
+   "urteil": "Acht Einheiten am Schepersweg stehen ohne Fläche und Eigentümer in Vermarktung.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 143382465,
+     "titel": "Logistikzentrum Wesel",
+     "datum": "2026-07-31"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 2778493,
+     "rolle": "offen"
+    }
+   ]
+  },
+  {
+   "gruppe": "erledigt",
+   "ort": "Dissen, Westring 8",
+   "wer": "Oval Group · Garbe Industrial",
+   "qm": 19500,
+   "urteil": "Einheit ist seit dem 12.10. geschlossen. Alle sieben Aufgaben entstanden danach.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 156934264,
+     "titel": "Garbe",
+     "datum": "2026-10-18"
+    },
+    {
+     "id": 158198887,
+     "titel": "Garbe",
+     "datum": "2026-10-30"
+    },
+    {
+     "id": 156833017,
+     "titel": "Garbe Industrial",
+     "datum": "2026-10-16"
+    },
+    {
+     "id": 156912622,
+     "titel": "Garbe Industrial",
+     "datum": "2026-10-17"
+    },
+    {
+     "id": 157045807,
+     "titel": "Garbe Industrial",
+     "datum": "2026-10-20"
+    },
+    {
+     "id": 157391183,
+     "titel": "Garbe Industrial",
+     "datum": "2026-10-21"
+    },
+    {
+     "id": 157524190,
+     "titel": "Garbe Industrial",
+     "datum": "2026-10-23"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5032898,
+     "rolle": "zu"
+    }
+   ]
+  },
+  {
+   "gruppe": "erledigt",
+   "ort": "Friedewald, Im Gewerbegebiet",
+   "wer": "4PL Central Station · Panattoni",
+   "qm": 23600,
+   "urteil": "Einheit ist geschlossen.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 143163108,
+     "titel": "Panattoni Park Friedewald",
+     "datum": "2026-07-28"
+    },
+    {
+     "id": 144478178,
+     "titel": "Panattoni Park Friedewald",
+     "datum": "2026-08-15"
+    },
+    {
+     "id": 154753322,
+     "titel": "Panattoni Park Friedewald",
+     "datum": "2026-09-30"
+    },
+    {
+     "id": 156176752,
+     "titel": "Panattoni Park Friedewald",
+     "datum": "2026-10-13"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 2777895,
+     "rolle": "zu"
+    }
+   ]
+  },
+  {
+   "gruppe": "erledigt",
+   "ort": "Kamen, Henry-Everling-Straße",
+   "wer": "Sesé Deutschland · Garbe Industrial",
+   "qm": 18700,
+   "urteil": "Alle drei Datensätze des Neubaus sind geschlossen.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 158538741,
+     "titel": "Garbe Industrial",
+     "datum": "2026-11-03"
+    },
+    {
+     "id": 158638110,
+     "titel": "Garbe Industrial Neubau Kamen",
+     "datum": "2026-11-04"
+    },
+    {
+     "id": 159224513,
+     "titel": "Garbe Industrial",
+     "datum": "2026-11-06"
+    },
+    {
+     "id": 160024729,
+     "titel": "Garbe Industrial Kamen",
+     "datum": "2026-11-12"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5032776,
+     "rolle": "zu"
+    },
+    {
+     "id": 5832852,
+     "rolle": "zu"
+    },
+    {
+     "id": 5032777,
+     "rolle": "zu"
+    }
+   ]
+  },
+  {
+   "gruppe": "erledigt",
+   "ort": "Herten, Im Emscherbruch 10",
+   "wer": "Goodcang Logistics · HIH / Urban Partners",
+   "qm": 19000,
+   "urteil": "Vollvermietung; alle vier Einheiten sind geschlossen.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 158198837,
+     "titel": "HIH",
+     "datum": "2026-10-30"
+    },
+    {
+     "id": 157524242,
+     "titel": "HIH Invest / Logicenters Neubauobjekt",
+     "datum": "2026-10-23"
+    },
+    {
+     "id": 156833112,
+     "titel": "HIH / Urban Partners",
+     "datum": "2026-10-16"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 4912970,
+     "rolle": "zu"
+    },
+    {
+     "id": 4912990,
+     "rolle": "zu"
+    },
+    {
+     "id": 5366433,
+     "rolle": "zu"
+    },
+    {
+     "id": 5463586,
+     "rolle": "zu"
+    }
+   ]
+  },
+  {
+   "gruppe": "erledigt",
+   "ort": "Viersen, Industriering 21",
+   "wer": "WISAG Logistics Solutions · Aconlog",
+   "qm": 17000,
+   "urteil": "Alle Datensätze sind geschlossen. Zwei der Aufgaben tragen seit dem 31.07. den Vermerk „geprüft und erledigt“ im Text, wurden aber nie abgehakt.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 143314331,
+     "titel": "Aconlog",
+     "datum": "2026-07-30"
+    },
+    {
+     "id": 152521374,
+     "titel": "Aconlog",
+     "datum": "2026-09-12"
+    },
+    {
+     "id": 143466925,
+     "titel": "Aconlog Brownfield-Logistikneubau Viersen",
+     "datum": "2026-08-02"
+    },
+    {
+     "id": 143382495,
+     "titel": "Aconlog-Logistikzentrum Viersen",
+     "datum": "2026-07-31"
+    },
+    {
+     "id": 143939300,
+     "titel": "Aconlog Logistikzentrum Viersen",
+     "datum": "2026-08-08"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5017655,
+     "rolle": "zu"
+    },
+    {
+     "id": 3688448,
+     "rolle": "zu"
+    },
+    {
+     "id": 5050165,
+     "rolle": "zu"
+    },
+    {
+     "id": 5050187,
+     "rolle": "zu"
+    }
+   ]
+  },
+  {
+   "gruppe": "erledigt",
+   "ort": "Könnern (Halle/Saale Nord)",
+   "wer": "Textildienstleister · Panattoni",
+   "qm": 67800,
+   "urteil": "Beide Bauabschnitte sind geschlossen.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 160512619,
+     "titel": "Panattoni",
+     "datum": "2026-11-18"
+    },
+    {
+     "id": 158638065,
+     "titel": "Panattoni Park Halle (Saale) Nord",
+     "datum": "2026-11-04"
+    },
+    {
+     "id": 160177226,
+     "titel": "Panattoni Park Halle/Saale Nord",
+     "datum": "2026-11-13"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5759125,
+     "rolle": "zu"
+    },
+    {
+     "id": 5759128,
+     "rolle": "zu"
+    }
+   ]
+  },
+  {
+   "gruppe": "erledigt",
+   "ort": "Hagen, Lennetal",
+   "wer": "Lesjöfors · Panattoni Park Hagen",
+   "qm": null,
+   "urteil": "Alle vier Module sind geschlossen.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 160024658,
+     "titel": "Panattoni Park Hagen",
+     "datum": "2026-11-12"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5255742,
+     "rolle": "zu"
+    }
+   ]
+  },
+  {
+   "gruppe": "erledigt",
+   "ort": "Köln-Niehl, Panattoni Park Köln II",
+   "wer": "Goodcang Logistics · Panattoni",
+   "qm": 40000,
+   "urteil": "Park komplett vermietet; alle zwölf Einheiten beider Datensatz-Reihen sind geschlossen.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 160512605,
+     "titel": "Panattoni Park Köln II",
+     "datum": "2026-11-18"
+    },
+    {
+     "id": 160584509,
+     "titel": "Panattoni Park Köln II",
+     "datum": "2026-11-19"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5255688,
+     "rolle": "zu"
+    },
+    {
+     "id": 3949147,
+     "rolle": "zu"
+    }
+   ]
+  },
+  {
+   "gruppe": "erledigt",
+   "ort": "Düsseldorf, Clarissenstraße 44-50",
+   "wer": "Tishman Speyer, vollständig vermietet",
+   "qm": 22900,
+   "urteil": "Einheit ist geschlossen.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 154919184,
+     "titel": "Tishman Speyer",
+     "datum": "2026-10-02"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 2778554,
+     "rolle": "zu"
+    }
+   ]
+  },
+  {
+   "gruppe": "erledigt",
+   "ort": "Duisburg-Rheinhausen, Hamburger Straße 40",
+   "wer": "Goodcang · Garbe Industrial",
+   "qm": 30500,
+   "urteil": "Garbe nennt 30.500 m² im logport Rheinhausen; unsere Einheit hat 30.518 m². Sie stand trotz „vermietet“ noch in Vermarktung und ist seit dem 19.11. geschlossen. Eine Aufgabe hatte die KI an die Bliersheimer Straße gehängt – die ist nicht gemeint.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 159224479,
+     "titel": "Garbe",
+     "datum": "2026-11-06"
+    },
+    {
+     "id": 158198926,
+     "titel": "Garbe Industrial",
+     "datum": "2026-10-30"
+    },
+    {
+     "id": 142072027,
+     "titel": "Garbe",
+     "datum": "2026-07-16"
+    },
+    {
+     "id": 143860467,
+     "titel": "Duisburg",
+     "datum": "2026-08-07"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 3195774,
+     "rolle": "zu"
+    },
+    {
+     "id": 5675134,
+     "rolle": "finger_weg"
+    }
+   ]
+  },
+  {
+   "gruppe": "erledigt",
+   "ort": "Babenhausen, Ostheimer Weg 3",
+   "wer": "ZXD Global · Mileway",
+   "qm": 3000,
+   "urteil": "Einheit ist geschlossen.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 153615838,
+     "titel": "Mileway",
+     "datum": "2026-09-22"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 3726299,
+     "rolle": "zu"
+    }
+   ]
+  },
+  {
+   "gruppe": "erledigt",
+   "ort": "Weiterstadt, Gutenbergstraße 19",
+   "wer": "De Haas Road Cargo · P3",
+   "qm": 4250,
+   "urteil": "Unit 3 hat 4.245 m² und ist geschlossen.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 147920968,
+     "titel": "P3 Logistic Parks",
+     "datum": "2026-09-02"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5288058,
+     "rolle": "zu"
+    }
+   ]
+  },
+  {
+   "gruppe": "erledigt",
+   "ort": "Zeven, Tannenkamp 24",
+   "wer": "Vollvermietung · bauwo",
+   "qm": null,
+   "urteil": "Einheit ist geschlossen.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 143673033,
+     "titel": "bauwo Grundstücksgesellschaft mbH",
+     "datum": "2026-08-05"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 3875667,
+     "rolle": "zu"
+    }
+   ]
+  },
+  {
+   "gruppe": "erledigt",
+   "ort": "Soltau, Beim Schäferkreuz",
+   "wer": "OTG · Bauwo",
+   "qm": null,
+   "urteil": "Beide Einheiten sind geschlossen.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 153719035,
+     "titel": "Bauwo",
+     "datum": "2026-09-23"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5770696,
+     "rolle": "zu"
+    },
+    {
+     "id": 5770697,
+     "rolle": "zu"
+    }
+   ]
+  },
+  {
+   "gruppe": "erledigt",
+   "ort": "Langenselbold, Diebacher Weg",
+   "wer": "E-Commerce-Logistiker · Propel Industrial / Invesco",
+   "qm": 6250,
+   "urteil": "Park vollständig vermietet; alle drei Einheiten sind geschlossen.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 153112668,
+     "titel": "Propel Industrial Logistikpark Langenselbold",
+     "datum": "2026-09-17"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 3158483,
+     "rolle": "zu"
+    },
+    {
+     "id": 3158486,
+     "rolle": "zu"
+    },
+    {
+     "id": 3158488,
+     "rolle": "zu"
+    }
+   ]
+  },
+  {
+   "gruppe": "erledigt",
+   "ort": "Solingen, Nümmener Feld 10",
+   "wer": "Hippocampus · CTP",
+   "qm": null,
+   "urteil": "Einheit ist geschlossen.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 155754035,
+     "titel": "CTP",
+     "datum": "2026-10-06"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5137253,
+     "rolle": "zu"
+    }
+   ]
+  },
+  {
+   "gruppe": "erledigt",
+   "ort": "Oberhausen, Im Waldteich 10",
+   "wer": "asiatisches E-Commerce-Unternehmen · Hillwood",
+   "qm": 18400,
+   "urteil": "Unit 1 und Unit 2 ergeben 18.360 m², Eigentümer Hillwood, beide geschlossen. Die KI wählte Zum Eisenhammer 52 – das ist ein anderes Objekt und weiter frei.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 151949386,
+     "titel": "Hillwood",
+     "datum": "2026-09-09"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 3147067,
+     "rolle": "zu"
+    },
+    {
+     "id": 3147070,
+     "rolle": "zu"
+    },
+    {
+     "id": 5407874,
+     "rolle": "finger_weg"
+    }
+   ]
+  },
+  {
+   "gruppe": "erledigt",
+   "ort": "Moers, Am Schürmannshütt 11",
+   "wer": "tsit · Ixocon",
+   "qm": 10000,
+   "urteil": "Eigentümer Ixocon, 10.185 m², geschlossen. Die KI wählte die Dr.-Berns-Straße 37 (BEOS, 18.490 m²) – die ist weiter frei.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 160024693,
+     "titel": "Ixocon",
+     "datum": "2026-11-12"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 2778068,
+     "rolle": "zu"
+    },
+    {
+     "id": 6319230,
+     "rolle": "finger_weg"
+    }
+   ]
+  },
+  {
+   "gruppe": "erledigt",
+   "ort": "Mülheim an der Ruhr, Flex City",
+   "wer": "JW Fulfilment DUS · Frasers",
+   "qm": 15700,
+   "urteil": "Unit 1 und Unit 2 ergeben 15.545 m² und sind geschlossen.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 142704433,
+     "titel": "Flexcity",
+     "datum": "2026-07-22"
+    },
+    {
+     "id": 142863339,
+     "titel": "Flexcity (Frasers)",
+     "datum": "2026-07-24"
+    },
+    {
+     "id": 142593229,
+     "titel": "FlexCity Mülheim",
+     "datum": "2026-07-21"
+    },
+    {
+     "id": 142984608,
+     "titel": "Frasers FlexCity",
+     "datum": "2026-07-25"
+    },
+    {
+     "id": 153112717,
+     "titel": "Flex City (Frasers Property)",
+     "datum": "2026-09-17"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 4807585,
+     "rolle": "zu"
+    },
+    {
+     "id": 4807591,
+     "rolle": "zu"
+    }
+   ]
+  },
+  {
+   "gruppe": "erledigt",
+   "ort": "Rheinau, Rheinstraße 110",
+   "wer": "europaweit expandierendes Unternehmen · Bauwo",
+   "qm": 20000,
+   "urteil": "Unit 2.1 und 2.2 ergeben 23.721 m² und sind geschlossen. Die KI wählte Unit 1.1 – die ist ab 01/2027 frei.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 153940083,
+     "titel": "Logistikpark Rheinau",
+     "datum": "2026-09-26"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 6175670,
+     "rolle": "zu"
+    },
+    {
+     "id": 6175671,
+     "rolle": "zu"
+    },
+    {
+     "id": 5770682,
+     "rolle": "finger_weg"
+    }
+   ]
+  },
+  {
+   "gruppe": "erledigt",
+   "ort": "Delmenhorst, Gewerbecampus",
+   "wer": "internationaler Logistikdienstleister",
+   "qm": null,
+   "urteil": "Alle elf Einheiten des gepflegten Datensatzes stehen auf vermietet.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 152521368,
+     "titel": "Gewerbecampus Delmenhorst",
+     "datum": "2026-09-12"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5220245,
+     "rolle": "zu"
+    }
+   ]
+  },
+  {
+   "gruppe": "fremd",
+   "ort": "Frickenhausen",
+   "wer": "Wezel verlängert bei CTP",
+   "qm": 8800,
+   "urteil": "Verlängerung, keine neue Vermietung. Unsere Einheit Benzstraße 2 gehört Sirius und hat 1.568 m².",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 154753285,
+     "titel": "CTP",
+     "datum": "2026-09-30"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5769426,
+     "rolle": "finger_weg"
+    }
+   ]
+  },
+  {
+   "gruppe": "fremd",
+   "ort": "Hamburg",
+   "wer": "Maersk Deutschland verlängert",
+   "qm": 12000,
+   "urteil": "Verlängerung, keine neue Vermietung.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 144322014,
+     "titel": "Maersk Deutschland",
+     "datum": "2026-08-14"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5766142,
+     "rolle": "finger_weg"
+    }
+   ]
+  },
+  {
+   "gruppe": "fremd",
+   "ort": "Regensburg",
+   "wer": "Decathlon verlängert bei Silverton",
+   "qm": null,
+   "urteil": "Verlängerung. Unsere Einheit in Obertraubling gehört P3.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 158126113,
+     "titel": "Silverton",
+     "datum": "2026-10-29"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5768087,
+     "rolle": "finger_weg"
+    }
+   ]
+  },
+  {
+   "gruppe": "fremd",
+   "ort": "Blankenfelde-Mahlow",
+   "wer": "„Panattoni Park“, 23.600 m²",
+   "qm": 23600,
+   "urteil": "Die KI hat Ort und Größe aus zwei Meldungen vermischt; 23.600 m² gehören zu Friedewald. Unsere Halle Eschenweg 9 (evolutiq, 12.450 m²) ist nicht gemeint.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 158638028,
+     "titel": "Panattoni Park",
+     "datum": "2026-11-04"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 6311013,
+     "rolle": "finger_weg"
+    }
+   ]
+  },
+  {
+   "gruppe": "fremd",
+   "ort": "Bad Hersfeld Ost",
+   "wer": "Maersk · Panattoni",
+   "qm": 71800,
+   "urteil": "Unsere Halle in Herleshausen gehört bauwo und hat 20.460 m².",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 153847928,
+     "titel": "Panattoni Park Bad Hersfeld Ost",
+     "datum": "2026-09-25"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5770700,
+     "rolle": "finger_weg"
+    }
+   ]
+  },
+  {
+   "gruppe": "fremd",
+   "ort": "Köln-Porz",
+   "wer": "Dachser · Log Plaza Colonia 3",
+   "qm": 33000,
+   "urteil": "Für Dachser gebautes Projekt. Unser Datensatz am Josef-Linden-Weg hat 8.900 m².",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 157391116,
+     "titel": "Log Plaza Colonia 3",
+     "datum": "2026-10-21"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5220375,
+     "rolle": "finger_weg"
+    }
+   ]
+  },
+  {
+   "gruppe": "fremd",
+   "ort": "München-Aubing",
+   "wer": "Landeshauptstadt München · Aurelis (Berufsschul-Neubau)",
+   "qm": 7000,
+   "urteil": "Unsere Einheit an der Brunhamstraße gehört Sirius und hat 2.448 m².",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 144194226,
+     "titel": "Unternehmerpark München-Aubing",
+     "datum": "2026-08-12"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5769418,
+     "rolle": "finger_weg"
+    }
+   ]
+  },
+  {
+   "gruppe": "fremd",
+   "ort": "Hannover Airport",
+   "wer": "Technologieunternehmen · Prologis Park DC3",
+   "qm": 7000,
+   "urteil": "Wir führen in Langenhagen kein Prologis-Objekt; Münchner Straße 52 gehört Logicor.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 142005070,
+     "titel": "Prologis Park Hannover Airport DC3",
+     "datum": "2026-07-15"
+    },
+    {
+     "id": 144194229,
+     "titel": "Prologis Park Hannover Airport DC3",
+     "datum": "2026-08-12"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 2778439,
+     "rolle": "finger_weg"
+    }
+   ]
+  },
+  {
+   "gruppe": "fremd",
+   "ort": "Köln",
+   "wer": "JCL Home Delivery erweitert bei Prologis",
+   "qm": 9500,
+   "urteil": "Erweiterung eines Bestandsmieters. Unsere Einheit Morsestraße 7 gehört bauwo.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 157391154,
+     "titel": "Prologis",
+     "datum": "2026-10-21"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5765564,
+     "rolle": "finger_weg"
+    }
+   ]
+  },
+  {
+   "gruppe": "fremd",
+   "ort": "Norderstedt",
+   "wer": "Toolport · Garbe Industrial",
+   "qm": 18500,
+   "urteil": "Unsere Einheit An'n Slagboom 7 ist ein Sirius-Gewerbepark.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 154753341,
+     "titel": "Garbe Industrial",
+     "datum": "2026-09-30"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5769392,
+     "rolle": "finger_weg"
+    }
+   ]
+  },
+  {
+   "gruppe": "fremd",
+   "ort": "Offenbach",
+   "wer": "GKN Driveline · Panattoni Park Offenbach",
+   "qm": null,
+   "urteil": "Unsere Halle Carl-Legien-Straße 15 gehört Sirius.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 153281474,
+     "titel": "Panattoni Park Offenbach",
+     "datum": "2026-09-18"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5769386,
+     "rolle": "finger_weg"
+    }
+   ]
+  },
+  {
+   "gruppe": "fremd",
+   "ort": "Hamburg-Waltershof",
+   "wer": "Blitz Distribution · Prologis",
+   "qm": 20800,
+   "urteil": "Kein passendes Objekt im Bestand.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 142984606,
+     "titel": "Prologis Park Waltershof",
+     "datum": "2026-07-25"
+    }
+   ],
+   "einheiten": []
+  },
+  {
+   "gruppe": "fremd",
+   "ort": "Hamburg",
+   "wer": "Vermietung über 900 m²",
+   "qm": 900,
+   "urteil": "Kein passendes Objekt im Bestand.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 142072025,
+     "titel": "Beate Protze Immobilien",
+     "datum": "2026-07-16"
+    }
+   ],
+   "einheiten": []
+  },
+  {
+   "gruppe": "fremd",
+   "ort": "Mülheim",
+   "wer": "WKM Medizintechnik · AVENTOS",
+   "qm": 2730,
+   "urteil": "Kein passendes Objekt im Bestand.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 141442075,
+     "titel": "AVENTOS Group",
+     "datum": "2026-07-11"
+    }
+   ],
+   "einheiten": []
+  },
+  {
+   "gruppe": "fremd",
+   "ort": "Ort unbekannt",
+   "wer": "Garpa · Garbe Industrial",
+   "qm": null,
+   "urteil": "Ohne Ort nicht zuordenbar.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 141790214,
+     "titel": "Garbe Industrial",
+     "datum": "2026-07-14"
+    }
+   ],
+   "einheiten": []
+  },
+  {
+   "gruppe": "fremd",
+   "ort": "Hamburg-Veddel",
+   "wer": "Vermietung über 5.770 m² (Realogis)",
+   "qm": 5770,
+   "urteil": "Unsere Fläche an der Großmannstraße hat 1.500 m² und gehört duisport.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 160441788,
+     "titel": "REALOGIS",
+     "datum": "2026-11-17"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5770467,
+     "rolle": "finger_weg"
+    }
+   ]
+  },
+  {
+   "gruppe": "fremd",
+   "ort": "Offenburg",
+   "wer": "J. Schneider · Mileway",
+   "qm": 8200,
+   "urteil": "Wir führen in Offenburg nichts. Die KI wählte eine Mileway-Fläche in Pleidelsheim.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 160441835,
+     "titel": "Mileway",
+     "datum": "2026-11-17"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 6373980,
+     "rolle": "finger_weg"
+    }
+   ]
+  },
+  {
+   "gruppe": "fremd",
+   "ort": "Kronberg im Taunus",
+   "wer": "„MH“, 1.700 m²",
+   "qm": 1700,
+   "urteil": "Anderer Ort; unsere Einheit liegt in Schwalbach und hat 3.605 m².",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 158058497,
+     "titel": "MH",
+     "datum": "2026-10-28"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5770034,
+     "rolle": "finger_weg"
+    }
+   ]
+  },
+  {
+   "gruppe": "fremd",
+   "ort": "Soest",
+   "wer": "Sebold Group kauft im Garbe Gewerbepark",
+   "qm": null,
+   "urteil": "Verkauf, keine Vermietung.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 154753394,
+     "titel": "Garbe Gewerbepark Soest",
+     "datum": "2026-09-30"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5422103,
+     "rolle": "finger_weg"
+    }
+   ]
+  },
+  {
+   "gruppe": "fremd",
+   "ort": "Wedel",
+   "wer": "VINCORION erweitert bei Aroundtown",
+   "qm": 3000,
+   "urteil": "Erweiterung eines Bestandsmieters bei Aroundtown. Unsere Einheiten Industriestraße 60 gehören thirteen seven.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 158126123,
+     "titel": "Aroundtown",
+     "datum": "2026-10-29"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 6159434,
+     "rolle": "finger_weg"
+    }
+   ]
+  },
+  {
+   "gruppe": "fremd",
+   "ort": "Schönefeld",
+   "wer": "GVS Group (Metro) · TCC und CBRE IM",
+   "qm": 10000,
+   "urteil": "Unser Objekt in Schönefeld ist der P3 Berlin Airport Park.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 142300323,
+     "titel": "TCC / CBRE IM",
+     "datum": "2026-07-17"
+    },
+    {
+     "id": 144478176,
+     "titel": "TCC / CBRE IM",
+     "datum": "2026-08-15"
+    },
+    {
+     "id": 141442074,
+     "titel": "Trammel Crow / CBRE IM",
+     "datum": "2026-07-11"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5287718,
+     "rolle": "finger_weg"
+    }
+   ]
+  },
+  {
+   "gruppe": "fremd",
+   "ort": "Hamburg-Steinwerder",
+   "wer": "Traditionsunternehmen · Ixocon (Hafenlogistik)",
+   "qm": null,
+   "urteil": "Nordersand 1 gehört Prologis; dessen Vermietung an TSIT steht unter „Eintragen“.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 157045752,
+     "titel": "Ixocon",
+     "datum": "2026-10-20"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5768805,
+     "rolle": "finger_weg"
+    }
+   ]
+  },
+  {
+   "gruppe": "fremd",
+   "ort": "Ludwigsfelde",
+   "wer": "Brabus Automotive · Verdion PremierPark Berlin",
+   "qm": null,
+   "urteil": "Teilfläche in einem Park, den wir nur als leeren Datensatz ohne Status führen.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 141790213,
+     "titel": "Verdion PremierPark Berlin",
+     "datum": "2026-07-14"
+    },
+    {
+     "id": 147920936,
+     "titel": "Verdion PremierPark Berlin",
+     "datum": "2026-09-02"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 4485900,
+     "rolle": "finger_weg"
+    }
+   ]
+  },
+  {
+   "gruppe": "fremd",
+   "ort": "Hamburg-Allermöhe",
+   "wer": "Meldung ohne Mieter und Fläche",
+   "qm": null,
+   "urteil": "Der zugeordnete Datensatz ist leer.",
+   "frage": "",
+   "aufgaben": [
+    {
+     "id": 155963944,
+     "titel": "Allermöhe",
+     "datum": "2026-10-09"
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 3964494,
+     "rolle": "finger_weg"
+    }
+   ]
+  }
+ ],
+ "widersprueche_offen": [
+  {
+   "id": 5288056,
+   "adresse": "Gutenbergstrasse 19, Weiterstadt",
+   "frage": "Unit 1 steht auf abgeschlossen und vermietet, zugleich „Aktiv“ mit frei ab 01.01.2030."
+  },
+  {
+   "id": 5288057,
+   "adresse": "Gutenbergstrasse 19, Weiterstadt",
+   "frage": "Unit 2: wie Unit 1, frei ab 01.07.2028."
+  },
+  {
+   "id": 5288059,
+   "adresse": "Gutenbergstrasse 19, Weiterstadt",
+   "frage": "Unit 4: wie Unit 1, frei ab 01.04.2027 – das ist in gut vier Monaten."
+  },
+  {
+   "id": 2778107,
+   "adresse": "Kimplerstraße 336, Krefeld",
+   "frage": "Vermietet-Haken gesetzt, aber Vermarktung, „Aktiv“ und frei „auf Anfrage“. Ein früherer Lauf hat den Widerspruch am 30.07. vermerkt und bewusst offen gelassen."
+  },
+  {
+   "id": 3637131,
+   "adresse": "Franz-Greiß-Straße 7, Köln",
+   "frage": "Vermietet-Haken gesetzt, aber Vermarktung und „Aktiv“. Am 03.08. vermerkt und offen gelassen."
+  },
+  {
+   "id": 2810381,
+   "adresse": "Regioparkring 20, Mönchengladbach",
+   "frage": "Vermietet-Haken gesetzt, aber Vermarktung und „Aktiv“. Keine Notiz, kein Bezugstermin."
+  },
+  {
+   "id": 3622790,
+   "adresse": "Rheindeichstraße 155, Duisburg",
+   "frage": "Vermietet-Haken gesetzt, frei ab 01.01.2029, steht in Vermarktung."
+  },
+  {
+   "id": 3633614,
+   "adresse": "Am Fallhammer 9, Düsseldorf",
+   "frage": "Vermietet-Haken gesetzt, steht in Vermarktung, „Inaktiv“."
+  },
+  {
+   "id": 3144177,
+   "adresse": "Herrenpfad-Süd 40, Nettetal",
+   "frage": "Vermietet-Haken gesetzt, steht in Vermarktung. Seit Februar nicht mehr angefasst."
+  }
+ ]
+}

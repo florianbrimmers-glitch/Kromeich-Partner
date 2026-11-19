@@ -230,10 +230,64 @@ Serverfehler; `office_country` ist bei jedem importierten Kontakt „Deutschland
    Nur-Lese-Schlüssel ersetzen, falls Propstack das anbietet, sonst entfernen.
 10. **Aufräumen im Repo:** PR #2 („Kromeich Heroes“, offen seit April) und rund 30 alte Branches.
 
+## Nachtrag – entschieden und ausgeführt am Abend des 19.11.2026
+
+Florian hat die Punkte 1 bis 5 beantwortet. Drei meiner Empfehlungen oben gelten nicht mehr:
+
+- **Punkt 3 (nur noch Slack):** zurückgezogen. Die Aufgaben bleiben in Propstack, weil sie dort am Objekt
+  hängen. Das Problem ist die Menge, nicht der Ort.
+- **Punkt 5 (Objekt-Status für 204 Einheiten nachziehen):** zurückgezogen. 196 der 204 stammen aus dem Import
+  01/2025 und wurden nie geprüft; „Vermarktung“ würde zwei Jahre alte Verfügbarkeiten amtlich machen.
+- **„25 Widersprüche lassen sich nach Regel bereinigen“:** stimmte nur für 16. Siehe unten.
+
+**Ausgeführt (live, mit Probe, zurückgelesen):**
+
+| Was | Zahl | Zurücknehmen |
+|---|---|---|
+| Dubletten unter den Newsletter-Aufgaben geschlossen | 34 | `scripts/pruefaufgaben_geschlossen_2026-11-19.json` |
+| „Abgeschlossen, aber Aktiv“ auf Inaktiv gezogen | 15 Einheiten | `scripts/widersprueche_bereinigt_2026-11-19.json`, `undo_plan` bis 26.11. |
+| „Vermietet, aber Vermarktung“ auf Abgeschlossen gesetzt | 1 Einheit (Hamburger Straße 40, Duisburg) | ebenda |
+
+Offen sind danach 575 Aufgaben (vorher 609), davon 129 „Newsletter-Vermietung prüfen“.
+
+**Warum nur 16 von 25 Widersprüchen.** Vor dem Schreiben habe ich jede Einheit einzeln gelesen (Änderungsvermerk,
+Notiz, Bezugstermin, zugehörige Slack-Meldungen). Bei neun lässt sich aus den Daten nicht sagen, welche Seite
+stimmt: Weiterstadt Unit 1, 2 und 4 sind vermietet bis 2030, 2028 und 03/2027 und stehen bewusst auf „Aktiv“;
+bei sechs Einheiten steht der Vermietet-Haken neben „Vermarktung“, und zwei davon tragen seit dem Sommer den
+Vermerk „nicht aufgelöst, weil jede Richtung eine Marktentscheidung ist“. Eine pauschale Regel hätte dort
+womöglich freie Hallen aus dem Angebot genommen. Die neun stehen in der Arbeitsliste.
+
+**Vorprüfung der 129 Newsletter-Aufgaben** (`scripts/radar_vorpruefung_2026-11-19.json`, 85 Vorgänge):
+
+| Urteil | Aufgaben | Vorgänge |
+|---|---|---|
+| Erledigt – die gemeinte Einheit ist schon geschlossen | 49 | 21 |
+| Betrifft uns nicht – fremdes Objekt, Verlängerung, Verkauf | 28 | 24 |
+| Eintragen – laut Meldung vermietet, bei uns offen, Zuordnung eindeutig | 7 | 6 (+ 1 Alt-Sammelsatz) |
+| Klären – wahrscheinlich unser Objekt, Einheit oder Umfang offen | 26 | 18 |
+| Schwache Spur – nur der Ort passt | 19 | 16 |
+
+Florians Einwand „die Newsletter müssen doch noch geprüft werden“ war berechtigt: Meine Regel „Einheit
+geschlossen → Aufgabe gegenstandslos“ hätte 40 Aufgaben geschlossen, und bei drei davon hing die Aufgabe an der
+falschen Einheit. Darunter die größte Meldung überhaupt (Frankfurt (Oder), 94.000 m², neun Einheiten stehen bei
+uns auf „sofort“ frei).
+
+**Noch zu entscheiden:**
+
+1. Die 77 Aufgaben „erledigt“ und „betrifft uns nicht“ schließen? Vorbereitet:
+   `python scripts/pruefaufgaben_aufraeumen.py --urteile scripts/radar_vorpruefung_2026-11-19.json` (liest nur;
+   `--apply` schließt und schreibt das Urteil als erste Zeile in die Aufgabe).
+2. Die sechs Vermietungen eintragen (zwölf Einheiten, über den Connector mit Rücknahme)?
+3. Wer stellt die 18 Fragen an die Eigentümer?
+4. Die 19 schwachen Spuren schließen oder liegen lassen?
+5. Die 47 Antworten auf Vollzugsmeldungen aus #objekte schließen (oben Punkt 2, noch nicht freigegeben)?
+6. Punkte 6 bis 10 von oben sind unverändert offen.
+
 ## Nachrechnen
 
 ```bash
-python scripts/pruefaufgaben_aufraeumen.py            # die 128 Aufgaben, nur lesend
+python scripts/pruefaufgaben_aufraeumen.py            # schließbar nach Regel, nur lesend (am 19.11. vor dem Aufräumen: 128)
+python scripts/pruefaufgaben_aufraeumen.py --urteile scripts/radar_vorpruefung_2026-11-19.json   # schließbar nach Vorprüfung, nur lesend
 python scripts/gesuch_matching.py --lat 51.195 --lng 6.44 --umkreis 20 --flaeche 2000-4500 --hoehe 6 --rampen 2
 pytest tests/ -q
 ```

@@ -27,7 +27,15 @@ Die Schreibform ist live erprobt: Am 19.11.2026 wurden damit 34 Dubletten geschl
 (Protokoll: scripts/pruefaufgaben_geschlossen_2026-11-19.json). Die Probe mit einer einzelnen
 Aufgabe bleibt trotzdem – sie kostet nichts und fängt eine geänderte Schnittstelle ab.
 
+Zweiter Weg, --urteile: Am 19.11.2026 wurden alle 129 offenen Newsletter-Aufgaben einzeln
+gelesen (scripts/radar_vorpruefung_2026-11-19.json). Geschlossen werden dann genau die dort
+genannten Aufgaben der gewählten Gruppen – nicht nach Regel, sondern nach Urteil. Jede bekommt
+das Urteil als erste Zeile in den Text („Vorprüfung 19.11.2026: …“), damit am Objekt steht,
+warum sie zu ist; --undo nimmt die Zeile wieder heraus. Für die Gruppe „erledigt“ wird vor dem
+Schließen noch einmal gelesen, ob die genannten Einheiten wirklich geschlossen sind.
+
 Aufruf:   python scripts/pruefaufgaben_aufraeumen.py                 # nur lesen
+          python scripts/pruefaufgaben_aufraeumen.py --urteile scripts/radar_vorpruefung_2026-11-19.json [--gruppen erledigt,fremd] [--apply]
           python scripts/pruefaufgaben_aufraeumen.py --apply [--limit N] [--nur gegenstandslos|dublette|vollzugsmeldung]
           python scripts/pruefaufgaben_aufraeumen.py --undo pruefaufgaben_geschlossen_<Zeit>.json --apply
 Umgebung: PROPSTACK_API_KEY oder PROPSTACK_API_V1 (wird nie ausgegeben).
@@ -206,6 +214,55 @@ def plane_vollzug(aufgaben: list[dict], texte: dict[int, str | None]) -> list[di
     return plan
 
 
+URTEIL_WORT = {
+    "erledigt": "erledigt – die gemeinte Einheit ist in Propstack geschlossen",
+    "fremd": "betrifft uns nicht",
+    "schwach": "schwache Spur, nicht weiter verfolgt",
+}
+VERMERK_ENDE = "<br><br>"
+
+
+def vermerk_html(stand: str, gruppe: str, urteil: str) -> str:
+    """Erste Zeile im Aufgabentext. Schlicht gehalten (Text + Zeilenumbrüche), so wie die
+    Handler ihre Texte schreiben – das übersteht das Speichern unverändert."""
+    return html.escape(f"Vorprüfung {stand}: {URTEIL_WORT.get(gruppe, gruppe)}. {urteil}", quote=False) + VERMERK_ENDE
+
+
+def plane_urteile(aufgaben: list[dict], vorpruefung: dict, gruppen: set[str],
+                  einheiten: dict[int, dict]) -> tuple[list[dict], list[str]]:
+    """Schließplan aus einer Vorprüfung: nur Aufgaben, die dort stehen UND heute noch offene
+    Newsletter-Aufgaben sind. Ein Vorgang der Gruppe „erledigt“ wird ausgelassen, wenn eine
+    seiner als geschlossen geführten Einheiten heute offen ist oder sich nicht lesen ließ –
+    dann stimmt das Urteil nicht mehr."""
+    offen = {a["activatable_id"]: a for a in offene_newsletter_aufgaben(aufgaben)}
+    plan: list[dict] = []
+    hinweise: list[str] = []
+    for fall in vorpruefung.get("faelle", []):
+        gruppe = fall.get("gruppe")
+        if gruppe not in gruppen:
+            continue
+        if gruppe == "erledigt":
+            zu = [e["id"] for e in fall.get("einheiten", []) if e.get("rolle") == "zu"]
+            geplatzt = [u for u in zu if u not in einheiten or not einheit_abgeschlossen(einheiten[u])]
+            if geplatzt or not zu:
+                hinweise.append(f"{fall.get('ort')}: ausgelassen – Einheit(en) {geplatzt or 'fehlen'} "
+                                "sind heute nicht (mehr) geschlossen")
+                continue
+        for genannt in fall.get("aufgaben", []):
+            aufgabe = offen.get(genannt["id"])
+            if aufgabe is None:
+                hinweise.append(f"Task {genannt['id']} ({fall.get('ort')}): nicht mehr offen – übersprungen")
+                continue
+            plan.append({
+                "task_id": genannt["id"], "grund": gruppe, "behalten": None,
+                "titel": aufgabe.get("title"),
+                "angelegt": str(aufgabe.get("original_created_at") or "")[:10],
+                "units": [u for u in (aufgabe.get("property_ids") or []) if isinstance(u, int)],
+                "vermerk": vermerk_html(vorpruefung.get("stand", ""), gruppe, fall.get("urteil", "")),
+            })
+    return plan, hinweise
+
+
 class Propstack:
     def __init__(self, key: str) -> None:
         self.client = httpx.Client(
@@ -279,16 +336,45 @@ class Propstack:
     def setze_erledigt(self, task_id: int, erledigt: bool) -> None:
         self._request("PUT", f"/tasks/{task_id}", json={"task": {"done": erledigt}})
 
+    def text(self, task_id: int) -> str:
+        """Aufgabentext; ein Lesefehler wird NICHT geschluckt – wer den Text nicht kennt,
+        darf ihn nicht überschreiben."""
+        data = self._request("GET", f"/tasks/{task_id}").json()
+        task = data.get("task") if isinstance(data.get("task"), dict) else data
+        return _scalar(task.get("body")) or ""
+
+    def schliesse_mit_vermerk(self, task_id: int, vermerk: str) -> None:
+        alt = self.text(task_id)
+        neu = alt if alt.startswith(vermerk) else vermerk + alt
+        self._request("PUT", f"/tasks/{task_id}", json={"task": {"done": True, "body": neu}})
+
+    def oeffne_ohne_vermerk(self, task_id: int, vermerk: str) -> bool:
+        """Wieder öffnen und den Vermerk entfernen. False, wenn der Text nicht mehr mit dem
+        Vermerk beginnt (jemand hat ihn geändert) – dann wird nur geöffnet."""
+        alt = self.text(task_id)
+        if alt.startswith(vermerk):
+            self._request("PUT", f"/tasks/{task_id}", json={"task": {"done": False, "body": alt[len(vermerk):]}})
+            return True
+        self.setze_erledigt(task_id, False)
+        return False
+
 
 def _drucke(plan: list[dict]) -> None:
     for grund, ueberschrift in ((GEGENSTANDSLOS, "Gegenstandslos (Einheit schon vermietet/abgeschlossen)"),
                                 (DUBLETTE, "Dublette (ältere offene Aufgabe zur selben Einheit bleibt)"),
                                 (VOLLZUG, "Antwort auf eine Vollzugsmeldung (#objekte)")):
-        zeilen = [e for e in plan if e["grund"] == grund]
-        print(f"\n{ueberschrift}: {len(zeilen)}")
-        for e in zeilen:
-            zusatz = f" – bleibt offen: Task {e['behalten']}" if e["behalten"] else ""
-            print(f"  Task {e['task_id']}  {e['angelegt']}  {e['titel']}  (Units {e['units']}){zusatz}")
+        _drucke_gruppe(plan, grund, ueberschrift)
+    for grund, wort in URTEIL_WORT.items():
+        if any(e["grund"] == grund for e in plan):
+            _drucke_gruppe(plan, grund, f"Vorprüfung: {wort}")
+
+
+def _drucke_gruppe(plan: list[dict], grund: str, ueberschrift: str) -> None:
+    zeilen = [e for e in plan if e["grund"] == grund]
+    print(f"\n{ueberschrift}: {len(zeilen)}")
+    for e in zeilen:
+        zusatz = f" – bleibt offen: Task {e['behalten']}" if e["behalten"] else ""
+        print(f"  Task {e['task_id']}  {e['angelegt']}  {e['titel']}  (Units {e['units']}){zusatz}")
 
 
 def _undo(ps: Propstack, datei: str, apply: bool) -> int:
@@ -302,7 +388,17 @@ def _undo(ps: Propstack, datei: str, apply: bool) -> int:
         return 0
     if not task_ids:
         return 0
-    ps.setze_erledigt(task_ids[0], False)
+    vermerke = {int(k): v for k, v in (protokoll.get("vermerke") or {}).items()}
+    geaendert: list[int] = []
+
+    def oeffne(task_id: int) -> None:
+        if task_id in vermerke:
+            if not ps.oeffne_ohne_vermerk(task_id, vermerke[task_id]):
+                geaendert.append(task_id)
+        else:
+            ps.setze_erledigt(task_id, False)
+
+    oeffne(task_ids[0])
     time.sleep(1.5)
     if ps.ist_erledigt(task_ids[0]) is not False:
         print(f"ABBRUCH: Probe Task {task_ids[0]} erscheint nach dem Schreiben nicht als offen. "
@@ -310,9 +406,11 @@ def _undo(ps: Propstack, datei: str, apply: bool) -> int:
         return 1
     print(f"Probe ok: Task {task_ids[0]} ist wieder offen.")
     for task_id in task_ids[1:]:
-        ps.setze_erledigt(task_id, False)
+        oeffne(task_id)
         time.sleep(0.4)
     print(f"{len(task_ids)} Aufgaben wieder geöffnet.")
+    if geaendert:
+        print(f"Vermerk nicht entfernt (Text wurde inzwischen geändert): {geaendert}")
     return 0
 
 
@@ -322,6 +420,8 @@ def main() -> int:
     ap.add_argument("--limit", type=int, help="höchstens so viele Aufgaben schließen")
     ap.add_argument("--nur", choices=[GEGENSTANDSLOS, DUBLETTE, VOLLZUG], help="nur diese Gruppe")
     ap.add_argument("--undo", metavar="PROTOKOLL", help="die in diesem Protokoll genannten Aufgaben wieder öffnen")
+    ap.add_argument("--urteile", metavar="VORPRUEFUNG", help="statt der drei Regeln: Aufgaben aus dieser Vorprüfung")
+    ap.add_argument("--gruppen", default="erledigt,fremd", help="Gruppen der Vorprüfung (Standard: erledigt,fremd)")
     args = ap.parse_args()
 
     key = os.environ.get("PROPSTACK_API_KEY") or os.environ.get("PROPSTACK_API_V1")
@@ -337,14 +437,24 @@ def main() -> int:
     offene = offene_newsletter_aufgaben(aufgaben)
     objekte = offene_objekte_aufgaben(aufgaben)
     unit_ids = sorted({u for a in offene for u in (a.get("property_ids") or []) if isinstance(u, int)})
-    plan = plane(aufgaben, ps.einheiten(unit_ids))
-    plan += plane_vollzug(aufgaben, ps.texte([a["activatable_id"] for a in objekte]))
-    if args.nur:
-        plan = [e for e in plan if e["grund"] == args.nur]
+    hinweise: list[str] = []
+    if args.urteile:
+        vorpruefung = json.loads(Path(args.urteile).read_text(encoding="utf-8"))
+        gruppen = {g.strip() for g in args.gruppen.split(",") if g.strip()}
+        zu_pruefen = sorted({e["id"] for f in vorpruefung.get("faelle", []) if f.get("gruppe") in gruppen
+                             for e in f.get("einheiten", []) if e.get("rolle") == "zu"})
+        plan, hinweise = plane_urteile(aufgaben, vorpruefung, gruppen, ps.einheiten(zu_pruefen))
+    else:
+        plan = plane(aufgaben, ps.einheiten(unit_ids))
+        plan += plane_vollzug(aufgaben, ps.texte([a["activatable_id"] for a in objekte]))
+        if args.nur:
+            plan = [e for e in plan if e["grund"] == args.nur]
 
     print(f"{len(aufgaben)} Aufgaben über alle Nutzer, {len(alle_offenen)} offen – davon {len(offene)} "
           f"„{TITEL_PRAEFIX}“ und {len(objekte)} aus #objekte.")
     _drucke(plan)
+    for hinweis in hinweise:
+        print(f"  Hinweis: {hinweis}")
     print(f"\nKönnen zu: {len(plan)} von {len(alle_offenen)} offenen. Offen bleiben {len(alle_offenen) - len(plan)}.")
 
     if not args.apply:
@@ -359,15 +469,30 @@ def main() -> int:
     geschlossen: list[int] = []
     unklar: list[int] = []  # Schreiben gescheitert, Ausgang offen (Timeout, 5xx) – --undo öffnet sie mit
 
+    vermerke: dict[str, str] = {}
+
     def sichere() -> None:
-        protokoll.write_text(json.dumps({"geschlossen": geschlossen, "unklar": unklar}, indent=1), encoding="utf-8")
+        protokoll.write_text(json.dumps({"geschlossen": geschlossen, "unklar": unklar, "vermerke": vermerke},
+                                        ensure_ascii=False, indent=1), encoding="utf-8")
+
+    def schliesse(eintrag: dict) -> None:
+        if eintrag.get("vermerk"):
+            vermerke[str(eintrag["task_id"])] = eintrag["vermerk"]
+            sichere()  # vor dem Schreiben: auch ein Abbruch mittendrin bleibt zurücknehmbar
+            ps.schliesse_mit_vermerk(eintrag["task_id"], eintrag["vermerk"])
+        else:
+            ps.setze_erledigt(eintrag["task_id"], True)
 
     probe = plan[0]
-    ps.setze_erledigt(probe["task_id"], True)
+    schliesse(probe)
     geschlossen.append(probe["task_id"])
     sichere()
     time.sleep(1.5)
     stand = ps.ist_erledigt(probe["task_id"])
+    if stand is True and probe.get("vermerk") and not ps.text(probe["task_id"]).startswith(probe["vermerk"]):
+        print(f"ABBRUCH: Probe Task {probe['task_id']} ist erledigt, der Vermerk steht aber nicht so im Text, "
+              f"wie er geschrieben wurde. Nur diese eine Aufgabe wurde angefasst. Protokoll: {protokoll}", file=sys.stderr)
+        return 1
     if stand is not True:
         print(f"ABBRUCH: Probe Task {probe['task_id']} erscheint nach dem Schreiben nicht als erledigt "
               f"(gelesen: {stand}). Nur diese eine Aufgabe wurde angefasst. Protokoll: {protokoll}", file=sys.stderr)
@@ -377,7 +502,7 @@ def main() -> int:
     fehler: list[tuple[int, str]] = []
     for eintrag in plan[1:]:
         try:
-            ps.setze_erledigt(eintrag["task_id"], True)
+            schliesse(eintrag)
             geschlossen.append(eintrag["task_id"])
             sichere()
         except httpx.HTTPError as e:

@@ -194,3 +194,101 @@ def test_gleiche_meldung():
     assert not g("Newsletter-Vermietung prüfen: Hamburger Triport", "Newsletter-Vermietung prüfen: Maersk Deutschland")
     assert not g("Newsletter-Vermietung prüfen: Log Plaza Colonia 3", "Newsletter-Vermietung prüfen: Unternehmerpark Köln-Porz")
     assert not g("Newsletter-Vermietung prüfen: Dream Advisors", "Newsletter-Vermietung prüfen: Garbe Gewerbepark Soest")
+
+
+# ---------------------------------------------------------------- Schließen nach Vorprüfung (--urteile)
+
+def _vorpruefung():
+    """Drei Vorgänge aus scripts/radar_vorpruefung_2026-11-19.json, gekürzt."""
+    return {"stand": "19.11.2026", "faelle": [
+        {"gruppe": "erledigt", "ort": "Dissen, Westring 8", "urteil": "Einheit ist seit dem 12.10. geschlossen.",
+         "aufgaben": [{"id": 156833017}, {"id": 156912622}], "einheiten": [{"id": 5032898, "rolle": "zu"}]},
+        {"gruppe": "fremd", "ort": "Frickenhausen", "urteil": "Verlängerung, keine neue Vermietung.",
+         "aufgaben": [{"id": 154753285}], "einheiten": [{"id": 5769426, "rolle": "finger_weg"}]},
+        {"gruppe": "klaeren", "ort": "Nohra", "urteil": "Adresse stimmt.", "frage": "Rest frei?",
+         "aufgaben": [{"id": 158058453}], "einheiten": [{"id": 2777841, "rolle": "offen"}]},
+    ]}
+
+
+def _offene_aufgaben():
+    return [
+        _aufgabe(156833017, "Newsletter-Vermietung prüfen: Garbe Industrial", [5032898], "2026-10-16T09:59:46.949+02:00"),
+        _aufgabe(156912622, "Newsletter-Vermietung prüfen: Garbe Industrial", [5032898], "2026-10-17T09:51:00.000+02:00"),
+        _aufgabe(154753285, "Newsletter-Vermietung prüfen: CTP", [5769426], "2026-09-30T10:00:00.000+02:00"),
+        _aufgabe(158058453, "Newsletter-Vermietung prüfen: FOCUS Logistikpark", [2777841], "2026-10-28T10:00:00.000+01:00"),
+    ]
+
+
+def test_urteile_nur_gewaehlte_gruppen_und_nur_offene_aufgaben():
+    aufgaben = _offene_aufgaben()
+    aufgaben[1]["done"] = True  # inzwischen von Hand erledigt
+    plan, hinweise = skript.plane_urteile(aufgaben, _vorpruefung(), {"erledigt", "fremd"}, {5032898: ABGESCHLOSSEN})
+    assert [e["task_id"] for e in plan] == [156833017, 154753285]
+    assert [e["grund"] for e in plan] == ["erledigt", "fremd"]
+    assert any("156912622" in h and "nicht mehr offen" in h for h in hinweise)
+    assert plan[0]["vermerk"].startswith("Vorprüfung 19.11.2026: erledigt – ")
+    assert plan[0]["vermerk"].endswith("Einheit ist seit dem 12.10. geschlossen.<br><br>")
+
+
+def test_urteil_erledigt_gilt_nicht_mehr_wenn_die_einheit_wieder_offen_ist():
+    """Zwischen Vorprüfung und Schließen kann jemand die Einheit wieder in die Vermarktung
+    nehmen – dann bleibt die Aufgabe offen. Ebenso, wenn sich die Einheit nicht lesen ließ."""
+    for einheiten in ({5032898: OFFEN}, {}):
+        plan, hinweise = skript.plane_urteile(_offene_aufgaben(), _vorpruefung(), {"erledigt", "fremd"}, einheiten)
+        assert [e["task_id"] for e in plan] == [154753285]
+        assert any("Dissen" in h and "ausgelassen" in h for h in hinweise)
+
+
+def test_urteil_fremd_braucht_keine_geschlossene_einheit():
+    plan, _ = skript.plane_urteile(_offene_aufgaben(), _vorpruefung(), {"fremd"}, {})
+    assert [e["task_id"] for e in plan] == [154753285]
+
+
+class _TextPropstack(skript.Propstack):
+    """Nur die Logik um den Vermerk; die Schnittstelle ist ein Wörterbuch."""
+
+    def __init__(self, texte):
+        self.texte_ = dict(texte)
+        self.geschrieben = []
+
+    def text(self, task_id):
+        return self.texte_[task_id]
+
+    def _request(self, method, path, **kw):
+        task_id = int(path.rsplit("/", 1)[1])
+        self.geschrieben.append((method, task_id, kw["json"]["task"]))
+        if "body" in kw["json"]["task"]:
+            self.texte_[task_id] = kw["json"]["task"]["body"]
+
+
+def test_vermerk_kommt_vor_den_text_und_laesst_sich_wieder_herausnehmen():
+    vermerk = skript.vermerk_html("19.11.2026", "fremd", "Verlängerung, keine neue Vermietung.")
+    alt = "Vermietung aus dem Logistik-Deal Radar vom 2026-09-29:<br><br><blockquote>…</blockquote>"
+    ps = _TextPropstack({7: alt})
+    ps.schliesse_mit_vermerk(7, vermerk)
+    assert ps.geschrieben[-1] == ("PUT", 7, {"done": True, "body": vermerk + alt})
+    ps.schliesse_mit_vermerk(7, vermerk)  # zweiter Lauf: der Vermerk steht nicht doppelt da
+    assert ps.texte_[7] == vermerk + alt
+    assert ps.oeffne_ohne_vermerk(7, vermerk) is True
+    assert ps.geschrieben[-1] == ("PUT", 7, {"done": False, "body": alt})
+
+
+def test_undo_laesst_einen_inzwischen_geaenderten_text_stehen():
+    vermerk = skript.vermerk_html("19.11.2026", "erledigt", "Einheit ist geschlossen.")
+    ps = _TextPropstack({7: "Lena: doch noch offen, siehe Mail.<br>" + vermerk + "alt"})
+    assert ps.oeffne_ohne_vermerk(7, vermerk) is False
+    assert ps.geschrieben[-1] == ("PUT", 7, {"done": False})  # nur geöffnet, Text unberührt
+
+
+def test_vorpruefung_im_repo_deckt_jede_aufgabe_genau_einmal():
+    """Die Datei vom 19.11.2026: 129 Aufgaben in 85 Vorgängen, keine doppelt."""
+    import json
+    daten = json.loads((_PFAD.parent / "radar_vorpruefung_2026-11-19.json").read_text(encoding="utf-8"))
+    ids = [a["id"] for f in daten["faelle"] for a in f["aufgaben"]]
+    assert len(ids) == len(set(ids)) == 129
+    assert {f["gruppe"] for f in daten["faelle"]} == {"eintragen", "klaeren", "schwach", "erledigt", "fremd"}
+    je_gruppe = {g: sum(len(f["aufgaben"]) for f in daten["faelle"] if f["gruppe"] == g) for g in ("erledigt", "fremd")}
+    assert je_gruppe == {"erledigt": 49, "fremd": 28}
+    for f in daten["faelle"]:
+        if f["gruppe"] == "erledigt":
+            assert any(e["rolle"] == "zu" for e in f["einheiten"]), f["ort"]

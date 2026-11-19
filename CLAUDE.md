@@ -32,6 +32,9 @@ Pakets lesen**, dann den Code. Die Pakete teilen bewusst keinen Code (gespiegelt
 - **Schreiben an Live-Daten:** erst an Testdaten (Merkmal `MCP-TEST`), dann ein Datensatz als Probe,
   zurücklesen, dann der Rest – mit Protokoll zum Zurücknehmen. Vorlagen: `scripts/verknuepfungen_zurueck.py`,
   `scripts/pruefaufgaben_aufraeumen.py`.
+- **Widerspruch zwischen „vermietet“ und „Vermarktung“ nie nach Regel auflösen.** Jede Richtung ist eine
+  Marktentscheidung; die Einheit einzeln lesen (Änderungsvermerk, Notiz, Bezugstermin, Meldungen dazu). Am
+  19.11.2026 hielten von 25 „regelbasierten“ Fällen nur 16 der Einzelprüfung stand.
 - **Eigentümer-Updates:** Was der Eigentümer nicht mehr nennt, ist nicht mehr verfügbar (`rented: true`
   und Status 163676). Das Update gilt vor der Website.
 - **Kein grüner Lauf mit Fehlern.** Was schiefgeht, gehört in den Report und macht den Lauf rot
@@ -83,4 +86,5 @@ cd propstack-mcp && npm ci && npm test  # Connector
 ## Offene Punkte
 
 Stand und Zahlen des Stresstests vom 19.11.2026 – samt dem, was entschieden werden muss – stehen in
-`docs/stresstest-2026-11-19.md`.
+`docs/stresstest-2026-11-19.md` (Nachtrag am Ende: was schon ausgeführt ist). Die Vorprüfung der offenen
+Newsletter-Aufgaben liegt in `scripts/radar_vorpruefung_2026-11-19.json`.
