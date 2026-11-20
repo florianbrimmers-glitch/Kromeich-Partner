@@ -2,6 +2,20 @@
 // Eine fehlende oder falsch gesetzte Variable darf die Domain-Prüfung nie aushebeln.
 export const ALLOWED_HOSTED_DOMAIN = "kromeichpartner.de";
 
+/**
+ * Ausnahme von Prüfung 3b (Entscheidung Florian, 20.11.2026): Personen ohne eigenen Propstack-Nutzer, die unter dem
+ * Propstack-Nutzer einer Kollegin schreiben. Schlüssel = Google-Adresse der Person (klein geschrieben, in der erlaubten
+ * Domain). Der Propstack-Nutzer steht mit E-Mail UND ID da: Wird er entfernt, umbenannt oder neu vergeben, läuft die
+ * Ausnahme ins Leere, statt auf jemand anderen zu zeigen.
+ * Bewusst im Code statt als Variable – wie die Domain. Entfernen heißt: Eintrag löschen und ausliefern; der Zugang
+ * endet beim nächsten Token-Refresh (spätestens nach 1 h). Hat die Person später einen eigenen Propstack-Nutzer,
+ * gilt automatisch der.
+ */
+export type BrokerAlias = { name: string; propstackEmail: string; propstackId: number };
+export const BROKER_ALIASES: Record<string, BrokerAlias> = {
+	"oguzhan.sahin@kromeichpartner.de": { name: "Oguzhan Sahin", propstackEmail: "lena.klinnert@kromeichpartner.de", propstackId: 254958 },
+};
+
 export const PROPSTACK_BASE_URL = "https://api.propstack.de/v1";
 // Zweite Schnittstelle von Propstack: nur für Firmen-Datensätze und Verknüpfungen zwischen Kontakten (eigener Schlüssel).
 export const PROPSTACK_BASE_URL_V2 = "https://api.propstack.de/v2";

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { brokerLabel } from "../auth/session";
 import { PropstackError, type PropstackClient } from "../propstack-client";
 import { companyCandidates, companyDuplicates, isCompanyRow, strictCompanyName } from "../propstack/companies";
 import { normalizeCompany } from "../propstack/dedupe";
@@ -190,7 +191,7 @@ export async function createCompany(deps: WriteDeps, given: CompanyInput): Promi
 			id: newId,
 			name: scalar(actual.name) ?? input.name,
 			is_company: actual.is_company === true,
-			broker: deps.user.name,
+			broker: brokerLabel(deps.user),
 			test: input.test || undefined,
 			override_reason: overrideReason ?? undefined,
 			warnings: dedupe.warnings.length ? dedupe.warnings : undefined,

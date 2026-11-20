@@ -90,6 +90,7 @@ Bewusste Lücken: Ein einzelner Deal per ID und die Kontakt-Status-Liste sind nu
   - Nicht Teil davon: die schon gespeicherten Nummern und der tägliche Import sowie der Visitenkarten-Import (`src/`), die genauso unbereinigt schreiben. Bestand am 13.11.2026, nur lesend gezählt: 94 von 4.922 Kontakten, 112 Nummern, davon 53 in den privaten Feldern (`home_phone`, `home_cell`), die der Connector nicht schreibt. Befund und Vorlage sind an den Import-Chat übergeben.
   - **Live-Abnahme mit v0.12.3 (13.11.2026, 13:38 Uhr) – bestanden**, am Testkontakt 38363864: `update_contact` mit Mobil „+49 (0) 171 3920056“ und Festnetz „+49(0)2151 123456“ wurde angenommen (vorher: „keine deutsche Mobilnummer“), gespeichert sind „+49 171 3920056“ und „+49 2151 123456“ – unabhängig über die Propstack-Schnittstelle gegengelesen. Das Ergebnis nennt beide Änderungen unter `phone_adjusted`.
   - **Live-Abnahme mit v0.12.4 (13.11.2026, 16:33 Uhr) – bestanden**, am Testkontakt 38363864: Mobil „0171 3920057“ → „+49 171 3920057“ (Zusatz „kein Land angegeben, als deutsche Nummer gewertet“), Festnetz „0049 2151 123457“ → „+49 2151 123457“ („00 durch + ersetzt“), danach mit Land Österreich Festnetz „01 2345678“ → „+43 1 2345678“. Der gespeicherte Stand (Mobil +49 171 3920057, Festnetz +43 1 2345678, Land Österreich) ist am 20.11.2026 unabhängig über die Propstack-Schnittstelle gegengelesen. Dabei fiel die zweite Grenze auf (siehe oben).
+  - **Live-Abnahme mit v0.12.5 (20.11.2026, 18:35 Uhr) – bestanden**, am Testkontakt 38363864 (gespeichertes Land: Österreich). Vor der Auslieferung den Befund live nachgestellt: Mobil „0171 3920058“ → „+43 171 3920058 ist keine deutsche Mobilnummer – bitte als phone_office angeben“. Danach: dieselbe Eingabe als Mobil und als Festnetz bricht mit der Rückfrage ab („… am Kontakt ist aber das Land Österreich gespeichert … „+49 171 3920058“ … sonst „+43 171 3920058““), geschrieben wird nichts; Mobil „+49 171 3920058“ wird angenommen; Festnetz „0664 1234567“ wird zu „+43 664 1234567“ mit dem Hinweis „Land am Kontakt: Österreich“. Gespeicherter Stand unabhängig über die Propstack-Schnittstelle gegengelesen.
 
 **Kontakte: Live-Abnahme am 12.11.2026 (v0.10.1 → Korrekturen in v0.10.2).** Anlass: Nach Objekten und Dashboard sind die Kontakte dran (Ansage Florian). Geprüft wurde an Testkontakten mit dem Merkmal `MCP-TEST`, so wie der E-Mail-Scan Kontakte anlegt.
 - **Bestanden:**
@@ -249,6 +250,7 @@ Bewusste Lücken: Ein einzelner Deal per ID und die Kontakt-Status-Liste sind nu
 - **Bilder per URL (`add_images`):** Nur öffentliche https-URLs (`remote_photo_url`). Jede URL wird vorher geprüft (erreichbar, `Content-Type: image/*`, mit neutralem User-Agent), sonst entstehen leere Bildobjekte, die man nur in der UI löschen kann. Das erste Bild eines Objekts wird Titelbild. `titles` benennt die Bilder (How-to: „müssen in Propstack benannt werden“).
 - **Prüfaufgabe automatisch** nach `create_project` und `create_object`:
   - an Lena (254958), bei `test: true` an den Nutzer selbst;
+  - offen (20.11.2026): Legt die Person hinter der ID 254958 selbst ein Objekt an, prüft sie ihre eigene Anlage – eine Regel „Prüfer ≠ Ersteller“ gibt es nicht;
   - `is_reminder: true`, fällig am nächsten Werktag 9:00;
   - Inhalt: Link, Ersteller, Eigentümer und Ansprechpartner, Koordinaten mit Genauigkeit, Lücken (`not_applied`/`not_verifiable`), Fehler, was laut How-to fehlt, Texthinweise, offene Punkte, die interne Notiz des Projekts zur Kontrolle und die Schritte, die nur in Propstack selbst gehen;
   - Einheiten im Projekt bekommen eine eigene Aufgabe nur bei Problemen – sonst deckt die Aufgabe des Projekts sie ab.
@@ -444,6 +446,19 @@ SELECT ts, user_email, tool, params, result_count, ok FROM audit_log ORDER BY ts
 4. Das Token enthält nur `email`, `name` und `brokerId`. Das Google-Access-Token wird verworfen.
 5. Access-Token-Laufzeit: 1 h. Bei jedem Refresh wird 3b erneut geprüft (`tokenExchangeCallback` in `src/index.ts`), Cache inklusive. Ohne Propstack-Nutzer bekommt der Client `invalid_grant` und muss sich neu anmelden.
 
+### Ausnahme: Oguzhan schreibt unter Lenas Propstack-Nutzer (ab v0.13.0, Entscheidung Florian 20.11.2026)
+
+Oguzhan Sahin hat keinen eigenen Propstack-Nutzer und arbeitet in Propstack unter dem von Lena Klinnert (ID 254958). Damit er den Connector nutzen kann, gibt es genau eine Ausnahme von Prüfung 3b – hinterlegt im Code (`BROKER_ALIASES` in `src/config.ts`), bewusst nicht als Variable.
+
+- **Anmeldung:** mit dem eigenen Google-Konto `oguzhan.sahin@kromeichpartner.de` (Adresse laut Slack-Profil, 20.11.2026). 3a gilt unverändert. Lenas Google-Konto oder Passwort wird nicht geteilt, und der Connector meldet sich nie als Lena an – „als Lena“ heißt nur: In Propstack steht ihr Nutzer am Datensatz.
+- **In Propstack** läuft alles, was er über Claude schreibt, unter Lena Klinnert: Sie wird Betreuerin neuer Kontakte, Objekte und Projekte, und Aufgaben ohne anderen Empfänger landen bei ihrem Nutzer. Ergebnisse nennen sie unter `broker`.
+- **Wer es wirklich war,** steht in den Notizen („Angelegt über Claude (Propstack MCP) von Oguzhan Sahin am …“) und im Audit- und Write-Log des Connectors (seine E-Mail, Lenas ID). Pläne für Massenänderungen gehören der Person, nicht dem Propstack-Nutzer: Lena kann seine nicht ausführen und umgekehrt.
+- **`whoami`** zeigt ihm beide Namen und einen Hinweis; für alle anderen ist die Antwort unverändert.
+- **Sicherungen:** Die Ausnahme gilt nur für genau diese Adresse. Der Propstack-Nutzer ist mit E-Mail und ID hinterlegt: Wird er entfernt, umbenannt oder neu vergeben, wird Oguzhan abgelehnt, statt auf jemand anderen umgeleitet zu werden. Die Ausnahme wird nie gecacht. Bekommt er einen eigenen Propstack-Nutzer mit seiner Adresse, gilt automatisch der – ohne Änderung am Code.
+- **Zugang beenden:** Eintrag in `BROKER_ALIASES` löschen und ausliefern; der Zugang endet beim nächsten Token-Refresh (spätestens nach 1 h). Sofort wirkt nur, ihm den Claude-Platz zu nehmen. Den Propstack-Nutzer zu deaktivieren hilft hier nicht – das ist Lenas.
+- **Abhängigkeit:** Fällt Lenas Propstack-Nutzer weg, ist auch Oguzhan ausgesperrt.
+- **Preis der Ausnahme (so entschieden):** In Propstack selbst lässt sich nicht unterscheiden, wer von beiden etwas getan hat – nur über die Notiz und das Protokoll des Connectors. Die Prüfaufgaben für neue Objekte gehen an Lenas Nutzer (siehe Prüfaufgabe); arbeitet Oguzhan diese Liste ab, prüft er seine eigenen Anlagen. Empfohlen war ein eigener Propstack-Nutzer.
+
 ## Einrichtung
 
 Voraussetzungen: Node ≥ 20, Zugriff auf den Cloudflare-Account **kromeichpartner**, Admin in Google Workspace und in Propstack.
@@ -587,6 +602,7 @@ Ergebnis des ersten Live-Tests (09.10.2026) und Korrekturen: Merkmale wurden per
 ## Bekannte Grenzen (bewusste Entscheidungen Phase 1)
 
 - **Aktiv-Status:** `GET /v1/brokers` hat laut Doku kein Aktiv-Flag. Jeder Nutzer, den V1 liefert, gilt als aktiv. **Einmal mit echtem Key prüfen:** Taucht ein deaktivierter Propstack-Nutzer noch in `/v1/brokers` auf? Wenn ja, greift das Offboarding nicht. Dann auf `GET /v2/brokers?email=…` umstellen, das hat `active`, `archived` und `blocked`.
+  - **Stand 20.11.2026 (nur lesend geprüft): weiter offen.** Beide Schnittstellen liefern dieselben 7 Nutzer, alle `active: true`, `blocked: false`, keiner archiviert – einen deaktivierten Nutzer, an dem sich die Frage klären ließe, gibt es nicht. `GET /v2/brokers` ist mit dem zweiten Schlüssel lesbar und liefert zusätzlich `role`: `owner` (Lena Klinnert), `user` (Florian, Denise, Marek), `consulting` (Marlene Jung, ID 254960 – der frühere „Propstack Admin“) und `technical` (info@, Kontakt Kromeich). Damit ließe sich die Anmeldung auf „aktiv, nicht gesperrt, nicht archiviert“ prüfen und die technischen Nutzer aussperren. Noch nicht gebaut – wartet auf Florians Freigabe.
 - **Rollen:** Alle Propstack-Rollen dürfen sich anmelden. Ein Funktionspostfach, das in Propstack als (technischer) Nutzer existiert, kommt durch.
 - **Offboarding-Verzögerung:** Access-Token 1 h plus Cache 1 h beim Refresh. Nach dem Deaktivieren in Propstack bleibt der Zugriff also noch bis zu ~2 h bestehen. Refresh-Tokens laufen 30 Tage (Standard der Library), werden aber stündlich gegen 3b geprüft.
 - **Google-Konto sperren reicht nicht:** Der Refresh fragt Google nicht erneut. Offboarding heißt: den Propstack-Nutzer deaktivieren bzw. entfernen.

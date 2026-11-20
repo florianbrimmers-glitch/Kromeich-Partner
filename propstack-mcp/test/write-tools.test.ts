@@ -307,6 +307,25 @@ describe("create_contact", () => {
 		expect(updates[0]?.[0]).toBe("done");
 	});
 
+	it("Ausnahme (Oguzhan schreibt als Lena): Betreuer ist Lenas Propstack-Nutzer, Notiz und Protokoll nennen die Person", async () => {
+		// Entscheidung Florian, 20.11.2026
+		const { db, rows } = fakeDb();
+		let sent: Record<string, unknown> = {};
+		const { client } = fakeClient({
+			createContact: (payload) => {
+				sent = payload as Record<string, unknown>;
+				return { id: 503 };
+			},
+			getContact: () => ({ ...sent, id: 503, name: "Anna Test" }),
+		});
+		const oguzhan = { brokerId: 254958, brokerName: "Lena Klinnert", email: "oguzhan.sahin@kromeichpartner.de", name: "Oguzhan Sahin" };
+		const out = await createContact({ client, db, now: NOW, user: oguzhan }, { first_name: "Anna", last_name: "Test", test: true });
+		expect(out.result).toMatchObject({ broker: "Lena Klinnert", created: true, id: 503 });
+		expect(sent).toMatchObject({ broker_id: 254958 });
+		expect(sent.description).toMatch(/Angelegt über Claude \(Propstack MCP\) von Oguzhan Sahin am 2026-10-14/);
+		expect(rows[0].slice(1, 3)).toEqual(["oguzhan.sahin@kromeichpartner.de", 254958]);
+	});
+
 	it("meldet Felder, die Propstack still verworfen hat", async () => {
 		const { db, updates } = fakeDb();
 		const { client } = fakeClient({

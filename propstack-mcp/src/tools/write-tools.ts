@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Props } from "../auth/session";
+import { brokerLabel, type Props } from "../auth/session";
 import { type GroupEntity, PropstackClient, PropstackError } from "../propstack-client";
 import {
 	contactDuplicates,
@@ -476,7 +476,7 @@ export async function createContact(deps: WriteDeps, given: z.infer<z.ZodObject<
 			created: true,
 			id: newId,
 			name: scalar(actual.name),
-			broker: user.name,
+			broker: brokerLabel(user),
 			test: input.test || undefined,
 			override_reason: overrideReason ?? undefined,
 			warnings: dedupe.warnings.length ? dedupe.warnings : undefined,
@@ -1176,7 +1176,7 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 			title: scalar(state.row?.title ?? state.detail.title),
 			link: `${CRM_BASE}/properties/${newId}`,
 			review_task: review,
-			broker: user.name,
+			broker: brokerLabel(user),
 			test: input.test || undefined,
 			override_reason: overrideReason ?? undefined,
 			owner: owner ? { ...owner, linked: ownerResult?.linked } : undefined,

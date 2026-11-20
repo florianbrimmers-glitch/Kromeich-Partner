@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { brokerLabel } from "../auth/session";
 import { PropstackClient, PropstackError } from "../propstack-client";
 import { type DedupeResult, sameAddress } from "../propstack/dedupe";
 import { validateCustomFields } from "../propstack/field-rules";
@@ -334,7 +335,7 @@ export async function createProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 			id: projectId,
 			name,
 			link: `${CRM_BASE}/projects/${projectId}`,
-			broker: user.name,
+			broker: brokerLabel(user),
 			test: input.test || undefined,
 			owner: owner ? { ...owner, linked: ownerResult?.linked } : undefined,
 			contact_person: contactPerson ? { ...contactPerson, linked: contactResult?.linked, note: contactResult?.note } : undefined,
