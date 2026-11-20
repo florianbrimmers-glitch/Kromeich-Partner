@@ -130,6 +130,14 @@ export class PropstackClient {
 		return this.get("/brokers");
 	}
 
+	/**
+	 * GET /v2/brokers – dieselben Nutzer mit Zustand: active, blocked, archived und role (owner, user, consulting,
+	 * technical). Braucht den zweiten Schlüssel. Rohantwort; die Anmeldeprüfung liest sie selbst und streng.
+	 */
+	async listBrokersV2(): Promise<unknown> {
+		return this.get(`/brokers${buildQuery({ per: 100 })}`, this.timeoutMs, true);
+	}
+
 	/** GET /v1/contacts – Kontakte suchen (paginiert, with_meta liefert total_count). */
 	async searchContacts(query: Query): Promise<Page> {
 		return toPage(await this.get(`/contacts${buildQuery({ ...query, with_meta: 1 })}`));
