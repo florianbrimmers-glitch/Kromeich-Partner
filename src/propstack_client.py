@@ -9,7 +9,7 @@ from datetime import date
 import httpx
 
 from .models import ContactData
-from .phone import format_phone
+from .phone import format_phone_for_contact
 
 logger = logging.getLogger(__name__)
 
@@ -357,11 +357,11 @@ def create_contact(
     # Nummern wählbar schreiben: keine 0 nach der Ländervorwahl ("+49 (0) 151 …"),
     # einheitlich mit Ländervorwahl – siehe src/phone.py.
     if contact.phone:
-        client_data["office_phone"] = format_phone(contact.phone, contact.country)
+        client_data["office_phone"] = format_phone_for_contact(contact.phone, contact.country)
     # Mobilnummern gehören in office_cell – ein Feld "mobile" kennt die
     # Propstack-API nicht, sie verwirft es ohne Fehlermeldung (HTTP 200).
     if contact.mobile:
-        client_data["office_cell"] = format_phone(contact.mobile, contact.country)
+        client_data["office_cell"] = format_phone_for_contact(contact.mobile, contact.country)
     if contact.company:
         client_data["company"] = contact.company
     if contact.position:

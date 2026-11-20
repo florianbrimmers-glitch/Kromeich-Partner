@@ -103,3 +103,24 @@ def format_phone(phone: str | None, country: str | None = None) -> str | None:
         if re.match(r"0\d", body):
             return f"+{code}{separator}{body[1:]}"
     return f"+{code}{tail}" if prefix.group(1) == "00" else phone
+
+
+def is_german_mobile_national(phone: str | None) -> bool:
+    """Sieht die Nummer wie eine deutsche Mobilnummer ohne Ländervorwahl aus?
+    (015x/016x/017x, 11–12 Ziffern einschließlich der führenden 0 – gleich
+    beginnendes Festnetz in Delft, Paris oder Wien ist kürzer.)"""
+    if not isinstance(phone, str):
+        return False
+    text = phone.strip()
+    return bool(re.match(r"\(?\s*0(?!0)\s*\d", text)) and bool(re.fullmatch(r"01[567]\d{8,9}", re.sub(r"\D", "", text)))
+
+
+def format_phone_for_contact(phone: str | None, country: str | None = None) -> str | None:
+    """Wie format_phone, rät aber nicht: Eine deutsche Mobilnummer ohne
+    Ländervorwahl an einem Kontakt im Ausland bleibt unverändert – das Land der
+    Adresse sagt nichts Sicheres über die Handynummer ("0171 …" an einem Kontakt
+    in Österreich würde sonst zu "+43 171 …")."""
+    code = country_calling_code(country)
+    if is_german_mobile_national(phone) and code is not _UNSET and code != "49":
+        return phone
+    return format_phone(phone, country)

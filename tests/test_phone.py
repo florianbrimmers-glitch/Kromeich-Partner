@@ -7,7 +7,7 @@ import pytest
 
 from src import propstack_client as ps
 from src.models import ContactData
-from src.phone import format_phone
+from src.phone import format_phone, format_phone_for_contact, is_german_mobile_national
 
 
 @pytest.mark.parametrize("roh, erwartet", [
@@ -99,3 +99,26 @@ def test_create_contact_writes_dialable_numbers(monkeypatch):
     client = posts[0]["client"]
     assert client["office_phone"] == "+49 221 4710199"
     assert client["office_cell"] == "+49 171 3920055"
+
+
+def test_german_mobile_at_foreign_contact_is_not_guessed():
+    # Kontakt in Österreich mit deutscher Handynummer: nicht +43 davorsetzen
+    assert format_phone_for_contact("0171 3920057", "Österreich") == "0171 3920057"
+    assert format_phone_for_contact("(0151) 12345678", "Schweiz") == "(0151) 12345678"
+    # in Deutschland oder ohne Land: +49
+    assert format_phone_for_contact("0171 3920057", "Deutschland") == "+49 171 3920057"
+    assert format_phone_for_contact("0171 3920057") == "+49 171 3920057"
+    # österreichisches Mobil / Festnetz im Ausland wird weiter umgestellt
+    assert format_phone_for_contact("0664 1234567", "Österreich") == "+43 664 1234567"
+    assert format_phone_for_contact("015 2123456", "Niederlande") == "+31 15 2123456"
+    # mit Ländervorwahl ist nichts mehrdeutig
+    assert format_phone_for_contact("+49 (0) 171 3920057", "Österreich") == "+49 171 3920057"
+
+
+@pytest.mark.parametrize("text, erwartet", [
+    ("0171 3920057", True), ("(0171) 3920057", True), ("0151 12345678", True), ("0176/12345678", True),
+    ("+49 171 3920057", False), ("0049 171 3920057", False),
+    ("015 2123456", False), ("01 71 39 20 05", False), ("0664 1234567", False), ("0221 4710199", False),
+])
+def test_is_german_mobile_national(text, erwartet):
+    assert is_german_mobile_national(text) is erwartet
