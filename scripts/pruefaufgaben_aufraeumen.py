@@ -34,6 +34,12 @@ das Urteil als erste Zeile in den Text („Vorprüfung 19.11.2026: …“), dami
 warum sie zu ist; --undo nimmt die Zeile wieder heraus. Für die Gruppe „erledigt“ wird vor dem
 Schließen noch einmal gelesen, ob die genannten Einheiten wirklich geschlossen sind.
 
+Am 20.11.2026 mit Freigabe ausgeführt: 96 Aufgaben (erledigt, betrifft uns nicht, schwache Spur),
+danach die „eintragen“-Aufgaben, nachdem die Vermietungen über den Connector eingetragen waren.
+Die zweite Datei scripts/radar_nachpruefung_2026-11-20.json hält fest, was die Nachprüfung der
+„klären“-Vorgänge an öffentlichen Quellen ergeben hat (Florian: „Nicht nachfragen – entweder
+wissen oder nicht“). Die Schreibform mit Text ist damit live erprobt.
+
 Aufruf:   python scripts/pruefaufgaben_aufraeumen.py                 # nur lesen
           python scripts/pruefaufgaben_aufraeumen.py --urteile scripts/radar_vorpruefung_2026-11-19.json [--gruppen erledigt,fremd] [--apply]
           python scripts/pruefaufgaben_aufraeumen.py --apply [--limit N] [--nur gegenstandslos|dublette|vollzugsmeldung]
@@ -216,9 +222,15 @@ def plane_vollzug(aufgaben: list[dict], texte: dict[int, str | None]) -> list[di
 
 URTEIL_WORT = {
     "erledigt": "erledigt – die gemeinte Einheit ist in Propstack geschlossen",
+    "eintragen": "eingetragen – die Einheit steht jetzt auf vermietet und Abgeschlossen",
     "fremd": "betrifft uns nicht",
+    "teil": "Teilvermietung – am Objekt vermerkt, Status unverändert",
     "schwach": "schwache Spur, nicht weiter verfolgt",
+    "unbestimmt": "nicht bestimmbar, nicht weiter verfolgt",
 }
+# Gruppen, deren Urteil daran hängt, dass bestimmte Einheiten geschlossen sind – und welche Rolle das ist.
+# „eintragen“ lässt sich also erst schließen, wenn die Vermietung wirklich eingetragen ist.
+PRUEF_ROLLE = {"erledigt": "zu", "eintragen": "eintragen"}
 VERMERK_ENDE = "<br><br>"
 
 
@@ -231,9 +243,9 @@ def vermerk_html(stand: str, gruppe: str, urteil: str) -> str:
 def plane_urteile(aufgaben: list[dict], vorpruefung: dict, gruppen: set[str],
                   einheiten: dict[int, dict]) -> tuple[list[dict], list[str]]:
     """Schließplan aus einer Vorprüfung: nur Aufgaben, die dort stehen UND heute noch offene
-    Newsletter-Aufgaben sind. Ein Vorgang der Gruppe „erledigt“ wird ausgelassen, wenn eine
-    seiner als geschlossen geführten Einheiten heute offen ist oder sich nicht lesen ließ –
-    dann stimmt das Urteil nicht mehr."""
+    Newsletter-Aufgaben sind. Ein Vorgang der Gruppen „erledigt“ und „eintragen“ wird
+    ausgelassen, wenn eine der dafür maßgeblichen Einheiten (PRUEF_ROLLE) heute offen ist
+    oder sich nicht lesen ließ – dann stimmt das Urteil nicht (mehr)."""
     offen = {a["activatable_id"]: a for a in offene_newsletter_aufgaben(aufgaben)}
     plan: list[dict] = []
     hinweise: list[str] = []
@@ -241,8 +253,8 @@ def plane_urteile(aufgaben: list[dict], vorpruefung: dict, gruppen: set[str],
         gruppe = fall.get("gruppe")
         if gruppe not in gruppen:
             continue
-        if gruppe == "erledigt":
-            zu = [e["id"] for e in fall.get("einheiten", []) if e.get("rolle") == "zu"]
+        if gruppe in PRUEF_ROLLE:
+            zu = [e["id"] for e in fall.get("einheiten", []) if e.get("rolle") == PRUEF_ROLLE[gruppe]]
             geplatzt = [u for u in zu if u not in einheiten or not einheit_abgeschlossen(einheiten[u])]
             if geplatzt or not zu:
                 hinweise.append(f"{fall.get('ort')}: ausgelassen – Einheit(en) {geplatzt or 'fehlen'} "
@@ -442,7 +454,7 @@ def main() -> int:
         vorpruefung = json.loads(Path(args.urteile).read_text(encoding="utf-8"))
         gruppen = {g.strip() for g in args.gruppen.split(",") if g.strip()}
         zu_pruefen = sorted({e["id"] for f in vorpruefung.get("faelle", []) if f.get("gruppe") in gruppen
-                             for e in f.get("einheiten", []) if e.get("rolle") == "zu"})
+                             for e in f.get("einheiten", []) if e.get("rolle") == PRUEF_ROLLE.get(f.get("gruppe"))})
         plan, hinweise = plane_urteile(aufgaben, vorpruefung, gruppen, ps.einheiten(zu_pruefen))
     else:
         plan = plane(aufgaben, ps.einheiten(unit_ids))

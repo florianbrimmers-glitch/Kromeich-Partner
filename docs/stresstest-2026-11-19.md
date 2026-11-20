@@ -272,16 +272,39 @@ geschlossen → Aufgabe gegenstandslos“ hätte 40 Aufgaben geschlossen, und be
 falschen Einheit. Darunter die größte Meldung überhaupt (Frankfurt (Oder), 94.000 m², neun Einheiten stehen bei
 uns auf „sofort“ frei).
 
+**Entschieden und ausgeführt am 20.11.2026** (Florian: schließen ja, eintragen ja, schwache Spuren schließen, und zu den
+offenen Fragen: „Nicht nachfragen – entweder wissen oder nicht“):
+
+| Was | Zahl | Zurücknehmen |
+|---|---|---|
+| Geprüfte Newsletter-Aufgaben geschlossen, jede mit dem Urteil als erster Zeile im Text | 126 von 129 | `scripts/pruefaufgaben_geschlossen_2026-11-20.json` |
+| Vermietungen eingetragen (vermietet + Abgeschlossen), über den Connector | 17 Einheiten, 11 Objekte | `scripts/vermietungen_eingetragen_2026-11-20.json`, `undo_plan` bis 27.11. |
+| Teilvermietungen als Notiz am richtigen Objekt vermerkt | 5 Objekte | Notizen werden nur angehängt |
+
+Offen sind danach 449 Aufgaben (am 19.11. morgens 609).
+
+Die 18 „klären“-Vorgänge wurden nicht beim Eigentümer erfragt, sondern an öffentlichen Quellen nachgeprüft
+(`scripts/radar_nachpruefung_2026-11-20.json`): fünf Vermietungen adressgenau belegt und eingetragen, vier betreffen
+uns nicht, drei sind Teilvermietungen, fünf bleiben unbestimmt – und einer bleibt offen:
+
+**Frankfurt (Oder), Log Plaza.** Alcaro meldet am 08.06.2026 rund 94.000 m² vermietet, das ist der Großteil der
+Halle B; Halle A mit rund 47.500 m² sei verfügbar. In Propstack ist es umgekehrt: Halle A (1)–(4) steht seit dem
+07.09. auf vermietet, Halle B (1)–(10) mit 97.660 m² auf „sofort“ frei. Die Prüfaufgabe zur Meldung „Halle B“ hing
+an einer Einheit der Halle A. Nicht angefasst: Halle B allein zu schließen nähme den ganzen Park aus dem Angebot,
+und Halle A wieder zu öffnen ist eine Entscheidung.
+
+**Was beim Schreiben aufgefallen ist** (alles im Protokoll): Der Connector zieht bei jedem Speichern „Gebäudefläche
+gesamt“ auf Halle + Mezzanine nach, auch wenn nur der Status geändert wird (drei Einheiten bekamen einen kleineren
+Wert). Bei zwei alten Dubletten in Soest hat Propstack das Feld „Gesamtfläche“ geleert und nimmt den Wert nicht
+wieder an.
+
 **Noch zu entscheiden:**
 
-1. Die 77 Aufgaben „erledigt“ und „betrifft uns nicht“ schließen? Vorbereitet:
-   `python scripts/pruefaufgaben_aufraeumen.py --urteile scripts/radar_vorpruefung_2026-11-19.json` (liest nur;
-   `--apply` schließt und schreibt das Urteil als erste Zeile in die Aufgabe).
-2. Die sechs Vermietungen eintragen (zwölf Einheiten, über den Connector mit Rücknahme)?
-3. Wer stellt die 18 Fragen an die Eigentümer?
-4. Die 19 schwachen Spuren schließen oder liegen lassen?
-5. Die 47 Antworten auf Vollzugsmeldungen aus #objekte schließen (oben Punkt 2, noch nicht freigegeben)?
-6. Punkte 6 bis 10 von oben sind unverändert offen.
+1. Frankfurt (Oder): Halle B schließen und Halle A wieder öffnen?
+2. Die neun Widersprüche zwischen „vermietet“ und „Vermarktung“ (Liste im Protokoll vom 19.11.).
+3. Die 47 Antworten auf Vollzugsmeldungen aus #objekte schließen (oben Punkt 2, noch nicht freigegeben)?
+4. Die Zuordnung im Newsletter-Handler verbessern (Eigentümer in die Kandidatenzeile) und gegen die 129 Urteile messen.
+5. Punkte 6 bis 10 von oben sind unverändert offen.
 
 ## Nachrechnen
 

@@ -48,7 +48,7 @@ Pakets lesen**, dann den Code. Die Pakete teilen bewusst keinen Code (gespiegelt
 
 ## Propstack: was die Schnittstelle wirklich liefert
 
-Alles hier ist an Live-Antworten geprüft (zuletzt 19.11.2026). Bei Zweifeln neu prüfen, nicht raten.
+Alles hier ist an Live-Antworten geprüft (zuletzt 20.11.2026). Bei Zweifeln neu prüfen, nicht raten.
 
 - Der Parameter heißt `per` (nicht `per_page`). Erprobt: `per=200` bei Aktivitäten, `per=100` bei Einheiten.
 - `GET /v1/units?expand=1`: ohne `expand=1` fehlen `created_at` und die Custom-Felder. Viele Felder kommen
@@ -58,6 +58,11 @@ Alles hier ist an Live-Antworten geprüft (zuletzt 19.11.2026). Bei Zweifeln neu
   `property_status_ids`, `original_created_at`; `activatable_id` ist die Task-ID (`id` ist die der
   Aktivität). Der Text (`body`) kommt nur über `GET /v1/tasks/:activatable_id`. `created_at` ist dort die
   Fälligkeit.
+- `PUT /v1/tasks/:id` mit `{"task": {"done": true, "body": …}}` setzt den Haken und schreibt den Text
+  (live 20.11.2026, 126 Aufgaben). Der Text ist HTML; schlichter Text mit `<br>` kommt unverändert zurück.
+- Jedes Speichern einer Einheit über den Connector zieht „Gebäudefläche gesamt“ auf Halle + Mezzanine nach, auch
+  bei einer reinen Statusänderung. Bei zwei Altsätzen leerte Propstack dabei `total_floor_space` und nahm den Wert
+  nicht wieder an (20.11.2026). Vor Sammeländerungen an Altbestand den Stand sichern.
 - `GET /v1/client_properties` (Deals): kein Feld `category`; verlorene Deals liefert die Liste nicht.
   `deal_stage_chance` = 1.0 heißt Abschluss-Phase.
 - Die Kontaktsuche `q=` verlangt jedes Wort; `POST /v1/contacts` führt über die E-Mail zusammen.
@@ -86,5 +91,5 @@ cd propstack-mcp && npm ci && npm test  # Connector
 ## Offene Punkte
 
 Stand und Zahlen des Stresstests vom 19.11.2026 – samt dem, was entschieden werden muss – stehen in
-`docs/stresstest-2026-11-19.md` (Nachtrag am Ende: was schon ausgeführt ist). Die Vorprüfung der offenen
-Newsletter-Aufgaben liegt in `scripts/radar_vorpruefung_2026-11-19.json`.
+`docs/stresstest-2026-11-19.md` (Nachtrag am Ende: was schon ausgeführt ist). Die Urteile zu den
+Newsletter-Aufgaben liegen in `scripts/radar_vorpruefung_2026-11-19.json` und `scripts/radar_nachpruefung_2026-11-20.json`.

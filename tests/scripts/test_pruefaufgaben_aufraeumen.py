@@ -292,3 +292,35 @@ def test_vorpruefung_im_repo_deckt_jede_aufgabe_genau_einmal():
     for f in daten["faelle"]:
         if f["gruppe"] == "erledigt":
             assert any(e["rolle"] == "zu" for e in f["einheiten"]), f["ort"]
+
+
+def test_eintragen_schliesst_erst_wenn_die_vermietung_eingetragen_ist():
+    """Die Aufgabe zu einer Vermietung, die noch eingetragen werden soll, bleibt offen, solange
+    die Einheit in Propstack offen ist (Stand 20.11.2026: erst Connector, dann Aufgabe)."""
+    vor = {"stand": "19.11.2026", "faelle": [
+        {"gruppe": "eintragen", "ort": "Wiesloch, Gutenbergring", "urteil": "Einheit 002 hat exakt 30.000 m².",
+         "aufgaben": [{"id": 154405188}],
+         "einheiten": [{"id": 3181692, "rolle": "eintragen"}, {"id": 3181688, "rolle": "offen"}]},
+    ]}
+    aufgaben = [_aufgabe(154405188, "Newsletter-Vermietung prüfen: VGP Park Wiesloch-Walldorf", [3181692], "2026-09-29T10:00:00.000+02:00")]
+    plan, hinweise = skript.plane_urteile(aufgaben, vor, {"eintragen"}, {3181692: OFFEN})
+    assert plan == [] and "Wiesloch" in hinweise[0]
+    # eingetragen: die Nachbar-Einheit mit Rolle „offen“ darf offen bleiben
+    plan, hinweise = skript.plane_urteile(aufgaben, vor, {"eintragen"}, {3181692: {**ABGESCHLOSSEN, "rented": {"label": "Vermietet", "value": True}}})
+    assert [e["task_id"] for e in plan] == [154405188] and hinweise == []
+    assert plan[0]["vermerk"].startswith("Vorprüfung 19.11.2026: eingetragen – ")
+
+
+def test_nachpruefung_im_repo_deckt_genau_die_klaeren_aufgaben():
+    """scripts/radar_nachpruefung_2026-11-20.json: dieselben 26 Aufgaben wie „klaeren“ am 19.11.,
+    jede genau einmal; jede Gruppe hat einen Wortlaut für den Vermerk."""
+    import json
+    vor = json.loads((_PFAD.parent / "radar_vorpruefung_2026-11-19.json").read_text(encoding="utf-8"))
+    nach = json.loads((_PFAD.parent / "radar_nachpruefung_2026-11-20.json").read_text(encoding="utf-8"))
+    klaeren = sorted(a["id"] for f in vor["faelle"] if f["gruppe"] == "klaeren" for a in f["aufgaben"])
+    ids = sorted(a["id"] for f in nach["faelle"] for a in f["aufgaben"])
+    assert ids == klaeren and len(ids) == 26
+    for f in nach["faelle"]:
+        assert f["gruppe"] == "offen" or f["gruppe"] in skript.URTEIL_WORT, f["ort"]
+        if f["gruppe"] == "eintragen":
+            assert any(e["rolle"] == "eintragen" for e in f["einheiten"]), f["ort"]

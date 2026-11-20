@@ -1,0 +1,791 @@
+{
+ "stand": "20.11.2026",
+ "weg": "Propstack-Connector, plan/apply_plan: rented=true und Status 163676 (Abgeschlossen)",
+ "plaene": {
+  "323a3d2k2239": "Probe: 3955049",
+  "6m3s5m124f4r": "11 Einheiten (Vorprüfung 19.11.)",
+  "5l690n4u6t2z": "5 Einheiten (Nachprüfung 20.11.)"
+ },
+ "zuruecknehmen": "undo_plan mit der jeweiligen plan_id, möglich bis 27.11.2026",
+ "nebenwirkungen": [
+  "Der Connector zieht beim Speichern „Gebäudefläche gesamt“ auf Halle + Mezzanine nach (Regel vom 11.11.2026): 3955049 9.428 -> 8.921, 5768805 8.558 -> 8.142, 5768799 5.155 -> 4.759; bei acht Einheiten wurde das leere Feld gefüllt.",
+  "3124232 Kitzingen: Custom-Feld „Lagerfläche“ 5.900 -> 6.750 (aus dem Standardfeld Hallenfläche gespiegelt).",
+  "5422112 und 5422117 (alte Dubletten Soest): Propstack hat das Standardfeld „Gesamtfläche“ geleert (11.353 bzw. 11.700 m²) und nimmt den Wert nicht wieder an; er steht in „Gebäudefläche gesamt“. undo_plan stellt dieses Feld voraussichtlich nicht wieder her.",
+  "Propstack setzt show_price_in_expose von leer auf false."
+ ],
+ "vermerke_am_objekt": {
+  "2777841": "Notiz: Tekpoint mietet zwei von drei Units, 11.427 m² frei (Nohra)",
+  "5769821": "Notiz: Nagel-Group mietet 10.600 m² (VGP Park Rostock)",
+  "2778288": "Notiz: Apex mietet 24.500 m² (Witten, Brauckstraße 26)",
+  "5766142": "Notiz: HGK mietet 27.000 m² Halle, 31.400 m² bleiben frei (Triport Hamburg)",
+  "5766483": "Notiz: Logicor meldet Am Giener 2 mit 15.900 m² als vermietet; Datensatz führt 27.611 m² (Nieder-Olm)",
+  "5422112": "Bemerkung: zwei Zeilen zum Verlust der Gesamtfläche"
+ },
+ "einheiten": [
+  {
+   "id": 3955049,
+   "adresse": "Am Sand 10, Erbes-Büdesheim",
+   "einheit": null,
+   "aenderungen": {
+    "cf.aktiv": {
+     "vorher": [
+      182817
+     ],
+     "nachher": [
+      182818
+     ]
+    },
+    "cf.bezug": {
+     "vorher": "August 2026 (reserviert)",
+     "nachher": "vermietet"
+    },
+    "cf.bezug_datum": {
+     "vorher": "2026-08-01",
+     "nachher": null
+    },
+    "cf.buroflache_verfugbar": {
+     "vorher": "507 m²",
+     "nachher": "507 m² (vermietet)"
+    },
+    "cf.gebaudeflache_gesamt": {
+     "vorher": 9428.0,
+     "nachher": 8921.0
+    },
+    "cf.lagerflache_verfugbar": {
+     "vorher": "8.220 m²",
+     "nachher": "8.220 m² (vermietet)"
+    },
+    "cf.status_logistik": {
+     "vorher": "Aktiv",
+     "nachher": "Inaktiv"
+    },
+    "free_from": {
+     "vorher": "August 2026 (reserviert)",
+     "nachher": "vermietet"
+    },
+    "property_status": {
+     "vorher": "Reserviert",
+     "nachher": "Abgeschlossen"
+    },
+    "rented": {
+     "vorher": false,
+     "nachher": true
+    },
+    "show_price_in_expose": {
+     "vorher": null,
+     "nachher": false
+    }
+   }
+  },
+  {
+   "id": 5768805,
+   "adresse": "Nordersand 1, Hamburg",
+   "einheit": null,
+   "aenderungen": {
+    "cf.aktiv": {
+     "vorher": [
+      182817
+     ],
+     "nachher": [
+      182818
+     ]
+    },
+    "cf.bezug": {
+     "vorher": "ab sofort",
+     "nachher": "vermietet"
+    },
+    "cf.bezug_datum": {
+     "vorher": "2026-01-01",
+     "nachher": null
+    },
+    "cf.gebaudeflache_gesamt": {
+     "vorher": 8558.0,
+     "nachher": 8142.0
+    },
+    "cf.status_logistik": {
+     "vorher": "Aktiv",
+     "nachher": "Inaktiv"
+    },
+    "free_from": {
+     "vorher": "ab sofort",
+     "nachher": "vermietet"
+    },
+    "property_status": {
+     "vorher": "Vermarktung",
+     "nachher": "Abgeschlossen"
+    },
+    "rented": {
+     "vorher": false,
+     "nachher": true
+    },
+    "show_price_in_expose": {
+     "vorher": null,
+     "nachher": false
+    }
+   }
+  },
+  {
+   "id": 3124232,
+   "adresse": "ConneKT 34, Kitzingen",
+   "einheit": "",
+   "aenderungen": {
+    "cf.aktiv": {
+     "vorher": [
+      182817
+     ],
+     "nachher": [
+      182818
+     ]
+    },
+    "cf.bezug": {
+     "vorher": null,
+     "nachher": "vermietet"
+    },
+    "cf.gebaudeflache_gesamt": {
+     "vorher": null,
+     "nachher": 6050.0
+    },
+    "cf.lagerflache": {
+     "vorher": 5900.0,
+     "nachher": 6750.0
+    },
+    "cf.lagerflache_gesamt": {
+     "vorher": null,
+     "nachher": 6750.0
+    },
+    "cf.lagerflache_verfugbar": {
+     "vorher": null,
+     "nachher": "6.750 m² (vermietet)"
+    },
+    "cf.status_logistik": {
+     "vorher": null,
+     "nachher": "Inaktiv"
+    },
+    "free_from": {
+     "vorher": null,
+     "nachher": "vermietet"
+    },
+    "property_status": {
+     "vorher": "Vermarktung",
+     "nachher": "Abgeschlossen"
+    },
+    "rented": {
+     "vorher": false,
+     "nachher": true
+    },
+    "show_price_in_expose": {
+     "vorher": null,
+     "nachher": false
+    }
+   }
+  },
+  {
+   "id": 5422160,
+   "adresse": "Sälzerweg 5, Soest",
+   "einheit": "Unit 1",
+   "aenderungen": {
+    "cf.aktiv": {
+     "vorher": null,
+     "nachher": [
+      182818
+     ]
+    },
+    "cf.bezug": {
+     "vorher": null,
+     "nachher": "vermietet"
+    },
+    "cf.gebaudeflache_gesamt": {
+     "vorher": null,
+     "nachher": 11353.0
+    },
+    "cf.status_logistik": {
+     "vorher": null,
+     "nachher": "Inaktiv"
+    },
+    "free_from": {
+     "vorher": "Sofort",
+     "nachher": "vermietet"
+    },
+    "property_status": {
+     "vorher": "Vermarktung",
+     "nachher": "Abgeschlossen"
+    },
+    "rented": {
+     "vorher": false,
+     "nachher": true
+    },
+    "show_price_in_expose": {
+     "vorher": null,
+     "nachher": false
+    }
+   }
+  },
+  {
+   "id": 5422162,
+   "adresse": "Sälzerweg 5, Soest",
+   "einheit": "Unit 2",
+   "aenderungen": {
+    "cf.aktiv": {
+     "vorher": null,
+     "nachher": [
+      182818
+     ]
+    },
+    "cf.bezug": {
+     "vorher": null,
+     "nachher": "vermietet"
+    },
+    "cf.gebaudeflache_gesamt": {
+     "vorher": null,
+     "nachher": 11700.0
+    },
+    "cf.status_logistik": {
+     "vorher": null,
+     "nachher": "Inaktiv"
+    },
+    "free_from": {
+     "vorher": "Sofort",
+     "nachher": "vermietet"
+    },
+    "property_status": {
+     "vorher": "Vermarktung",
+     "nachher": "Abgeschlossen"
+    },
+    "rented": {
+     "vorher": false,
+     "nachher": true
+    },
+    "show_price_in_expose": {
+     "vorher": null,
+     "nachher": false
+    }
+   }
+  },
+  {
+   "id": 5422103,
+   "adresse": "Sälzerweg 5, Soest",
+   "einheit": null,
+   "aenderungen": {
+    "cf.aktiv": {
+     "vorher": null,
+     "nachher": [
+      182818
+     ]
+    },
+    "cf.bezug": {
+     "vorher": null,
+     "nachher": "vermietet"
+    },
+    "cf.gebaudeflache_gesamt": {
+     "vorher": null,
+     "nachher": 23053.0
+    },
+    "cf.status_logistik": {
+     "vorher": null,
+     "nachher": "Inaktiv"
+    },
+    "free_from": {
+     "vorher": "Sofort",
+     "nachher": "vermietet"
+    },
+    "property_status": {
+     "vorher": null,
+     "nachher": "Abgeschlossen"
+    },
+    "rented": {
+     "vorher": false,
+     "nachher": true
+    },
+    "show_price_in_expose": {
+     "vorher": null,
+     "nachher": false
+    }
+   }
+  },
+  {
+   "id": 5422112,
+   "adresse": "Sälzerweg 5, Soest",
+   "einheit": "Unit 1",
+   "aenderungen": {
+    "cf.aktiv": {
+     "vorher": null,
+     "nachher": [
+      182818
+     ]
+    },
+    "cf.bezug": {
+     "vorher": null,
+     "nachher": "vermietet"
+    },
+    "cf.gebaudeflache_gesamt": {
+     "vorher": null,
+     "nachher": 11353.0
+    },
+    "cf.status_logistik": {
+     "vorher": null,
+     "nachher": "Inaktiv"
+    },
+    "free_from": {
+     "vorher": "Sofort",
+     "nachher": "vermietet"
+    },
+    "property_space_value": {
+     "vorher": 11353.0,
+     "nachher": null
+    },
+    "property_status": {
+     "vorher": null,
+     "nachher": "Abgeschlossen"
+    },
+    "rented": {
+     "vorher": false,
+     "nachher": true
+    },
+    "show_price_in_expose": {
+     "vorher": null,
+     "nachher": false
+    },
+    "total_floor_space": {
+     "vorher": 11353.0,
+     "nachher": null
+    }
+   }
+  },
+  {
+   "id": 5422117,
+   "adresse": "Sälzerweg 5, Soest",
+   "einheit": "Einheit 2",
+   "aenderungen": {
+    "cf.aktiv": {
+     "vorher": null,
+     "nachher": [
+      182818
+     ]
+    },
+    "cf.bezug": {
+     "vorher": null,
+     "nachher": "vermietet"
+    },
+    "cf.gebaudeflache_gesamt": {
+     "vorher": null,
+     "nachher": 11700.0
+    },
+    "cf.status_logistik": {
+     "vorher": null,
+     "nachher": "Inaktiv"
+    },
+    "free_from": {
+     "vorher": "Sofort",
+     "nachher": "vermietet"
+    },
+    "property_space_value": {
+     "vorher": 11700.0,
+     "nachher": null
+    },
+    "property_status": {
+     "vorher": null,
+     "nachher": "Abgeschlossen"
+    },
+    "rented": {
+     "vorher": false,
+     "nachher": true
+    },
+    "show_price_in_expose": {
+     "vorher": null,
+     "nachher": false
+    },
+    "total_floor_space": {
+     "vorher": 11700.0,
+     "nachher": null
+    }
+   }
+  },
+  {
+   "id": 5422122,
+   "adresse": "Sälzerweg 5, Soest",
+   "einheit": "Büro",
+   "aenderungen": {
+    "cf.aktiv": {
+     "vorher": null,
+     "nachher": [
+      182818
+     ]
+    },
+    "cf.bezug": {
+     "vorher": null,
+     "nachher": "vermietet"
+    },
+    "cf.status_logistik": {
+     "vorher": null,
+     "nachher": "Inaktiv"
+    },
+    "free_from": {
+     "vorher": "Sofort",
+     "nachher": "vermietet"
+    },
+    "property_status": {
+     "vorher": null,
+     "nachher": "Abgeschlossen"
+    },
+    "rented": {
+     "vorher": false,
+     "nachher": true
+    },
+    "show_price_in_expose": {
+     "vorher": null,
+     "nachher": false
+    }
+   }
+  },
+  {
+   "id": 5381316,
+   "adresse": ", Krefeld",
+   "einheit": "Unit 1 (Platzhalter)",
+   "aenderungen": {
+    "cf.aktiv": {
+     "vorher": null,
+     "nachher": [
+      182818
+     ]
+    },
+    "cf.bezug": {
+     "vorher": null,
+     "nachher": "vermietet"
+    },
+    "cf.gebaudeflache_gesamt": {
+     "vorher": null,
+     "nachher": 19020.0
+    },
+    "cf.lagerflache_gesamt": {
+     "vorher": null,
+     "nachher": 19020.0
+    },
+    "cf.lagerflache_verfugbar": {
+     "vorher": "19.020 m²",
+     "nachher": "19.020 m² (vermietet)"
+    },
+    "cf.status_logistik": {
+     "vorher": null,
+     "nachher": "Inaktiv"
+    },
+    "free_from": {
+     "vorher": null,
+     "nachher": "vermietet"
+    },
+    "property_status": {
+     "vorher": null,
+     "nachher": "Abgeschlossen"
+    },
+    "rented": {
+     "vorher": false,
+     "nachher": true
+    },
+    "show_price_in_expose": {
+     "vorher": null,
+     "nachher": false
+    }
+   }
+  },
+  {
+   "id": 3181692,
+   "adresse": "Gutenbergring , Wiesloch",
+   "einheit": "002",
+   "aenderungen": {
+    "cf.aktiv": {
+     "vorher": [
+      182817
+     ],
+     "nachher": [
+      182818
+     ]
+    },
+    "cf.bezug": {
+     "vorher": null,
+     "nachher": "vermietet"
+    },
+    "cf.gebaudeflache_gesamt": {
+     "vorher": null,
+     "nachher": 30000.0
+    },
+    "cf.status_logistik": {
+     "vorher": null,
+     "nachher": "Inaktiv"
+    },
+    "free_from": {
+     "vorher": "sofort",
+     "nachher": "vermietet"
+    },
+    "property_status": {
+     "vorher": "Vermarktung",
+     "nachher": "Abgeschlossen"
+    },
+    "rented": {
+     "vorher": false,
+     "nachher": true
+    },
+    "show_price_in_expose": {
+     "vorher": null,
+     "nachher": false
+    }
+   }
+  },
+  {
+   "id": 2777997,
+   "adresse": "Geestemünder Straße , Köln",
+   "einheit": null,
+   "aenderungen": {
+    "cf.aktiv": {
+     "vorher": null,
+     "nachher": [
+      182818
+     ]
+    },
+    "cf.bezug": {
+     "vorher": "Quartal",
+     "nachher": "vermietet"
+    },
+    "cf.bezug_datum": {
+     "vorher": "2026-01-01",
+     "nachher": null
+    },
+    "cf.status_logistik": {
+     "vorher": "Aktiv",
+     "nachher": "Inaktiv"
+    },
+    "free_from": {
+     "vorher": "ab Q1 2026",
+     "nachher": "vermietet"
+    },
+    "property_status": {
+     "vorher": null,
+     "nachher": "Abgeschlossen"
+    },
+    "rented": {
+     "vorher": false,
+     "nachher": true
+    },
+    "show_price_in_expose": {
+     "vorher": null,
+     "nachher": false
+    }
+   }
+  },
+  {
+   "id": 2777978,
+   "adresse": "Gottfried-Linke-Straße , Salzgitter",
+   "einheit": null,
+   "aenderungen": {
+    "cf.aktiv": {
+     "vorher": null,
+     "nachher": [
+      182818
+     ]
+    },
+    "cf.bezug": {
+     "vorher": "Quartal",
+     "nachher": "vermietet"
+    },
+    "cf.bezug_datum": {
+     "vorher": "2025-10-01",
+     "nachher": null
+    },
+    "cf.status_logistik": {
+     "vorher": "Aktiv",
+     "nachher": "Inaktiv"
+    },
+    "free_from": {
+     "vorher": "ab Q4 2025",
+     "nachher": "vermietet"
+    },
+    "property_status": {
+     "vorher": null,
+     "nachher": "Abgeschlossen"
+    },
+    "rented": {
+     "vorher": false,
+     "nachher": true
+    },
+    "show_price_in_expose": {
+     "vorher": null,
+     "nachher": false
+    }
+   }
+  },
+  {
+   "id": 3228009,
+   "adresse": "Schwienkuhler Weg , Lensahn",
+   "einheit": null,
+   "aenderungen": {
+    "cf.aktiv": {
+     "vorher": [
+      182817
+     ],
+     "nachher": [
+      182818
+     ]
+    },
+    "cf.bezug": {
+     "vorher": null,
+     "nachher": "vermietet"
+    },
+    "cf.gebaudeflache_gesamt": {
+     "vorher": null,
+     "nachher": 21753.0
+    },
+    "cf.status_logistik": {
+     "vorher": null,
+     "nachher": "Inaktiv"
+    },
+    "free_from": {
+     "vorher": "sofort",
+     "nachher": "vermietet"
+    },
+    "property_status": {
+     "vorher": "Vermarktung",
+     "nachher": "Abgeschlossen"
+    },
+    "rented": {
+     "vorher": false,
+     "nachher": true
+    },
+    "show_price_in_expose": {
+     "vorher": null,
+     "nachher": false
+    }
+   }
+  },
+  {
+   "id": 2778280,
+   "adresse": "wulfshofstraße 18, Dortmund",
+   "einheit": null,
+   "aenderungen": {
+    "cf.aktiv": {
+     "vorher": null,
+     "nachher": [
+      182818
+     ]
+    },
+    "cf.bezug": {
+     "vorher": "kurzfristig",
+     "nachher": "vermietet"
+    },
+    "cf.status_logistik": {
+     "vorher": "Aktiv",
+     "nachher": "Inaktiv"
+    },
+    "free_from": {
+     "vorher": "kurzfristig",
+     "nachher": "vermietet"
+    },
+    "property_status": {
+     "vorher": null,
+     "nachher": "Abgeschlossen"
+    },
+    "rented": {
+     "vorher": false,
+     "nachher": true
+    },
+    "show_price_in_expose": {
+     "vorher": null,
+     "nachher": false
+    }
+   }
+  },
+  {
+   "id": 5754689,
+   "adresse": "Siemensstraße , Haan",
+   "einheit": "Halle Siemensstraße",
+   "aenderungen": {
+    "cf.aktiv": {
+     "vorher": null,
+     "nachher": [
+      182818
+     ]
+    },
+    "cf.bezug": {
+     "vorher": null,
+     "nachher": "vermietet"
+    },
+    "cf.gebaudeflache_gesamt": {
+     "vorher": null,
+     "nachher": 7084.0
+    },
+    "cf.lagerflache_gesamt": {
+     "vorher": null,
+     "nachher": 7084.0
+    },
+    "cf.lagerflache_verfugbar": {
+     "vorher": "7084",
+     "nachher": "7.084 m² (vermietet)"
+    },
+    "cf.status_logistik": {
+     "vorher": null,
+     "nachher": "Inaktiv"
+    },
+    "free_from": {
+     "vorher": "01.10.2026",
+     "nachher": "vermietet"
+    },
+    "property_status": {
+     "vorher": "Vermarktung",
+     "nachher": "Abgeschlossen"
+    },
+    "rented": {
+     "vorher": false,
+     "nachher": true
+    },
+    "show_price_in_expose": {
+     "vorher": null,
+     "nachher": false
+    }
+   }
+  },
+  {
+   "id": 5768799,
+   "adresse": "An der Industriebahn 23, Berlin",
+   "einheit": "Unit 2",
+   "aenderungen": {
+    "cf.aktiv": {
+     "vorher": [
+      182817
+     ],
+     "nachher": [
+      182818
+     ]
+    },
+    "cf.bezug": {
+     "vorher": "ab Q1/2027",
+     "nachher": "vermietet"
+    },
+    "cf.bezug_datum": {
+     "vorher": "2027-02-28",
+     "nachher": null
+    },
+    "cf.gebaudeflache_gesamt": {
+     "vorher": 5155.0,
+     "nachher": 4759.0
+    },
+    "cf.status_logistik": {
+     "vorher": "Aktiv",
+     "nachher": "Inaktiv"
+    },
+    "free_from": {
+     "vorher": "ab Q1/2027",
+     "nachher": "vermietet"
+    },
+    "property_status": {
+     "vorher": "Vermarktung",
+     "nachher": "Abgeschlossen"
+    },
+    "rented": {
+     "vorher": false,
+     "nachher": true
+    },
+    "show_price_in_expose": {
+     "vorher": null,
+     "nachher": false
+    }
+   }
+  }
+ ]
+}
