@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { countryCallingCode, formatPhone, isMobile, normalizePhone } from "../src/propstack/dedupe";
+import { countryCallingCode, formatPhone, isGermanMobileNational, isMobile, normalizePhone } from "../src/propstack/dedupe";
 
 // Befund Florian, 13.11.2026: „Wenn die +49 oder andere Ländervorwahlen eingegeben werden, kommt trotzdem noch eine 0
 // danach. So können wir die nicht anwählen.“ In Propstack standen bei 94 von 4.922 Kontakten Nummern wie
@@ -96,5 +96,13 @@ describe("Telefonnummern: einheitlich mit Ländervorwahl", () => {
 		expect(isMobile("+49 (0) 221 4710199")).toBe(false);
 		expect(normalizePhone("+49 (0) 221 4710199")).toBe("492214710199");
 		expect(normalizePhone("0221 4710199")).toBe("492214710199");
+	});
+
+	it("erkennt eine deutsche Mobilnummer ohne Ländervorwahl – und verwechselt sie nicht mit ausländischem Festnetz", () => {
+		for (const text of ["0171 3920057", "(0171) 3920057", "0151 12345678", "0176/12345678", "01713920057"]) expect(isGermanMobileNational(text), text).toBe(true);
+		// mit Ländervorwahl ist nichts mehrdeutig
+		for (const text of ["+49 171 3920057", "0049 171 3920057", "+43 171 3920057"]) expect(isGermanMobileNational(text), text).toBe(false);
+		// gleich beginnendes Festnetz im Ausland ist kürzer (Delft, Paris, Wien) – andere Vorwahlen zählen ohnehin nicht
+		for (const text of ["015 2123456", "01 71 39 20 05", "01 7139200", "0664 1234567", "0221 4710199", "01 2345678"]) expect(isGermanMobileNational(text), text).toBe(false);
 	});
 });

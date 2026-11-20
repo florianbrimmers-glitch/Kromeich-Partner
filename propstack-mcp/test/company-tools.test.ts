@@ -235,6 +235,18 @@ describe("create_company", () => {
 		expect(out.result).toMatchObject({ created: true, phone_adjusted: ["phone_office: „+49 (0)221 4710199“ → „+49 221 4710199“ (0 nach der Ländervorwahl entfernt)"] });
 	});
 
+	it("Firma im Ausland mit einer Nummer, die wie eine deutsche Mobilnummer aussieht: Rückfrage statt geratener Vorwahl", async () => {
+		const w = welt();
+		const fall = createCompany({ client: w.client, db: fakeDb().db, now: NOW, user: USER }, { country: "Österreich", name: "Neue Firma GmbH", phone_office: "0171 3920057" });
+		await expect(fall).rejects.toThrow(/phone_office: „0171 3920057“ hat keine Ländervorwahl\. Sie sieht aus wie eine deutsche Mobilnummer, angegeben ist aber das Land Österreich\./);
+		expect(w.aufrufe).toEqual([]);
+		// eine österreichische Nummer bekommt wie bisher +43
+		const ok = welt();
+		const out = await createCompany({ client: ok.client, db: fakeDb().db, now: NOW, user: USER }, { country: "Österreich", name: "Neue Firma GmbH", phone_office: "01 2345678" });
+		expect(ok.aufrufe.find((a) => a.methode === "createClientV2")!.args[0]).toMatchObject({ office_phone: "+43 1 2345678" });
+		expect(out.result).toMatchObject({ created: true, phone_adjusted: ["phone_office: „01 2345678“ → „+43 1 2345678“ (auf +43 umgestellt)"] });
+	});
+
 	it("gibt es die Firma schon, wird nichts angelegt – der vorhandene Datensatz kommt zurück", async () => {
 		const w = welt([GOODMAN]);
 		const { db, rows } = fakeDb();
@@ -704,6 +716,26 @@ describe("create_contact: Firma automatisch verknüpfen (Entscheidung Florian, 1
 		const nullnull = kontaktWelt([]);
 		const d = await lauf(nullnull, { first_name: "Erika", last_name: "Neu", phone_office: "0049 221 4710199" });
 		expect(d.result).toMatchObject({ phone_adjusted: ["phone_office: „0049 221 4710199“ → „+49 221 4710199“ (00 durch + ersetzt)"] });
+	});
+
+	it("deutsche Mobilnummer ohne Ländervorwahl bei einem Kontakt im Ausland: nichts wird angelegt, die Rückfrage nennt beide Lesarten", async () => {
+		// Befund 20.11.2026: Signatur mit Adresse in Wien und deutscher Handynummer „0171 …“ – gespeichert würde „+43 171 …“
+		for (const feld of ["mobile", "phone_office"]) {
+			const w = kontaktWelt([]);
+			const fall = lauf(w, { country: "Österreich", first_name: "Erika", last_name: "Neu", [feld]: "0171 3920055" });
+			await expect(fall, feld).rejects.toThrow(`${feld}: „0171 3920055“ hat keine Ländervorwahl. Sie sieht aus wie eine deutsche Mobilnummer, angegeben ist aber das Land Österreich.`);
+			await expect(fall, feld).rejects.toThrow(/„\+49 171 3920055“, wenn es eine deutsche Mobilnummer ist – sonst „\+43 171 3920055“/);
+			// weder gesucht noch geschrieben
+			expect(w.aufrufe, feld).toEqual([]);
+		}
+		// mit Ländervorwahl wird angelegt – als Mobilnummer
+		const klar = kontaktWelt([]);
+		await lauf(klar, { country: "Österreich", first_name: "Erika", last_name: "Neu", mobile: "+49 171 3920055" });
+		expect(klar.aufrufe.find((x) => x.methode === "createContact")!.args[0]).toMatchObject({ office_cell: "+49 171 3920055", office_country: "Österreich" });
+		// Land Deutschland: nichts ist mehrdeutig
+		const deutsch = kontaktWelt([]);
+		await lauf(deutsch, { country: "Deutschland", first_name: "Erika", last_name: "Neu", mobile: "0171 3920055" });
+		expect(deutsch.aufrufe.find((x) => x.methode === "createContact")!.args[0]).toMatchObject({ office_cell: "+49 171 3920055" });
 	});
 
 	it("dieselbe Mobilnummer mit „(0)“ geschrieben wird als Dublette erkannt", async () => {
