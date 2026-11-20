@@ -15,7 +15,10 @@ CHANNEL_ID = "C07SJMXQWEA"
 GROUP_LABEL_MAP: dict[str, str] = {v: k.value for k, v in GROUP_ID_MAP.items()}
 
 
-def _format_contact_line(result: ContactResult) -> str:
+MAX_FEHLERZEILEN = 8
+
+
+def _format_contact_line(result: ContactResult, quelle: str = "Email-Signatur") -> str:
     parts = [f"*{result.name}*"]
 
     details = []
@@ -28,7 +31,7 @@ def _format_contact_line(result: ContactResult) -> str:
         parts.append(" – ")
         parts.append(", ".join(details))
 
-    source = "via Email-Signatur"
+    source = f"via {quelle}"
     if result.apollo_enriched:
         source += " + Apollo"
     parts.append(f" — _{source}_")
@@ -36,27 +39,42 @@ def _format_contact_line(result: ContactResult) -> str:
     return "• " + "".join(parts)
 
 
-def send_summary(report: PipelineReport) -> None:
+def send_summary(report: PipelineReport, quelle: str = "Email-Signatur") -> None:
     token = os.environ.get("SLACK_BOT_TOKEN")
     if not token:
         logger.warning("SLACK_BOT_TOKEN not set, skipping Slack notification")
         return
 
-    if not report.contacts_created:
+    if not report.contacts_created and not report.errors:
         logger.info("No new contacts created, skipping Slack notification")
         return
 
+    # Die Kopfzeile bleibt in beiden Fällen gleich: An „KI-Scan“ + „Neue Kontakte“
+    # erkennt der Visitenkarten-Import die eigene Zusammenfassung wieder.
     lines = [f":card_index: *KI-Scan – Neue Kontakte vom {report.run_date}*", ""]
-    lines.append(f"{len(report.contacts_created)} neue Kontakte in Propstack angelegt:")
-    lines.append("")
+    if report.contacts_created:
+        lines.append(f"{len(report.contacts_created)} neue Kontakte in Propstack angelegt:")
+        lines.append("")
+        for result in report.contacts_created:
+            lines.append(_format_contact_line(result, quelle))
+        lines.append("")
+    else:
+        lines.append("Keine neuen Kontakte angelegt.")
+        lines.append("")
 
-    for result in report.contacts_created:
-        lines.append(_format_contact_line(result))
-
-    lines.append("")
     skipped = len(report.contacts_skipped_duplicate)
     if skipped > 0:
         lines.append(f"{skipped} Kontakte übersprungen (bereits in Propstack vorhanden).")
+
+    if report.errors:
+        # Fehler gehören dorthin, wo jemand hinsieht – nicht nur ins Actions-Log.
+        lines.append("")
+        lines.append(f":warning: *{len(report.errors)} Problem(e) in diesem Lauf* (Details im Actions-Log):")
+        for fehler in report.errors[:MAX_FEHLERZEILEN]:
+            wer = "" if fehler.email == "Lauf" else f"{fehler.name or fehler.email}: "
+            lines.append(f"• {wer}{fehler.error}")
+        if len(report.errors) > MAX_FEHLERZEILEN:
+            lines.append(f"• … und {len(report.errors) - MAX_FEHLERZEILEN} weitere")
 
     message = "\n".join(lines)
 

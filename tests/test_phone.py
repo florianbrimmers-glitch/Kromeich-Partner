@@ -48,6 +48,7 @@ from src.phone import format_phone, format_phone_for_contact, is_german_mobile_n
     ("0171 3920055", "+49 171 3920055"),
     ("0221/4710-199", "+49 221/4710-199"),
     ("02214710199", "+49 2214710199"),
+    ("0221 4710199", "+49 221 4710199"),
     ("(0221) 4710199", "+49 221 4710199"),
     ("(0 22 1) 47 10 199", "+49 22 1 47 10 199"),
     (" 0171 3920055 ", "+49 171 3920055"),
@@ -122,3 +123,19 @@ def test_german_mobile_at_foreign_contact_is_not_guessed():
 ])
 def test_is_german_mobile_national(text, erwartet):
     assert is_german_mobile_national(text) is erwartet
+
+
+def test_create_contact_raet_keine_deutsche_vorwahl_ohne_beleg(monkeypatch):
+    """ContactData.country steht immer auf „Deutschland“ – die KI füllt das Feld nicht.
+    Ginge es an format_phone, würde aus einer Wiener Nummer „+49 664 …“. Ohne Beleg
+    (fünfstellige PLZ oder Adresse auf .de) bleibt eine Nummer ohne Ländervorwahl, wie
+    sie ist; die „(0)“ nach einer vorhandenen Ländervorwahl fällt trotzdem weg."""
+    monkeypatch.setenv("PROPSTACK_API_KEY", "v1")
+    posts = []
+    monkeypatch.setattr(ps.httpx, "post", lambda url, json=None, **kw: posts.append(json) or _Resp())
+    monkeypatch.setattr(ps.httpx, "put", lambda url, **kw: _Resp())
+    ps.create_contact(ContactData(email="a@firma.at", first_name="A", last_name="B", zip_code="1010",
+                                  phone="0664 1234567", mobile="+43 (0) 664 7654321"))
+    client = posts[0]["client"]
+    assert client["office_phone"] == "0664 1234567"
+    assert client["office_cell"] == "+43 664 7654321"

@@ -1,0 +1,340 @@
+{
+ "stand": "19.11.2026 (geschrieben 20.11.2026, 00:12–00:14 Uhr)",
+ "weg": "Propstack-Connector, plan/apply_plan",
+ "plaene": {
+  "1b1y0r5y102d": "Probe: 6342847",
+  "6x00531a100o": "14 Einheiten: status_logistik/aktiv auf Inaktiv",
+  "4h6l3x103q5s": "3195774: Status Abgeschlossen"
+ },
+ "zuruecknehmen": "undo_plan mit der jeweiligen plan_id, möglich bis 26.11.2026",
+ "nebenwirkung": "Propstack setzt beim Speichern show_price_in_expose von leer auf false (10 Einheiten). Das stand nicht in der Vorschau; es ändert nichts an der Anzeige.",
+ "einheiten": [
+  {
+   "id": 6342847,
+   "titel": "Logistikpark in (15) Mittenwalde-Ragow – Unit 2",
+   "adresse": "Am Gewerbepark Nord , Mittenwalde",
+   "aenderungen": {
+    "cf.status_logistik": {
+     "vorher": "Aktiv",
+     "nachher": "Inaktiv"
+    }
+   }
+  },
+  {
+   "id": 3949147,
+   "titel": "Gewerbepark in (50) Köln",
+   "adresse": "Geestemünder Straße 48, Köln",
+   "aenderungen": {
+    "cf.status_logistik": {
+     "vorher": "Aktiv",
+     "nachher": "Inaktiv"
+    },
+    "show_price_in_expose": {
+     "vorher": null,
+     "nachher": false
+    }
+   }
+  },
+  {
+   "id": 3949155,
+   "titel": "Gewerbepark in (50) Köln",
+   "adresse": "Geestemünder Straße 48, Köln",
+   "aenderungen": {
+    "cf.aktiv": {
+     "vorher": null,
+     "nachher": [
+      182818
+     ]
+    },
+    "cf.status_logistik": {
+     "vorher": "Aktiv",
+     "nachher": "Inaktiv"
+    },
+    "show_price_in_expose": {
+     "vorher": null,
+     "nachher": false
+    }
+   }
+  },
+  {
+   "id": 3949160,
+   "titel": "Gewerbepark in (50) Köln",
+   "adresse": "Geestemünder Straße 48, Köln",
+   "aenderungen": {
+    "cf.status_logistik": {
+     "vorher": "Aktiv",
+     "nachher": "Inaktiv"
+    },
+    "show_price_in_expose": {
+     "vorher": null,
+     "nachher": false
+    }
+   }
+  },
+  {
+   "id": 3949166,
+   "titel": "Gewerbepark in (50) Köln",
+   "adresse": "Geestemünder Straße 48, Köln",
+   "aenderungen": {
+    "cf.status_logistik": {
+     "vorher": "Aktiv",
+     "nachher": "Inaktiv"
+    },
+    "show_price_in_expose": {
+     "vorher": null,
+     "nachher": false
+    }
+   }
+  },
+  {
+   "id": 3949171,
+   "titel": "Gewerbepark in (50) Köln",
+   "adresse": "Geestemünder Straße 48, Köln",
+   "aenderungen": {
+    "cf.status_logistik": {
+     "vorher": "Aktiv",
+     "nachher": "Inaktiv"
+    },
+    "show_price_in_expose": {
+     "vorher": null,
+     "nachher": false
+    }
+   }
+  },
+  {
+   "id": 3949177,
+   "titel": "Gewerbepark in (50) Köln",
+   "adresse": "Geestemünder Straße 48, Köln",
+   "aenderungen": {
+    "cf.status_logistik": {
+     "vorher": "Aktiv",
+     "nachher": "Inaktiv"
+    },
+    "show_price_in_expose": {
+     "vorher": null,
+     "nachher": false
+    }
+   }
+  },
+  {
+   "id": 6342848,
+   "titel": "Logistikpark in (15) Mittenwalde-Ragow – Unit 3",
+   "adresse": "Am Gewerbepark Nord , Mittenwalde",
+   "aenderungen": {
+    "cf.status_logistik": {
+     "vorher": "Aktiv",
+     "nachher": "Inaktiv"
+    }
+   }
+  },
+  {
+   "id": 6342850,
+   "titel": "Logistikpark in (15) Mittenwalde-Ragow – Unit 5",
+   "adresse": "Am Gewerbepark Nord , Mittenwalde",
+   "aenderungen": {
+    "cf.status_logistik": {
+     "vorher": "Aktiv",
+     "nachher": "Inaktiv"
+    }
+   }
+  },
+  {
+   "id": 5675135,
+   "titel": "Logistikhalle in (47) Duisburg",
+   "adresse": "Bliersheimer Straße 22, Duisburg",
+   "aenderungen": {
+    "cf.aktiv": {
+     "vorher": [
+      182817
+     ],
+     "nachher": [
+      182818
+     ]
+    },
+    "cf.status_logistik": {
+     "vorher": "Aktiv",
+     "nachher": "Inaktiv"
+    }
+   }
+  },
+  {
+   "id": 2777933,
+   "titel": "15.260 qm teilbare, neuwertige Hallenfläche!",
+   "adresse": "Oppelner Straße 36, Mönchengladbach",
+   "aenderungen": {
+    "cf.status_logistik": {
+     "vorher": "Aktiv",
+     "nachher": "Inaktiv"
+    },
+    "show_price_in_expose": {
+     "vorher": null,
+     "nachher": false
+    }
+   }
+  },
+  {
+   "id": 2778068,
+   "titel": "Logistikhalle in (47) Moers",
+   "adresse": "Am Schürmannshütt 11, Moers",
+   "aenderungen": {
+    "cf.aktiv": {
+     "vorher": [
+      182817
+     ],
+     "nachher": [
+      182818
+     ]
+    },
+    "cf.status_logistik": {
+     "vorher": "Aktiv",
+     "nachher": "Inaktiv"
+    }
+   }
+  },
+  {
+   "id": 3147067,
+   "titel": "Lagerfläche in (46) Oberhausen",
+   "adresse": "Im Waldteich 10, Oberhausen",
+   "aenderungen": {
+    "cf.aktiv": {
+     "vorher": [
+      182817
+     ],
+     "nachher": [
+      182818
+     ]
+    },
+    "cf.status_logistik": {
+     "vorher": "Aktiv",
+     "nachher": "Inaktiv"
+    },
+    "show_price_in_expose": {
+     "vorher": null,
+     "nachher": false
+    }
+   }
+  },
+  {
+   "id": 3147070,
+   "titel": "Lagerfläche in (46) Oberhausen",
+   "adresse": "Im Waldteich 10, Oberhausen",
+   "aenderungen": {
+    "cf.aktiv": {
+     "vorher": [
+      182817
+     ],
+     "nachher": [
+      182818
+     ]
+    },
+    "cf.status_logistik": {
+     "vorher": "Aktiv",
+     "nachher": "Inaktiv"
+    },
+    "show_price_in_expose": {
+     "vorher": null,
+     "nachher": false
+    }
+   }
+  },
+  {
+   "id": 5288058,
+   "titel": "Weiterstadt - Unit 3",
+   "adresse": "Gutenbergstrasse 19, Weiterstadt",
+   "aenderungen": {
+    "cf.aktiv": {
+     "vorher": [
+      182817
+     ],
+     "nachher": [
+      182818
+     ]
+    },
+    "cf.status_logistik": {
+     "vorher": "Aktiv",
+     "nachher": "Inaktiv"
+    },
+    "show_price_in_expose": {
+     "vorher": null,
+     "nachher": false
+    }
+   }
+  },
+  {
+   "id": 3195774,
+   "titel": "Logistikfläche an der A40/A57!",
+   "adresse": "Hamburger Straße 40, Duisburg",
+   "aenderungen": {
+    "cf.aktiv": {
+     "vorher": null,
+     "nachher": [
+      182818
+     ]
+    },
+    "cf.status_logistik": {
+     "vorher": null,
+     "nachher": "Inaktiv"
+    },
+    "property_status": {
+     "vorher": "Vermarktung",
+     "nachher": "Abgeschlossen"
+    },
+    "show_price_in_expose": {
+     "vorher": null,
+     "nachher": false
+    },
+    "status_updated_at": {
+     "vorher": "2025-04-10T20:15:57.834+02:00",
+     "nachher": "2026-11-20T00:13:31.888+01:00"
+    }
+   }
+  }
+ ],
+ "nicht_angefasst": [
+  {
+   "id": 5288056,
+   "adresse": "Gutenbergstrasse 19, Weiterstadt",
+   "frage": "Unit 1 steht auf abgeschlossen und vermietet, zugleich „Aktiv“ mit frei ab 01.01.2030."
+  },
+  {
+   "id": 5288057,
+   "adresse": "Gutenbergstrasse 19, Weiterstadt",
+   "frage": "Unit 2: wie Unit 1, frei ab 01.07.2028."
+  },
+  {
+   "id": 5288059,
+   "adresse": "Gutenbergstrasse 19, Weiterstadt",
+   "frage": "Unit 4: wie Unit 1, frei ab 01.04.2027 – das ist in gut vier Monaten."
+  },
+  {
+   "id": 2778107,
+   "adresse": "Kimplerstraße 336, Krefeld",
+   "frage": "Vermietet-Haken gesetzt, aber Vermarktung, „Aktiv“ und frei „auf Anfrage“. Ein früherer Lauf hat den Widerspruch am 30.07. vermerkt und bewusst offen gelassen."
+  },
+  {
+   "id": 3637131,
+   "adresse": "Franz-Greiß-Straße 7, Köln",
+   "frage": "Vermietet-Haken gesetzt, aber Vermarktung und „Aktiv“. Am 03.08. vermerkt und offen gelassen."
+  },
+  {
+   "id": 2810381,
+   "adresse": "Regioparkring 20, Mönchengladbach",
+   "frage": "Vermietet-Haken gesetzt, aber Vermarktung und „Aktiv“. Keine Notiz, kein Bezugstermin."
+  },
+  {
+   "id": 3622790,
+   "adresse": "Rheindeichstraße 155, Duisburg",
+   "frage": "Vermietet-Haken gesetzt, frei ab 01.01.2029, steht in Vermarktung."
+  },
+  {
+   "id": 3633614,
+   "adresse": "Am Fallhammer 9, Düsseldorf",
+   "frage": "Vermietet-Haken gesetzt, steht in Vermarktung, „Inaktiv“."
+  },
+  {
+   "id": 3144177,
+   "adresse": "Herrenpfad-Süd 40, Nettetal",
+   "frage": "Vermietet-Haken gesetzt, steht in Vermarktung. Seit Februar nicht mehr angefasst."
+  }
+ ]
+}

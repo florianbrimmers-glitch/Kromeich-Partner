@@ -15,6 +15,28 @@ BROKER_REVIEW_NAME = "Lena Klinnert"
 # Absagegrund "Fläche nicht mehr verfügbar" (Standard für Fremdvermietung)
 RESERVATION_REASON_ABSAGE = 256998
 
+# Abgesagt werden nur Deals der Vermietung: Pipelines, deren Name so beginnt
+# ("300 Mieter", "300 Leverkusen", "300 Sontra"), und Deals ohne Pipeline. Gleiche
+# Regel wie im #objekte-Handler.
+VERMIETUNGS_PIPELINE_PRAEFIX = "300"
+
+# Objekt-Status "Abgeschlossen" (GET /v1/property_statuses). Eine Einheit mit diesem
+# Status ist nicht mehr in der Vermarktung – eine Vermietungsmeldung dazu ist erledigt.
+STATUS_ABGESCHLOSSEN = 163676
+
+# So beginnt der Titel jeder Review-Aufgabe dieses Handlers. Daran erkennt der
+# Dublettenschutz (review_dedup.py) die eigenen offenen Aufgaben wieder – und das
+# Dashboard die Art der Aufgabe (Text vor dem Doppelpunkt). Nicht ändern, ohne beides
+# mitzuziehen.
+REVIEW_TITEL_PRAEFIX = "Newsletter-Vermietung prüfen"
+
+# Eine offene Review-Aufgabe verhindert eine weitere zur selben Einheit nur so lange.
+# Der Radar wiederholt dieselbe Vermietung über Tage (Dissen: 7 Aufgaben in 14 Tagen) –
+# eine Meldung Monate später ist dagegen meist eine neue Vermietung. Ohne diese Grenze
+# bekäme eine Einheit nie wieder eine Aufgabe, solange die alte offen ist (und von 157
+# Aufgaben war bis 19.11.2026 eine einzige erledigt).
+REVIEW_DEDUP_TAGE = 30
+
 CHECK_EMOJI = "white_check_mark"
 CONFIDENCE_THRESHOLD = 0.8
 

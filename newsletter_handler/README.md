@@ -6,13 +6,18 @@ Eigenständiges Paket – **kein Code-Sharing** mit `src/` oder `objekte_handler
 
 ## Ablauf
 
-1. Digest-Nachrichten der letzten 27h aus #newsletter lesen. **Bot-Nachrichten werden hier NICHT übersprungen** – der Digest selbst ist bot-generiert. Nachrichten mit eigenem ✅ des Bots werden übersprungen (Verarbeitungsmarker, macht das Polling idempotent).
+1. Digest-Nachrichten der letzten 50 h aus #newsletter lesen (Cron; lokal Standard 27 h). **Bot-Nachrichten werden hier NICHT übersprungen** – der Digest selbst ist bot-generiert. Nachrichten mit eigenem ✅ des Bots werden übersprungen (Verarbeitungsmarker, macht das Polling idempotent).
 2. Extraktion per Claude (`claude-opus-4-8`): eine Nachricht → Liste aller Deal-Items, je mit `deal_typ` (`vermietung` / `transaktion` / `neubau` / `sonstiges`), `ist_vermietung`, Ort/Straße/Größe/Mieter/Vermieter/Projektname.
 3. Nur **Vermietungen** werden gegen `GET /v1/units?q=` gematcht (lokale Nachfilterung: Straße + exakte Hausnummer + Stadt, Größen-Hinweis). Alles andere wird ignoriert.
 4. Entscheidung je Deal:
    - **Kein Match** (Fremd-Deal, nicht im eigenen Bestand) → nur Log, keine Aktion.
    - **Stufe A** (Vermietung eindeutig einem eigenen Objekt zugeordnet, `DRY_RUN=false`): `rented=true` setzen, Doku-Notiz, offene Deals per Absage-Aktivität (Grund 256998) schließen.
    - **Stufe B** (mehrdeutig / geringe Confidence / `DRY_RUN=true`): Review-Aufgabe an den Objekt-Verantwortlichen (Fallback: Sammelpostfach 254958, heute Lena Klinnert), fällig +2 Werktage.
+   - **Keine Aufgabe, wenn es nichts zu tun gibt** (Änderung vom 19.11.2026, gilt in beiden Betriebsarten):
+     - Die zugeordnete Einheit ist in Propstack schon vermietet, „Abgeschlossen“ (Status 163676) oder archiviert → die KI wählt ein zweites Mal nur unter Einheiten in Vermarktung: bei sicherer erster Wahl nur am selben Ort (z. B. der richtige Datensatz neben einer stillgelegten Dublette), bei unsicherer unter allen Kandidaten. Bleibt das ohne Treffer → nur Log.
+     - Zur Einheit liegt beim Review-Sitz schon eine offene Aufgabe „Newsletter-Vermietung prüfen“ aus den letzten 30 Tagen → keine zweite. (Der Radar wiederholt über Tage; eine Meldung Monate später ist meist eine neue Vermietung.) Verglichen wird über die Objekt-ID der Aufgabe (`GET /v1/activities`, Feld `property_ids`), nicht über den Titel – der wechselt von Tag zu Tag („Garbe“, „Garbe Industrial“).
+     - Aufgaben ohne zugeordnete Einheit werden wie bisher immer angelegt. Lässt sich der Bestand der offenen Aufgaben nicht lesen, wird ebenfalls angelegt (eine doppelte Aufgabe schadet weniger als eine verlorene Meldung) – der Lauf endet dann aber rot.
+   - Scheitert die Verarbeitung eines Deals, bekommt der Digest **kein** ✅; der nächste Lauf versucht es erneut.
 5. Nach Verarbeitung **aller** Deals einer Nachricht: eine Sammel-Antwort als Thread-Reply + ✅-Reaction. Jeder Deal landet als JSONL-Zeile im Entscheidungslog (nur lokal, siehe unten).
 
 ## Betriebsmodi
@@ -37,6 +42,82 @@ einem Menschen, daran ändert der Schalter nichts.
 
 Auf `DRY_RUN=false` umstellen also nur nach bewusster Entscheidung – es ist kein
 überfälliger nächster Schritt.
+
+### Befund vom 19.11.2026: Die Review-Aufgaben werden nicht abgearbeitet
+
+Nur gelesen, Review-Sitz 254958: Von **157** je angelegten Aufgaben „Newsletter-Vermietung
+prüfen“ ist **eine** erledigt, 156 sind offen. Der Handler war damit die größte Quelle
+des Rückstaus an diesem Sitz (156 von 510 offenen Aufgaben).
+
+- **58** der 156 wiederholten nur eine ältere offene Aufgabe zur selben Einheit – der
+  Radar meldet dieselbe Vermietung an mehreren Tagen (Westring 8 in Dissen: 7 Aufgaben
+  in 14 Tagen, Salzgitter 7, Frickenhausen 5).
+- **40** zeigen auf Einheiten, die heute in Propstack vermietet, abgeschlossen oder
+  archiviert sind – die Aufgabe hat sich damit erledigt, egal wann. Bei Dissen ist es
+  belegt: abgeschlossen seit dem 12.10., alle 7 Aufgaben entstanden danach.
+- Zusammen **81 von 156** (52 %) lassen sich ohne inhaltliche Prüfung schließen. Dass
+  solche Aufgaben neu entstehen, stellt die Änderung vom 19.11.2026 ab (Ablauf, Punkt 4).
+
+Der vorhandene Bestand lässt sich mit `scripts/pruefaufgaben_aufraeumen.py` sichten und –
+erst nach Freigabe – schließen. Offen bleibt die eigentliche Frage: Die übrigen 75
+Aufgaben sind echte Prüfaufträge, die ebenfalls niemand erledigt hat. „Die mehrdeutigen
+Fälle landen ohnehin bei einem Menschen“ stimmt für die Zustellung, nicht für die
+Bearbeitung.
+
+### Vorprüfung vom 19.11.2026: alle 129 offenen Aufgaben einzeln gelesen
+
+Am selben Abend wurden 34 Dubletten mit Freigabe geschlossen (sieben weitere Aufgaben zur
+selben Einheit, aber mit anderer Meldung, blieben offen). Die verbleibenden 129 Aufgaben wurden einzeln
+gegen Propstack gelesen – Meldung, gewählte Einheit, Eigentümer, Fläche, Nachbar-Einheiten;
+in drei Fällen auch die Pressemitteilung des Eigentümers. Ergebnis in
+`scripts/radar_vorpruefung_2026-11-19.json` (85 Vorgänge):
+
+| Urteil | Aufgaben |
+|---|---|
+| Erledigt – die gemeinte Einheit ist schon geschlossen | 49 |
+| Betrifft uns nicht – fremdes Objekt, Verlängerung, Verkauf | 28 |
+| Eintragen – laut Meldung vermietet, bei uns offen, Zuordnung eindeutig | 7 |
+| Klären – wahrscheinlich unser Objekt, Einheit oder Umfang offen | 26 |
+| Schwache Spur – nur der Ort passt | 19 |
+
+Nur 33 der 129 Aufgaben (26 %) verlangen also eine Handlung. Was die Durchsicht über die
+Zuordnung gelehrt hat:
+
+- **Die Regel „Einheit geschlossen → Aufgabe gegenstandslos“ reicht nicht.** Sie trifft 40
+  Aufgaben; bei zwei davon hing die Aufgabe an der falschen Einheit, und die gemeinte ist
+  noch offen (Frankfurt (Oder): 94.000 m² vermietet, neun Einheiten stehen auf „sofort“).
+  Geschlossen wird deshalb nach Urteil, nicht nach dieser Regel (`--urteile`).
+- **Der Eigentümer trennt Treffer von Rauschen, und die KI bekommt ihn nicht zu sehen.**
+  `_candidate_line` gibt Name, Adresse, Fläche und Makler weiter, das Feld `eigentumer` nicht.
+  Gemessen an den Urteilen: Stimmt der Eigentümer der gewählten Einheit mit dem Vermieter der
+  Meldung überein (43 Aufgaben), fielen 40 unter „erledigt“, „eintragen“ oder „klären“. Widerspricht
+  er (22 Aufgaben), war die gewählte Einheit nur in zwei Fällen erkennbar die gemeinte (Langenselbold,
+  womöglich Oyten) – sonst nicht, darunter Moers (Ixocon-Meldung an einer
+  BEOS-Halle, die Ixocon-Halle lag unter den Kandidaten) und Rostock (VGP-Meldung an einer
+  CTP-Einheit). Bei 48 Aufgaben ist am Objekt kein Eigentümer hinterlegt.
+- **Die KI wählt eine Einheit, Vermietungen betreffen oft mehrere.** Oberhausen (18.400 m² =
+  Unit 1 + Unit 2), Kamen, Mülheim, Rheinau: Die Summe zweier Einheiten passt, eine einzelne nicht.
+- **Verlängerungen und Verkäufe werden als Vermietung gewertet** (Wezel/CTP, Maersk, Decathlon,
+  Sebold): vier Aufgaben, bei denen nichts frei geworden oder vergeben worden ist.
+- **Regel 3 im Auswahl-Prompt** („ein Kandidat in der Gemeinde ist ein STARKER Treffer – auch ohne
+  Projektname und ohne Flächenübereinstimmung“) erzeugt genau die 19 schwachen Spuren.
+
+**Ausgeführt am 20.11.2026** (mit Freigabe): alle 129 Aufgaben geschlossen, jede mit dem Urteil als erster Zeile
+im Text; 28 Datensätze als vermietet eingetragen, Halle A in Frankfurt (Oder) wieder geöffnet. Die 18 „klären“-Vorgänge wurden an öffentlichen Quellen
+nachgeprüft statt beim Eigentümer erfragt (`scripts/radar_nachpruefung_2026-11-20.json`). Zwei Lehren daraus:
+
+- Bei 4 der 18 lag die KI im Ort daneben: Die Unizell-Halle steht in Schwanewede, nicht in Oyten; die Apex-Fläche in
+  Witten, nicht in Bochum; in Dombühl und Pulheim war ein anderes Objekt gemeint. Adresse und Eigentümer standen
+  jeweils in der Pressemitteilung, die der Radar verlinkt.
+- Frankfurt (Oder): Die Aufgabe zur Meldung „Halle B vermietet“ hing an einer Einheit der Halle A. In Propstack stand
+  seit dem 07.09. Halle A auf vermietet und Halle B (97.660 m²) auf frei – umgekehrt zur Meldung des Eigentümers. Ob
+  die falsche Verknüpfung der Auslöser war, ist nicht belegt. Florian hat es am 20.11. bestätigt („Halle A ist leer,
+  Halle B ist vermietet“); seither stimmt der Stand. Eine falsch verknüpfte Aufgabe kostet also nicht nur Lesezeit.
+
+Nicht geändert: Eine Änderung am Prompt lässt sich ohne Schlüssel hier nicht ausprobieren. Die
+129 Urteile sind aber der erste belastbare Prüfsatz für diesen Handler – der nächste Schritt ist,
+den Eigentümer in die Kandidatenzeile zu nehmen, den Prompt anzupassen und beides gegen diese
+Urteile zu messen, bevor es in den täglichen Lauf geht.
 
 ## Umgebungsvariablen
 

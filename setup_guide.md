@@ -74,6 +74,24 @@ Secret: `APOLLO_API_KEY`
 3. Kopieren Sie den API Key
 4. Legen Sie ihn als GitHub Secret `APOLLO_API_KEY` an
 
+**Apollo ist eine Zugabe und steht seit 19.11.2026 auf „aus“.** An dem Tag wies Apollo jeden Aufruf mit 401 ab
+(der Schlüssel stand im Body; Apollo verlangt ihn im Header `x-api-key` – das ist behoben). Ohne Apollo werden
+Kontakte ganz normal angelegt, nur ohne ergänzte Felder.
+
+- **Testen, ohne dass etwas angelegt wird:** *Actions → Daily Contact Import → Run workflow* mit `dry_run: true`
+  und `apollo: true`. Der Lauf prüft den Schlüssel gleich am Anfang. Im Log steht dann „Apollo: Schlüssel
+  angenommen“ – oder der Lauf endet rot mit „Apollo nimmt den Schlüssel nicht an (HTTP 401)“.
+- **Dauerhaft einschalten:** unter *Settings → Secrets and variables → Actions → Variables* die Variable
+  `APOLLO_ENABLED` mit dem Wert `true` anlegen.
+- **Stand des Tests vom 19.11.2026** (Dry-Run auf dem Branch, 20:27 UTC): Apollo antwortet auf die
+  Schlüsselprüfung mit „nicht angemeldet“ (`is_logged_in=false`). Der im Secret hinterlegte Schlüssel ist
+  Apollo also unbekannt – gelöscht, abgelaufen oder aus einem anderen Konto. Die korrigierte Übergabe im
+  Header allein reicht deshalb nicht.
+- **Wenn der Test den Schlüssel ablehnt:** in Apollo einen neuen Schlüssel erzeugen und als Secret
+  `APOLLO_API_KEY` hinterlegen. Beim Anlegen des Schlüssels muss der Zugriff auf *People Enrichment* (`people/match`) erlaubt
+  sein – oder der Schlüssel als „Master Key“ für alle Endpunkte gesetzt werden. Hat der Apollo-Tarif keinen
+  API-Zugang, hilft kein Schlüssel.
+
 ---
 
 ### 4. Propstack API Key
@@ -113,4 +131,12 @@ Secret: `SLACK_BOT_TOKEN`
 3. Prüfen Sie den Slack-Channel `#visitenkarten` auf die Zusammenfassung
 
 ### Automatischer Lauf
-Der Workflow läuft automatisch **Montag bis Freitag um 8:00 Uhr CET** (6:00 UTC).
+Der Workflow läuft automatisch **täglich** (Cron 01:00 UTC; GitHub startet ihn in diesem Konto
+erfahrungsgemäß erst zwischen 05:00 und 08:30 UTC) und liest jeweils die letzten 48 Stunden. Jeder Tag wird
+so zweimal gesehen. Beim E-Mail-Import fängt das die Dublettenprüfung über die Adresse ab. Der
+Visitenkarten-Import setzt an jede verarbeitete Karte ein ✅ und überspringt sie beim zweiten Mal – sonst
+ginge sie erneut durch die Bild-KI, und eine abweichend gelesene Adresse ergäbe einen zweiten Kontakt.
+HEIC-Fotos und sehr große Bilder gehen als Slack-Vorschau an die KI.
+
+Ein Lauf ist **rot**, sobald etwas schiefging (Postfach nicht lesbar, Apollo oder Claude nicht erreichbar,
+Firma nicht verknüpft …). Dieselben Probleme stehen in der Slack-Zusammenfassung in `#visitenkarten`.

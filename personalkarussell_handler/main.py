@@ -156,6 +156,14 @@ def _stufe_a(msg: dict, plan: WechselPlan, permalink: str) -> list[str]:
     namen_vorher[ziel.id] = ziel.name
 
     link_company(person.id, ziel.id)
+    # Gegenlesen, bevor die alte Verknüpfung gelöscht wird: link_company wertet HTTP 422
+    # als „besteht bereits“ – das stimmt bei Propstack oft, aber nicht immer. Fehlte die
+    # neue Verknüpfung, stünde die Person nach dem Löschen ganz ohne Firma da.
+    if not config.no_write() and ziel.id not in {link.company_id for link in get_company_links(person.id)}:
+        raise RuntimeError(
+            f"Verknüpfung {person.name()} -> {ziel.name} ist nach dem Anlegen nicht vorhanden – "
+            "abgebrochen, bevor etwas gelöscht oder geändert wurde"
+        )
     aktionen.append(f"{person.name()} mit {ziel.name} verknüpft")
 
     for link in plan.alte_links:
@@ -345,7 +353,11 @@ def _print_summary(report: RunReport) -> None:
 
 if __name__ == "__main__":
     try:
-        run_pipeline()
+        ergebnis = run_pipeline()
     except Exception:
         logger.exception("Pipeline-Totalausfall")
         sys.exit(1)
+    # Rot, wenn etwas nicht verarbeitet werden konnte: Der nächste Lauf sieht die
+    # Nachricht meist nicht mehr, und ein grüner Lauf mit Fehlern fällt niemandem auf.
+    # Nachholen: workflow_dispatch mit größerem Scan-Fenster.
+    sys.exit(1 if ergebnis.fehler else 0)

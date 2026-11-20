@@ -23,9 +23,9 @@ on:
           - "false"
           - "true"
       scan_from_hours:
-        description: "Scan-Fenster: Stunden zurück (Standard 27)"
+        description: "Scan-Fenster: Stunden zurück (Standard 50; zum Nachholen größer)"
         required: false
-        default: "27"
+        default: "50"
       scan_to_hours:
         description: "Bis Stunden zurück (0 = bis jetzt)"
         required: false
@@ -69,7 +69,11 @@ jobs:
           # vermeintlich überfälliger nächster Schritt.
           DRY_RUN: ${{ github.event.inputs.dry_run || 'true' }}
           NO_WRITE: ${{ github.event.inputs.no_write || 'false' }}
-          SCAN_HOURS: ${{ github.event.inputs.scan_from_hours || '27' }}
+          # 50 h bei täglichem Lauf: Jede Nachricht wird zweimal gesehen. Was verarbeitet ist,
+          # trägt das eigene ✅ und wird übersprungen; was gescheitert ist (roter Lauf), holt
+          # der nächste Lauf von selbst nach. Mit 27 h war eine gescheiterte Nachricht am
+          # Folgetag schon aus dem Fenster.
+          SCAN_HOURS: ${{ github.event.inputs.scan_from_hours || '50' }}
           SCAN_LATEST_HOURS: ${{ github.event.inputs.scan_to_hours || '0' }}
           # Entscheidungslog bleibt lokal auf dem Runner: bewusst kein Artefakt,
           # das füllte nur die Quota und meldete grüne Läufe rot.

@@ -3,11 +3,13 @@ from __future__ import annotations
 import logging
 import os
 import re
+import time
 import unicodedata
 from datetime import date
 
 import httpx
 
+from . import problems
 from .models import ContactData
 from .phone import format_phone_for_contact
 
@@ -125,15 +127,31 @@ def _api_key_v2() -> str | None:
     return os.environ.get("PROPSTACK_API_V2_CONTACTS")
 
 
+def _get(url: str, *, params: dict, versuche: int = 3) -> httpx.Response:
+    """GET mit Wiederholung bei 429, 5xx und Netzfehlern (lesen ist gefahrlos wiederholbar).
+
+    Seit die Dublettenprüfung vor der KI läuft, folgen die Abfragen dicht aufeinander –
+    ein einzelnes 429 darf nicht „Prüfung fehlgeschlagen, Kontakt übersprungen“ heißen."""
+    letzter: Exception | None = None
+    for versuch in range(versuche):
+        if versuch:
+            time.sleep(2 ** versuch)
+        try:
+            response = httpx.get(url, params=params, timeout=30.0)
+            if response.status_code == 429 or response.status_code >= 500:
+                letzter = httpx.HTTPStatusError(f"HTTP {response.status_code}", request=None, response=response)
+                continue
+            return response
+        except httpx.HTTPError as e:
+            letzter = e
+    raise letzter if letzter else httpx.HTTPError("GET fehlgeschlagen")
+
+
 def check_duplicate(email: str) -> bool | None:
     """Prüft, ob ein Kontakt mit dieser Email bereits existiert.
     Gibt None zurück, wenn die Prüfung fehlschlägt (damit kein Duplikat angelegt wird)."""
     try:
-        response = httpx.get(
-            f"{PROPSTACK_BASE_URL}/contacts",
-            params={"api_key": _api_key(), "email": email},
-            timeout=30.0,
-        )
+        response = _get(f"{PROPSTACK_BASE_URL}/contacts", params={"api_key": _api_key(), "email": email})
         response.raise_for_status()
         data = response.json()
         exists = isinstance(data, list) and len(data) > 0
@@ -149,10 +167,9 @@ def check_duplicate_by_name(first_name: str, last_name: str) -> bool | None:
     """Duplikat-Prüfung über Vor- und Nachname (für Kontakte ohne Email, z.B. Visitenkarten).
     Gibt None zurück, wenn die Prüfung fehlschlägt."""
     try:
-        response = httpx.get(
+        response = _get(
             f"{PROPSTACK_BASE_URL}/contacts",
             params={"api_key": _api_key(), "q": f"{first_name} {last_name}", "per": 25},
-            timeout=30.0,
         )
         response.raise_for_status()
         data = response.json()
@@ -189,8 +206,16 @@ def _is_short_form_of(company_name: str, record: dict) -> bool:
     return not _has_legal_form(shorter)
 
 
+class CompanyLookupError(Exception):
+    """Die Firmensuche ist gescheitert – ob es die Firma gibt, ist unbekannt."""
+
+
 def find_company(company_name: str) -> int | None:
     """Sucht einen bestehenden Firmen-Datensatz (is_company=true) anhand des Namens.
+
+    None heißt: gesucht und nicht gefunden. Scheitert die Suche selbst (Timeout, 429,
+    5xx), wird CompanyLookupError geworfen – früher galt die Firma dann als „nicht
+    gefunden“ und wurde neu angelegt, auch wenn es sie längst gab.
 
     Dieselbe Firma wird auch mit anderer Rechtsform oder Schreibweise wiedererkannt
     und verwendet.
@@ -203,19 +228,16 @@ def find_company(company_name: str) -> int | None:
     records: list[dict] = []
     try:
         for term in _company_search_terms(company_name):
-            response = httpx.get(
+            response = _get(
                 f"{PROPSTACK_BASE_URL}/contacts",
                 params={"api_key": _api_key(), "q": term, "per": 50},
-                timeout=30.0,
             )
             response.raise_for_status()
             data = response.json()
             if isinstance(data, list):
                 records.extend(data)
     except (httpx.HTTPError, ValueError) as e:
-        # Unverändert zu vorher: Bei einem Suchfehler gilt die Firma als nicht gefunden.
-        logger.error("Propstack company search failed for '%s': %s", company_name, e)
-        return None
+        raise CompanyLookupError(f"Firmensuche für '{company_name}' fehlgeschlagen: {e}") from e
 
     exact, same, similar = _match_companies(company_name, records)
     for label, hits in (("gleicher Name", exact), ("gleicher Name, andere Rechtsform/Schreibweise", same)):
@@ -253,6 +275,7 @@ def create_company(contact: ContactData) -> int | None:
         client_data["office_country"] = contact.country
     client_data["description"] = f"KI-Scan (GitHub Actions) vom {date.today().isoformat()} – Firma automatisch angelegt"
 
+    company_id: int | None = None
     try:
         response = httpx.post(
             f"{PROPSTACK_BASE_URL}/contacts",
@@ -264,6 +287,7 @@ def create_company(contact: ContactData) -> int | None:
         response.raise_for_status()
         company_id = response.json().get("id")
         if not company_id:
+            problems.melde("Firma nicht angelegt", f"{contact.company}: Propstack lieferte keine ID")
             return None
 
         v2_key = _api_key_v2()
@@ -279,21 +303,36 @@ def create_company(contact: ContactData) -> int | None:
             if v2_resp.status_code == 200:
                 logger.info("Firma angelegt: %s (id=%s, commercial=true)", contact.company, company_id)
             else:
-                logger.warning("Firma angelegt aber commercial nicht gesetzt: %s (%s)", contact.company, v2_resp.status_code)
+                # Der Datensatz steht jetzt mit last_name=Firma und ohne Firmen-Kennzeichen
+                # in Propstack. find_company() findet ihn nie wieder – ohne Nacharbeit
+                # entsteht bei jedem weiteren Kontakt dieser Firma eine Dublette.
+                problems.melde(
+                    "Firma angelegt, aber nicht als Firma gekennzeichnet – bitte in Propstack nachziehen",
+                    f"{contact.company} (id {company_id}, HTTP {v2_resp.status_code})",
+                )
         else:
-            logger.warning("Firma angelegt ohne commercial (V2-Key fehlt): %s", contact.company)
+            problems.melde(
+                "Firma angelegt, aber nicht als Firma gekennzeichnet – bitte in Propstack nachziehen",
+                f"{contact.company} (id {company_id}, zweiter Propstack-Schlüssel fehlt)",
+            )
 
         return company_id
     except (httpx.HTTPError, ValueError) as e:
-        logger.error("Propstack create company failed for '%s': %s", contact.company, e)
-        return None
+        zusatz = f" – Datensatz {company_id} ist angelegt, aber nicht als Firma gekennzeichnet" if company_id else ""
+        problems.melde("Firma nicht angelegt", f"{contact.company}: {type(e).__name__}{zusatz}")
+        return company_id
 
 
 def find_or_create_company(contact: ContactData) -> int | None:
     """Sucht die Firma oder legt sie neu an. Gibt die Firmen-ID zurück."""
     if not contact.company:
         return None
-    company_id = find_company(contact.company)
+    try:
+        company_id = find_company(contact.company)
+    except CompanyLookupError as e:
+        # Nicht anlegen: Ohne Suchergebnis wäre das womöglich eine Dublette.
+        problems.melde("Firma nicht verknüpft – Firmensuche fehlgeschlagen", str(e)[:120])
+        return None
     if company_id:
         return company_id
     return create_company(contact)
@@ -311,7 +350,7 @@ def link_contact_to_company(person_id: int, company_id: int) -> bool:
     13.11.2026). Nicht wieder umdrehen, ohne in der Oberfläche nachzusehen."""
     v2_key = _api_key_v2()
     if not v2_key:
-        logger.warning("PROPSTACK_API_V2_CONTACTS not set, skipping company linking")
+        problems.melde("Kontakt angelegt, Firma nicht verknüpft", "zweiter Propstack-Schlüssel (PROPSTACK_API_V2_CONTACTS) fehlt")
         return False
     try:
         response = httpx.post(
@@ -328,21 +367,49 @@ def link_contact_to_company(person_id: int, company_id: int) -> bool:
         if response.status_code in (200, 201, 204):
             logger.info("Person %s mit Firma %s verknüpft (Mitarbeiter)", person_id, company_id)
             return True
-        if response.status_code == 422:
-            logger.info("Person %s bereits mit Firma %s verknüpft", person_id, company_id)
-            return True
-        logger.error(
-            "Verknüpfung fehlgeschlagen (%s): %s", response.status_code, response.text
+        # 422 heißt bei Propstack oft „gibt es schon“ – aber nicht immer. Dieser Import
+        # verknüpft nur eben angelegte Personen; „schon verknüpft“ kann hier nicht stimmen.
+        problems.melde(
+            "Kontakt angelegt, Firma nicht verknüpft",
+            f"Person {person_id} -> Firma {company_id}: HTTP {response.status_code}",
         )
         return False
     except httpx.HTTPError as e:
-        logger.error("Verknüpfung Person %s -> Firma %s fehlgeschlagen: %s", person_id, company_id, e)
+        problems.melde(
+            "Kontakt angelegt, Firma nicht verknüpft",
+            f"Person {person_id} -> Firma {company_id}: {type(e).__name__}",
+        )
         return False
+
+
+def _land_fuer_vorwahl(contact: ContactData) -> str:
+    """Welches Land gilt für eine Nummer OHNE Ländervorwahl?
+
+    Der Import kennt das Land nicht aus der Signatur – contact.country ist immer
+    „Deutschland“ (Vorgabe in ContactData, die KI füllt das Feld nicht). Deshalb darf
+    contact.country hier NICHT an format_phone gehen: Blind +49 zu ergänzen machte aus
+    „0664 1234567“ (Wien) eine deutsche Nummer. Deshalb nur bei einem Beleg: fünfstellige PLZ oder E-Mail-Adresse auf .de.
+    Sonst „unbekannt“ – dann bleibt eine Nummer ohne Ländervorwahl, wie sie ist; die
+    „(0)“ nach einer vorhandenen Ländervorwahl fällt trotzdem weg."""
+    plz = (contact.zip_code or "").strip()
+    if re.fullmatch(r"\d{5}", plz) or (contact.email or "").strip().lower().endswith(".de"):
+        return "Deutschland"
+    return "unbekannt"
+
+
+def _clean_phone(number: str, country: str | None) -> str:
+    # format_phone_for_contact rät nicht (Connector v0.12.5): eine deutsche Mobilnummer
+    # ohne Ländervorwahl bleibt bei einem Kontakt im Ausland unverändert.
+    clean = format_phone_for_contact(number, country) or number
+    if clean != number:
+        logger.info("Telefonnummer bereinigt: %r -> %r", number, clean)
+    return clean
 
 
 def create_contact(
     contact: ContactData,
     group_ids: list[str] | None = None,
+    quelle: str = "Email-Signatur",
 ) -> dict | None:
     client_data: dict = {}
 
@@ -354,14 +421,17 @@ def create_contact(
     if contact.email:
         client_data["email"] = contact.email
 
-    # Nummern wählbar schreiben: keine 0 nach der Ländervorwahl ("+49 (0) 151 …"),
-    # einheitlich mit Ländervorwahl – siehe src/phone.py.
+    # Nummern einheitlich und wählbar schreiben – dieselbe Regel wie im Connector
+    # (src/phone.py): keine 0 nach der Ländervorwahl, "00" -> "+", ohne Vorwahl +49 –
+    # aber nur mit Beleg, dass der Kontakt in Deutschland sitzt (_land_fuer_vorwahl).
+    # Aus Signaturen kommt oft "+49 (0) 151 …".
+    land = _land_fuer_vorwahl(contact)
     if contact.phone:
-        client_data["office_phone"] = format_phone_for_contact(contact.phone, contact.country)
+        client_data["office_phone"] = _clean_phone(contact.phone, land)
     # Mobilnummern gehören in office_cell – ein Feld "mobile" kennt die
     # Propstack-API nicht, sie verwirft es ohne Fehlermeldung (HTTP 200).
     if contact.mobile:
-        client_data["office_cell"] = format_phone_for_contact(contact.mobile, contact.country)
+        client_data["office_cell"] = _clean_phone(contact.mobile, land)
     if contact.company:
         client_data["company"] = contact.company
     if contact.position:
@@ -385,7 +455,7 @@ def create_contact(
     if group_ids:
         client_data["mailchimp_interest_ids"] = group_ids
 
-    client_data["description"] = f"KI-Scan (GitHub Actions) vom {date.today().isoformat()} aus Email-Signatur"
+    client_data["description"] = f"KI-Scan (GitHub Actions) vom {date.today().isoformat()} aus {quelle}"
 
     payload = {"client": client_data}
 

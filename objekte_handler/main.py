@@ -4,6 +4,7 @@ import logging
 import sys
 import time
 import uuid
+from collections import Counter
 from datetime import datetime, timedelta, timezone
 
 from . import config
@@ -21,7 +22,15 @@ from .models import (
     Tier,
     Unit,
 )
-from .propstack import TaskPayload, create_task, get_open_deals, set_rented
+from .propstack import (
+    TaskPayload,
+    absage_hindernis,
+    create_task,
+    fetch_vermietungs_pipelines,
+    get_open_deals,
+    set_rented,
+)
+from .vollzug import vollzugsmeldung
 from .slack_gateway import (
     add_checkmark,
     fetch_channel_messages,
@@ -38,6 +47,10 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)],
 )
 logger = logging.getLogger(__name__)
+
+
+# So beginnt ein Eintrag in den ausgeführten Aktionen, der den Lauf als fehlerhaft markiert
+WARNUNG = "WARNUNG:"
 
 
 def _is_own_message(msg: dict, bot_user_id: str) -> bool:
@@ -92,7 +105,15 @@ def _collect_candidates(bot_user_id: str) -> list[tuple[dict, str | None]]:
                 candidates.append((reply, context))
             time.sleep(1)
 
-    candidates.sort(key=lambda c: float(c[0].get("ts", "0")))
+    # Eine Thread-Antwort mit „auch an Kanal senden“ steht in der Kanal-Historie UND
+    # unter den Antworten. Jede Nachricht nur einmal – die Fassung mit Thread-Kontext
+    # gewinnt, sonst liefe sie im selben Lauf zweimal (zwei Aufgaben).
+    je_ts: dict[str, tuple[dict, str | None]] = {}
+    for msg, context in candidates:
+        ts = msg.get("ts", "0")
+        if ts not in je_ts or (context and not je_ts[ts][1]):
+            je_ts[ts] = (msg, context)
+    candidates = sorted(je_ts.values(), key=lambda c: float(c[0].get("ts", "0")))
     return candidates
 
 
@@ -113,12 +134,45 @@ def _stufe_a(msg: dict, cls: Classification, match: MatchResult, permalink: str)
         is_reminder=False,
         property_ids=unit_ids,
     )
-    doku_id = create_task(doku)
-    aktionen.append(f"Doku-Notiz angelegt (Task {doku_id})")
+    # Ab hier ist die Einheit vermietet gesetzt. Scheitert ein weiterer Schritt, läuft der
+    # Rest trotzdem – sonst bliebe ein halber Zustand ohne Antwort und ohne ✅ zurück, und
+    # die Nachricht fiele am nächsten Tag aus dem Fenster.
+    try:
+        doku_id = create_task(doku)
+        aktionen.append(f"Doku-Notiz angelegt (Task {doku_id})")
+    except Exception as e:
+        logger.exception("Doku-Notiz für %s nicht angelegt", unit_ids)
+        aktionen.append(f"{WARNUNG} Doku-Notiz nicht angelegt ({e})")
+
+    # Abgesagt werden nur Deals der Vermietung, nie ein Deal in der Abschluss-Phase
+    try:
+        vermietungs_pipelines: set[int] | None = fetch_vermietungs_pipelines()
+    except Exception as e:
+        logger.error("Deal-Pipelines nicht lesbar (%s) – nur Deals ohne Pipeline werden abgesagt", e)
+        vermietungs_pipelines = None
+        aktionen.append(f"{WARNUNG} Deal-Pipelines nicht lesbar ({e}) – Deals mit Pipeline nicht abgesagt")
+
+    if vermietungs_pipelines is not None and not vermietungs_pipelines:
+        aktionen.append(
+            f"{WARNUNG} Keine Pipeline, deren Name mit „{config.VERMIETUNGS_PIPELINE_PRAEFIX}“ beginnt – "
+            "nur Deals ohne Pipeline werden abgesagt"
+        )
 
     absagen = 0
+    unangetastet: list[str] = []
     for unit in match.units:
-        for deal in get_open_deals(unit.id):
+        try:
+            offene_deals = get_open_deals(unit.id)
+        except Exception as e:
+            logger.exception("Deals der Unit %s nicht lesbar", unit.id)
+            aktionen.append(f"{WARNUNG} Deals der Unit {unit.id} nicht lesbar ({e}) – keine Absagen")
+            continue
+        for deal in offene_deals:
+            hindernis = absage_hindernis(deal, vermietungs_pipelines)
+            if hindernis:
+                unangetastet.append(hindernis)
+                aktionen.append(f"Deal {deal.get('id')} an Unit {unit.id} nicht abgesagt ({hindernis})")
+                continue
             client_id = deal.get("client_id") or (deal.get("client") or {}).get("id")
             if not client_id:
                 logger.warning("Deal ohne client_id an Unit %s – übersprungen: %s", unit.id, deal.get("id"))
@@ -130,16 +184,33 @@ def _stufe_a(msg: dict, cls: Classification, match: MatchResult, permalink: str)
                 client_ids=[client_id],
                 property_ids=[unit.id],
             )
-            task_id = create_task(absage)
+            try:
+                task_id = create_task(absage)
+            except Exception as e:
+                logger.exception("Absage für Deal %s nicht angelegt", deal.get("id"))
+                aktionen.append(f"{WARNUNG} Absage für Deal {deal.get('id')} (Unit {unit.id}) nicht angelegt ({e})")
+                continue
             aktionen.append(f"Absage Deal (Kunde {client_id}, Unit {unit.id}, Task {task_id})")
             absagen += 1
 
     add_checkmark(msg["ts"])
-    reply = (
-        f"✅ Erledigt: {match.units[0].adresse()} auf vermietet gesetzt"
-        f" ({len(unit_ids)} Einheit{'en' if len(unit_ids) != 1 else ''}), "
-        f"{absagen} offene Deals abgesagt, Doku-Notiz angelegt."
-    )
+    unvollstaendig = [a for a in aktionen if a.startswith(WARNUNG)]
+    if unvollstaendig:
+        reply = (
+            f"⚠️ Nur teilweise erledigt: {match.units[0].adresse()} ist auf vermietet gesetzt"
+            f" ({len(unit_ids)} Einheit{'en' if len(unit_ids) != 1 else ''}), {absagen} offene Deals abgesagt. "
+            f"Nicht geklappt – bitte in Propstack nachsehen: "
+            + "; ".join(a[len(WARNUNG):].strip() for a in unvollstaendig)
+        )
+    else:
+        reply = (
+            f"✅ Erledigt: {match.units[0].adresse()} auf vermietet gesetzt"
+            f" ({len(unit_ids)} Einheit{'en' if len(unit_ids) != 1 else ''}), "
+            f"{absagen} offene Deals abgesagt, Doku-Notiz angelegt."
+        )
+    if unangetastet:
+        gruende = ", ".join(f"{n}× {g}" for g, n in sorted(Counter(unangetastet).items()))
+        reply += f" {len(unangetastet)} Deal(s) nicht angetastet ({gruende}) – bitte selbst prüfen."
     post_thread_reply(msg.get("thread_ts") or msg["ts"], reply)
     return aktionen
 
@@ -212,18 +283,28 @@ def _process_message(msg: dict, context: str | None, run_id: str, report: RunRep
     )
 
     try:
+        # Berichte über Erledigtes („neues Objekt angelegt“, Abgleich-Berichte aus
+        # Claude-Sitzungen) sind kein Auftrag: keine KI, keine Aufgabe, kein ✅.
+        vollzug = vollzugsmeldung(text)
+        if vollzug:
+            logger.info("Nachricht %s: %s", msg["ts"], vollzug)
+            record.decision = Decision(tier=Tier.NONE, grund=vollzug)
+            report.vollzugsmeldungen += 1
+            return
+
         cls = classify_message(text, context)
         time.sleep(3)
         record.classification = cls
 
         if cls is None:
+            # Kein ✅: Der Lauf endet rot, der nächste Lauf (Fenster 50 h) versucht es erneut.
             report.fehler.append(f"Nachricht {msg['ts']}: nicht klassifizierbar")
-            record.fehler = "Klassifikation fehlgeschlagen (Retry im nächsten Lauf)"
+            record.fehler = "Klassifikation fehlgeschlagen"
             return
 
         match: MatchResult | None = None
         if cls.typ in (MessageType.STATUS_ANWEISUNG, MessageType.FLAECHENUPDATE):
-            match = find_unit(cls)
+            match = find_unit(cls, "\n".join(t for t in (context, text) if t))
             record.match = match
 
         decision = decide(cls, match)
@@ -244,6 +325,9 @@ def _process_message(msg: dict, context: str | None, run_id: str, report: RunRep
         if decision.tier == Tier.A:
             record.ausgefuehrte_aktionen = _stufe_a(msg, cls, match, permalink)
             report.stufe_a += 1
+            report.fehler.extend(
+                f"Nachricht {msg['ts']}: {a}" for a in record.ausgefuehrte_aktionen if a.startswith(WARNUNG)
+            )
         else:
             record.ausgefuehrte_aktionen = _stufe_b(msg, cls, match, decision, permalink)
             report.stufe_b += 1
@@ -299,6 +383,7 @@ def _print_summary(report: RunReport) -> None:
     logger.info("  Nachrichten im Fenster:   %d", report.nachrichten_gesehen)
     logger.info("  Bereits verarbeitet (✅): %d", report.bereits_verarbeitet)
     logger.info("  Ignoriert:                %d", report.ignoriert)
+    logger.info("  Vollzugsmeldungen:        %d", report.vollzugsmeldungen)
     logger.info("  Stufe A (ausgeführt):     %d", report.stufe_a)
     logger.info("  Stufe B (Review-Aufgabe): %d", report.stufe_b)
     logger.info("  Fehler:                   %d", len(report.fehler))
@@ -309,7 +394,10 @@ def _print_summary(report: RunReport) -> None:
 
 if __name__ == "__main__":
     try:
-        run_pipeline()
+        ergebnis = run_pipeline()
     except Exception:
         logger.exception("Pipeline-Totalausfall")
         sys.exit(1)
+    # Rot, wenn eine Nachricht nicht verarbeitet werden konnte: Der nächste Lauf sieht
+    # sie meist nicht mehr, und ein grüner Lauf mit Fehlern fällt niemandem auf.
+    sys.exit(1 if ergebnis.fehler else 0)

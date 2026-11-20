@@ -4,7 +4,7 @@ import logging
 import sys
 import time
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 
 from . import config
 from .classifier import extract_events, html_to_text
@@ -74,6 +74,18 @@ def _gather_source(msg: dict) -> tuple[str, str]:
     return title, content
 
 
+def _gueltiges_datum(datum_iso: str | None) -> str | None:
+    """Nur ein echtes JJJJ-MM-TT geht als Fälligkeit an Asana. Liefert die KI etwas
+    anderes („2027-06-16/17“), wird die Aufgabe ohne Fälligkeit angelegt – statt gar nicht."""
+    if not datum_iso:
+        return None
+    try:
+        return date.fromisoformat(datum_iso.strip()).isoformat()
+    except ValueError:
+        logger.warning("Kein gültiges Datum für die Fälligkeit: %r – Aufgabe ohne Fälligkeit", datum_iso)
+        return None
+
+
 def _existing_tasks() -> list[dict]:
     """Bestehende Aufgaben des Ziel-Abschnitts. Bei Fehler leere Liste – dann wird
     ohne Dublettencheck gearbeitet (lieber ein Doppeleintrag als ein verlorenes Event)."""
@@ -109,6 +121,9 @@ def _process_message(msg: dict, run_id: str, report: RunReport, existing: list[d
     logger.info("Nachricht %s: %d Event-Kandidat(en) extrahiert", ts, len(events))
 
     vorbereitet = 0
+    angelegt = 0
+    schon_da = 0
+    fehlgeschlagen = 0
     for idx, event in enumerate(events):
         record = DecisionRecord(
             run_id=run_id, verarbeitet_am=datetime.now(timezone.utc).isoformat(),
@@ -135,6 +150,7 @@ def _process_message(msg: dict, run_id: str, report: RunReport, existing: list[d
         if dup_gid:
             record.duplikat_von = dup_gid
             report.duplikate += 1
+            schon_da += 1
             logger.info("  Event %s#%d: %r steht bereits in der Liste (gid %s: %s) – übersprungen",
                         ts, idx, name, dup_gid, dup_grund)
             append_record(record)
@@ -148,11 +164,12 @@ def _process_message(msg: dict, run_id: str, report: RunReport, existing: list[d
             continue
 
         try:
-            url = create_event_task(name, notes, due_on=event.datum_iso)
+            url = create_event_task(name, notes, due_on=_gueltiges_datum(event.datum_iso))
             record.asana_task_url = url
             record.in_asana = url is not None
             if url:
                 report.aufgaben_erstellt += 1
+                angelegt += 1
             # neu angelegte Aufgabe sofort in den Vergleichsbestand aufnehmen
             existing.append({"gid": (url or "").rsplit("/", 1)[-1] or f"neu-{ts}-{idx}", "name": name})
             logger.info("  Event %s#%d: '%s' -> Asana %s", ts, idx, name, url or "(NO_WRITE)")
@@ -160,13 +177,24 @@ def _process_message(msg: dict, run_id: str, report: RunReport, existing: list[d
             logger.exception("  Asana-Anlage fehlgeschlagen für %s#%d", ts, idx)
             record.fehler = str(e)
             report.fehler.append(f"Asana-Anlage {ts}#{idx} ({name}): {e}")
+            fehlgeschlagen += 1
         finally:
             append_record(record)
+
+    if fehlgeschlagen:
+        # Kein ✅ und keine Erfolgsmeldung: Sonst gälte die Nachricht als erledigt,
+        # obwohl ein Event nie in Asana ankam (z. B. bei abgelaufenem Token – jede
+        # Nacht, jedes Event, bei grünem Lauf). Der Lauf endet rot; beim Nachholen
+        # schützt der Dublettencheck die schon angelegten Events.
+        logger.error("Nachricht %s: %d Event(s) nicht in Asana angelegt – kein ✅", ts, fehlgeschlagen)
+        return
 
     add_checkmark(ts)
     n_events = sum(1 for e in events if e.ist_event)
     if not config.dry_run() and not config.no_write():
-        reply = f"{n_events} Event(s) als Aufgabe im Marketing-Projekt (Abschnitt „Events\") angelegt."
+        reply = f"{angelegt} Event(s) als Aufgabe im Marketing-Projekt (Abschnitt „Events\") angelegt."
+        if schon_da:
+            reply += f" {schon_da} stand(en) schon in der Liste."
     else:
         reply = f"{n_events} Event(s) erkannt (Dry-Run – noch nicht in Asana angelegt)."
     post_thread_reply(msg.get("thread_ts") or ts, reply)
@@ -231,7 +259,11 @@ def _print_summary(report: RunReport) -> None:
 
 if __name__ == "__main__":
     try:
-        run_pipeline()
+        ergebnis = run_pipeline()
     except Exception:
         logger.exception("Pipeline-Totalausfall")
         sys.exit(1)
+    # Rot, wenn etwas nicht verarbeitet werden konnte: Der nächste Lauf sieht die
+    # Nachricht meist nicht mehr, und ein grüner Lauf mit Fehlern fällt niemandem auf.
+    # Nachholen: workflow_dispatch mit größerem Scan-Fenster.
+    sys.exit(1 if ergebnis.fehler else 0)

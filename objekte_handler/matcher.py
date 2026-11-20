@@ -51,33 +51,105 @@ def filter_by_address(units: list[Unit], cls: Classification) -> list[Unit]:
             def name_matches(u: Unit) -> bool:
                 haystack = f"{u.name or ''} {u.title or ''}".lower()
                 return any(t in haystack for t in tokens)
-            named = [u for u in result if name_matches(u)]
-            if named:
-                result = named
+            # Passt der Name auf keine Einheit, ist das kein Treffer. Früher blieb die
+            # Liste dann ungefiltert – ein einzelner, völlig fremder Suchtreffer galt
+            # als „eindeutig“ und wäre in Stufe A auf vermietet gesetzt worden.
+            result = [u for u in result if name_matches(u)]
 
     return result
 
 
+# Wie weit die Fläche der Einheit von der genannten Zahl abweichen darf
+SIZE_TOLERANCE = 0.15
+
+
+def parse_qm(text: str) -> float | None:
+    """Quadratmeterzahl aus einem Hinweis lesen: "7.666 qm", "7666.0", "9,024", "12.500,5".
+
+    Punkt und Komma sind Tausendertrenner, wenn danach genau drei Ziffern stehen –
+    bei Hallenflächen ist "9,024" nie neun Komma null zwei vier. Früher wurde jeder
+    Punkt entfernt: "7666.0" ergab 76.660 und traf die falsche Einheit."""
+    m = re.search(r"\d[\d.,]*", text or "")
+    if not m:
+        return None
+    raw = m.group().rstrip(".,")
+    try:
+        if re.fullmatch(r"\d{1,3}([.,]\d{3})+", raw):
+            return float(re.sub(r"[.,]", "", raw))
+        if re.fullmatch(r"\d{1,3}(\.\d{3})+,\d+", raw):
+            return float(raw.replace(".", "").replace(",", "."))
+        if re.fullmatch(r"\d{1,3}(,\d{3})+\.\d+", raw):
+            return float(raw.replace(",", ""))
+        return float(raw.replace(",", "."))
+    except ValueError:
+        return None
+
+
 def pick_by_size_hint(units: list[Unit], hint: str) -> Unit | None:
-    """"die kleine Einheit" -> kleinste property_space_value; Zahl -> nächstliegende."""
+    """"die kleine Einheit" -> kleinste Fläche; Zahl -> die Einheit mit dieser Fläche.
+
+    Ist die kleinste (größte) Einheit schon vermietet, ist offen, welche gemeint ist: die
+    schon vermietete (zweite Meldung derselben Vermietung) oder die kleinste noch freie.
+    Dann None (-> Stufe B). Nie auf die nächste freie ausweichen – das träfe eine Einheit,
+    von der niemand gesprochen hat.
+
+    Eine Zahl muss auf ±15 % passen, und keine zweite Einheit darf fast genauso gut
+    passen – sonst None. Früher gewann immer die „nächstliegende“: „3.000 m² vermietet“
+    traf eine Einheit mit 7.666 m²."""
     sized = [u for u in units if u.property_space_value is not None]
     if len(sized) != len(units) or not sized:
         return None  # fehlende Flächenwerte -> nicht ableitbar -> Stufe B
 
     hint = hint.strip().lower()
+    wahl = None
     if hint in ("kleinste", "klein", "kleiner"):
-        return min(sized, key=lambda u: u.property_space_value)
-    if hint in ("groesste", "größte", "gross", "groß", "groesser", "größer"):
-        return max(sized, key=lambda u: u.property_space_value)
-
-    match = re.search(r"[\d.,]+", hint)
-    if match:
-        try:
-            wanted = float(match.group().replace(".", "").replace(",", "."))
-        except ValueError:
+        wahl = min
+    elif hint in ("groesste", "größte", "gross", "groß", "groesser", "größer"):
+        wahl = max
+    if wahl:
+        gewaehlt = wahl(sized, key=lambda u: u.property_space_value)
+        freie = [u for u in sized if u.rented is not True]
+        if not freie or wahl(freie, key=lambda u: u.property_space_value).id != gewaehlt.id:
             return None
-        return min(sized, key=lambda u: abs(u.property_space_value - wanted))
-    return None
+        return gewaehlt
+
+    wanted = parse_qm(hint)
+    if not wanted or wanted <= 0:
+        return None
+    nach_abstand = sorted(sized, key=lambda u: abs(u.property_space_value - wanted))
+    bester = abs(nach_abstand[0].property_space_value - wanted)
+    if bester > SIZE_TOLERANCE * wanted:
+        return None
+    if len(nach_abstand) > 1:
+        zweiter = abs(nach_abstand[1].property_space_value - wanted)
+        # Die zweite Einheit darf nicht fast genauso gut passen: außerhalb der Toleranz
+        # oder mindestens dreimal so weit weg (gemessen an mindestens 1 % der Zahl).
+        if zweiter <= SIZE_TOLERANCE * wanted and zweiter < 3 * max(bester, 0.01 * wanted):
+            return None
+    if nach_abstand[0].rented is True:
+        return None  # die passende Einheit steht schon auf vermietet -> ein Mensch sieht nach
+    return nach_abstand[0]
+
+
+# Die Nachricht nennt eine bestimmte Einheit oder nur einen Teil – dann ist nicht das
+# ganze Objekt gemeint ("Halle 2 ist vermietet", "Unit 1 und 2", "Teilfläche").
+_BEZEICHNER = r"(?:hallen?|units?|einheit(?:en)?|geb(?:ä|ae)uden?|bauabschnitte?n?|module?n?|abschnitte?n?|bl(?:o|ö)cke?n?|h(?:a|ä)user?n?)"
+_EINZELNE_EINHEIT = re.compile(
+    rf"\b{_BEZEICHNER}\s*[-.:#]?\s*\d+[a-z]?\b"          # "Halle 2", "Hallen 1 und 2", "Unit 1.2"
+    rf"|\b{_BEZEICHNER}\s+(?:[a-h]|[ivx]{{1,4}})\b"       # "Halle B", "Unit E", "Block II" – nur nach Leerzeichen
+    rf"|\b\d+\.\s*{_BEZEICHNER}\b"                        # "1. Halle"
+    r"|\b(?:ba|bt|dc)\s*\d+\b"                             # "BA 2", "DC3"
+    rf"|\b(?:vorder|hinter|link|recht|ober|unter|mittler|erst|zweit|dritt|viert|letzt)e[nrs]?\s+{_BEZEICHNER}\b"
+    r"|\bteil(?:fl(?:ä|ae)chen?|vermiet\w*|weise)\b|\bzum\s+teil\b|\bein(?:e[nrs]?)?\s+teil\b"
+    r"|\beine[rn]?\s+(?:der\s+)?(?:einheit|halle|unit)\w*",
+    re.IGNORECASE,
+)
+
+
+def nennt_einzelne_einheit(text: str | None) -> str | None:
+    """Der Wortlaut, mit dem die Nachricht eine einzelne Einheit/Teilfläche nennt – sonst None."""
+    m = _EINZELNE_EINHEIT.search(text or "")
+    return m.group(0).strip() if m else None
 
 
 def _same_address(units: list[Unit]) -> bool:
@@ -86,7 +158,13 @@ def _same_address(units: list[Unit]) -> bool:
         for u in units
     }
     # Ohne Straßendaten keine Aussage möglich -> nicht als "gleiche Adresse" werten
-    return len(keys) == 1 and next(iter(keys)) != ("", "")
+    if len(keys) != 1 or next(iter(keys)) == ("", ""):
+        return False
+    # "Industriestraße 12" gibt es in vielen Orten: Liegen die Einheiten erkennbar in
+    # verschiedenen Orten oder PLZ, ist es nicht dasselbe Objekt.
+    orte = {u.city.strip().lower() for u in units if u.city and u.city.strip()}
+    plz = {u.zip_code.strip() for u in units if u.zip_code and u.zip_code.strip()}
+    return len(orte) <= 1 and len(plz) <= 1
 
 
 def _build_queries(cls: Classification) -> list[str]:
@@ -101,8 +179,12 @@ def _build_queries(cls: Classification) -> list[str]:
     return queries
 
 
-def find_unit(cls: Classification) -> MatchResult:
-    """Sucht die Unit zur Nachricht. Nur bei eindeutigem Treffer UNIQUE."""
+def find_unit(cls: Classification, text: str | None = None) -> MatchResult:
+    """Sucht die Unit zur Nachricht. Nur bei eindeutigem Treffer UNIQUE.
+
+    text: Wortlaut der Nachricht samt Thread-Kontext – nur um zu erkennen, ob von einer
+    einzelnen Einheit die Rede ist, wenn an der Adresse mehrere liegen. („Musterstr. 5
+    Halle 2 …“ im Thread, darunter „ist jetzt vermietet“.)"""
     queries = _build_queries(cls)
     if not queries:
         return MatchResult(status=MatchStatus.NONE, grund="Keine Adresse/Objektname extrahiert")
@@ -135,6 +217,14 @@ def find_unit(cls: Classification) -> MatchResult:
         )
 
     if len(kandidaten) == 1:
+        if not cls.strasse and not cls.objekt_name:
+            # Nur ein Ort: Dass dort genau eine Einheit geführt wird, belegt nicht,
+            # dass sie gemeint ist.
+            return MatchResult(
+                status=MatchStatus.AMBIGUOUS,
+                kandidaten=kandidaten,
+                grund="Nur der Ort ist genannt – ein einzelner Treffer dort ist kein eindeutiger Beleg",
+            )
         return MatchResult(status=MatchStatus.UNIQUE, units=kandidaten, kandidaten=kandidaten)
 
     # Mehrere Einheiten am selben Objekt
@@ -153,7 +243,21 @@ def find_unit(cls: Classification) -> MatchResult:
                 kandidaten=kandidaten,
                 grund=f"Größen-Hinweis '{cls.groessen_hinweis}' nicht auflösbar (fehlende Flächenwerte)",
             )
-        # Kein Größen-Hinweis: Nachricht betrifft das ganze Objekt -> alle Einheiten
+        # Kein Größen-Hinweis, aber die Nachricht nennt eine bestimmte Einheit oder nur
+        # einen Teil ("Halle 2 ist vermietet"): Dann nicht alle Einheiten schließen.
+        # Einheiten eines Projekts erben dessen Adresse – das trifft jedes Projekt
+        # mit mehreren Einheiten.
+        genannt = nennt_einzelne_einheit(text)
+        if genannt:
+            return MatchResult(
+                status=MatchStatus.AMBIGUOUS,
+                kandidaten=kandidaten,
+                grund=(
+                    f"Nachricht nennt „{genannt}“, an der Adresse liegen {len(kandidaten)} Einheiten – "
+                    "welche gemeint ist, entscheidet ein Mensch"
+                ),
+            )
+        # Sonst betrifft die Nachricht das ganze Objekt -> alle Einheiten
         # (Hamburgring-48-Fall: getrennte Alt-Datensätze an derselben Adresse)
         return MatchResult(
             status=MatchStatus.UNIQUE,

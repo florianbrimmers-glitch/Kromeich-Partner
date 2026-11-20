@@ -1,0 +1,444 @@
+{
+ "stand": "20.11.2026",
+ "hinweis": "Nachprüfung der 18 „klären“-Vorgänge aus scripts/radar_vorpruefung_2026-11-19.json an öffentlichen Quellen (Eigentümer- und Maklermeldungen, Fachpresse). Florian, 20.11.2026: „Nicht nachfragen – entweder wissen oder nicht.“ Gruppen: eintragen (adressgenau belegt, eingetragen), fremd, teil (Teilvermietung, am Objekt vermerkt), unbestimmt (aus den Quellen nicht zu entscheiden). Frankfurt (Oder) stand zunächst auf „offen“ und wurde nach Florians Ansage am selben Tag eingetragen.",
+ "faelle": [
+  {
+   "gruppe": "eintragen",
+   "ort": "Salzgitter, Gottfried-Linke-Straße 91",
+   "wer": "Alstom · Garbe Industrial",
+   "qm": 31200,
+   "urteil": "Garbe hat den Neubau mit rund 31.200 m² komplett an Alstom vermietet; die Immobilien Zeitung nennt die Gottfried-Linke-Straße 91. Am 20.11.2026 eingetragen.",
+   "quelle": "garbe-industrial.de, 09.07.2026; iz.de",
+   "aufgaben": [
+    {
+     "id": 142863338
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 2777978,
+     "rolle": "eintragen"
+    }
+   ]
+  },
+  {
+   "gruppe": "eintragen",
+   "ort": "Lensahn, Schwienkuhler Weg",
+   "wer": "Dieseo · Garbe Industrial",
+   "qm": 23400,
+   "urteil": "Garbe meldet Vollvermietung des Logistikzentrums in Lensahn (rund 23.400 m², Dieseo). Am 20.11.2026 eingetragen.",
+   "quelle": "garbe-industrial.de, 27.08.2026",
+   "aufgaben": [
+    {
+     "id": 146321490
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 3228009,
+     "rolle": "eintragen"
+    }
+   ]
+  },
+  {
+   "gruppe": "eintragen",
+   "ort": "Dortmund, Wulfshofstraße 18",
+   "wer": "zwei Mietverträge über 7.100 m² · Adolf Weber",
+   "qm": 7100,
+   "urteil": "Ruhr Real meldet mit zwei Mietverträgen über 7.100 m² die Vollvermietung der Liegenschaft Wulfshofstraße 18–22. Am 20.11.2026 eingetragen.",
+   "quelle": "ruhr-real.de, 16.09.2026",
+   "aufgaben": [
+    {
+     "id": 153112790
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 2778280,
+     "rolle": "eintragen"
+    }
+   ]
+  },
+  {
+   "gruppe": "eintragen",
+   "ort": "Haan, Siemensstraße 7",
+   "wer": "chinesischer E-Commerce-Logistiker · High Brook",
+   "qm": 7770,
+   "urteil": "High Brook hat die Halle Siemensstraße 7 (rund 7.770 m², Einzelmieter-Gebäude) vermietet. Am 20.11.2026 eingetragen.",
+   "quelle": "iz.de, 10/2026; Dealmeldung des Maklers",
+   "aufgaben": [
+    {
+     "id": 158198817
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5754689,
+     "rolle": "eintragen"
+    }
+   ]
+  },
+  {
+   "gruppe": "eintragen",
+   "ort": "Berlin-Weißensee, An der Industriebahn 23",
+   "wer": "O'Donnell Moonshine · Prologis",
+   "qm": 5155,
+   "urteil": "O'Donnell Moonshine mietet eine der drei Einheiten: rund 4.500 m² Halle und 400 m² Büro, zusammen über 5.000 m². Das passt nur auf Unit 2 (4.759 m² Halle und Mezzanine, 5.155 m² gesamt). Am 20.11.2026 eingetragen.",
+   "quelle": "logivest.de, 03.11.2026",
+   "aufgaben": [
+    {
+     "id": 158638009
+    },
+    {
+     "id": 158712169
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5768799,
+     "rolle": "eintragen"
+    }
+   ]
+  },
+  {
+   "gruppe": "fremd",
+   "ort": "Dombühl",
+   "wer": "Müller – Die lila Logistik · Bauwo",
+   "qm": 52000,
+   "urteil": "Vermietet sind zwei der drei Bauteile (B und C). Unsere drei Einheiten Am Schindfeld 1 sind der freie Rest, Bauteil A mit 25.500 m² Halle; B und C wurden laut Vermerk am Objekt nie angelegt.",
+   "quelle": "jll.com, 29.01.2026",
+   "aufgaben": [
+    {
+     "id": 143860471
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5770683,
+     "rolle": "finger_weg"
+    }
+   ]
+  },
+  {
+   "gruppe": "fremd",
+   "ort": "Schwanewede bei Bremen, Betonstraße 60",
+   "wer": "Unizell Medicare · Baytree",
+   "qm": 20000,
+   "urteil": "Die Halle liegt in Schwanewede-Brundorf, nicht in Oyten. Dort führen wir nichts; unsere Einheit an der Margarete-Steiff-Straße ist nicht gemeint.",
+   "quelle": "logivest.de, 27.10.2026",
+   "aufgaben": [
+    {
+     "id": 158058490
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5772941,
+     "rolle": "finger_weg"
+    }
+   ]
+  },
+  {
+   "gruppe": "fremd",
+   "ort": "Pulheim",
+   "wer": "Maintrans Gruppe · Segmüller",
+   "qm": 9000,
+   "urteil": "Vermieter ist Segmüller. Unsere Einheit Industriestraße 20 gehört laut eigenem Vermerk zum Prologis-Bestand und ist nicht gemeint.",
+   "quelle": "ramp-one.de, 14.09.2026",
+   "aufgaben": [
+    {
+     "id": 151949399
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 3637203,
+     "rolle": "finger_weg"
+    }
+   ]
+  },
+  {
+   "gruppe": "fremd",
+   "ort": "Witten, Brauckstraße 26",
+   "wer": "Apex · Thelen",
+   "qm": 24500,
+   "urteil": "Die Fläche liegt in Witten, nicht in Bochum; unsere Einheit Märkische Straße 10 ist nicht gemeint. Am Datensatz Brauckstraße 26 in Witten ist die Teilvermietung vermerkt.",
+   "quelle": "iz.de, 07/2026",
+   "aufgaben": [
+    {
+     "id": 143382474
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 2777873,
+     "rolle": "finger_weg"
+    },
+    {
+     "id": 2778288,
+     "rolle": "offen"
+    }
+   ]
+  },
+  {
+   "gruppe": "teil",
+   "ort": "Nohra bei Weimar, Grunstedter Weg 7",
+   "wer": "Tekpoint · FOCUS Logistikpark",
+   "qm": 23175,
+   "urteil": "Tekpoint mietet zwei der drei Units. Frei ist noch eine Unit mit rund 11.427 m². Unser Datensatz führt den ganzen Park und bleibt deshalb offen.",
+   "quelle": "realogis.com, 27.10.2026",
+   "aufgaben": [
+    {
+     "id": 158058453
+    },
+    {
+     "id": 158198850
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 2777841,
+     "rolle": "offen"
+    }
+   ]
+  },
+  {
+   "gruppe": "teil",
+   "ort": "Rostock, VGP Park",
+   "wer": "Nagel-Group · VGP",
+   "qm": 10600,
+   "urteil": "Nagel-Group mietet rund 10.600 m² von etwa 50.000 m². Unser Datensatz führt den Park als eine Einheit und bleibt offen.",
+   "quelle": "vgpparks.eu, 10/2026",
+   "aufgaben": [
+    {
+     "id": 155898725
+    },
+    {
+     "id": 156004033
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5769821,
+     "rolle": "offen"
+    },
+    {
+     "id": 5765585,
+     "rolle": "finger_weg"
+    }
+   ]
+  },
+  {
+   "gruppe": "teil",
+   "ort": "Hamburg-Harburg, Triport",
+   "wer": "HGK Logistics and Intermodal · Four Parx",
+   "qm": 27000,
+   "urteil": "HGK mietet rund 27.000 m² Halle; frei bleiben rund 31.400 m², Fertigstellung 2. Quartal 2028. Welches Bauteil HGK nimmt, nennt keine Quelle.",
+   "quelle": "lagerflaeche.de, 09/2026",
+   "aufgaben": [
+    {
+     "id": 152438255
+    },
+    {
+     "id": 146321501
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5766142,
+     "rolle": "offen"
+    }
+   ]
+  },
+  {
+   "gruppe": "unbestimmt",
+   "ort": "Günzburg, Hendrik-Lorentz-Straße 4-8",
+   "wer": "Nutzfahrzeughersteller · Frasers (LINK)",
+   "qm": 17900,
+   "urteil": "Frasers meldet einen 15-Jahres-Vertrag über 17.900 m². Welche unserer drei Hallen das betrifft, nennt keine Quelle.",
+   "quelle": "fraserspropertyindustrial.com, 2026",
+   "aufgaben": [
+    {
+     "id": 152037969
+    },
+    {
+     "id": 151949435
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5766119,
+     "rolle": "offen"
+    },
+    {
+     "id": 5766120,
+     "rolle": "offen"
+    },
+    {
+     "id": 5766121,
+     "rolle": "offen"
+    }
+   ]
+  },
+  {
+   "gruppe": "unbestimmt",
+   "ort": "Nieder-Olm, Am Giener 2",
+   "wer": "Transport- und Logistikunternehmen · Logicor",
+   "qm": 15900,
+   "urteil": "Logicor meldet die Immobilie Am Giener 2 mit rund 15.900 m² Halle als vermietet. Unser Datensatz führt 27.611 m² und trägt einen Adresswiderspruch; ob er ganz oder teilweise gemeint ist, bleibt offen. Am Objekt vermerkt.",
+   "quelle": "Pressemitteilung Logicor, 24.09.2026",
+   "aufgaben": [
+    {
+     "id": 153847868
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5766483,
+     "rolle": "offen"
+    }
+   ]
+  },
+  {
+   "gruppe": "unbestimmt",
+   "ort": "Holzgerlingen, Daimlerstraße",
+   "wer": "MeetPadel · Garbe Industrial",
+   "qm": null,
+   "urteil": "Eine Teilfläche des Gewerbeparks wird Padel-Halle. Wie viel, nennt die Meldung nicht.",
+   "quelle": "",
+   "aufgaben": [
+    {
+     "id": 156934267
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5760545,
+     "rolle": "offen"
+    }
+   ]
+  },
+  {
+   "gruppe": "unbestimmt",
+   "ort": "Mülheim an der Ruhr, Flex City",
+   "wer": "eLing · Frasers",
+   "qm": 4250,
+   "urteil": "eLing mietet rund 4.250 m². Das passt zu keiner unserer offenen Einheiten als Ganzes; vermutlich ein Teil von Unit 3.",
+   "quelle": "realogis.com, 13.10.2026",
+   "aufgaben": [
+    {
+     "id": 156238723
+    },
+    {
+     "id": 143382485
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 4807608,
+     "rolle": "offen"
+    }
+   ]
+  },
+  {
+   "gruppe": "unbestimmt",
+   "ort": "Düsseldorf-Flingern, Höherweg",
+   "wer": "Grundfos · SEGRO",
+   "qm": 4300,
+   "urteil": "Grundfos mietet ab Februar 2027 zwei Units mit zusammen rund 4.300 m². Welche, nennt die Meldung nicht.",
+   "quelle": "segro.com, 16.11.2026",
+   "aufgaben": [
+    {
+     "id": 160441766
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5301725,
+     "rolle": "offen"
+    }
+   ]
+  },
+  {
+   "gruppe": "eintragen",
+   "ort": "Frankfurt (Oder), Log Plaza",
+   "wer": "Ceva Logistics für Amazon · Alcaro",
+   "qm": 94000,
+   "urteil": "Florian, 20.11.2026: Halle A ist leer, Halle B ist vermietet. Halle B (1)–(10) steht jetzt auf vermietet und Abgeschlossen, Halle A (1)–(4) wieder in Vermarktung. Alcaro hatte am 08.06.2026 rund 94.000 m² in Halle B gemeldet; in Propstack war seit dem 07.09. Halle A statt Halle B geschlossen.",
+   "quelle": "Ansage Florian, 20.11.2026; alcaro.de, 08.06.2026",
+   "aufgaben": [
+    {
+     "id": 157045785
+    },
+    {
+     "id": 144510581
+    },
+    {
+     "id": 144132108
+    }
+   ],
+   "einheiten": [
+    {
+     "id": 5050191,
+     "rolle": "eintragen"
+    },
+    {
+     "id": 5050066,
+     "rolle": "eintragen"
+    },
+    {
+     "id": 5054002,
+     "rolle": "eintragen"
+    },
+    {
+     "id": 5054026,
+     "rolle": "eintragen"
+    },
+    {
+     "id": 5054059,
+     "rolle": "eintragen"
+    },
+    {
+     "id": 5054080,
+     "rolle": "eintragen"
+    },
+    {
+     "id": 5054095,
+     "rolle": "eintragen"
+    },
+    {
+     "id": 5050565,
+     "rolle": "eintragen"
+    },
+    {
+     "id": 5050578,
+     "rolle": "eintragen"
+    },
+    {
+     "id": 5050591,
+     "rolle": "eintragen"
+    },
+    {
+     "id": 5050043,
+     "rolle": "eintragen"
+    },
+    {
+     "id": 5033678,
+     "rolle": "offen"
+    },
+    {
+     "id": 5033679,
+     "rolle": "offen"
+    },
+    {
+     "id": 5033680,
+     "rolle": "offen"
+    },
+    {
+     "id": 5033681,
+     "rolle": "offen"
+    }
+   ]
+  }
+ ]
+}

@@ -11,7 +11,7 @@ from .classifier import extract_deals
 from .decision import decide, due_date_plus_business_days
 from .logbuch import append_record
 from .matcher import gather_candidates
-from .match_ai import propose_search_terms, select_match
+from .match_ai import propose_search_terms, select_open_match
 from .models import (
     Deal,
     Decision,
@@ -21,7 +21,15 @@ from .models import (
     RunReport,
     Tier,
 )
-from .propstack import TaskPayload, create_task, get_open_deals, set_rented
+from .propstack import (
+    TaskPayload,
+    absage_hindernis,
+    create_task,
+    fetch_vermietungs_pipelines,
+    get_open_deals,
+    set_rented,
+)
+from .review_dedup import OffeneReviews
 from .slack_gateway import (
     add_checkmark,
     fetch_channel_messages,
@@ -37,6 +45,10 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)],
 )
 logger = logging.getLogger(__name__)
+
+
+# Kennung im Entscheidungslog für "keine neue Aufgabe, es liegt schon eine offene vor"
+BEREITS_OFFEN = "Keine neue Aufgabe"
 
 
 def _in_scan_window(msg: dict, oldest: float, latest: float | None) -> bool:
@@ -91,9 +103,20 @@ def _stufe_a(msg: dict, deal: Deal, match: MatchResult, permalink: str) -> list[
     doku_id = create_task(doku)
     aktionen.append(f"Doku-Notiz angelegt (Task {doku_id})")
 
+    # Abgesagt werden nur Deals der Vermietung, nie ein Deal in der Abschluss-Phase
+    try:
+        vermietungs_pipelines: set[int] | None = fetch_vermietungs_pipelines()
+    except Exception as e:
+        logger.error("Deal-Pipelines nicht lesbar (%s) – nur Deals ohne Pipeline werden abgesagt", e)
+        vermietungs_pipelines = None
+
     absagen = 0
     for unit in match.units:
         for open_deal in get_open_deals(unit.id):
+            hindernis = absage_hindernis(open_deal, vermietungs_pipelines)
+            if hindernis:
+                aktionen.append(f"Deal {open_deal.get('id')} an Unit {unit.id} nicht abgesagt ({hindernis})")
+                continue
             client_id = open_deal.get("client_id") or (open_deal.get("client") or {}).get("id")
             if not client_id:
                 logger.warning("Deal ohne client_id an Unit %s – übersprungen: %s", unit.id, open_deal.get("id"))
@@ -112,8 +135,16 @@ def _stufe_a(msg: dict, deal: Deal, match: MatchResult, permalink: str) -> list[
     return aktionen
 
 
-def _stufe_b(msg: dict, deal: Deal, match: MatchResult | None, decision: Decision, permalink: str) -> list[str]:
-    """Review-Aufgabe statt Ausführung."""
+def _review_unit_ids(match: MatchResult | None) -> list[int]:
+    """Die Einheiten, mit denen eine Review-Aufgabe verknüpft wird."""
+    return [u.id for u in match.units] if match and match.units else []
+
+
+def _stufe_b(
+    msg: dict, deal: Deal, match: MatchResult | None, decision: Decision, permalink: str,
+    offene_reviews: OffeneReviews | None = None,
+) -> list[str]:
+    """Review-Aufgabe statt Ausführung – höchstens eine offene je Einheit."""
     slack_datum = datetime.fromtimestamp(float(msg["ts"]), tz=timezone.utc).date().isoformat()
 
     # Newsletter-Review-Aufgaben gehen zentral an den Review-Sitz (Marktbeobachtung),
@@ -125,7 +156,14 @@ def _stufe_b(msg: dict, deal: Deal, match: MatchResult | None, decision: Decisio
         unit = match.kandidaten[0]
 
     objekt = deal.objekt_name or (unit.adresse() if unit else None)
-    titel = f"Newsletter-Vermietung prüfen: {objekt or msg.get('text', '')[:60]}"
+    titel = f"{config.REVIEW_TITEL_PRAEFIX}: {objekt or msg.get('text', '')[:60]}"
+
+    unit_ids = _review_unit_ids(match)
+    if offene_reviews is not None:
+        vorhanden, task_id = offene_reviews.vorhanden(unit_ids)
+        if vorhanden:
+            logger.info("Keine neue Review-Aufgabe: zu Unit(s) %s liegt schon eine offene (Task %s)", unit_ids, task_id)
+            return [f"{BEREITS_OFFEN}: offene Review-Aufgabe zur selben Einheit vorhanden (Task {task_id}, Units {unit_ids})"]
 
     body_teile = [
         f"Vermietung aus dem Logistik-Deal Radar vom {slack_datum}:",
@@ -148,13 +186,17 @@ def _stufe_b(msg: dict, deal: Deal, match: MatchResult | None, decision: Decisio
         broker_id=broker_id,
         is_reminder=True,
         due_date=due_date_plus_business_days(2),
-        property_ids=[u.id for u in match.units] if match and match.units else None,
+        property_ids=unit_ids or None,
     )
     task_id = create_task(task)
+    if offene_reviews is not None:
+        offene_reviews.merke(unit_ids, task_id)
     return [f"Review-Aufgabe an {broker_name} ({broker_id}), Task {task_id}"]
 
 
-def _process_message(msg: dict, run_id: str, report: RunReport) -> None:
+def _process_message(
+    msg: dict, run_id: str, report: RunReport, offene_reviews: OffeneReviews | None = None,
+) -> None:
     text = (msg.get("text") or "").strip()
 
     extraction = extract_deals(text)
@@ -177,6 +219,9 @@ def _process_message(msg: dict, run_id: str, report: RunReport) -> None:
     permalink = get_permalink(msg["ts"]) or ""
     gesetzt = 0
     reviews = 0
+    schon_offen = 0
+    schon_zu = 0
+    gescheitert = 0
 
     for idx, deal in enumerate(extraction.deals):
         record = DecisionRecord(
@@ -190,12 +235,13 @@ def _process_message(msg: dict, run_id: str, report: RunReport) -> None:
         )
         try:
             match: MatchResult | None = None
+            bereits_abgeschlossen = False
             if deal.ist_vermietung:
                 report.vermietungen += 1
                 terms = propose_search_terms(deal)
                 candidates = gather_candidates(deal, extra_queries=terms)
                 if candidates:
-                    match = select_match(deal, candidates)
+                    match, bereits_abgeschlossen = select_open_match(deal, candidates)
                 else:
                     match = MatchResult(status=MatchStatus.NONE, grund="Keine Kandidaten gefunden")
                 record.match = match
@@ -210,22 +256,38 @@ def _process_message(msg: dict, run_id: str, report: RunReport) -> None:
             )
 
             if decision.tier == Tier.NONE:
-                report.ignoriert += 1
+                if bereits_abgeschlossen:
+                    report.bereits_abgeschlossen += 1
+                    schon_zu += 1
+                else:
+                    report.ignoriert += 1
                 continue
             if decision.tier == Tier.A:
                 record.ausgefuehrte_aktionen = _stufe_a(msg, deal, match, permalink)
                 report.stufe_a += 1
                 gesetzt += 1
             else:
-                record.ausgefuehrte_aktionen = _stufe_b(msg, deal, match, decision, permalink)
-                report.stufe_b += 1
-                reviews += 1
+                record.ausgefuehrte_aktionen = _stufe_b(msg, deal, match, decision, permalink, offene_reviews)
+                if record.ausgefuehrte_aktionen and record.ausgefuehrte_aktionen[0].startswith(BEREITS_OFFEN):
+                    report.bereits_offen += 1
+                    schon_offen += 1
+                else:
+                    report.stufe_b += 1
+                    reviews += 1
         except Exception as e:  # pro Deal weiterlaufen
             logger.exception("Fehler bei Deal %s#%d", msg.get("ts"), idx)
             record.fehler = str(e)
             report.fehler.append(f"Deal {msg.get('ts')}#{idx}: {e}")
+            gescheitert += 1
         finally:
             append_record(record)
+
+    if gescheitert:
+        # Kein ✅ und keine Sammel-Antwort: Sonst gälte der Digest als ausgewertet, obwohl
+        # ein Deal verloren ging. Der Lauf endet rot, der nächste Lauf sieht den Digest
+        # wieder (Fenster 50 h) – was schon eine Aufgabe hat, schützt der Dublettenschutz.
+        logger.error("Nachricht %s: %d Deal(s) nicht verarbeitet – kein ✅", msg["ts"], gescheitert)
+        return
 
     # ✅ + Sammel-Antwort erst nach allen Deals der Message
     add_checkmark(msg["ts"])
@@ -235,6 +297,10 @@ def _process_message(msg: dict, run_id: str, report: RunReport) -> None:
         f"{vermietungen} Vermietung(en) – {gesetzt} Einheit(en) auf vermietet gesetzt, "
         f"{reviews} Review-Aufgabe(n) erstellt."
     )
+    if schon_offen:
+        reply += f" {schon_offen} ohne neue Aufgabe: zur Einheit liegt schon eine offene Review-Aufgabe."
+    if schon_zu:
+        reply += f" {schon_zu} ohne Aufgabe: Einheit ist in Propstack bereits vermietet/abgeschlossen."
     post_thread_reply(msg.get("thread_ts") or msg["ts"], reply)
 
 
@@ -252,6 +318,7 @@ def run_pipeline() -> RunReport:
 
     messages = _collect_messages()
     report.nachrichten_gesehen = len(messages)
+    offene_reviews = OffeneReviews()
     logger.info("%d Nachrichten im Scan-Fenster (%dh)", len(messages), config.scan_hours())
 
     for i, msg in enumerate(messages, 1):
@@ -268,7 +335,12 @@ def run_pipeline() -> RunReport:
             report.ignoriert += 1
             continue
 
-        _process_message(msg, run_id, report)
+        _process_message(msg, run_id, report, offene_reviews)
+
+    if offene_reviews.laden_fehlgeschlagen:
+        report.fehler.append(
+            f"Offene Review-Aufgaben nicht lesbar ({offene_reviews.fehler}) – in diesem Lauf ohne Dublettenschutz angelegt"
+        )
 
     _print_summary(report)
     return report
@@ -284,6 +356,8 @@ def _print_summary(report: RunReport) -> None:
     logger.info("  Ignoriert:                %d", report.ignoriert)
     logger.info("  Stufe A (ausgeführt):     %d", report.stufe_a)
     logger.info("  Stufe B (Review-Aufgabe): %d", report.stufe_b)
+    logger.info("  Schon offene Aufgabe:     %d", report.bereits_offen)
+    logger.info("  Bereits abgeschlossen:    %d", report.bereits_abgeschlossen)
     logger.info("  Fehler:                   %d", len(report.fehler))
     for fehler in report.fehler:
         logger.info("    - %s", fehler)
@@ -292,7 +366,11 @@ def _print_summary(report: RunReport) -> None:
 
 if __name__ == "__main__":
     try:
-        run_pipeline()
+        ergebnis = run_pipeline()
     except Exception:
         logger.exception("Pipeline-Totalausfall")
         sys.exit(1)
+    # Rot, wenn etwas nicht verarbeitet werden konnte: Der nächste Lauf sieht die
+    # Nachricht meist nicht mehr, und ein grüner Lauf mit Fehlern fällt niemandem auf.
+    # Nachholen: workflow_dispatch mit größerem Scan-Fenster.
+    sys.exit(1 if ergebnis.fehler else 0)

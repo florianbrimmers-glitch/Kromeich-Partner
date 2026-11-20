@@ -158,3 +158,13 @@ def test_suchbegriff_nur_markante_woerter():
     assert firmen_suchbegriff("Marq logistik") == "marq"
     assert firmen_suchbegriff("Swiss Life Asset Managers Logistics GmbH") == "swiss life asset managers"
     assert firmen_suchbegriff("GmbH") == "GmbH"  # nichts Markantes -> Original
+
+
+def test_match_person_nachname_allein_reicht_nicht():
+    """„Hamacher ist jetzt bei Goodman“ – ohne Vornamen kein exakter Abgleich (-> Stufe B).
+    Früher wurde die einzige Person mit diesem Nachnamen umgestellt."""
+    records = [{"id": 1, "first_name": "Tim", "last_name": "Hamacher", "company": "Swiss Life"}]
+    result = match_person(records, None, "Hamacher")
+    assert result.status == MatchStatus.NONE and "Vorname" in result.grund
+    assert match_person(records, "", "Hamacher").status == MatchStatus.NONE
+    assert match_person(records, "Tim", "Hamacher").status == MatchStatus.UNIQUE

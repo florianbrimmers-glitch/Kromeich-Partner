@@ -28,6 +28,7 @@ class _Resp:
 def _keys(monkeypatch):
     monkeypatch.setenv("PROPSTACK_API_KEY", "v1")
     monkeypatch.setenv("PROPSTACK_API_V2_CONTACTS", "v2")
+    monkeypatch.setattr(ps.time, "sleep", lambda s: None)   # Wiederholungen ohne Wartezeit
 
 
 def _search_returns(monkeypatch, records):
@@ -210,8 +211,90 @@ def test_find_company_person_flagged_as_company_not_matched_loosely(monkeypatch)
     assert ps.find_company("Goodman Germany AG") is None
 
 
-def test_find_company_search_error_returns_none(monkeypatch):
+def test_find_company_search_error_is_not_not_found(monkeypatch):
+    """Scheitert die Suche, ist unbekannt, ob es die Firma gibt – das ist nicht „nicht
+    gefunden“. Früher gab find_company dann None zurück und die Firma wurde neu angelegt."""
     def boom(url, params=None, **kw):
         raise httpx.ConnectError("down")
     monkeypatch.setattr(ps.httpx, "get", boom)
-    assert ps.find_company("Goodman Germany GmbH") is None
+    with pytest.raises(ps.CompanyLookupError):
+        ps.find_company("Goodman Germany GmbH")
+
+
+def test_search_error_does_not_create_a_company(monkeypatch):
+    def boom(url, params=None, **kw):
+        raise httpx.ConnectError("down")
+    posts = []
+    monkeypatch.setattr(ps.httpx, "get", boom)
+    monkeypatch.setattr(ps.httpx, "post", lambda url, **kw: posts.append(url) or _Resp({"id": 99}))
+    ps.problems.leeren()
+    assert ps.find_or_create_company(ContactData(email="a@b.de", company="Goodman Germany GmbH")) is None
+    assert posts == []  # keine Dublette auf Verdacht
+    assert any("Firmensuche fehlgeschlagen" in z for z in ps.problems.zusammenfassung())
+
+
+# --- Telefonnummern beim Anlegen (Befund 13.11.2026: "+49 (0) 151 …" lässt sich nicht anwählen) ---
+
+def _created_payload(monkeypatch, contact: ContactData) -> dict:
+    sent = []
+    monkeypatch.setattr(ps.httpx, "post", lambda url, json=None, **kw: sent.append(json) or _Resp({"id": 1}))
+    assert ps.create_contact(contact) == {"id": 1}
+    return sent[0]["client"]
+
+
+def test_create_contact_writes_dialable_numbers(monkeypatch):
+    client = _created_payload(monkeypatch, ContactData(
+        email="a@b.de", first_name="Max", last_name="Muster",
+        phone="+49 (0) 2151 123456", mobile="+49 (0) 151 12345678",
+    ))
+    assert client["office_phone"] == "+49 2151 123456"
+    assert client["office_cell"] == "+49 151 12345678"
+
+
+def test_create_contact_adds_country_code(monkeypatch):
+    client = _created_payload(monkeypatch, ContactData(
+        email="a@b.de", first_name="Max", last_name="Muster", phone="0221 4710199", mobile="0171/3920055",
+    ))
+    assert client["office_phone"] == "+49 221 4710199"
+    assert client["office_cell"] == "+49 171/3920055"
+
+
+def test_create_contact_keeps_foreign_and_non_numbers(monkeypatch):
+    client = _created_payload(monkeypatch, ContactData(
+        email="a@b.nl", first_name="Jan", last_name="Jansen", phone="+31 (0)20 1234567", mobile="Zentrale",
+    ))
+    assert client["office_phone"] == "+31 20 1234567"
+    assert client["office_cell"] == "Zentrale"
+
+
+# --- Nachträge aus dem Gegenlesen (19.11.2026) ----------------------------------------
+
+@pytest.mark.parametrize("contact,erwartet", [
+    # Beleg für Deutschland: fünfstellige PLZ oder Adresse auf .de -> +49
+    (ContactData(email="a@firma.com", zip_code="51373", phone="0221 4710199"), "+49 221 4710199"),
+    (ContactData(email="a@firma.de", phone="0221 4710199"), "+49 221 4710199"),
+    # Kein Beleg: Die Nummer bleibt, wie sie ist – „0664 …“ ist Wien, nicht +49
+    (ContactData(email="a@firma.at", zip_code="1010", phone="0664 1234567"), "0664 1234567"),
+    (ContactData(email="a@firma.nl", phone="06 12345678"), "06 12345678"),
+    (ContactData(email="a@firma.com", phone="0171 3920055"), "0171 3920055"),
+    # Die „(0)“ nach einer vorhandenen Ländervorwahl fällt in jedem Fall weg
+    (ContactData(email="a@firma.at", phone="+43 (0) 1 2345678"), "+43 1 2345678"),
+    (ContactData(email="a@firma.com", phone="+49 (0) 151 12345678"), "+49 151 12345678"),
+])
+def test_vorwahl_nur_mit_beleg_fuer_das_land(monkeypatch, contact, erwartet):
+    contact.first_name, contact.last_name = "Max", "Muster"
+    assert _created_payload(monkeypatch, contact)["office_phone"] == erwartet
+
+
+def test_dublettenpruefung_wiederholt_ein_429(monkeypatch):
+    antworten = [_Resp({}, status_code=429), _Resp([{"id": 7}])]
+    monkeypatch.setattr(ps.httpx, "get", lambda url, **kw: antworten.pop(0))
+    assert ps.check_duplicate("a@b.de") is True
+    assert antworten == []
+
+
+def test_dublettenpruefung_gibt_nach_drei_versuchen_auf(monkeypatch):
+    aufrufe = []
+    monkeypatch.setattr(ps.httpx, "get", lambda url, **kw: aufrufe.append(1) or _Resp({}, status_code=503))
+    assert ps.check_duplicate("a@b.de") is None
+    assert len(aufrufe) == 3

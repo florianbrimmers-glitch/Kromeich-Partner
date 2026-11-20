@@ -59,8 +59,9 @@ def fetch_channel_messages(hours: int, latest_hours: int = 0) -> list[dict]:
             )
             data = response.json()
             if not data.get("ok"):
-                logger.error("Slack conversations.history error: %s", data.get("error"))
-                break
+                # z. B. not_in_channel oder ratelimited: Ohne diesen Abbruch sähe ein Lauf
+                # ohne gelesene Nachrichten aus wie ein ruhiger Tag – grün, jede Nacht.
+                raise RuntimeError(f"Slack #personalkarussel-logistik nicht lesbar: {data.get('error')}")
 
             for msg in data.get("messages", []):
                 if msg.get("subtype") in _SKIP_SUBTYPES:
@@ -73,8 +74,7 @@ def fetch_channel_messages(hours: int, latest_hours: int = 0) -> list[dict]:
             else:
                 break
         except httpx.HTTPError as e:
-            logger.error("Slack API error: %s", e)
-            break
+            raise RuntimeError(f"Slack #personalkarussel-logistik nicht lesbar: {type(e).__name__}") from e
 
     logger.info("%d Nachrichten aus #personalkarussel-logistik gelesen (letzte %dh)", len(messages), hours)
     return messages

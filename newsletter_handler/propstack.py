@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
+from datetime import datetime, timedelta, timezone
 
 import httpx
 from pydantic import BaseModel
@@ -46,6 +47,12 @@ def _request(method: str, path: str, *, key: str, params: dict | None = None, js
                 json=json,
                 timeout=30.0,
             )
+            # Ein POST wird nach 5xx nicht wiederholt: Kam der erste Versuch doch an,
+            # entstünde die Aufgabe bzw. Absage doppelt. 429 ist sicher (nichts geschrieben),
+            # GET und PUT sind es ohnehin (ein zweites rented=true ändert nichts).
+            if response.status_code >= 500 and method == "POST":
+                logger.error("Propstack %s %s: HTTP %s – Status unklar, kein zweiter Versuch", method, path, response.status_code)
+                response.raise_for_status()
             if response.status_code == 429 or response.status_code >= 500:
                 logger.warning(
                     "Propstack %s %s: HTTP %s (Versuch %d/%d)",
@@ -65,6 +72,10 @@ def _request(method: str, path: str, *, key: str, params: dict | None = None, js
         except httpx.HTTPStatusError:
             raise
         except httpx.HTTPError as e:
+            if method == "POST":
+                # Timeout/Abbruch beim Anlegen: ob Propstack es übernommen hat, ist offen
+                logger.error("Propstack %s %s: %s – Status unklar, kein zweiter Versuch", method, path, e)
+                raise
             logger.warning("Propstack %s %s: %s (Versuch %d/%d)", method, path, e, attempt + 1, MAX_ATTEMPTS)
             last_error = e
 
@@ -79,9 +90,20 @@ def _scalar(value):
     return value
 
 
+def _status_id(raw: dict) -> int | None:
+    """Objekt-Status der Einheit. Die Suche liefert ihn als property_status {id, name, …}
+    (geprüft am 19.11.2026); fehlt er, hat die Einheit keinen Status."""
+    status = raw.get("property_status")
+    if isinstance(status, dict) and isinstance(status.get("id"), int):
+        return status["id"]
+    status_id = _scalar(raw.get("property_status_id"))
+    return status_id if isinstance(status_id, int) else None
+
+
 def _to_unit(raw: dict) -> Unit:
     broker = raw.get("broker") or {}
     house_number = _scalar(raw.get("house_number"))
+    archived = _scalar(raw.get("archived"))
     return Unit(
         id=raw["id"],
         name=_scalar(raw.get("name")),
@@ -94,6 +116,8 @@ def _to_unit(raw: dict) -> Unit:
         broker_id=broker.get("id") if isinstance(broker, dict) else None,
         broker_name=broker.get("name") if isinstance(broker, dict) else None,
         rented=_scalar(raw.get("rented")),
+        status_id=_status_id(raw),
+        archived=archived if isinstance(archived, bool) else None,
     )
 
 
@@ -154,6 +178,107 @@ def get_open_deals(property_id: int) -> list[dict]:
     ]
     logger.info("Unit %s: %d Deals gefunden, %d offen", property_id, len(deals), len(open_deals))
     return open_deals
+
+
+def _zeitpunkt(text: str):
+    """ISO-Zeitstempel aus Propstack als datetime mit Zeitzone; None, wenn nicht lesbar."""
+    try:
+        wert = datetime.fromisoformat(text)
+    except (TypeError, ValueError):
+        return None
+    return wert if wert.tzinfo else wert.replace(tzinfo=timezone.utc)
+
+
+def fetch_vermietungs_pipelines() -> set[int]:
+    """GET /deal_pipelines – IDs der Pipelines, deren Deals bei einer Vermietung
+    abgesagt werden dürfen (Name beginnt mit config.VERMIETUNGS_PIPELINE_PRAEFIX)."""
+    response = _request("GET", "/deal_pipelines", key=config.propstack_key_objekte())
+    data = response.json()
+    rows = data if isinstance(data, list) else (data or {}).get("data", [])
+    ids = {
+        p["id"] for p in rows
+        if isinstance(p, dict) and isinstance(p.get("id"), int)
+        and str(p.get("name") or "").strip().startswith(config.VERMIETUNGS_PIPELINE_PRAEFIX)
+    }
+    logger.info("Vermietungs-Pipelines: %s", sorted(ids))
+    return ids
+
+
+def absage_hindernis(deal: dict, vermietungs_pipelines: set[int] | None) -> str | None:
+    """Warum dieser Deal NICHT automatisch abgesagt werden darf – None = absagen.
+
+    - Abschluss-Phase (Wahrscheinlichkeit 100 %): Das ist der Deal des Mieters selbst
+      bzw. ein eigener Abschluss – ihm „Fläche nicht mehr verfügbar“ zu schicken, wäre
+      genau verkehrt. (19.11.2026: zwei Deals in „Abgeschlossen Vermietung“.)
+    - Deal in einer anderen als einer Vermietungs-Pipeline: Verkaufsprozess läuft weiter.
+    - Pipelines nicht lesbar (None): dann nur Deals ohne Pipeline absagen.
+
+    Die Zeilen aus GET /v1/client_properties tragen deal_stage_chance und
+    deal_pipeline_id (geprüft am 19.11.2026 an allen 1.932 Deals: Werte 0.0–1.0 bzw.
+    leer bei Deals ohne Pipeline)."""
+    chance = deal.get("deal_stage_chance")
+    if isinstance(chance, (int, float)) and chance >= 1:
+        return "Abschluss-Phase"
+    pipeline_id = deal.get("deal_pipeline_id")
+    if pipeline_id is None:
+        return None
+    if vermietungs_pipelines is None:
+        return "Pipelines nicht lesbar"
+    if pipeline_id not in vermietungs_pipelines:
+        return "keine Vermietungs-Pipeline"
+    return None
+
+
+def fetch_open_review_units(broker_id: int, titel_praefix: str, max_alter_tage: int | None = None) -> dict[int, int]:
+    """Einheiten, zu denen beim Review-Sitz schon eine offene Review-Aufgabe liegt.
+
+    GET /activities?item_type=reminder&broker_id=… – jede Zeile trägt title, done und
+    property_ids (geprüft am 19.11.2026; rund 560 Aufgaben = 3 Seiten à 200).
+    activatable_id ist die Task-ID, id die der Aktivität. Rückgabe: Unit-ID → Task-ID
+    der ältesten offenen Aufgabe. Mit max_alter_tage zählen nur Aufgaben, die höchstens
+    so alt sind. Fehler werden geworfen – der Aufrufer entscheidet, wie er ohne diese
+    Liste weitermacht."""
+    ab = (
+        (datetime.now(timezone.utc) - timedelta(days=max_alter_tage)).isoformat()
+        if max_alter_tage else None
+    )
+    per_page = 200
+    aelteste: dict[int, tuple[str, int]] = {}  # Unit-ID -> (angelegt, Task-ID)
+    page = 1
+    while True:
+        response = _request(
+            "GET", "/activities",
+            key=config.propstack_key_tasks(),
+            params={
+                "item_type": "reminder", "broker_id": broker_id,
+                "sort_by": "updated_at", "order": "desc",
+                "per": per_page, "page": page,
+            },
+        )
+        data = response.json()
+        rows = data if isinstance(data, list) else (data or {}).get("data", [])
+        for row in rows:
+            if not isinstance(row, dict) or _scalar(row.get("done")):
+                continue
+            title = _scalar(row.get("title")) or ""
+            if not isinstance(title, str) or not title.startswith(titel_praefix):
+                continue
+            task_id = row.get("activatable_id") or row.get("id")
+            angelegt = str(row.get("original_created_at") or "")
+            if ab and _zeitpunkt(angelegt) and _zeitpunkt(angelegt) < _zeitpunkt(ab):
+                continue  # zu alt, um eine neue Meldung zu unterdrücken
+            for unit_id in row.get("property_ids") or []:
+                if not isinstance(unit_id, int):
+                    continue
+                bisher = aelteste.get(unit_id)
+                if bisher is None or angelegt < bisher[0]:
+                    aelteste[unit_id] = (angelegt, task_id)
+        if len(rows) < per_page:
+            break
+        page += 1
+        time.sleep(1)
+    logger.info("Offene Review-Aufgaben bei %s: %d Einheiten abgedeckt", broker_id, len(aelteste))
+    return {unit_id: task_id for unit_id, (_, task_id) in aelteste.items()}
 
 
 def create_task(payload: TaskPayload) -> int | None:
