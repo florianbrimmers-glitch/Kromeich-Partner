@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import sys
 import time
@@ -135,6 +136,26 @@ def _stufe_a(msg: dict, deal: Deal, match: MatchResult, permalink: str) -> list[
     return aktionen
 
 
+def _auswertungszeile(msg: dict, idx: int, deal: Deal, match: MatchResult | None, decision: Decision,
+                      bereits_abgeschlossen: bool) -> None:
+    """Eine maschinenlesbare Zeile je Vermietung – nur im Lese-Lauf (NO_WRITE). Damit lässt
+    sich ein Lauf über alte Digests gegen die geprüften Urteile legen
+    (scripts/radar_zuordnung_messen.py), ohne das Entscheidungslog vom Runner zu holen."""
+    if not config.no_write() or not deal.ist_vermietung:
+        return
+    logger.info("AUSWERTUNG %s", json.dumps({
+        "ts": msg.get("ts"), "idx": idx, "objekt": deal.objekt_name, "mieter": deal.mieter,
+        "vermieter": deal.vermieter, "groesse": deal.groessen_hinweis, "ort": deal.stadt,
+        "verlaengerung": deal.ist_verlaengerung,
+        "status": match.status.value if match else None,
+        "units": [u.id for u in match.units] if match else [],
+        "anderer_eigentuemer": bool(match and match.anderer_eigentuemer),
+        "bereits_abgeschlossen": bereits_abgeschlossen,
+        "stufe": decision.tier.value,
+        "grund": (match.grund if match else decision.grund)[:300],
+    }, ensure_ascii=False))
+
+
 def _review_unit_ids(match: MatchResult | None) -> list[int]:
     """Die Einheiten, mit denen eine Review-Aufgabe verknüpft wird."""
     return [u.id for u in match.units] if match and match.units else []
@@ -221,6 +242,8 @@ def _process_message(
     reviews = 0
     schon_offen = 0
     schon_zu = 0
+    fremd = 0
+    nur_verlaengert = 0
     gescheitert = 0
 
     for idx, deal in enumerate(extraction.deals):
@@ -236,7 +259,9 @@ def _process_message(
         try:
             match: MatchResult | None = None
             bereits_abgeschlossen = False
-            if deal.ist_vermietung:
+            if deal.ist_vermietung and deal.ist_verlaengerung:
+                report.vermietungen += 1   # zählt als Meldung, braucht aber keine Objektsuche
+            elif deal.ist_vermietung:
                 report.vermietungen += 1
                 terms = propose_search_terms(deal)
                 candidates = gather_candidates(deal, extra_queries=terms)
@@ -255,10 +280,18 @@ def _process_message(
                 decision.tier.value, decision.grund,
             )
 
+            _auswertungszeile(msg, idx, deal, match, decision, bereits_abgeschlossen)
+
             if decision.tier == Tier.NONE:
                 if bereits_abgeschlossen:
                     report.bereits_abgeschlossen += 1
                     schon_zu += 1
+                elif deal.ist_vermietung and deal.ist_verlaengerung:
+                    report.verlaengerungen += 1
+                    nur_verlaengert += 1
+                elif match is not None and match.anderer_eigentuemer:
+                    report.anderer_eigentuemer += 1
+                    fremd += 1
                 else:
                     report.ignoriert += 1
                 continue
@@ -301,6 +334,10 @@ def _process_message(
         reply += f" {schon_offen} ohne neue Aufgabe: zur Einheit liegt schon eine offene Review-Aufgabe."
     if schon_zu:
         reply += f" {schon_zu} ohne Aufgabe: Einheit ist in Propstack bereits vermietet/abgeschlossen."
+    if fremd:
+        reply += f" {fremd} ohne Aufgabe: Das Objekt am Ort gehört einem anderen Eigentümer als dem Vermieter der Meldung."
+    if nur_verlaengert:
+        reply += f" {nur_verlaengert} ohne Aufgabe: bloße Vertragsverlängerung."
     post_thread_reply(msg.get("thread_ts") or msg["ts"], reply)
 
 
@@ -325,7 +362,7 @@ def run_pipeline() -> RunReport:
         preview = (msg.get("text") or "")[:80]
         logger.info("--- Nachricht %d/%d (%s): %s ---", i, len(messages), msg["ts"], preview)
 
-        if has_bot_checkmark(msg, bot_user_id):
+        if not config.ignore_checkmark() and has_bot_checkmark(msg, bot_user_id):
             logger.info("Bereits verarbeitet (eigenes ✅) – übersprungen")
             report.bereits_verarbeitet += 1
             continue
@@ -358,6 +395,8 @@ def _print_summary(report: RunReport) -> None:
     logger.info("  Stufe B (Review-Aufgabe): %d", report.stufe_b)
     logger.info("  Schon offene Aufgabe:     %d", report.bereits_offen)
     logger.info("  Bereits abgeschlossen:    %d", report.bereits_abgeschlossen)
+    logger.info("  Anderer Eigentümer:       %d", report.anderer_eigentuemer)
+    logger.info("  Nur Verlängerung:         %d", report.verlaengerungen)
     logger.info("  Fehler:                   %d", len(report.fehler))
     for fehler in report.fehler:
         logger.info("    - %s", fehler)

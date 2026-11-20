@@ -104,6 +104,10 @@ def _to_unit(raw: dict) -> Unit:
     broker = raw.get("broker") or {}
     house_number = _scalar(raw.get("house_number"))
     archived = _scalar(raw.get("archived"))
+    # Custom-Felder kommen nur mit expand=1; „eigentumer“ ist ein Freitextfeld (geprüft 20.11.2026)
+    custom = raw.get("custom_fields") if isinstance(raw.get("custom_fields"), dict) else {}
+    eigentuemer = _scalar(custom.get("eigentumer"))
+    einheit = _scalar(raw.get("unit_id"))
     return Unit(
         id=raw["id"],
         name=_scalar(raw.get("name")),
@@ -118,6 +122,8 @@ def _to_unit(raw: dict) -> Unit:
         rented=_scalar(raw.get("rented")),
         status_id=_status_id(raw),
         archived=archived if isinstance(archived, bool) else None,
+        einheit=str(einheit).strip() if einheit not in (None, "") else None,
+        eigentuemer=eigentuemer.strip() if isinstance(eigentuemer, str) and eigentuemer.strip() else None,
     )
 
 

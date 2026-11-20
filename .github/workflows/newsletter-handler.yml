@@ -30,15 +30,25 @@ on:
         description: "Bis Stunden zurück (0 = bis jetzt)"
         required: false
         default: "0"
+      ignore_checkmark:
+        description: "Auswertung: schon verarbeitete Digests noch einmal lesen (wirkt nur mit no_write=true)"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
 
+# Ein Lese-Lauf (no_write) über Wochen alter Digests dauert Stunden. Er bekommt eine eigene
+# Gruppe, damit er den nächtlichen Lauf nicht aufhält.
 concurrency:
-  group: newsletter-handler
+  group: newsletter-handler${{ github.event.inputs.no_write == 'true' && '-nur-lesen' || '' }}
   cancel-in-progress: false
 
 jobs:
   newsletter-handler:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: ${{ github.event.inputs.no_write == 'true' && 330 || 30 }}
 
     steps:
       - name: Checkout repository
@@ -69,6 +79,7 @@ jobs:
           # vermeintlich überfälliger nächster Schritt.
           DRY_RUN: ${{ github.event.inputs.dry_run || 'true' }}
           NO_WRITE: ${{ github.event.inputs.no_write || 'false' }}
+          IGNORE_CHECKMARK: ${{ github.event.inputs.ignore_checkmark || 'false' }}
           # 50 h bei täglichem Lauf: Jede Nachricht wird zweimal gesehen. Was verarbeitet ist,
           # trägt das eigene ✅ und wird übersprungen; was gescheitert ist (roter Lauf), holt
           # der nächste Lauf von selbst nach. Mit 27 h war eine gescheiterte Nachricht am

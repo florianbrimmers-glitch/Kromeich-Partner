@@ -30,6 +30,9 @@ class Deal(BaseModel):
     groessen_hinweis: str | None = None  # "kleinste" | "groesste" | qm-Zahl als String
     mieter: str | None = None
     vermieter: str | None = None
+    # Ein bestehender Mieter verlängert seinen Vertrag: Es wird nichts frei und nichts
+    # neu vergeben – keine Aufgabe. (Eine Erweiterung um neue Fläche ist eine Vermietung.)
+    ist_verlaengerung: bool = False
     confidence: float = 0.0
     begruendung: str = ""
 
@@ -56,6 +59,8 @@ class Unit(BaseModel):
     rented: bool | None = None
     status_id: int | None = None
     archived: bool | None = None
+    einheit: str | None = None        # unit_id, z. B. „Unit 2“ oder „Halle B (3)“
+    eigentuemer: str | None = None    # Custom-Feld „eigentumer“; im Altbestand oft leer
 
     def ist_abgeschlossen(self, status_abgeschlossen: int) -> bool:
         """Nicht mehr in der Vermarktung: als vermietet geführt, Status „Abgeschlossen“
@@ -85,6 +90,9 @@ class MatchResult(BaseModel):
     units: list[Unit] = Field(default_factory=list)
     kandidaten: list[Unit] = Field(default_factory=list)
     grund: str = ""
+    # NONE, weil die gewählte Einheit erkennbar einem anderen gehört als dem Vermieter der
+    # Meldung und nichts sonst für sie spricht (match_ai.select_match_geprueft).
+    anderer_eigentuemer: bool = False
 
 
 class Tier(str, Enum):
@@ -127,4 +135,7 @@ class RunReport(BaseModel):
     # Einheit liegt schon eine offene Review-Aufgabe.
     bereits_abgeschlossen: int = 0
     bereits_offen: int = 0
+    # Vermietungen ohne Aufgabe: Objekt gehört einem anderen Eigentümer bzw. bloße Verlängerung.
+    anderer_eigentuemer: int = 0
+    verlaengerungen: int = 0
     fehler: list[str] = Field(default_factory=list)

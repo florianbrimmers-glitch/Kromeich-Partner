@@ -5,8 +5,11 @@ import logging
 
 import anthropic
 
-from . import config
+import re
+
+from . import config, eigentuemer
 from .classifier import _get_client, _parse_extraction_json
+from .matcher import normalize_street
 from .models import Deal, MatchResult, MatchStatus, Unit
 
 logger = logging.getLogger(__name__)
@@ -26,12 +29,14 @@ KANDIDATEN aus Propstack (mögliche Objekte):
 So gehst du vor:
 1. Nutze dein WELTWISSEN, um den tatsächlichen Standort des Projekts zu bestimmen. Der Ort in der Meldung ist oft die grobe Region (z.B. "Berlin"), das Objekt liegt aber im Umland. Beispiel: "Verdion PremierPark Berlin" liegt in LUDWIGSFELDE.
 2. Objekte sind in Propstack häufig nach ihrer ADRESSE benannt (z.B. "Brandenburgische Straße 51 - Ludwigsfelde"), NICHT nach dem Projekt-/Entwicklernamen aus der Meldung. Verlange also NICHT, dass "Verdion" oder "PremierPark" im Kandidatennamen steht.
-3. Ein Kandidat, der in der tatsächlichen Gemeinde des Projekts liegt und zur Nutzungsart (Logistik/Gewerbe) passt, ist ein STARKER Treffer – auch ohne Projektname und ohne Flächenübereinstimmung.
-4. Wähle den plausibelsten Kandidaten und drücke die Sicherheit über confidence aus (hoch = sehr sicher, mittel = plausibel/prüfen). Gib nur dann null zurück, wenn wirklich KEIN Kandidat zur tatsächlichen Lage des Projekts passt.
+3. EIGENTÜMER: Steht bei einem Kandidaten ein "eigentuemer", vergleiche ihn mit dem Vermieter/Entwickler der Meldung. Stimmen sie überein, ist das das stärkste Indiz – stärker als eine besser passende Fläche bei einem Kandidaten eines anderen Eigentümers. Gehört ein Kandidat erkennbar jemand anderem als dem genannten Vermieter, ist er in aller Regel NICHT gemeint, auch wenn der Ort stimmt. Umgekehrt ersetzt der Eigentümer nie den Ort: Ein Kandidat desselben Eigentümers in einer anderen Gemeinde als der des Projekts ist NICHT gemeint.
+4. MEHRERE EINHEITEN: Eine Vermietung betrifft oft mehrere Einheiten desselben Objekts. Passt die Fläche der Meldung zur Summe mehrerer Einheiten an derselben Adresse, oder ist das Objekt laut Meldung vollständig vermietet, nenne ALLE diese Einheiten. Sonst genau eine.
+5. Ein Kandidat, der nur in der Gemeinde des Projekts liegt – ohne passenden Eigentümer, ohne passende Fläche, ohne Projekt- oder Straßennamen – ist eine schwache Spur: confidence höchstens 0.5.
+6. Wähle den plausibelsten Kandidaten und drücke die Sicherheit über confidence aus (hoch = sehr sicher, mittel = plausibel/prüfen). Gib eine leere Liste zurück, wenn KEIN Kandidat zur tatsächlichen Lage des Projekts passt.
 
 Antworte ausschließlich mit JSON:
 {{
-  "unit_id": <id des passenden Kandidaten> | null,
+  "unit_ids": [<id>, ...],
   "confidence": 0.0-1.0,
   "begruendung": "1 kurzer Satz (nenne den erkannten tatsächlichen Ort)"
 }}
@@ -93,7 +98,9 @@ def _candidate_line(u: Unit) -> dict:
         "house_number": u.house_number,
         "zip_code": u.zip_code,
         "city": u.city,
+        "einheit": u.einheit,
         "flaeche_qm": u.property_space_value,
+        "eigentuemer": u.eigentuemer,
         "makler": u.broker_name,
     }
 
@@ -136,36 +143,166 @@ def select_match(deal: Deal, candidates: list[Unit]) -> MatchResult:
         return MatchResult(status=MatchStatus.AMBIGUOUS, kandidaten=candidates[:10],
                            grund="KI-Auswahl nicht parsebar – manuelle Prüfung")
 
-    unit_id = raw.get("unit_id")
     confidence = raw.get("confidence") or 0.0
     begruendung = raw.get("begruendung") or ""
 
-    if unit_id is None:
+    genannt = _genannte_ids(raw)
+    if not genannt:
         return MatchResult(status=MatchStatus.NONE,
                            kandidaten=candidates[:10],
                            grund=f"KI: kein passendes Objekt ({begruendung})")
 
-    try:
-        chosen = by_id.get(int(unit_id))
-    except (TypeError, ValueError):
-        chosen = None
-    if chosen is None:
+    gewaehlt = _selbes_objekt([by_id[i] for i in genannt if i in by_id])
+    if not gewaehlt:
         return MatchResult(status=MatchStatus.AMBIGUOUS, kandidaten=candidates[:10],
-                           grund=f"KI wählte unbekannte id {unit_id!r} – manuelle Prüfung")
+                           grund=f"KI wählte unbekannte id {genannt[0]!r} – manuelle Prüfung")
 
-    andere = [u for u in candidates if u.id != chosen.id][:9]
+    ids = {u.id for u in gewaehlt}
+    andere = [u for u in candidates if u.id not in ids][:max(0, 10 - len(gewaehlt))]
+    wo = gewaehlt[0].adresse() + (f" ({len(gewaehlt)} Einheiten)" if len(gewaehlt) > 1 else "")
     if confidence < config.CONFIDENCE_THRESHOLD:
         return MatchResult(
             status=MatchStatus.AMBIGUOUS,
-            units=[chosen],
-            kandidaten=[chosen] + andere,
-            grund=f"KI-Treffer unsicher (conf {confidence:.2f}): {chosen.adresse()} – {begruendung}",
+            units=gewaehlt,
+            kandidaten=gewaehlt + andere,
+            grund=f"KI-Treffer unsicher (conf {confidence:.2f}): {wo} – {begruendung}",
         )
     return MatchResult(
         status=MatchStatus.UNIQUE,
-        units=[chosen],
-        kandidaten=[chosen] + andere,
-        grund=f"KI-Zuordnung (conf {confidence:.2f}): {chosen.adresse()} – {begruendung}",
+        units=gewaehlt,
+        kandidaten=gewaehlt + andere,
+        grund=f"KI-Zuordnung (conf {confidence:.2f}): {wo} – {begruendung}",
+    )
+
+
+def _genannte_ids(raw: dict) -> list:
+    """Die gewählten Einheiten: "unit_ids" (Liste) oder, wie bis 20.11.2026, "unit_id"."""
+    werte = raw.get("unit_ids")
+    if werte is None:
+        werte = [raw.get("unit_id")]
+    elif not isinstance(werte, list):
+        werte = [werte]
+    ids: list = []
+    for wert in werte:
+        try:
+            zahl = int(wert)
+        except (TypeError, ValueError):
+            if wert is not None:
+                ids.append(wert)   # nicht lesbar – führt unten zu „unbekannte id“
+            continue
+        if zahl not in ids:
+            ids.append(zahl)
+    return ids
+
+
+def _selbes_objekt(units: list[Unit]) -> list[Unit]:
+    """Mehrere Einheiten gelten nur zusammen, wenn sie am selben Ort und – soweit bekannt –
+    in derselben Straße liegen wie die erste. Sonst hat die KI zwei Objekte vermischt;
+    dann zählt nur die erste Einheit."""
+    if len(units) < 2:
+        return units
+    erste = units[0]
+    strasse = normalize_street(erste.street) if erste.street else ""
+    return [
+        u for u in units
+        if _ort(u) == _ort(erste)
+        and (not strasse or not u.street or normalize_street(u.street) == strasse)
+    ]
+
+
+def groesse(deal: Deal) -> float | None:
+    """Quadratmeter aus dem Größen-Hinweis („6000“, „rund 6.700 m²“); None, wenn keine Zahl."""
+    treffer = re.search(r"\d[\d.,]*", deal.groessen_hinweis or "")
+    if not treffer:
+        return None
+    try:
+        wert = float(treffer.group().replace(".", "").replace(",", "."))
+    except ValueError:
+        return None
+    return wert if wert >= 100 else None
+
+
+FLAECHEN_TOLERANZ = 0.10
+
+
+def _flaeche_passt(deal: Deal, units: list[Unit], candidates: list[Unit]) -> bool:
+    """Passt die gemeldete Fläche auf eine der gewählten Einheiten, auf ihre Summe oder
+    auf die Summe aller Einheiten an derselben Adresse (±10 %)?"""
+    soll = groesse(deal)
+    if not soll or not units:
+        return False
+    erste = units[0]
+    selbe_adresse = [
+        u for u in candidates
+        if erste.street and u.street and _ort(u) == _ort(erste)
+        and normalize_street(u.street) == normalize_street(erste.street)
+        and (u.house_number or "") == (erste.house_number or "")
+    ]
+    werte = [u.property_space_value for u in units if u.property_space_value]
+    summen = [sum(werte)] if len(werte) > 1 else []
+    adresse = [u.property_space_value for u in selbe_adresse if u.property_space_value]
+    if len(adresse) > 1:
+        summen.append(sum(adresse))
+    return any(abs(ist - soll) <= FLAECHEN_TOLERANZ * soll for ist in werte + summen)
+
+
+def _name_passt(deal: Deal, unit: Unit) -> bool:
+    """Nennt die Meldung die Straße der Einheit, oder steht ein Wort des Projektnamens in
+    ihrem Namen? Ortsname und Eigentümername zählen nicht – die sagen nichts über das Objekt."""
+    if deal.strasse and unit.street and normalize_street(deal.strasse) == normalize_street(unit.street):
+        return True
+    ohne = eigentuemer.namen(deal.vermieter) | eigentuemer.namen(unit.eigentuemer)
+    ohne |= set(re.findall(r"[a-zäöüß0-9]+", f"{unit.city or ''} {deal.stadt or ''}".lower()))
+    woerter = {w for w in eigentuemer.namen(deal.objekt_name) if len(w) >= 4} - ohne
+    heuhaufen = f"{unit.name or ''} {unit.title or ''} {unit.street or ''}".lower()
+    return any(w in heuhaufen for w in woerter)
+
+
+def select_match_geprueft(deal: Deal, candidates: list[Unit]) -> MatchResult:
+    """select_match mit Eigentümer-Probe.
+
+    Gehört die gewählte Einheit erkennbar einem anderen als dem Vermieter der Meldung:
+    - Gibt es unter den Kandidaten Einheiten dieses Vermieters AM SELBEN ORT (Ort der
+      ersten Wahl oder Ort der Meldung), wählt die KI noch einmal nur unter ihnen (Moers
+      12.11.2026: Ixocon-Meldung an einer BEOS-Halle, die Ixocon-Halle lag unter den
+      Kandidaten). Nur am selben Ort: Die Suche nach dem Vermieternamen bringt dessen
+      Einheiten aus dem ganzen Bestand unter die Kandidaten – Aurelis lag am 20.11.2026
+      in zwölf Städten. Eine Meldung aus München darf nicht in Kerpen landen.
+    - Sonst: Spricht die Fläche oder der Name trotzdem für die Einheit, bleibt sie als
+      unsicherer Treffer stehen – der Eigentümer am Objekt kann veraltet sein (Entwickler
+      verkauft an Investor). Spricht nichts für sie, ist es kein eigener Bestand: NONE.
+    """
+    match = select_match(deal, candidates)
+    if not match.units:
+        return match
+    erste = match.units[0]
+    if eigentuemer.passt(deal.vermieter, erste.eigentuemer) is not False:
+        return match
+
+    hinweis = f"{erste.adresse()} (Unit {erste.id}) gehört {erste.eigentuemer}, die Meldung nennt {deal.vermieter}"
+    orte = {_ort(erste), " ".join((deal.stadt or "").casefold().split())} - {""}
+    eigene = [
+        u for u in candidates
+        if _ort(u) in orte and eigentuemer.passt(deal.vermieter, u.eigentuemer) is True
+    ]
+    if eigene:
+        zweite = select_match(deal, eigene)
+        if zweite.units:
+            zweite.grund = f"Erste Wahl verworfen ({hinweis}). {zweite.grund}"
+            return zweite
+
+    if _flaeche_passt(deal, match.units, candidates) or _name_passt(deal, erste):
+        return MatchResult(
+            status=MatchStatus.AMBIGUOUS,
+            units=match.units,
+            kandidaten=match.kandidaten,
+            grund=f"Eigentümer passt nicht ({hinweis}), Fläche oder Name aber schon. {match.grund}",
+        )
+    return MatchResult(
+        status=MatchStatus.NONE,
+        kandidaten=match.kandidaten,
+        grund=f"Kein eigener Bestand: {hinweis}",
+        anderer_eigentuemer=True,
     )
 
 
@@ -174,8 +311,8 @@ def _ort(unit: Unit) -> str:
 
 
 def select_open_match(deal: Deal, candidates: list[Unit]) -> tuple[MatchResult, bool]:
-    """Wie select_match, aber eine bereits vermietete/abgeschlossene Einheit zählt nicht
-    als Treffer. Rückgabe: (Ergebnis, bereits_abgeschlossen).
+    """Wie select_match_geprueft, aber eine bereits vermietete/abgeschlossene Einheit zählt
+    nicht als Treffer. Rückgabe: (Ergebnis, bereits_abgeschlossen).
 
     Anlass (Stand 19.11.2026): 40 von 156 offenen Review-Aufgaben zeigten auf Einheiten,
     die in Propstack vermietet, abgeschlossen oder archiviert waren – Westring 8 in Dissen
@@ -190,7 +327,7 @@ def select_open_match(deal: Deal, candidates: list[Unit]) -> tuple[MatchResult, 
       schlicht falsch gewesen sein.
     Bleibt die zweite Auswahl ohne Treffer: NONE, bereits_abgeschlossen=True (nichts zu tun).
     """
-    match = select_match(deal, candidates)
+    match = select_match_geprueft(deal, candidates)
     if not match.units or not all(u.ist_abgeschlossen(config.STATUS_ABGESCHLOSSEN) for u in match.units):
         return match, False
 
@@ -206,7 +343,7 @@ def select_open_match(deal: Deal, candidates: list[Unit]) -> tuple[MatchResult, 
     if not offene:
         return MatchResult(status=MatchStatus.NONE, kandidaten=match.kandidaten, grund=hinweis), True
 
-    zweite = select_match(deal, offene)
+    zweite = select_match_geprueft(deal, offene)
     if zweite.status == MatchStatus.NONE:
         return MatchResult(
             status=MatchStatus.NONE,

@@ -63,6 +63,12 @@ def no_write() -> bool:
     return _env_bool("NO_WRITE", "false")
 
 
+def ignore_checkmark() -> bool:
+    """Auswertungslauf über schon verarbeitete Digests: das eigene ✅ nicht als „erledigt“
+    werten. Gilt nur zusammen mit NO_WRITE – ein schreibender Lauf überspringt immer."""
+    return no_write() and _env_bool("IGNORE_CHECKMARK", "false")
+
+
 def scan_hours() -> int:
     """Standard 27h: deckt den ~22:18-CEST-Digest des Vortags plus Überlappung ab."""
     return int(os.environ.get("SCAN_HOURS", "27"))

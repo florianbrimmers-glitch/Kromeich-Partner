@@ -30,6 +30,11 @@ def decide(deal: Deal | None, match: MatchResult | None) -> Decision:
     if not deal.ist_vermietung:
         return Decision(tier=Tier.NONE, grund=f"Keine Vermietung (deal_typ={deal.deal_typ.value})")
 
+    # Verlängerung eines bestehenden Vertrags: nichts wird frei, nichts neu vergeben.
+    # (20.11.2026: 4 von 129 geprüften Aufgaben – Wezel/CTP, Maersk, Decathlon, dazu ein Verkauf.)
+    if deal.ist_verlaengerung:
+        return Decision(tier=Tier.NONE, grund="Verlängerung eines bestehenden Mietvertrags – keine neue Vermietung")
+
     # Fremd-Deal ohne eigenen Bestand: nur loggen, keine Aktion, kein Review-Task.
     if match is None or match.status == MatchStatus.NONE:
         grund = match.grund if match else "Kein Objekt-Matching möglich"

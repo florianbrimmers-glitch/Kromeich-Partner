@@ -13,6 +13,8 @@ Eigenständiges Paket – **kein Code-Sharing** mit `src/` oder `objekte_handler
    - **Kein Match** (Fremd-Deal, nicht im eigenen Bestand) → nur Log, keine Aktion.
    - **Stufe A** (Vermietung eindeutig einem eigenen Objekt zugeordnet, `DRY_RUN=false`): `rented=true` setzen, Doku-Notiz, offene Deals per Absage-Aktivität (Grund 256998) schließen.
    - **Stufe B** (mehrdeutig / geringe Confidence / `DRY_RUN=true`): Review-Aufgabe an den Objekt-Verantwortlichen (Fallback: Sammelpostfach 254958, heute Lena Klinnert), fällig +2 Werktage.
+   - **Eigentümer-Probe** (Änderung vom 20.11.2026): Die KI sieht je Kandidat den Eigentümer (`custom_fields.eigentumer`) und die Einheit und darf mehrere Einheiten desselben Objekts nennen (Summe der Flächen). Danach prüft der Code nach (`eigentuemer.py`, `match_ai.select_match_geprueft`): Gehört die gewählte Einheit erkennbar einem anderen als dem Vermieter der Meldung, wählt die KI ein zweites Mal nur unter den Einheiten dieses Vermieters am selben Ort. Bleibt das leer, behält die erste Wahl nur dann eine Aufgabe (als unsicherer Treffer), wenn die Fläche auf ±10 % passt – auf die Einheit, die Summe der gewählten oder die Summe der Adresse – oder Straße bzw. Projektname stimmen. Sonst: kein eigener Bestand, nur Log. Fehlt der Eigentümer am Objekt oder nennt die Meldung keinen Vermieter, ändert die Probe nichts.
+   - **Verlängerungen** eines bestehenden Mietvertrags (`ist_verlaengerung`) ergeben keine Aufgabe: Es wird nichts frei und nichts neu vergeben. Nennt die Meldung einen Käufer, ist sie eine Transaktion.
    - **Keine Aufgabe, wenn es nichts zu tun gibt** (Änderung vom 19.11.2026, gilt in beiden Betriebsarten):
      - Die zugeordnete Einheit ist in Propstack schon vermietet, „Abgeschlossen“ (Status 163676) oder archiviert → die KI wählt ein zweites Mal nur unter Einheiten in Vermarktung: bei sicherer erster Wahl nur am selben Ort (z. B. der richtige Datensatz neben einer stillgelegten Dublette), bei unsicherer unter allen Kandidaten. Bleibt das ohne Treffer → nur Log.
      - Zur Einheit liegt beim Review-Sitz schon eine offene Aufgabe „Newsletter-Vermietung prüfen“ aus den letzten 30 Tagen → keine zweite. (Der Radar wiederholt über Tage; eine Meldung Monate später ist meist eine neue Vermietung.) Verglichen wird über die Objekt-ID der Aufgabe (`GET /v1/activities`, Feld `property_ids`), nicht über den Titel – der wechselt von Tag zu Tag („Garbe“, „Garbe Industrial“).
@@ -114,10 +116,30 @@ nachgeprüft statt beim Eigentümer erfragt (`scripts/radar_nachpruefung_2026-11
   die falsche Verknüpfung der Auslöser war, ist nicht belegt. Florian hat es am 20.11. bestätigt („Halle A ist leer,
   Halle B ist vermietet“); seither stimmt der Stand. Eine falsch verknüpfte Aufgabe kostet also nicht nur Lesezeit.
 
-Nicht geändert: Eine Änderung am Prompt lässt sich ohne Schlüssel hier nicht ausprobieren. Die
-129 Urteile sind aber der erste belastbare Prüfsatz für diesen Handler – der nächste Schritt ist,
-den Eigentümer in die Kandidatenzeile zu nehmen, den Prompt anzupassen und beides gegen diese
-Urteile zu messen, bevor es in den täglichen Lauf geht.
+### Zuordnung nachgezogen und messbar gemacht (20.11.2026)
+
+Aus den vier Befunden oben ist Code geworden: Eigentümer und Einheit in der Kandidatenzeile,
+Eigentümer-Probe nach der Auswahl, mehrere Einheiten je Vermietung, Verlängerungen ohne Aufgabe,
+Regel 3 des Prompts ersetzt (ein Kandidat nur in der Gemeinde ist eine schwache Spur, confidence
+höchstens 0,5). Die Fälle stehen als Tests in `tests/newsletter_handler/test_eigentuemer.py`.
+
+Die 129 Urteile sind der Prüfsatz: `scripts/radar_pruefsatz_2026-11-20.json` hält je Aufgabe fest,
+welche Einheiten gemeint waren, welche nicht und welche offen blieben. Gemessen wird so:
+
+1. Lese-Lauf über die alten Digests: Actions → Newsletter Handler → Run workflow mit
+   `no_write=true`, `ignore_checkmark=true` und `scan_from_hours` so groß wie das Fenster. Der Lauf
+   schreibt nichts (keine Aufgabe, keine Antwort, kein ✅), hat eine eigene Concurrency-Gruppe und
+   ein längeres Zeitlimit und schreibt je Vermietung eine Zeile `AUSWERTUNG {…}` ins Protokoll.
+   `ignore_checkmark` wirkt nur zusammen mit `no_write`.
+2. `python scripts/radar_zuordnung_messen.py <protokoll.txt>` legt die Zeilen neben die Urteile.
+
+Gewertet wird, was der Handler heute täte. Die gemeinten Einheiten sind inzwischen geschlossen;
+richtig ist bei „erledigt“, „eintragen“ und „fremd“ also: keine Aufgabe.
+
+Was die Probe nicht kann (trocken an den 22 Alt-Aufgaben mit widersprechendem Eigentümer geprüft,
+ohne KI): Bei 48 der 129 Aufgaben fehlt der Eigentümer am Objekt – dort greift sie nicht. Und ein
+veralteter Eigentümer (Entwickler hat an einen Investor verkauft) lässt eine echte Vermietung nur
+durch, wenn Fläche oder Name stimmen (Wedel, Schwanewede, Mannheim blieben so stehen).
 
 ## Umgebungsvariablen
 
@@ -130,6 +152,7 @@ Urteile zu messen, bevor es in den täglichen Lauf geht.
 | `PROPSTACK_KEY_TASKS` | nein | – | Optionaler Override: separater Key für Aktivitäten/Tasks |
 | `DRY_RUN` | nein | `true` | Vermietungen nur als Stufe B; `false` = auto set_rented |
 | `NO_WRITE` | nein | `false` | Reiner Lese-/Loglauf, überstimmt alles |
+| `IGNORE_CHECKMARK` | nein | `false` | Nur mit `NO_WRITE=true`: auch Digests mit ✅ noch einmal lesen (Mess-Lauf über alte Digests) |
 | `SCAN_HOURS` | nein | `27` | Scan-Fenster (deckt den ~22:18-CEST-Digest des Vortags + Überlappung ab) |
 | `SCAN_LATEST_HOURS` | nein | `0` | Obere Fenstergrenze (0 = bis jetzt), für Backfill |
 | `DECISION_LOG_PATH` | nein | `newsletter_decisions.jsonl` | Pfad des Entscheidungslogs |

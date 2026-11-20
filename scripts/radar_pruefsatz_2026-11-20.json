@@ -1,0 +1,2201 @@
+{
+ "stand": "20.11.2026",
+ "hinweis": "Prüfsatz für die Zuordnung im Newsletter-Handler: die 129 Review-Aufgaben vom 13.07. bis 19.11.2026 mit dem Urteil aus Vorprüfung und Nachprüfung. gemeint = die Einheiten, um die es wirklich ging (heute alle geschlossen); nicht_gemeint = von der KI gewählt, aber falsch; offen = fraglich oder freier Rest. Auswertung: scripts/radar_zuordnung_messen.py.",
+ "zeilen": [
+  {
+   "aufgabe": 141442074,
+   "angelegt": "2026-07-11",
+   "digest_ts": "1783714740.975769",
+   "objekt": "Trammel Crow / CBRE IM",
+   "mieter": "GVS Group",
+   "vermieter": "Trammel Crow (TCC) und CBRE IM",
+   "groesse": "10000",
+   "urteil": "fremd",
+   "ort": "Schönefeld",
+   "gemeint": [],
+   "nicht_gemeint": [
+    5287718
+   ],
+   "offen": []
+  },
+  {
+   "aufgabe": 141442075,
+   "angelegt": "2026-07-11",
+   "digest_ts": "1783714740.975769",
+   "objekt": "AVENTOS Group",
+   "mieter": "WKM Medizintechnik GmbH",
+   "vermieter": "AVENTOS Group",
+   "groesse": "2730",
+   "urteil": "fremd",
+   "ort": "Mülheim",
+   "gemeint": [],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 141790213,
+   "angelegt": "2026-07-14",
+   "digest_ts": "1783973970.291809",
+   "objekt": "Verdion PremierPark Berlin",
+   "mieter": "Brabus Automotive",
+   "vermieter": "Verdion",
+   "groesse": null,
+   "urteil": "fremd",
+   "ort": "Ludwigsfelde",
+   "gemeint": [],
+   "nicht_gemeint": [
+    4485900
+   ],
+   "offen": []
+  },
+  {
+   "aufgabe": 141790214,
+   "angelegt": "2026-07-14",
+   "digest_ts": "1783973970.291809",
+   "objekt": "Garbe Industrial",
+   "mieter": "Garpa",
+   "vermieter": "Garbe Industrial",
+   "groesse": null,
+   "urteil": "fremd",
+   "ort": "Ort unbekannt",
+   "gemeint": [],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 142005070,
+   "angelegt": "2026-07-15",
+   "digest_ts": "1784060331.800589",
+   "objekt": "Prologis Park Hannover Airport DC3",
+   "mieter": null,
+   "vermieter": null,
+   "groesse": "7000",
+   "urteil": "fremd",
+   "ort": "Hannover Airport",
+   "gemeint": [],
+   "nicht_gemeint": [
+    2778439
+   ],
+   "offen": []
+  },
+  {
+   "aufgabe": 142072025,
+   "angelegt": "2026-07-16",
+   "digest_ts": "1784146746.395649",
+   "objekt": "Beate Protze Immobilien",
+   "mieter": null,
+   "vermieter": null,
+   "groesse": "900",
+   "urteil": "fremd",
+   "ort": "Hamburg",
+   "gemeint": [],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 142072027,
+   "angelegt": "2026-07-16",
+   "digest_ts": "1784146746.395649",
+   "objekt": "Garbe",
+   "mieter": "Goodcang",
+   "vermieter": "Garbe",
+   "groesse": null,
+   "urteil": "erledigt",
+   "ort": "Duisburg-Rheinhausen, Hamburger Straße 40",
+   "gemeint": [
+    3195774
+   ],
+   "nicht_gemeint": [
+    5675134
+   ],
+   "offen": []
+  },
+  {
+   "aufgabe": 142072028,
+   "angelegt": "2026-07-16",
+   "digest_ts": "1784146746.395649",
+   "objekt": "P3",
+   "mieter": "Prodinger",
+   "vermieter": "P3",
+   "groesse": null,
+   "urteil": "schwach",
+   "ort": "Ort unbekannt",
+   "gemeint": [],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 142300323,
+   "angelegt": "2026-07-17",
+   "digest_ts": "1784233143.856499",
+   "objekt": "TCC / CBRE IM",
+   "mieter": null,
+   "vermieter": "TCC und CBRE IM",
+   "groesse": "10000",
+   "urteil": "fremd",
+   "ort": "Schönefeld",
+   "gemeint": [],
+   "nicht_gemeint": [
+    5287718
+   ],
+   "offen": []
+  },
+  {
+   "aufgabe": 142593229,
+   "angelegt": "2026-07-21",
+   "digest_ts": "1784578715.806279",
+   "objekt": "FlexCity Mülheim",
+   "mieter": "JW Fulfilment DUS GmbH",
+   "vermieter": "Frasers Property Industrial",
+   "groesse": null,
+   "urteil": "erledigt",
+   "ort": "Mülheim an der Ruhr, Flex City",
+   "gemeint": [
+    4807585,
+    4807591
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 142704433,
+   "angelegt": "2026-07-22",
+   "digest_ts": "1784665128.132929",
+   "objekt": "Flexcity",
+   "mieter": "JW Fulfillment DUS",
+   "vermieter": "Frasers",
+   "groesse": "15700",
+   "urteil": "erledigt",
+   "ort": "Mülheim an der Ruhr, Flex City",
+   "gemeint": [
+    4807585,
+    4807591
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 142863337,
+   "angelegt": "2026-07-24",
+   "digest_ts": "1784837925.882309",
+   "objekt": "TCC / Cain Logistikzentrum Kerpen",
+   "mieter": "GoodCang Logistics",
+   "vermieter": "TCC und Cain",
+   "groesse": null,
+   "urteil": "schwach",
+   "ort": "Kerpen",
+   "gemeint": [],
+   "nicht_gemeint": [],
+   "offen": [
+    2777871,
+    2777971,
+    2777951
+   ]
+  },
+  {
+   "aufgabe": 142863338,
+   "angelegt": "2026-07-24",
+   "digest_ts": "1784837925.882309",
+   "objekt": "Garbe Industrial Neubaufläche Salzgitter",
+   "mieter": "Alstom",
+   "vermieter": "Garbe Industrial",
+   "groesse": "31000",
+   "urteil": "eintragen",
+   "ort": "Salzgitter, Gottfried-Linke-Straße 91",
+   "gemeint": [
+    2777978
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 142863339,
+   "angelegt": "2026-07-24",
+   "digest_ts": "1784837925.882309",
+   "objekt": "Flexcity (Frasers)",
+   "mieter": "JW Fulfillment DUS",
+   "vermieter": "Frasers",
+   "groesse": "15700",
+   "urteil": "erledigt",
+   "ort": "Mülheim an der Ruhr, Flex City",
+   "gemeint": [
+    4807585,
+    4807591
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 142984606,
+   "angelegt": "2026-07-25",
+   "digest_ts": "1784924327.443799",
+   "objekt": "Prologis Park Waltershof",
+   "mieter": "Blitz Distribution",
+   "vermieter": "Prologis",
+   "groesse": "20800",
+   "urteil": "fremd",
+   "ort": "Hamburg-Waltershof",
+   "gemeint": [],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 142984607,
+   "angelegt": "2026-07-25",
+   "digest_ts": "1784924327.443799",
+   "objekt": "TCC Logistikzentrum Kerpen",
+   "mieter": "GoodCang Logistics",
+   "vermieter": "TCC",
+   "groesse": null,
+   "urteil": "schwach",
+   "ort": "Kerpen",
+   "gemeint": [],
+   "nicht_gemeint": [],
+   "offen": [
+    2777871,
+    2777971,
+    2777951
+   ]
+  },
+  {
+   "aufgabe": 142984608,
+   "angelegt": "2026-07-25",
+   "digest_ts": "1784924327.443799",
+   "objekt": "Frasers FlexCity",
+   "mieter": "JW Fulfilment",
+   "vermieter": "Frasers",
+   "groesse": "15700",
+   "urteil": "erledigt",
+   "ort": "Mülheim an der Ruhr, Flex City",
+   "gemeint": [
+    4807585,
+    4807591
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 143163108,
+   "angelegt": "2026-07-28",
+   "digest_ts": "1785183546.766779",
+   "objekt": "Panattoni Park Friedewald",
+   "mieter": "4PL Central Station Gruppe",
+   "vermieter": "Panattoni",
+   "groesse": "23600",
+   "urteil": "erledigt",
+   "ort": "Friedewald, Im Gewerbegebiet",
+   "gemeint": [
+    2777895
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 143314331,
+   "angelegt": "2026-07-30",
+   "digest_ts": "1785356321.441229",
+   "objekt": "Aconlog",
+   "mieter": "WISAG Logistics Solutions Nord-West",
+   "vermieter": "Aconlog",
+   "groesse": "9150",
+   "urteil": "erledigt",
+   "ort": "Viersen, Industriering 21",
+   "gemeint": [
+    5017655,
+    3688448,
+    5050165,
+    5050187
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 143382465,
+   "angelegt": "2026-07-31",
+   "digest_ts": "1785442761.423869",
+   "objekt": "Logistikzentrum Wesel",
+   "mieter": "Rhenus, Schwalbe",
+   "vermieter": null,
+   "groesse": null,
+   "urteil": "schwach",
+   "ort": "Wesel, Schepersweg",
+   "gemeint": [],
+   "nicht_gemeint": [],
+   "offen": [
+    2778493
+   ]
+  },
+  {
+   "aufgabe": 143382474,
+   "angelegt": "2026-07-31",
+   "digest_ts": "1785442761.423869",
+   "objekt": "Thelen-Objekt Bochum",
+   "mieter": "Apex",
+   "vermieter": "Thelen",
+   "groesse": "24500",
+   "urteil": "fremd",
+   "ort": "Witten, Brauckstraße 26",
+   "gemeint": [],
+   "nicht_gemeint": [
+    2777873
+   ],
+   "offen": [
+    2778288
+   ]
+  },
+  {
+   "aufgabe": 143382479,
+   "angelegt": "2026-07-31",
+   "digest_ts": "1785442761.423869",
+   "objekt": "Four Parx Dreieich Airport",
+   "mieter": null,
+   "vermieter": "Four Parx",
+   "groesse": null,
+   "urteil": "schwach",
+   "ort": "Dreieich, In der Luxhohl 2",
+   "gemeint": [
+    5759605
+   ],
+   "nicht_gemeint": [],
+   "offen": [
+    2777828
+   ]
+  },
+  {
+   "aufgabe": 143382485,
+   "angelegt": "2026-07-31",
+   "digest_ts": "1785442761.423869",
+   "objekt": "Flex City Mülheim",
+   "mieter": "Logistik-Dienstleister im E-Commerce",
+   "vermieter": "Frasers Property Industrial",
+   "groesse": "8000",
+   "urteil": "unbestimmt",
+   "ort": "Mülheim an der Ruhr, Flex City",
+   "gemeint": [],
+   "nicht_gemeint": [],
+   "offen": [
+    4807608
+   ]
+  },
+  {
+   "aufgabe": 143382495,
+   "angelegt": "2026-07-31",
+   "digest_ts": "1785442761.423869",
+   "objekt": "Aconlog-Logistikzentrum Viersen",
+   "mieter": "Wisag Logistics Solutions Nord-West, Sunday Natural",
+   "vermieter": "Aconlog",
+   "groesse": null,
+   "urteil": "erledigt",
+   "ort": "Viersen, Industriering 21",
+   "gemeint": [
+    5017655,
+    3688448,
+    5050165,
+    5050187
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 143450889,
+   "angelegt": "2026-08-01",
+   "digest_ts": "1785529115.191699",
+   "objekt": "Verdion VELF-1-Fonds",
+   "mieter": null,
+   "vermieter": "Verdion",
+   "groesse": "11872",
+   "urteil": "schwach",
+   "ort": "Schkeuditz, Paul-Thiersch-Straße 13",
+   "gemeint": [],
+   "nicht_gemeint": [],
+   "offen": [
+    3735442
+   ]
+  },
+  {
+   "aufgabe": 143466922,
+   "angelegt": "2026-08-02",
+   "digest_ts": "1785615502.802279",
+   "objekt": "Unternehmerpark Köln-Porz",
+   "mieter": null,
+   "vermieter": "Aurelis",
+   "groesse": null,
+   "urteil": "schwach",
+   "ort": "Köln-Porz, Josef-Linden-Weg 18",
+   "gemeint": [],
+   "nicht_gemeint": [],
+   "offen": [
+    5220375
+   ]
+  },
+  {
+   "aufgabe": 143466925,
+   "angelegt": "2026-08-02",
+   "digest_ts": "1785615502.802279",
+   "objekt": "Aconlog Brownfield-Logistikneubau Viersen",
+   "mieter": null,
+   "vermieter": "Aconlog",
+   "groesse": null,
+   "urteil": "erledigt",
+   "ort": "Viersen, Industriering 21",
+   "gemeint": [
+    5017655,
+    3688448,
+    5050165,
+    5050187
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 143673033,
+   "angelegt": "2026-08-05",
+   "digest_ts": "1785874737.455549",
+   "objekt": "bauwo Grundstücksgesellschaft mbH",
+   "mieter": null,
+   "vermieter": "bauwo Grundstücksgesellschaft mbH",
+   "groesse": null,
+   "urteil": "erledigt",
+   "ort": "Zeven, Tannenkamp 24",
+   "gemeint": [
+    3875667
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 143860467,
+   "angelegt": "2026-08-07",
+   "digest_ts": "1786047549.926119",
+   "objekt": "Duisburg",
+   "mieter": "Goodcang",
+   "vermieter": null,
+   "groesse": "29000",
+   "urteil": "erledigt",
+   "ort": "Duisburg-Rheinhausen, Hamburger Straße 40",
+   "gemeint": [
+    3195774
+   ],
+   "nicht_gemeint": [
+    5675134
+   ],
+   "offen": []
+  },
+  {
+   "aufgabe": 143860471,
+   "angelegt": "2026-08-07",
+   "digest_ts": "1786047549.949489",
+   "objekt": "Bauwo Grundstücksgesellschaft mbH",
+   "mieter": "Logistikdienstleister",
+   "vermieter": "Bauwo Grundstücksgesellschaft mbH",
+   "groesse": "52000",
+   "urteil": "fremd",
+   "ort": "Dombühl",
+   "gemeint": [],
+   "nicht_gemeint": [
+    5770683
+   ],
+   "offen": []
+  },
+  {
+   "aufgabe": 143939299,
+   "angelegt": "2026-08-08",
+   "digest_ts": "1786133925.296069",
+   "objekt": "GLP",
+   "mieter": "Coca-Cola",
+   "vermieter": "GLP",
+   "groesse": null,
+   "urteil": "schwach",
+   "ort": "Mönchengladbach, Regioparkring 10",
+   "gemeint": [],
+   "nicht_gemeint": [],
+   "offen": [
+    2778486
+   ]
+  },
+  {
+   "aufgabe": 143939300,
+   "angelegt": "2026-08-08",
+   "digest_ts": "1786133925.296069",
+   "objekt": "Aconlog Logistikzentrum Viersen",
+   "mieter": null,
+   "vermieter": null,
+   "groesse": "17000",
+   "urteil": "erledigt",
+   "ort": "Viersen, Industriering 21",
+   "gemeint": [
+    5017655,
+    3688448,
+    5050165,
+    5050187
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 144132108,
+   "angelegt": "2026-08-11",
+   "digest_ts": "1786393117.588989",
+   "objekt": "Alcaro Invest",
+   "mieter": "Logistikdienstleister",
+   "vermieter": "Alcaro Invest",
+   "groesse": null,
+   "urteil": "eintragen",
+   "ort": "Frankfurt (Oder), Log Plaza",
+   "gemeint": [
+    5050191,
+    5050066,
+    5054002,
+    5054026,
+    5054059,
+    5054080,
+    5054095,
+    5050565,
+    5050578,
+    5050591,
+    5050043
+   ],
+   "nicht_gemeint": [],
+   "offen": [
+    5033678,
+    5033679,
+    5033680,
+    5033681
+   ]
+  },
+  {
+   "aufgabe": 144194223,
+   "angelegt": "2026-08-12",
+   "digest_ts": "1786479527.282429",
+   "objekt": "ConneKT 34 Kitzingen",
+   "mieter": "Textildienstleister",
+   "vermieter": "Cabot Properties",
+   "groesse": "6700",
+   "urteil": "eintragen",
+   "ort": "Kitzingen, ConneKT 34",
+   "gemeint": [
+    3124232
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 144194226,
+   "angelegt": "2026-08-12",
+   "digest_ts": "1786479527.282429",
+   "objekt": "Unternehmerpark München-Aubing",
+   "mieter": "Landeshauptstadt München",
+   "vermieter": "Aurelis Real Estate GmbH",
+   "groesse": "7000",
+   "urteil": "fremd",
+   "ort": "München-Aubing",
+   "gemeint": [],
+   "nicht_gemeint": [
+    5769418
+   ],
+   "offen": []
+  },
+  {
+   "aufgabe": 144194229,
+   "angelegt": "2026-08-12",
+   "digest_ts": "1786479527.282429",
+   "objekt": "Prologis Park Hannover Airport DC3",
+   "mieter": "Technologieunternehmen",
+   "vermieter": "Prologis",
+   "groesse": "7000",
+   "urteil": "fremd",
+   "ort": "Hannover Airport",
+   "gemeint": [],
+   "nicht_gemeint": [
+    2778439
+   ],
+   "offen": []
+  },
+  {
+   "aufgabe": 144322014,
+   "angelegt": "2026-08-14",
+   "digest_ts": "1786652315.967499",
+   "objekt": "Maersk Deutschland",
+   "mieter": "Maersk Deutschland",
+   "vermieter": null,
+   "groesse": "12000",
+   "urteil": "fremd",
+   "ort": "Hamburg",
+   "gemeint": [],
+   "nicht_gemeint": [
+    5766142
+   ],
+   "offen": []
+  },
+  {
+   "aufgabe": 144322018,
+   "angelegt": "2026-08-14",
+   "digest_ts": "1786652315.967499",
+   "objekt": "Panattoni Park Mainz Süd",
+   "mieter": "Coating Concepts GmbH",
+   "vermieter": "Panattoni",
+   "groesse": "9400",
+   "urteil": "eintragen",
+   "ort": "Erbes-Büdesheim, Am Sand 10",
+   "gemeint": [
+    3955049
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 144478176,
+   "angelegt": "2026-08-15",
+   "digest_ts": "1786738718.948899",
+   "objekt": "TCC / CBRE IM",
+   "mieter": "Metro-Tochter GVS Group",
+   "vermieter": "TCC / CBRE IM",
+   "groesse": null,
+   "urteil": "fremd",
+   "ort": "Schönefeld",
+   "gemeint": [],
+   "nicht_gemeint": [
+    5287718
+   ],
+   "offen": []
+  },
+  {
+   "aufgabe": 144478178,
+   "angelegt": "2026-08-15",
+   "digest_ts": "1786738718.948899",
+   "objekt": "Panattoni Park Friedewald",
+   "mieter": "4PLCS",
+   "vermieter": "Panattoni",
+   "groesse": null,
+   "urteil": "erledigt",
+   "ort": "Friedewald, Im Gewerbegebiet",
+   "gemeint": [
+    2777895
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 144510581,
+   "angelegt": "2026-08-17",
+   "digest_ts": "1786911495.950579",
+   "objekt": "Alcaro Logistikhalle 2",
+   "mieter": "Ceva Logistics",
+   "vermieter": "Alcaro",
+   "groesse": null,
+   "urteil": "eintragen",
+   "ort": "Frankfurt (Oder), Log Plaza",
+   "gemeint": [
+    5050191,
+    5050066,
+    5054002,
+    5054026,
+    5054059,
+    5054080,
+    5054095,
+    5050565,
+    5050578,
+    5050591,
+    5050043
+   ],
+   "nicht_gemeint": [],
+   "offen": [
+    5033678,
+    5033679,
+    5033680,
+    5033681
+   ]
+  },
+  {
+   "aufgabe": 145260125,
+   "angelegt": "2026-08-20",
+   "digest_ts": "1787170726.218239",
+   "objekt": "Bauer Property",
+   "mieter": "Novatrans",
+   "vermieter": "Bauer Property GmbH &amp; Co. KG",
+   "groesse": "11081",
+   "urteil": "schwach",
+   "ort": "Köln-Niehl oder Frechen",
+   "gemeint": [],
+   "nicht_gemeint": [
+    5766481
+   ],
+   "offen": [
+    2778001
+   ]
+  },
+  {
+   "aufgabe": 145564174,
+   "angelegt": "2026-08-22",
+   "digest_ts": "1787343519.603979",
+   "objekt": "Garbe",
+   "mieter": "Fahrzeughersteller",
+   "vermieter": "Garbe",
+   "groesse": null,
+   "urteil": "schwach",
+   "ort": "Ludwigsfelde",
+   "gemeint": [],
+   "nicht_gemeint": [
+    5769820
+   ],
+   "offen": [
+    5885054
+   ]
+  },
+  {
+   "aufgabe": 146321478,
+   "angelegt": "2026-08-28",
+   "digest_ts": "1787861924.968709",
+   "objekt": "Logicor",
+   "mieter": "Novatrans",
+   "vermieter": "Bauer Property",
+   "groesse": "11000",
+   "urteil": "schwach",
+   "ort": "Köln-Niehl oder Frechen",
+   "gemeint": [],
+   "nicht_gemeint": [
+    5766481
+   ],
+   "offen": [
+    2778001
+   ]
+  },
+  {
+   "aufgabe": 146321490,
+   "angelegt": "2026-08-28",
+   "digest_ts": "1787861924.968709",
+   "objekt": "Garbe Industrial Real Estate",
+   "mieter": "Dieseo",
+   "vermieter": "Garbe Industrial Real Estate",
+   "groesse": null,
+   "urteil": "eintragen",
+   "ort": "Lensahn, Schwienkuhler Weg",
+   "gemeint": [
+    3228009
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 146321501,
+   "angelegt": "2026-08-28",
+   "digest_ts": "1787861924.968709",
+   "objekt": "Triport",
+   "mieter": "HGK Häfen und Güterverkehr Köln",
+   "vermieter": null,
+   "groesse": null,
+   "urteil": "teil",
+   "ort": "Hamburg-Harburg, Triport",
+   "gemeint": [],
+   "nicht_gemeint": [],
+   "offen": [
+    5766142
+   ]
+  },
+  {
+   "aufgabe": 147920896,
+   "angelegt": "2026-09-02",
+   "digest_ts": "1788294066.995509",
+   "objekt": "Temu",
+   "mieter": "Temu",
+   "vermieter": null,
+   "groesse": "4000",
+   "urteil": "schwach",
+   "ort": "Emmerich",
+   "gemeint": [],
+   "nicht_gemeint": [
+    2778249
+   ],
+   "offen": []
+  },
+  {
+   "aufgabe": 147920936,
+   "angelegt": "2026-09-02",
+   "digest_ts": "1788294066.995509",
+   "objekt": "Verdion PremierPark Berlin",
+   "mieter": "Brabus Automotive",
+   "vermieter": "Verdion",
+   "groesse": null,
+   "urteil": "fremd",
+   "ort": "Ludwigsfelde",
+   "gemeint": [],
+   "nicht_gemeint": [
+    4485900
+   ],
+   "offen": []
+  },
+  {
+   "aufgabe": 147920968,
+   "angelegt": "2026-09-02",
+   "digest_ts": "1788294066.995509",
+   "objekt": "P3 Logistic Parks",
+   "mieter": "De Haas Road Cargo",
+   "vermieter": "P3 Logistic Parks",
+   "groesse": "4250",
+   "urteil": "erledigt",
+   "ort": "Weiterstadt, Gutenbergstraße 19",
+   "gemeint": [
+    5288058
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 151949386,
+   "angelegt": "2026-09-09",
+   "digest_ts": "1788898756.191649",
+   "objekt": "Hillwood",
+   "mieter": "asiatisches E-Commerce-Unternehmen",
+   "vermieter": "Hillwood",
+   "groesse": "18400",
+   "urteil": "erledigt",
+   "ort": "Oberhausen, Im Waldteich 10",
+   "gemeint": [
+    3147067,
+    3147070
+   ],
+   "nicht_gemeint": [
+    5407874
+   ],
+   "offen": []
+  },
+  {
+   "aufgabe": 151949399,
+   "angelegt": "2026-09-09",
+   "digest_ts": "1788898756.191649",
+   "objekt": "Maintrans Gruppe",
+   "mieter": "Maintrans Gruppe",
+   "vermieter": null,
+   "groesse": "9000",
+   "urteil": "fremd",
+   "ort": "Pulheim",
+   "gemeint": [],
+   "nicht_gemeint": [
+    3637203
+   ],
+   "offen": []
+  },
+  {
+   "aufgabe": 151949413,
+   "angelegt": "2026-09-09",
+   "digest_ts": "1788898756.191649",
+   "objekt": "CTPark Krefeld",
+   "mieter": "internationaler Stahlkonzern",
+   "vermieter": "CTP",
+   "groesse": "19000",
+   "urteil": "eintragen",
+   "ort": "Krefeld, CTPark",
+   "gemeint": [
+    5381316
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 151949435,
+   "angelegt": "2026-09-09",
+   "digest_ts": "1788898756.191649",
+   "objekt": "Industrie- und Gewerbepark LINK",
+   "mieter": "Schäflein AG",
+   "vermieter": "Frasers Property Industrial",
+   "groesse": null,
+   "urteil": "unbestimmt",
+   "ort": "Günzburg, Hendrik-Lorentz-Straße 4-8",
+   "gemeint": [],
+   "nicht_gemeint": [],
+   "offen": [
+    5766119,
+    5766120,
+    5766121
+   ]
+  },
+  {
+   "aufgabe": 152037969,
+   "angelegt": "2026-09-10",
+   "digest_ts": "1788985136.159439",
+   "objekt": "Frasers Property Industrial",
+   "mieter": null,
+   "vermieter": "Frasers Property Industrial",
+   "groesse": "15200",
+   "urteil": "unbestimmt",
+   "ort": "Günzburg, Hendrik-Lorentz-Straße 4-8",
+   "gemeint": [],
+   "nicht_gemeint": [],
+   "offen": [
+    5766119,
+    5766120,
+    5766121
+   ]
+  },
+  {
+   "aufgabe": 152438255,
+   "angelegt": "2026-09-11",
+   "digest_ts": "1789071553.055299",
+   "objekt": "Hamburger Triport",
+   "mieter": "HGK Logistics and Intermodal",
+   "vermieter": "Four Parx",
+   "groesse": null,
+   "urteil": "teil",
+   "ort": "Hamburg-Harburg, Triport",
+   "gemeint": [],
+   "nicht_gemeint": [],
+   "offen": [
+    5766142
+   ]
+  },
+  {
+   "aufgabe": 152521368,
+   "angelegt": "2026-09-12",
+   "digest_ts": "1789157956.194329",
+   "objekt": "Gewerbecampus Delmenhorst",
+   "mieter": "internationaler Logistikdienstleister",
+   "vermieter": null,
+   "groesse": null,
+   "urteil": "erledigt",
+   "ort": "Delmenhorst, Gewerbecampus",
+   "gemeint": [
+    5220245
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 152521374,
+   "angelegt": "2026-09-12",
+   "digest_ts": "1789157956.194329",
+   "objekt": "Aconlog",
+   "mieter": null,
+   "vermieter": "Aconlog",
+   "groesse": "17000",
+   "urteil": "erledigt",
+   "ort": "Viersen, Industriering 21",
+   "gemeint": [
+    5017655,
+    3688448,
+    5050165,
+    5050187
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 153112668,
+   "angelegt": "2026-09-17",
+   "digest_ts": "1789589940.787029",
+   "objekt": "Propel Industrial Logistikpark Langenselbold",
+   "mieter": "Logistikdienstleister für E-Commerce und Industriekunden",
+   "vermieter": "Propel Industrial / Invesco Real Estate",
+   "groesse": "6250",
+   "urteil": "erledigt",
+   "ort": "Langenselbold, Diebacher Weg",
+   "gemeint": [
+    3158483,
+    3158486,
+    3158488
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 153112717,
+   "angelegt": "2026-09-17",
+   "digest_ts": "1789589940.787029",
+   "objekt": "Flex City (Frasers Property)",
+   "mieter": "chinesischer E-Commerce-Logistikdienstleister",
+   "vermieter": "Frasers Property",
+   "groesse": null,
+   "urteil": "erledigt",
+   "ort": "Mülheim an der Ruhr, Flex City",
+   "gemeint": [
+    4807585,
+    4807591
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 153112790,
+   "angelegt": "2026-09-17",
+   "digest_ts": "1789589940.787029",
+   "objekt": "Wulfshofstraße 18",
+   "mieter": null,
+   "vermieter": "ADOLF WEBER West",
+   "groesse": "7100",
+   "urteil": "eintragen",
+   "ort": "Dortmund, Wulfshofstraße 18",
+   "gemeint": [
+    2778280
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 153281474,
+   "angelegt": "2026-09-18",
+   "digest_ts": "1789676335.243859",
+   "objekt": "Panattoni Park Offenbach",
+   "mieter": "GKN Driveline Deutschland GmbH (Dauch)",
+   "vermieter": "Panattoni",
+   "groesse": null,
+   "urteil": "fremd",
+   "ort": "Offenbach",
+   "gemeint": [],
+   "nicht_gemeint": [
+    5769386
+   ],
+   "offen": []
+  },
+  {
+   "aufgabe": 153281627,
+   "angelegt": "2026-09-18",
+   "digest_ts": "1789676335.243859",
+   "objekt": "Rheindocks (Werft68)",
+   "mieter": null,
+   "vermieter": "BEOS",
+   "groesse": null,
+   "urteil": "schwach",
+   "ort": "Düsseldorf-Reisholz, Reisholzer Werftstraße 68",
+   "gemeint": [],
+   "nicht_gemeint": [],
+   "offen": [
+    2778235
+   ]
+  },
+  {
+   "aufgabe": 153615838,
+   "angelegt": "2026-09-22",
+   "digest_ts": "1790021904.661779",
+   "objekt": "Mileway",
+   "mieter": "ZXD Global GmbH",
+   "vermieter": "Mileway",
+   "groesse": "3000",
+   "urteil": "erledigt",
+   "ort": "Babenhausen, Ostheimer Weg 3",
+   "gemeint": [
+    3726299
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 153719035,
+   "angelegt": "2026-09-23",
+   "digest_ts": "1790108333.357439",
+   "objekt": "Bauwo",
+   "mieter": "OTG",
+   "vermieter": "Bauwo",
+   "groesse": null,
+   "urteil": "erledigt",
+   "ort": "Soltau, Beim Schäferkreuz",
+   "gemeint": [
+    5770696,
+    5770697
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 153847868,
+   "angelegt": "2026-09-25",
+   "digest_ts": "1790281116.530109",
+   "objekt": "Logicor",
+   "mieter": "international tätiges Transport- und Logistikunternehmen",
+   "vermieter": "Logicor",
+   "groesse": "28000",
+   "urteil": "unbestimmt",
+   "ort": "Nieder-Olm, Am Giener 2",
+   "gemeint": [],
+   "nicht_gemeint": [],
+   "offen": [
+    5766483
+   ]
+  },
+  {
+   "aufgabe": 153847928,
+   "angelegt": "2026-09-25",
+   "digest_ts": "1790281116.530109",
+   "objekt": "Panattoni Park Bad Hersfeld Ost",
+   "mieter": "Maersk",
+   "vermieter": "Panattoni",
+   "groesse": "71800",
+   "urteil": "fremd",
+   "ort": "Bad Hersfeld Ost",
+   "gemeint": [],
+   "nicht_gemeint": [
+    5770700
+   ],
+   "offen": []
+  },
+  {
+   "aufgabe": 153847959,
+   "angelegt": "2026-09-25",
+   "digest_ts": "1790281116.530109",
+   "objekt": "VGP Deutschland",
+   "mieter": "Movianto",
+   "vermieter": "VGP Deutschland",
+   "groesse": "44400",
+   "urteil": "eintragen",
+   "ort": "Wiesloch, Gutenbergring",
+   "gemeint": [
+    3181692
+   ],
+   "nicht_gemeint": [],
+   "offen": [
+    3181688,
+    5769818
+   ]
+  },
+  {
+   "aufgabe": 153940083,
+   "angelegt": "2026-09-26",
+   "digest_ts": "1790367532.374349",
+   "objekt": "Logistikpark Rheinau",
+   "mieter": "europaweit expandierendes Unternehmen",
+   "vermieter": "Bauwo",
+   "groesse": "20000",
+   "urteil": "erledigt",
+   "ort": "Rheinau, Rheinstraße 110",
+   "gemeint": [
+    6175670,
+    6175671
+   ],
+   "nicht_gemeint": [
+    5770682
+   ],
+   "offen": []
+  },
+  {
+   "aufgabe": 154405188,
+   "angelegt": "2026-09-29",
+   "digest_ts": "1790626756.799159",
+   "objekt": "VGP Park Wiesloch-Walldorf",
+   "mieter": "Movianto",
+   "vermieter": "VGP",
+   "groesse": "30000",
+   "urteil": "eintragen",
+   "ort": "Wiesloch, Gutenbergring",
+   "gemeint": [
+    3181692
+   ],
+   "nicht_gemeint": [],
+   "offen": [
+    3181688,
+    5769818
+   ]
+  },
+  {
+   "aufgabe": 154753285,
+   "angelegt": "2026-09-30",
+   "digest_ts": "1790713159.922739",
+   "objekt": "CTP",
+   "mieter": "Wezel GmbH Kaltumformtechnik",
+   "vermieter": "CTP",
+   "groesse": "8800",
+   "urteil": "fremd",
+   "ort": "Frickenhausen",
+   "gemeint": [],
+   "nicht_gemeint": [
+    5769426
+   ],
+   "offen": []
+  },
+  {
+   "aufgabe": 154753322,
+   "angelegt": "2026-09-30",
+   "digest_ts": "1790713159.922739",
+   "objekt": "Panattoni Park Friedewald",
+   "mieter": "4PLCS",
+   "vermieter": "Panattoni",
+   "groesse": null,
+   "urteil": "erledigt",
+   "ort": "Friedewald, Im Gewerbegebiet",
+   "gemeint": [
+    2777895
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 154753341,
+   "angelegt": "2026-09-30",
+   "digest_ts": "1790713159.922739",
+   "objekt": "Garbe Industrial",
+   "mieter": "Toolport",
+   "vermieter": "Garbe Industrial",
+   "groesse": "18500",
+   "urteil": "fremd",
+   "ort": "Norderstedt",
+   "gemeint": [],
+   "nicht_gemeint": [
+    5769392
+   ],
+   "offen": []
+  },
+  {
+   "aufgabe": 154753394,
+   "angelegt": "2026-09-30",
+   "digest_ts": "1790713159.955819",
+   "objekt": "Garbe Gewerbepark Soest",
+   "mieter": "Sebold Group",
+   "vermieter": "Garbe",
+   "groesse": null,
+   "urteil": "fremd",
+   "ort": "Soest",
+   "gemeint": [],
+   "nicht_gemeint": [
+    5422103
+   ],
+   "offen": []
+  },
+  {
+   "aufgabe": 154859866,
+   "angelegt": "2026-10-01",
+   "digest_ts": "1790799537.162229",
+   "objekt": "Patron Capital / Inbright",
+   "mieter": "Schnellecke Transportlogistik",
+   "vermieter": "Patron Capital / Inbright",
+   "groesse": "16000",
+   "urteil": "schwach",
+   "ort": "Ludwigsfelde",
+   "gemeint": [],
+   "nicht_gemeint": [
+    5769820
+   ],
+   "offen": [
+    5885054
+   ]
+  },
+  {
+   "aufgabe": 154919021,
+   "angelegt": "2026-10-02",
+   "digest_ts": "1790885999.030819",
+   "objekt": "REALOGIS",
+   "mieter": null,
+   "vermieter": null,
+   "groesse": "3200",
+   "urteil": "schwach",
+   "ort": "Flörsheim, Schieferstein 11",
+   "gemeint": [],
+   "nicht_gemeint": [],
+   "offen": [
+    5770055,
+    5770056
+   ]
+  },
+  {
+   "aufgabe": 154919149,
+   "angelegt": "2026-10-02",
+   "digest_ts": "1790885999.055059",
+   "objekt": "Garbe Logistikpark Logport II",
+   "mieter": "JD",
+   "vermieter": "Garbe",
+   "groesse": null,
+   "urteil": "schwach",
+   "ort": "Duisburg, logport II",
+   "gemeint": [],
+   "nicht_gemeint": [
+    2778242
+   ],
+   "offen": []
+  },
+  {
+   "aufgabe": 154919184,
+   "angelegt": "2026-10-02",
+   "digest_ts": "1790885999.055059",
+   "objekt": "Tishman Speyer",
+   "mieter": null,
+   "vermieter": "Tishman Speyer",
+   "groesse": "22900",
+   "urteil": "erledigt",
+   "ort": "Düsseldorf, Clarissenstraße 44-50",
+   "gemeint": [
+    2778554
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 155754035,
+   "angelegt": "2026-10-06",
+   "digest_ts": "1791231543.498639",
+   "objekt": "CTP",
+   "mieter": "Hippocampus",
+   "vermieter": "CTP",
+   "groesse": null,
+   "urteil": "erledigt",
+   "ort": "Solingen, Nümmener Feld 10",
+   "gemeint": [
+    5137253
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 155898725,
+   "angelegt": "2026-10-08",
+   "digest_ts": "1791404352.485259",
+   "objekt": "VGP-Park Rostock",
+   "mieter": "Nagel Group",
+   "vermieter": "VGP",
+   "groesse": null,
+   "urteil": "teil",
+   "ort": "Rostock, VGP Park",
+   "gemeint": [],
+   "nicht_gemeint": [
+    5765585
+   ],
+   "offen": [
+    5769821
+   ]
+  },
+  {
+   "aufgabe": 155898775,
+   "angelegt": "2026-10-08",
+   "digest_ts": "1791404352.485259",
+   "objekt": "Prologis (ehem. Areal Klingel Gruppe)",
+   "mieter": null,
+   "vermieter": "Prologis",
+   "groesse": null,
+   "urteil": "schwach",
+   "ort": "Pforzheim, Im Altgefäll 11",
+   "gemeint": [],
+   "nicht_gemeint": [],
+   "offen": [
+    5768895
+   ]
+  },
+  {
+   "aufgabe": 155963944,
+   "angelegt": "2026-10-09",
+   "digest_ts": "1791490775.088439",
+   "objekt": "Allermöhe",
+   "mieter": null,
+   "vermieter": null,
+   "groesse": null,
+   "urteil": "fremd",
+   "ort": "Hamburg-Allermöhe",
+   "gemeint": [],
+   "nicht_gemeint": [
+    3964494
+   ],
+   "offen": []
+  },
+  {
+   "aufgabe": 155963981,
+   "angelegt": "2026-10-09",
+   "digest_ts": "1791490775.110989",
+   "objekt": "Unternehmerpark Turbinenwerk",
+   "mieter": "Audiotechnik-Hersteller",
+   "vermieter": "Aurelis Real Estate",
+   "groesse": "4100",
+   "urteil": "schwach",
+   "ort": "Mannheim, Carl-Reuther-Straße 1",
+   "gemeint": [],
+   "nicht_gemeint": [],
+   "offen": [
+    5769413
+   ]
+  },
+  {
+   "aufgabe": 156004033,
+   "angelegt": "2026-10-10",
+   "digest_ts": "1791577137.873609",
+   "objekt": "VGP Park Rostock",
+   "mieter": "Nagel-Group",
+   "vermieter": "VGP",
+   "groesse": null,
+   "urteil": "teil",
+   "ort": "Rostock, VGP Park",
+   "gemeint": [],
+   "nicht_gemeint": [
+    5765585
+   ],
+   "offen": [
+    5769821
+   ]
+  },
+  {
+   "aufgabe": 156176752,
+   "angelegt": "2026-10-13",
+   "digest_ts": "1791836344.107419",
+   "objekt": "Panattoni Park Friedewald",
+   "mieter": "4PLCS",
+   "vermieter": "Panattoni",
+   "groesse": "23600",
+   "urteil": "erledigt",
+   "ort": "Friedewald, Im Gewerbegebiet",
+   "gemeint": [
+    2777895
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 156238723,
+   "angelegt": "2026-10-14",
+   "digest_ts": "1791922747.475759",
+   "objekt": "FlexCity",
+   "mieter": "eLing",
+   "vermieter": "Frasers Property",
+   "groesse": "4250",
+   "urteil": "unbestimmt",
+   "ort": "Mülheim an der Ruhr, Flex City",
+   "gemeint": [],
+   "nicht_gemeint": [],
+   "offen": [
+    4807608
+   ]
+  },
+  {
+   "aufgabe": 156833017,
+   "angelegt": "2026-10-16",
+   "digest_ts": "1792095568.188459",
+   "objekt": "Garbe Industrial",
+   "mieter": "Oval Group",
+   "vermieter": "Garbe Industrial",
+   "groesse": "19500",
+   "urteil": "erledigt",
+   "ort": "Dissen, Westring 8",
+   "gemeint": [
+    5032898
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 156833112,
+   "angelegt": "2026-10-16",
+   "digest_ts": "1792095568.188459",
+   "objekt": "HIH / Urban Partners",
+   "mieter": "Goodcang Logistics",
+   "vermieter": "HIH / Urban Partners",
+   "groesse": "19000",
+   "urteil": "erledigt",
+   "ort": "Herten, Im Emscherbruch 10",
+   "gemeint": [
+    4912970,
+    4912990,
+    5366433,
+    5463586
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 156912622,
+   "angelegt": "2026-10-17",
+   "digest_ts": "1792181915.984399",
+   "objekt": "Garbe Industrial",
+   "mieter": "Oval Group",
+   "vermieter": "Garbe Industrial",
+   "groesse": "19500",
+   "urteil": "erledigt",
+   "ort": "Dissen, Westring 8",
+   "gemeint": [
+    5032898
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 156912641,
+   "angelegt": "2026-10-17",
+   "digest_ts": "1792181915.984399",
+   "objekt": "Hillwood",
+   "mieter": "Euziel International",
+   "vermieter": "Hillwood",
+   "groesse": null,
+   "urteil": "schwach",
+   "ort": "Duisburg",
+   "gemeint": [],
+   "nicht_gemeint": [
+    5770423
+   ],
+   "offen": []
+  },
+  {
+   "aufgabe": 156934264,
+   "angelegt": "2026-10-18",
+   "digest_ts": "1792268306.736939",
+   "objekt": "Garbe",
+   "mieter": "Oval Group",
+   "vermieter": "Garbe",
+   "groesse": null,
+   "urteil": "erledigt",
+   "ort": "Dissen, Westring 8",
+   "gemeint": [
+    5032898
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 156934267,
+   "angelegt": "2026-10-18",
+   "digest_ts": "1792268306.736939",
+   "objekt": "GARBE Industrial",
+   "mieter": "MeetPadel by GARBE",
+   "vermieter": "GARBE Industrial",
+   "groesse": null,
+   "urteil": "unbestimmt",
+   "ort": "Holzgerlingen, Daimlerstraße",
+   "gemeint": [],
+   "nicht_gemeint": [],
+   "offen": [
+    5760545
+   ]
+  },
+  {
+   "aufgabe": 157045752,
+   "angelegt": "2026-10-20",
+   "digest_ts": "1792441134.587209",
+   "objekt": "Ixocon",
+   "mieter": null,
+   "vermieter": "Ixocon",
+   "groesse": null,
+   "urteil": "fremd",
+   "ort": "Hamburg-Steinwerder",
+   "gemeint": [],
+   "nicht_gemeint": [
+    5768805
+   ],
+   "offen": []
+  },
+  {
+   "aufgabe": 157045785,
+   "angelegt": "2026-10-20",
+   "digest_ts": "1792441134.587209",
+   "objekt": "Log Plaza Frankfurt (Oder)",
+   "mieter": null,
+   "vermieter": "ALCARO",
+   "groesse": "94000",
+   "urteil": "eintragen",
+   "ort": "Frankfurt (Oder), Log Plaza",
+   "gemeint": [
+    5050191,
+    5050066,
+    5054002,
+    5054026,
+    5054059,
+    5054080,
+    5054095,
+    5050565,
+    5050578,
+    5050591,
+    5050043
+   ],
+   "nicht_gemeint": [],
+   "offen": [
+    5033678,
+    5033679,
+    5033680,
+    5033681
+   ]
+  },
+  {
+   "aufgabe": 157045807,
+   "angelegt": "2026-10-20",
+   "digest_ts": "1792441134.587209",
+   "objekt": "Garbe Industrial",
+   "mieter": "Oval Group",
+   "vermieter": "Garbe Industrial",
+   "groesse": "19500",
+   "urteil": "erledigt",
+   "ort": "Dissen, Westring 8",
+   "gemeint": [
+    5032898
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 157391116,
+   "angelegt": "2026-10-21",
+   "digest_ts": "1792527541.065079",
+   "objekt": "Log Plaza Colonia 3",
+   "mieter": "Dachser",
+   "vermieter": "OSMAB Holding AG / ALCARO Invest GmbH",
+   "groesse": "33000",
+   "urteil": "fremd",
+   "ort": "Köln-Porz",
+   "gemeint": [],
+   "nicht_gemeint": [
+    5220375
+   ],
+   "offen": []
+  },
+  {
+   "aufgabe": 157391154,
+   "angelegt": "2026-10-21",
+   "digest_ts": "1792527541.065079",
+   "objekt": "Prologis",
+   "mieter": "JCL Home Delivery Germany GmbH",
+   "vermieter": "Prologis Germany Management GmbH",
+   "groesse": "9500",
+   "urteil": "fremd",
+   "ort": "Köln",
+   "gemeint": [],
+   "nicht_gemeint": [
+    5765564
+   ],
+   "offen": []
+  },
+  {
+   "aufgabe": 157391183,
+   "angelegt": "2026-10-21",
+   "digest_ts": "1792527541.065079",
+   "objekt": "Garbe Industrial",
+   "mieter": "Oval Group",
+   "vermieter": "Garbe Industrial",
+   "groesse": "19500",
+   "urteil": "erledigt",
+   "ort": "Dissen, Westring 8",
+   "gemeint": [
+    5032898
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 157524171,
+   "angelegt": "2026-10-23",
+   "digest_ts": "1792700327.695149",
+   "objekt": "Prologis Park Hamburg-Steinwerder DC1",
+   "mieter": "TSIT",
+   "vermieter": "Prologis",
+   "groesse": "8600",
+   "urteil": "eintragen",
+   "ort": "Hamburg-Steinwerder, Nordersand 1",
+   "gemeint": [
+    5768805
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 157524190,
+   "angelegt": "2026-10-23",
+   "digest_ts": "1792700327.695149",
+   "objekt": "Garbe Industrial",
+   "mieter": "Oval Group",
+   "vermieter": "Garbe Industrial",
+   "groesse": null,
+   "urteil": "erledigt",
+   "ort": "Dissen, Westring 8",
+   "gemeint": [
+    5032898
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 157524242,
+   "angelegt": "2026-10-23",
+   "digest_ts": "1792700327.695149",
+   "objekt": "HIH Invest / Logicenters Neubauobjekt",
+   "mieter": "Goodcang Logistics",
+   "vermieter": "HIH Invest",
+   "groesse": "19000",
+   "urteil": "erledigt",
+   "ort": "Herten, Im Emscherbruch 10",
+   "gemeint": [
+    4912970,
+    4912990,
+    5366433,
+    5463586
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 158058453,
+   "angelegt": "2026-10-28",
+   "digest_ts": "1793135950.772179",
+   "objekt": "FOCUS Logistikpark",
+   "mieter": "Tekpoint GmbH",
+   "vermieter": "BGO und Prodac",
+   "groesse": "23200",
+   "urteil": "teil",
+   "ort": "Nohra bei Weimar, Grunstedter Weg 7",
+   "gemeint": [],
+   "nicht_gemeint": [],
+   "offen": [
+    2777841
+   ]
+  },
+  {
+   "aufgabe": 158058490,
+   "angelegt": "2026-10-28",
+   "digest_ts": "1793135950.772179",
+   "objekt": "Baytree Deutschland GmbH",
+   "mieter": "Unizell Medicare",
+   "vermieter": "Baytree Deutschland GmbH",
+   "groesse": "20000",
+   "urteil": "fremd",
+   "ort": "Schwanewede bei Bremen, Betonstraße 60",
+   "gemeint": [],
+   "nicht_gemeint": [
+    5772941
+   ],
+   "offen": []
+  },
+  {
+   "aufgabe": 158058497,
+   "angelegt": "2026-10-28",
+   "digest_ts": "1793135950.772179",
+   "objekt": "MH",
+   "mieter": null,
+   "vermieter": null,
+   "groesse": "1700",
+   "urteil": "fremd",
+   "ort": "Kronberg im Taunus",
+   "gemeint": [],
+   "nicht_gemeint": [
+    5770034
+   ],
+   "offen": []
+  },
+  {
+   "aufgabe": 158126113,
+   "angelegt": "2026-10-29",
+   "digest_ts": "1793222334.391389",
+   "objekt": "Silverton",
+   "mieter": "Decathlon",
+   "vermieter": "Silverton",
+   "groesse": null,
+   "urteil": "fremd",
+   "ort": "Regensburg",
+   "gemeint": [],
+   "nicht_gemeint": [
+    5768087
+   ],
+   "offen": []
+  },
+  {
+   "aufgabe": 158126123,
+   "angelegt": "2026-10-29",
+   "digest_ts": "1793222334.391389",
+   "objekt": "Aroundtown",
+   "mieter": "VINCORION Advanced Systems GmbH",
+   "vermieter": "Aroundtown",
+   "groesse": "3000",
+   "urteil": "fremd",
+   "ort": "Wedel",
+   "gemeint": [],
+   "nicht_gemeint": [
+    6159434
+   ],
+   "offen": []
+  },
+  {
+   "aufgabe": 158198817,
+   "angelegt": "2026-10-30",
+   "digest_ts": "1793308745.291979",
+   "objekt": "Siemensstraße, Haan",
+   "mieter": "chinesischer Logistiker",
+   "vermieter": null,
+   "groesse": "7700",
+   "urteil": "eintragen",
+   "ort": "Haan, Siemensstraße 7",
+   "gemeint": [
+    5754689
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 158198837,
+   "angelegt": "2026-10-30",
+   "digest_ts": "1793308745.291979",
+   "objekt": "HIH",
+   "mieter": "Goodcang Logistics",
+   "vermieter": "HIH",
+   "groesse": null,
+   "urteil": "erledigt",
+   "ort": "Herten, Im Emscherbruch 10",
+   "gemeint": [
+    4912970,
+    4912990,
+    5366433,
+    5463586
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 158198850,
+   "angelegt": "2026-10-30",
+   "digest_ts": "1793308745.291979",
+   "objekt": "Grunstedter Weg 7, Nohra",
+   "mieter": "Tekpoint",
+   "vermieter": null,
+   "groesse": "23175",
+   "urteil": "teil",
+   "ort": "Nohra bei Weimar, Grunstedter Weg 7",
+   "gemeint": [],
+   "nicht_gemeint": [],
+   "offen": [
+    2777841
+   ]
+  },
+  {
+   "aufgabe": 158198887,
+   "angelegt": "2026-10-30",
+   "digest_ts": "1793308745.291979",
+   "objekt": "Garbe",
+   "mieter": "Oval Group",
+   "vermieter": "Garbe",
+   "groesse": "19500",
+   "urteil": "erledigt",
+   "ort": "Dissen, Westring 8",
+   "gemeint": [
+    5032898
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 158198926,
+   "angelegt": "2026-10-30",
+   "digest_ts": "1793308745.291979",
+   "objekt": "Garbe Industrial",
+   "mieter": "Goodcang",
+   "vermieter": "Garbe Industrial",
+   "groesse": "30000",
+   "urteil": "erledigt",
+   "ort": "Duisburg-Rheinhausen, Hamburger Straße 40",
+   "gemeint": [
+    3195774
+   ],
+   "nicht_gemeint": [
+    5675134
+   ],
+   "offen": []
+  },
+  {
+   "aufgabe": 158538741,
+   "angelegt": "2026-11-03",
+   "digest_ts": "1793654337.336829",
+   "objekt": "Garbe Industrial",
+   "mieter": "Sesé Deutschland",
+   "vermieter": "Garbe Industrial",
+   "groesse": "18700",
+   "urteil": "erledigt",
+   "ort": "Kamen, Henry-Everling-Straße",
+   "gemeint": [
+    5032776,
+    5832852,
+    5032777
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 158638009,
+   "angelegt": "2026-11-04",
+   "digest_ts": "1793740725.801959",
+   "objekt": "Prologis Neubau Berlin-Weißensee",
+   "mieter": "O'Donnell Moonshine",
+   "vermieter": "Prologis Germany Management GmbH",
+   "groesse": "5000",
+   "urteil": "eintragen",
+   "ort": "Berlin-Weißensee, An der Industriebahn 23",
+   "gemeint": [
+    5768799
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 158638028,
+   "angelegt": "2026-11-04",
+   "digest_ts": "1793740725.801959",
+   "objekt": "Panattoni Park",
+   "mieter": null,
+   "vermieter": "Panattoni",
+   "groesse": "23600",
+   "urteil": "fremd",
+   "ort": "Blankenfelde-Mahlow",
+   "gemeint": [],
+   "nicht_gemeint": [
+    6311013
+   ],
+   "offen": []
+  },
+  {
+   "aufgabe": 158638065,
+   "angelegt": "2026-11-04",
+   "digest_ts": "1793740725.801959",
+   "objekt": "Panattoni Park Halle (Saale) Nord",
+   "mieter": null,
+   "vermieter": "Panattoni",
+   "groesse": null,
+   "urteil": "erledigt",
+   "ort": "Könnern (Halle/Saale Nord)",
+   "gemeint": [
+    5759125,
+    5759128
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 158638110,
+   "angelegt": "2026-11-04",
+   "digest_ts": "1793740725.801959",
+   "objekt": "Garbe Industrial Neubau Kamen",
+   "mieter": "Sesé Deutschland",
+   "vermieter": "Garbe Industrial",
+   "groesse": "18700",
+   "urteil": "erledigt",
+   "ort": "Kamen, Henry-Everling-Straße",
+   "gemeint": [
+    5032776,
+    5832852,
+    5032777
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 158712169,
+   "angelegt": "2026-11-05",
+   "digest_ts": "1793827124.266639",
+   "objekt": "Prologis-Neubau",
+   "mieter": "Spirituosenhersteller",
+   "vermieter": "Prologis",
+   "groesse": "5000",
+   "urteil": "eintragen",
+   "ort": "Berlin-Weißensee, An der Industriebahn 23",
+   "gemeint": [
+    5768799
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 159224479,
+   "angelegt": "2026-11-06",
+   "digest_ts": "1793913529.321529",
+   "objekt": "Garbe",
+   "mieter": "Goodcang",
+   "vermieter": "Garbe",
+   "groesse": "30000",
+   "urteil": "erledigt",
+   "ort": "Duisburg-Rheinhausen, Hamburger Straße 40",
+   "gemeint": [
+    3195774
+   ],
+   "nicht_gemeint": [
+    5675134
+   ],
+   "offen": []
+  },
+  {
+   "aufgabe": 159224513,
+   "angelegt": "2026-11-06",
+   "digest_ts": "1793913529.321529",
+   "objekt": "Garbe Industrial",
+   "mieter": "Sesé Deutschland",
+   "vermieter": "Garbe Industrial",
+   "groesse": "18700",
+   "urteil": "erledigt",
+   "ort": "Kamen, Henry-Everling-Straße",
+   "gemeint": [
+    5032776,
+    5832852,
+    5032777
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 160024658,
+   "angelegt": "2026-11-12",
+   "digest_ts": "1794432041.756529",
+   "objekt": "Panattoni Park Hagen",
+   "mieter": "Lesjöfors",
+   "vermieter": "Panattoni",
+   "groesse": null,
+   "urteil": "erledigt",
+   "ort": "Hagen, Lennetal",
+   "gemeint": [
+    5255742
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 160024693,
+   "angelegt": "2026-11-12",
+   "digest_ts": "1794432041.756529",
+   "objekt": "Ixocon",
+   "mieter": "Logistikdienstleister",
+   "vermieter": "Ixocon",
+   "groesse": "10000",
+   "urteil": "erledigt",
+   "ort": "Moers, Am Schürmannshütt 11",
+   "gemeint": [
+    2778068
+   ],
+   "nicht_gemeint": [
+    6319230
+   ],
+   "offen": []
+  },
+  {
+   "aufgabe": 160024729,
+   "angelegt": "2026-11-12",
+   "digest_ts": "1794432041.756529",
+   "objekt": "Garbe Industrial Kamen",
+   "mieter": "Sesé Deutschland",
+   "vermieter": "Garbe Industrial",
+   "groesse": null,
+   "urteil": "erledigt",
+   "ort": "Kamen, Henry-Everling-Straße",
+   "gemeint": [
+    5032776,
+    5832852,
+    5032777
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 160177226,
+   "angelegt": "2026-11-13",
+   "digest_ts": "1794518330.654429",
+   "objekt": "Panattoni Park Halle/Saale Nord",
+   "mieter": "Textildienstleister",
+   "vermieter": "Panattoni",
+   "groesse": "67800",
+   "urteil": "erledigt",
+   "ort": "Könnern (Halle/Saale Nord)",
+   "gemeint": [
+    5759125,
+    5759128
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 160263357,
+   "angelegt": "2026-11-14",
+   "digest_ts": "1794604734.071339",
+   "objekt": "Dream Advisors",
+   "mieter": "Falcon",
+   "vermieter": "Dream Advisors",
+   "groesse": "23000",
+   "urteil": "eintragen",
+   "ort": "Soest, Sälzerweg 5",
+   "gemeint": [
+    5422160,
+    5422162,
+    5422103,
+    5422112,
+    5422117
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 160441766,
+   "angelegt": "2026-11-17",
+   "digest_ts": "1794863954.453519",
+   "objekt": "SEGRO Gewerbepark Düsseldorf",
+   "mieter": "Grundfos",
+   "vermieter": "SEGRO",
+   "groesse": "4300",
+   "urteil": "unbestimmt",
+   "ort": "Düsseldorf-Flingern, Höherweg",
+   "gemeint": [],
+   "nicht_gemeint": [],
+   "offen": [
+    5301725
+   ]
+  },
+  {
+   "aufgabe": 160441788,
+   "angelegt": "2026-11-17",
+   "digest_ts": "1794863954.453519",
+   "objekt": "REALOGIS",
+   "mieter": null,
+   "vermieter": null,
+   "groesse": "5770",
+   "urteil": "fremd",
+   "ort": "Hamburg-Veddel",
+   "gemeint": [],
+   "nicht_gemeint": [
+    5770467
+   ],
+   "offen": []
+  },
+  {
+   "aufgabe": 160441835,
+   "angelegt": "2026-11-17",
+   "digest_ts": "1794863954.453519",
+   "objekt": "Mileway",
+   "mieter": null,
+   "vermieter": "Mileway",
+   "groesse": null,
+   "urteil": "fremd",
+   "ort": "Offenburg",
+   "gemeint": [],
+   "nicht_gemeint": [
+    6373980
+   ],
+   "offen": []
+  },
+  {
+   "aufgabe": 160512605,
+   "angelegt": "2026-11-18",
+   "digest_ts": "1794950350.965489",
+   "objekt": "Panattoni Park Köln II",
+   "mieter": "Goodcang Logistics",
+   "vermieter": "Panattoni",
+   "groesse": "40000",
+   "urteil": "erledigt",
+   "ort": "Köln-Niehl, Panattoni Park Köln II",
+   "gemeint": [
+    5255688,
+    3949147
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 160512619,
+   "angelegt": "2026-11-18",
+   "digest_ts": "1794950350.965489",
+   "objekt": "Panattoni",
+   "mieter": "Bundeswehr-Dienstleister",
+   "vermieter": "Panattoni",
+   "groesse": "67800",
+   "urteil": "erledigt",
+   "ort": "Könnern (Halle/Saale Nord)",
+   "gemeint": [
+    5759125,
+    5759128
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  },
+  {
+   "aufgabe": 160584509,
+   "angelegt": "2026-11-19",
+   "digest_ts": "1795036715.090169",
+   "objekt": "Panattoni Park Köln II",
+   "mieter": "Goodcang Logistics",
+   "vermieter": "Panattoni",
+   "groesse": null,
+   "urteil": "erledigt",
+   "ort": "Köln-Niehl, Panattoni Park Köln II",
+   "gemeint": [
+    5255688,
+    3949147
+   ],
+   "nicht_gemeint": [],
+   "offen": []
+  }
+ ]
+}

@@ -24,7 +24,9 @@ Zerlege die Nachricht in ALLE einzelnen Deal-Items und gib sie als JSON-Liste zu
   "Verdion errichtet 24.000 m² Logistik- und Gewerbezentrum bei Köln"
 - "sonstiges": Marktnews ohne konkreten Flächen-Deal, Personalien, Smalltalk, Emojis.
 
-Setze ist_vermietung=true GENAU DANN, wenn deal_typ == "vermietung". Reine An-/Verkaufstransaktionen und Neubauten sind KEINE Vermietung.
+Setze ist_vermietung=true GENAU DANN, wenn deal_typ == "vermietung". Reine An-/Verkaufstransaktionen und Neubauten sind KEINE Vermietung. Nennt die Meldung einen Käufer oder Erwerber, ist es eine "transaktion" – auch wenn das Objekt vermietet ist.
+
+Setze ist_verlaengerung=true, wenn ein bestehender Mieter seinen Mietvertrag nur verlängert ("verlängert den Mietvertrag", "bleibt am Standort"). Dann wird keine Fläche neu vergeben. Eine Erweiterung um zusätzliche Fläche ist KEINE Verlängerung (ist_verlaengerung=false).
 
 Extrahiere pro Deal zusätzlich (null wenn nicht vorhanden):
 - strasse: NUR der Straßenname, OHNE Hausnummer (meist nicht vorhanden – dann null)
@@ -33,7 +35,7 @@ Extrahiere pro Deal zusätzlich (null wenn nicht vorhanden):
 - objekt_name: Projektname, Immobilienname oder die zentrale Firma (Eigentümer/Entwickler/Projekt), z.B. "CityLink Dortmund", "Logicor-Park Langenfeld"
 - groessen_hinweis: Quadratmeterzahl als String oder null (z.B. "6000")
 - mieter: der Mieter/Nutzer, falls genannt
-- vermieter: der Vermieter/Eigentümer, falls genannt
+- vermieter: der Vermieter/Eigentümer, falls genannt – nur der Firmenname, keine Umschreibung ("ein Investor" -> null)
 - confidence: 0.0-1.0 – wie sicher bist du bei deal_typ UND den extrahierten Daten
 - begruendung: 1 kurzer Satz
 
@@ -50,6 +52,7 @@ Antworte ausschließlich mit einem JSON-Objekt dieser Form:
       "groessen_hinweis": "..." | null,
       "mieter": "..." | null,
       "vermieter": "..." | null,
+      "ist_verlaengerung": true | false,
       "confidence": 0.0,
       "begruendung": "..."
     }}
