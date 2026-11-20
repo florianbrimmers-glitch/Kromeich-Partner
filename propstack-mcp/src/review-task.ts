@@ -1,4 +1,4 @@
-import type { Props } from "./auth/session";
+import { brokerLabel, type Props } from "./auth/session";
 import type { PropstackClient } from "./propstack-client";
 import { beginWrite, finishWrite } from "./write-log";
 
@@ -45,7 +45,7 @@ export async function createReviewTask(
 	db: D1Database | undefined,
 	input: ReviewTaskInput,
 ): Promise<ReviewTaskResult> {
-	const assignee = input.test ? { brokerId: input.user.brokerId, name: input.user.name } : REVIEWER;
+	const assignee = input.test ? { brokerId: input.user.brokerId, name: brokerLabel(input.user) } : REVIEWER;
 	const due = nextWorkdayNine(input.now ?? new Date());
 	// Umlaute bleiben erhalten: der MCP sendet sauberes UTF-8 (die ASCII-Regel im Skill stammt aus dem alten curl-Weg)
 	const title = `${input.test ? "[MCP-TEST] " : ""}Prüfung: ${input.title}`.slice(0, 250);

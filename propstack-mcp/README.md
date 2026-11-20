@@ -446,6 +446,19 @@ SELECT ts, user_email, tool, params, result_count, ok FROM audit_log ORDER BY ts
 4. Das Token enthält nur `email`, `name` und `brokerId`. Das Google-Access-Token wird verworfen.
 5. Access-Token-Laufzeit: 1 h. Bei jedem Refresh wird 3b erneut geprüft (`tokenExchangeCallback` in `src/index.ts`), Cache inklusive. Ohne Propstack-Nutzer bekommt der Client `invalid_grant` und muss sich neu anmelden.
 
+### Ausnahme: Oguzhan schreibt unter Lenas Propstack-Nutzer (ab v0.13.0, Entscheidung Florian 20.11.2026)
+
+Oguzhan Sahin hat keinen eigenen Propstack-Nutzer und arbeitet in Propstack unter dem von Lena Klinnert (ID 254958). Damit er den Connector nutzen kann, gibt es genau eine Ausnahme von Prüfung 3b – hinterlegt im Code (`BROKER_ALIASES` in `src/config.ts`), bewusst nicht als Variable.
+
+- **Anmeldung:** mit dem eigenen Google-Konto `oguzhan.sahin@kromeichpartner.de` (Adresse laut Slack-Profil, 20.11.2026). 3a gilt unverändert. Lenas Google-Konto oder Passwort wird nicht geteilt, und der Connector meldet sich nie als Lena an – „als Lena“ heißt nur: In Propstack steht ihr Nutzer am Datensatz.
+- **In Propstack** läuft alles, was er über Claude schreibt, unter Lena Klinnert (Betreuer neuer Kontakte, Aufgaben). Ergebnisse nennen sie unter `broker`.
+- **Wer es wirklich war,** steht in den Notizen („Angelegt über Claude (Propstack MCP) von Oguzhan Sahin am …“) und im Audit- und Write-Log des Connectors (seine E-Mail, Lenas ID). Pläne für Massenänderungen gehören der Person, nicht dem Propstack-Nutzer: Lena kann seine nicht ausführen und umgekehrt.
+- **`whoami`** zeigt ihm beide Namen und einen Hinweis; für alle anderen ist die Antwort unverändert.
+- **Sicherungen:** Die Ausnahme gilt nur für genau diese Adresse. Der Propstack-Nutzer ist mit E-Mail und ID hinterlegt: Wird er entfernt, umbenannt oder neu vergeben, wird Oguzhan abgelehnt, statt auf jemand anderen umgeleitet zu werden. Die Ausnahme wird nie gecacht. Bekommt er einen eigenen Propstack-Nutzer mit seiner Adresse, gilt automatisch der – ohne Änderung am Code.
+- **Zugang beenden:** Eintrag in `BROKER_ALIASES` löschen und ausliefern; der Zugang endet beim nächsten Token-Refresh (spätestens nach 1 h). Sofort wirkt nur, ihm den Claude-Platz zu nehmen. Den Propstack-Nutzer zu deaktivieren hilft hier nicht – das ist Lenas.
+- **Abhängigkeit:** Fällt Lenas Propstack-Nutzer weg, ist auch Oguzhan ausgesperrt.
+- **Preis der Ausnahme (so entschieden):** In Propstack selbst lässt sich nicht unterscheiden, wer von beiden etwas getan hat – nur über die Notiz und das Protokoll des Connectors. Die Prüfaufgaben für neue Objekte gehen an Lenas Nutzer (siehe Prüfaufgabe); arbeitet Oguzhan diese Liste ab, prüft er seine eigenen Anlagen. Empfohlen war ein eigener Propstack-Nutzer.
+
 ## Einrichtung
 
 Voraussetzungen: Node ≥ 20, Zugriff auf den Cloudflare-Account **kromeichpartner**, Admin in Google Workspace und in Propstack.
