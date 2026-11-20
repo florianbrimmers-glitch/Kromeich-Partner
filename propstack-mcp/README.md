@@ -250,6 +250,7 @@ Bewusste Lücken: Ein einzelner Deal per ID und die Kontakt-Status-Liste sind nu
 - **Bilder per URL (`add_images`):** Nur öffentliche https-URLs (`remote_photo_url`). Jede URL wird vorher geprüft (erreichbar, `Content-Type: image/*`, mit neutralem User-Agent), sonst entstehen leere Bildobjekte, die man nur in der UI löschen kann. Das erste Bild eines Objekts wird Titelbild. `titles` benennt die Bilder (How-to: „müssen in Propstack benannt werden“).
 - **Prüfaufgabe automatisch** nach `create_project` und `create_object`:
   - an Lena (254958), bei `test: true` an den Nutzer selbst;
+  - offen (20.11.2026): Legt die Person hinter der ID 254958 selbst ein Objekt an, prüft sie ihre eigene Anlage – eine Regel „Prüfer ≠ Ersteller“ gibt es nicht;
   - `is_reminder: true`, fällig am nächsten Werktag 9:00;
   - Inhalt: Link, Ersteller, Eigentümer und Ansprechpartner, Koordinaten mit Genauigkeit, Lücken (`not_applied`/`not_verifiable`), Fehler, was laut How-to fehlt, Texthinweise, offene Punkte, die interne Notiz des Projekts zur Kontrolle und die Schritte, die nur in Propstack selbst gehen;
   - Einheiten im Projekt bekommen eine eigene Aufgabe nur bei Problemen – sonst deckt die Aufgabe des Projekts sie ab.
@@ -588,6 +589,7 @@ Ergebnis des ersten Live-Tests (09.10.2026) und Korrekturen: Merkmale wurden per
 ## Bekannte Grenzen (bewusste Entscheidungen Phase 1)
 
 - **Aktiv-Status:** `GET /v1/brokers` hat laut Doku kein Aktiv-Flag. Jeder Nutzer, den V1 liefert, gilt als aktiv. **Einmal mit echtem Key prüfen:** Taucht ein deaktivierter Propstack-Nutzer noch in `/v1/brokers` auf? Wenn ja, greift das Offboarding nicht. Dann auf `GET /v2/brokers?email=…` umstellen, das hat `active`, `archived` und `blocked`.
+  - **Stand 20.11.2026 (nur lesend geprüft): weiter offen.** Beide Schnittstellen liefern dieselben 7 Nutzer, alle `active: true`, `blocked: false`, keiner archiviert – einen deaktivierten Nutzer, an dem sich die Frage klären ließe, gibt es nicht. `GET /v2/brokers` ist mit dem zweiten Schlüssel lesbar und liefert zusätzlich `role`: `owner` (Lena Klinnert), `user` (Florian, Denise, Marek), `consulting` (Marlene Jung, ID 254960 – der frühere „Propstack Admin“) und `technical` (info@, Kontakt Kromeich). Damit ließe sich die Anmeldung auf „aktiv, nicht gesperrt, nicht archiviert“ prüfen und die technischen Nutzer aussperren. Noch nicht gebaut – wartet auf Florians Freigabe.
 - **Rollen:** Alle Propstack-Rollen dürfen sich anmelden. Ein Funktionspostfach, das in Propstack als (technischer) Nutzer existiert, kommt durch.
 - **Offboarding-Verzögerung:** Access-Token 1 h plus Cache 1 h beim Refresh. Nach dem Deaktivieren in Propstack bleibt der Zugriff also noch bis zu ~2 h bestehen. Refresh-Tokens laufen 30 Tage (Standard der Library), werden aber stündlich gegen 3b geprüft.
 - **Google-Konto sperren reicht nicht:** Der Refresh fragt Google nicht erneut. Offboarding heißt: den Propstack-Nutzer deaktivieren bzw. entfernen.
