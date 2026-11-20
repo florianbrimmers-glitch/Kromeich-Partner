@@ -46,6 +46,8 @@ def main() -> int:
     ap.add_argument("--apply", action="store_true", help="zurückdrehen (schreibt!)")
     ap.add_argument("--limit", type=int, help="höchstens so viele Paare ändern")
     ap.add_argument("--liste", default=str(LISTE), help="Liste der Paare (JSON, nur Nummern)")
+    ap.add_argument("--von-leer", action="store_true",
+                    help="Ausgangsstand: beide Zeilen ohne Bezeichnung (statt Firma/Mitarbeiter vertauscht)")
     ap.add_argument("--only", type=int, help="nur das Paar mit dieser Zeile der Person")
     args = ap.parse_args()
     key = os.environ.get("PROPSTACK_API_V2")
@@ -64,7 +66,7 @@ def main() -> int:
             if now == {zp: "Mitarbeiter", zf: "Firma"}:
                 counts["schon richtig"] += 1
                 continue
-            if now != {zp: "Firma", zf: "Mitarbeiter"}:
+            if now != ({zp: None, zf: None} if args.von_leer else {zp: "Firma", zf: "Mitarbeiter"}):
                 counts["abweichend"] += 1
                 print(f"  abweichend, nicht angefasst: {zp}/{zf}: {now}")
                 continue

@@ -1,5 +1,6 @@
 import type { PropstackClient } from "../propstack-client";
-import { resolveBroker } from "./broker-lookup";
+import type { BrokerAlias } from "../config";
+import { type BrokerIdentity, resolveBroker } from "./broker-lookup";
 import { AuthRejection } from "./errors";
 import { verifyGoogleIdToken } from "./google-id-token";
 
@@ -9,9 +10,39 @@ export type Props = {
 	email: string;
 	name: string;
 	brokerId: number;
+	/**
+	 * Nur bei einer Ausnahme (BROKER_ALIASES): Name des Propstack-Nutzers, unter dem die Person schreibt.
+	 * email und name sind dann die der Person, brokerId die des Propstack-Nutzers.
+	 */
+	brokerName?: string;
 };
 
+const toProps = (broker: BrokerIdentity): Props => ({
+	brokerId: broker.id,
+	email: broker.email,
+	name: broker.name,
+	...(broker.brokerName ? { brokerName: broker.brokerName } : {}),
+});
+
+/** Name des Propstack-Nutzers, unter dem geschrieben wird (Betreuer, Aufgaben) – in aller Regel die Person selbst. */
+export function brokerLabel(user: Pick<Props, "name" | "brokerName">): string {
+	return user.brokerName ?? user.name;
+}
+
+/** Für whoami: als wer man angemeldet ist – und bei einer Ausnahme, unter wessen Propstack-Nutzer geschrieben wird. */
+export function identityInfo(props: Props): Record<string, unknown> {
+	const base = { email: props.email, name: props.name, propstack_user_id: props.brokerId };
+	if (!props.brokerName) return base;
+	return {
+		...base,
+		propstack_user_name: props.brokerName,
+		hinweis: `Du hast keinen eigenen Propstack-Nutzer. Was du über Claude schreibst, läuft in Propstack unter ${props.brokerName} (Betreuer, Aufgaben). In den Notizen und im Protokoll des Connectors steht dein Name.`,
+	};
+}
+
 export interface AuthDeps {
+	/** Nur für Tests: andere Ausnahmen als die hinterlegten (BROKER_ALIASES). */
+	aliases?: Record<string, BrokerAlias>;
 	client: Pick<PropstackClient, "listBrokers">;
 	kv: KVNamespace;
 	clientId: string;
@@ -26,8 +57,7 @@ export async function authorizeLogin(idToken: string, deps: AuthDeps): Promise<P
 		fetchFn: deps.fetchFn,
 		nowSeconds: deps.nowSeconds,
 	});
-	const broker = await resolveBroker(identity.email, deps);
-	return { brokerId: broker.id, email: broker.email, name: broker.name };
+	return toProps(await resolveBroker(identity.email, deps));
 }
 
 export type RefreshResult =
@@ -40,11 +70,10 @@ export type RefreshResult =
  */
 export async function recheckOnRefresh(
 	props: Props,
-	deps: Pick<AuthDeps, "client" | "kv">,
+	deps: Pick<AuthDeps, "aliases" | "client" | "kv">,
 ): Promise<RefreshResult> {
 	try {
-		const broker = await resolveBroker(props.email, deps);
-		return { ok: true, props: { brokerId: broker.id, email: broker.email, name: broker.name } };
+		return { ok: true, props: toProps(await resolveBroker(props.email, deps)) };
 	} catch (error) {
 		if (error instanceof AuthRejection) return { kind: "rejected", message: error.message, ok: false };
 		// Propstack nicht erreichbar → fail closed, aber als vorübergehend kennzeichnen.

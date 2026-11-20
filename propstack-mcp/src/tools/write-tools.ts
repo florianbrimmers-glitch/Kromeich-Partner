@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { Props } from "../auth/session";
+import { brokerLabel, type Props } from "../auth/session";
 import { type GroupEntity, PropstackClient, PropstackError } from "../propstack-client";
 import {
 	contactDuplicates,
@@ -7,6 +7,7 @@ import {
 	countryCallingCode,
 	type DedupeResult,
 	formatPhone,
+	isGermanMobileNational,
 	isMobile,
 	objectDuplicates,
 	sameAddress,
@@ -261,14 +262,34 @@ export const CONTACT_KEYS: Record<string, string> = {
  * Telefonnummern am Eingang einheitlich schreiben (siehe formatPhone): keine 0 nach der Ländervorwahl, „00“ → „+“,
  * Nummern ohne Ländervorwahl mit der des Landes (ohne Landesangabe: +49). Vor Prüfung, Dublettensuche und Schreiben.
  * Liefert die Eingabe mit den geänderten Nummern und, was geändert wurde und warum.
+ * Eine Ausnahme rät nicht, sondern bricht mit einer Rückfrage ab: eine Nummer ohne Ländervorwahl, die wie eine
+ * deutsche Mobilnummer aussieht, an einem Kontakt im Ausland (ab v0.12.5). countryFromRecord: Das Land stammt nicht
+ * aus dem Aufruf, sondern vom gespeicherten Kontakt – dann nennt der Hinweis es ausdrücklich.
  */
-export function cleanPhones<T extends Raw>(input: T, country: unknown, keys: string[] = ["mobile", "phone_office"]): { adjusted: string[]; input: T } {
+export function cleanPhones<T extends Raw>(
+	input: T,
+	country: unknown,
+	keys: string[] = ["mobile", "phone_office"],
+	countryFromRecord = false,
+): { adjusted: string[]; input: T } {
 	const adjusted: string[] = [];
 	const out: Raw = { ...input };
 	const digits = (text: string) => text.replace(/\D/g, "");
+	const calling = countryCallingCode(country);
+	const land = typeof country === "string" ? country.trim() : "";
 	for (const key of keys) {
 		const value = input[key];
 		if (typeof value !== "string") continue;
+		// Nicht raten (Befund 20.11.2026): „0171 …“ an einem Kontakt in Österreich würde zu „+43 171 …“ – falsch, wenn die
+		// Person eine deutsche Handynummer hat. Sieht die Nummer wie eine deutsche Mobilnummer aus, entscheidet der Mensch.
+		if (typeof calling === "string" && calling !== "49" && isGermanMobileNational(value)) {
+			throw new PropstackError(
+				`${key}: „${value.trim()}“ hat keine Ländervorwahl. Sie sieht aus wie eine deutsche Mobilnummer, ${
+					countryFromRecord ? `am Kontakt ist aber das Land ${land} gespeichert` : `angegeben ist aber das Land ${land}`
+				}. Bitte die Nummer mit Ländervorwahl angeben: „${formatPhone(value)}“, wenn es eine deutsche Mobilnummer ist – sonst „${formatPhone(value, country)}“. Der Connector rät hier nicht, damit keine falsche Nummer gespeichert wird.`,
+				400,
+			);
+		}
 		const clean = formatPhone(value, country);
 		if (clean === value) continue;
 		out[key] = clean;
@@ -279,7 +300,8 @@ export function cleanPhones<T extends Raw>(input: T, country: unknown, keys: str
 			if (digits(clean).length < digits(before.replace(/^00/, "")).length) reasons.push("0 nach der Ländervorwahl entfernt");
 		} else {
 			const code = /^\+\d+/.exec(clean)?.[0] ?? "";
-			reasons.push(countryCallingCode(country) === undefined ? `auf ${code} umgestellt – kein Land angegeben, als deutsche Nummer gewertet` : `auf ${code} umgestellt`);
+			if (calling === undefined) reasons.push(`auf ${code} umgestellt – kein Land angegeben, als deutsche Nummer gewertet`);
+			else reasons.push(countryFromRecord ? `auf ${code} umgestellt – Land am Kontakt: ${land}` : `auf ${code} umgestellt`);
 		}
 		adjusted.push(`${key}: „${value}“ → „${clean}“${reasons.length ? ` (${reasons.join(", ")})` : ""}`);
 	}
@@ -454,7 +476,7 @@ export async function createContact(deps: WriteDeps, given: z.infer<z.ZodObject<
 			created: true,
 			id: newId,
 			name: scalar(actual.name),
-			broker: user.name,
+			broker: brokerLabel(user),
 			test: input.test || undefined,
 			override_reason: overrideReason ?? undefined,
 			warnings: dedupe.warnings.length ? dedupe.warnings : undefined,
@@ -480,8 +502,9 @@ export async function updateContact(deps: WriteDeps, given: z.infer<z.ZodObject<
 	const { client, user } = deps;
 	const now = deps.now?.() ?? new Date();
 	const current = await asObjectOrThrow(client.getContact(given.id));
-	// Land für Nummern ohne Ländervorwahl: das neu angegebene, sonst das am Kontakt gespeicherte
-	const { adjusted: phoneAdjusted, input } = cleanPhones(given, given.country ?? scalar(current.office_country));
+	// Land für Nummern ohne Ländervorwahl: das neu angegebene, sonst das am Kontakt gespeicherte – das Ergebnis sagt, welches
+	const fromRecord = given.country === undefined || given.country === null;
+	const { adjusted: phoneAdjusted, input } = cleanPhones(given, fromRecord ? scalar(current.office_country) : given.country, undefined, fromRecord);
 	if (input.mobile && !isMobile(input.mobile)) {
 		throw new PropstackError(`${input.mobile} ist keine deutsche Mobilnummer – bitte als phone_office angeben.`, 400);
 	}
@@ -1153,7 +1176,7 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 			title: scalar(state.row?.title ?? state.detail.title),
 			link: `${CRM_BASE}/properties/${newId}`,
 			review_task: review,
-			broker: user.name,
+			broker: brokerLabel(user),
 			test: input.test || undefined,
 			override_reason: overrideReason ?? undefined,
 			owner: owner ? { ...owner, linked: ownerResult?.linked } : undefined,

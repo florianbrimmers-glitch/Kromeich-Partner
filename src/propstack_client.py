@@ -11,7 +11,7 @@ import httpx
 
 from . import problems
 from .models import ContactData
-from .phone import format_phone
+from .phone import format_phone_for_contact
 
 logger = logging.getLogger(__name__)
 
@@ -386,8 +386,9 @@ def _land_fuer_vorwahl(contact: ContactData) -> str:
     """Welches Land gilt für eine Nummer OHNE Ländervorwahl?
 
     Der Import kennt das Land nicht aus der Signatur – contact.country ist immer
-    „Deutschland“. Blind +49 zu ergänzen machte aus „0664 1234567“ (Wien) eine deutsche
-    Nummer. Deshalb nur bei einem Beleg: fünfstellige PLZ oder E-Mail-Adresse auf .de.
+    „Deutschland“ (Vorgabe in ContactData, die KI füllt das Feld nicht). Deshalb darf
+    contact.country hier NICHT an format_phone gehen: Blind +49 zu ergänzen machte aus
+    „0664 1234567“ (Wien) eine deutsche Nummer. Deshalb nur bei einem Beleg: fünfstellige PLZ oder E-Mail-Adresse auf .de.
     Sonst „unbekannt“ – dann bleibt eine Nummer ohne Ländervorwahl, wie sie ist; die
     „(0)“ nach einer vorhandenen Ländervorwahl fällt trotzdem weg."""
     plz = (contact.zip_code or "").strip()
@@ -397,7 +398,9 @@ def _land_fuer_vorwahl(contact: ContactData) -> str:
 
 
 def _clean_phone(number: str, country: str | None) -> str:
-    clean = format_phone(number, country) or number
+    # format_phone_for_contact rät nicht (Connector v0.12.5): eine deutsche Mobilnummer
+    # ohne Ländervorwahl bleibt bei einem Kontakt im Ausland unverändert.
+    clean = format_phone_for_contact(number, country) or number
     if clean != number:
         logger.info("Telefonnummer bereinigt: %r -> %r", number, clean)
     return clean
@@ -419,8 +422,9 @@ def create_contact(
         client_data["email"] = contact.email
 
     # Nummern einheitlich und wählbar schreiben – dieselbe Regel wie im Connector
-    # (src/phone.py): keine 0 nach der Ländervorwahl, "00" -> "+", ohne Vorwahl +49
-    # bzw. die des Landes. Aus Signaturen kommt oft "+49 (0) 151 …".
+    # (src/phone.py): keine 0 nach der Ländervorwahl, "00" -> "+", ohne Vorwahl +49 –
+    # aber nur mit Beleg, dass der Kontakt in Deutschland sitzt (_land_fuer_vorwahl).
+    # Aus Signaturen kommt oft "+49 (0) 151 …".
     land = _land_fuer_vorwahl(contact)
     if contact.phone:
         client_data["office_phone"] = _clean_phone(contact.phone, land)

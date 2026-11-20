@@ -1,0 +1,1889 @@
+{
+"hinweis": "Stand 20.11.2026: Verkn\u00fcpfungen Person <-> Firma ohne Bezeichnung (name leer an beiden Zeilen). Zu beschriften: Zeile der Person 'Mitarbeiter', Zeile der Firma 'Firma'. Zur\u00fcckdrehen = beide Namen wieder leeren. Nur Nummern, keine Namen.",
+"paare": [
+{
+"zeile_person": 4047955,
+"zeile_firma": 4047954,
+"person_id": 17366562,
+"firma_id": 17366560
+},
+{
+"zeile_person": 4060609,
+"zeile_firma": 4060608,
+"person_id": 17475904,
+"firma_id": 17475913
+},
+{
+"zeile_person": 4063415,
+"zeile_firma": 4063414,
+"person_id": 17501245,
+"firma_id": 17501243
+},
+{
+"zeile_person": 4063435,
+"zeile_firma": 4063434,
+"person_id": 16768426,
+"firma_id": 17501330
+},
+{
+"zeile_person": 4063437,
+"zeile_firma": 4063436,
+"person_id": 16768429,
+"firma_id": 17501330
+},
+{
+"zeile_person": 4063441,
+"zeile_firma": 4063440,
+"person_id": 17501348,
+"firma_id": 17501345
+},
+{
+"zeile_person": 4080295,
+"zeile_firma": 4080294,
+"person_id": 17611856,
+"firma_id": 17611854
+},
+{
+"zeile_person": 4254656,
+"zeile_firma": 4254655,
+"person_id": 17951349,
+"firma_id": 17951339
+},
+{
+"zeile_person": 4361441,
+"zeile_firma": 4361440,
+"person_id": 18273896,
+"firma_id": 18273893
+},
+{
+"zeile_person": 4361446,
+"zeile_firma": 4361445,
+"person_id": 16768417,
+"firma_id": 18273917
+},
+{
+"zeile_person": 4369947,
+"zeile_firma": 4369946,
+"person_id": 18324978,
+"firma_id": 18325502
+},
+{
+"zeile_person": 4501018,
+"zeile_firma": 4501017,
+"person_id": 19788695,
+"firma_id": 19788681
+},
+{
+"zeile_person": 4879930,
+"zeile_firma": 4879929,
+"person_id": 20619984,
+"firma_id": 20619993
+},
+{
+"zeile_person": 4899826,
+"zeile_firma": 4899825,
+"person_id": 20813440,
+"firma_id": 20813426
+},
+{
+"zeile_person": 4990623,
+"zeile_firma": 4990622,
+"person_id": 21104170,
+"firma_id": 21104153
+},
+{
+"zeile_person": 5077011,
+"zeile_firma": 5077010,
+"person_id": 21834018,
+"firma_id": 21834003
+},
+{
+"zeile_person": 5121262,
+"zeile_firma": 5121261,
+"person_id": 22062538,
+"firma_id": 20772988
+},
+{
+"zeile_person": 5122056,
+"zeile_firma": 5122055,
+"person_id": 22066293,
+"firma_id": 21894796
+},
+{
+"zeile_person": 5245540,
+"zeile_firma": 5245539,
+"person_id": 22585030,
+"firma_id": 18273905
+},
+{
+"zeile_person": 5245543,
+"zeile_firma": 5245542,
+"person_id": 22585070,
+"firma_id": 18273905
+},
+{
+"zeile_person": 5263454,
+"zeile_firma": 5263453,
+"person_id": 22653901,
+"firma_id": 22653870
+},
+{
+"zeile_person": 5266632,
+"zeile_firma": 5266631,
+"person_id": 22671730,
+"firma_id": 17272050
+},
+{
+"zeile_person": 5271813,
+"zeile_firma": 5271812,
+"person_id": 16768604,
+"firma_id": 22717729
+},
+{
+"zeile_person": 5275068,
+"zeile_firma": 5275067,
+"person_id": 16768551,
+"firma_id": 22731028
+},
+{
+"zeile_person": 5280075,
+"zeile_firma": 5280074,
+"person_id": 16768456,
+"firma_id": 22786565
+},
+{
+"zeile_person": 5281488,
+"zeile_firma": 5281487,
+"person_id": 16768448,
+"firma_id": 22760083
+},
+{
+"zeile_person": 5282322,
+"zeile_firma": 5282321,
+"person_id": 22802024,
+"firma_id": 22802027
+},
+{
+"zeile_person": 5282401,
+"zeile_firma": 5282400,
+"person_id": 22803007,
+"firma_id": 22803012
+},
+{
+"zeile_person": 5282462,
+"zeile_firma": 5282461,
+"person_id": 20408690,
+"firma_id": 22803799
+},
+{
+"zeile_person": 5420311,
+"zeile_firma": 5420310,
+"person_id": 20860658,
+"firma_id": 20860647
+},
+{
+"zeile_person": 5425255,
+"zeile_firma": 5425254,
+"person_id": 16768464,
+"firma_id": 23420788
+},
+{
+"zeile_person": 5435818,
+"zeile_firma": 5435817,
+"person_id": 20748997,
+"firma_id": 20748984
+},
+{
+"zeile_person": 5462327,
+"zeile_firma": 5462326,
+"person_id": 23665317,
+"firma_id": 23665325
+},
+{
+"zeile_person": 5467112,
+"zeile_firma": 5467111,
+"person_id": 23654612,
+"firma_id": 18325494
+},
+{
+"zeile_person": 5467123,
+"zeile_firma": 5467122,
+"person_id": 23654557,
+"firma_id": 23654570
+},
+{
+"zeile_person": 5467154,
+"zeile_firma": 5467153,
+"person_id": 23609292,
+"firma_id": 23609299
+},
+{
+"zeile_person": 5467165,
+"zeile_firma": 5467164,
+"person_id": 23395168,
+"firma_id": 23397708
+},
+{
+"zeile_person": 5467168,
+"zeile_firma": 5467167,
+"person_id": 23378701,
+"firma_id": 23378709
+},
+{
+"zeile_person": 5467172,
+"zeile_firma": 5467171,
+"person_id": 23378590,
+"firma_id": 23378649
+},
+{
+"zeile_person": 5467178,
+"zeile_firma": 5467177,
+"person_id": 23378541,
+"firma_id": 23378552
+},
+{
+"zeile_person": 5468675,
+"zeile_firma": 5468674,
+"person_id": 23357406,
+"firma_id": 22795712
+},
+{
+"zeile_person": 5468689,
+"zeile_firma": 5468688,
+"person_id": 23356963,
+"firma_id": 23356980
+},
+{
+"zeile_person": 5468693,
+"zeile_firma": 5468692,
+"person_id": 23184229,
+"firma_id": 22668773
+},
+{
+"zeile_person": 5468704,
+"zeile_firma": 5468703,
+"person_id": 23052759,
+"firma_id": 23052766
+},
+{
+"zeile_person": 5468713,
+"zeile_firma": 5468712,
+"person_id": 23052737,
+"firma_id": 23379069
+},
+{
+"zeile_person": 5468717,
+"zeile_firma": 5468716,
+"person_id": 23052720,
+"firma_id": 23052722
+},
+{
+"zeile_person": 5468725,
+"zeile_firma": 5468724,
+"person_id": 23052714,
+"firma_id": 21833848
+},
+{
+"zeile_person": 5468739,
+"zeile_firma": 5468738,
+"person_id": 23052689,
+"firma_id": 23052693
+},
+{
+"zeile_person": 5468747,
+"zeile_firma": 5468746,
+"person_id": 23052676,
+"firma_id": 23052682
+},
+{
+"zeile_person": 5468765,
+"zeile_firma": 5468764,
+"person_id": 21354276,
+"firma_id": 21354263
+},
+{
+"zeile_person": 5468776,
+"zeile_firma": 5468775,
+"person_id": 22677435,
+"firma_id": 22677189
+},
+{
+"zeile_person": 5468802,
+"zeile_firma": 5468801,
+"person_id": 22803648,
+"firma_id": 22803690
+},
+{
+"zeile_person": 5468805,
+"zeile_firma": 5468804,
+"person_id": 22803477,
+"firma_id": 22803690
+},
+{
+"zeile_person": 5468807,
+"zeile_firma": 5468806,
+"person_id": 22803512,
+"firma_id": 22803690
+},
+{
+"zeile_person": 5468812,
+"zeile_firma": 5468811,
+"person_id": 22657219,
+"firma_id": 22657248
+},
+{
+"zeile_person": 5468819,
+"zeile_firma": 5468818,
+"person_id": 22803251,
+"firma_id": 22803270
+},
+{
+"zeile_person": 5468824,
+"zeile_firma": 5468823,
+"person_id": 22803047,
+"firma_id": 22803052
+},
+{
+"zeile_person": 5468894,
+"zeile_firma": 5468893,
+"person_id": 22802085,
+"firma_id": 22802087
+},
+{
+"zeile_person": 5468898,
+"zeile_firma": 5468897,
+"person_id": 22802082,
+"firma_id": 20813426
+},
+{
+"zeile_person": 5469261,
+"zeile_firma": 5469260,
+"person_id": 22802040,
+"firma_id": 22802043
+},
+{
+"zeile_person": 5469263,
+"zeile_firma": 5469262,
+"person_id": 22802061,
+"firma_id": 23378833
+},
+{
+"zeile_person": 5469267,
+"zeile_firma": 5469266,
+"person_id": 22802033,
+"firma_id": 22656817
+},
+{
+"zeile_person": 5469272,
+"zeile_firma": 5469271,
+"person_id": 22656757,
+"firma_id": 22656817
+},
+{
+"zeile_person": 5478088,
+"zeile_firma": 5478087,
+"person_id": 22802024,
+"firma_id": 23378898
+},
+{
+"zeile_person": 5478090,
+"zeile_firma": 5478089,
+"person_id": 22802024,
+"firma_id": 23378885
+},
+{
+"zeile_person": 5478095,
+"zeile_firma": 5478094,
+"person_id": 22801990,
+"firma_id": 22801995
+},
+{
+"zeile_person": 5478103,
+"zeile_firma": 5478102,
+"person_id": 22801970,
+"firma_id": 22801974
+},
+{
+"zeile_person": 5478120,
+"zeile_firma": 5478119,
+"person_id": 22801945,
+"firma_id": 22801947
+},
+{
+"zeile_person": 5478129,
+"zeile_firma": 5478128,
+"person_id": 22801954,
+"firma_id": 22760083
+},
+{
+"zeile_person": 5478132,
+"zeile_firma": 5478131,
+"person_id": 22795404,
+"firma_id": 22760083
+},
+{
+"zeile_person": 5478155,
+"zeile_firma": 5478154,
+"person_id": 22801950,
+"firma_id": 22801951
+},
+{
+"zeile_person": 5478178,
+"zeile_firma": 5478177,
+"person_id": 22797242,
+"firma_id": 18273558
+},
+{
+"zeile_person": 5478203,
+"zeile_firma": 5478202,
+"person_id": 22797147,
+"firma_id": 22797156
+},
+{
+"zeile_person": 5478298,
+"zeile_firma": 5478297,
+"person_id": 22801979,
+"firma_id": 22801981
+},
+{
+"zeile_person": 5478307,
+"zeile_firma": 5478306,
+"person_id": 22797044,
+"firma_id": 22797046
+},
+{
+"zeile_person": 5483065,
+"zeile_firma": 5483064,
+"person_id": 23876773,
+"firma_id": 23876783
+},
+{
+"zeile_person": 5483075,
+"zeile_firma": 5483074,
+"person_id": 23876798,
+"firma_id": 23876806
+},
+{
+"zeile_person": 5487067,
+"zeile_firma": 5487066,
+"person_id": 22796836,
+"firma_id": 22796887
+},
+{
+"zeile_person": 5487073,
+"zeile_firma": 5487072,
+"person_id": 22796787,
+"firma_id": 22796818
+},
+{
+"zeile_person": 5487086,
+"zeile_firma": 5487085,
+"person_id": 22795883,
+"firma_id": 22795894
+},
+{
+"zeile_person": 5487151,
+"zeile_firma": 5487150,
+"person_id": 22795872,
+"firma_id": 22795879
+},
+{
+"zeile_person": 5487155,
+"zeile_firma": 5487154,
+"person_id": 22795842,
+"firma_id": 22795858
+},
+{
+"zeile_person": 5487161,
+"zeile_firma": 5487160,
+"person_id": 22795815,
+"firma_id": 22795712
+},
+{
+"zeile_person": 5487164,
+"zeile_firma": 5487163,
+"person_id": 22795707,
+"firma_id": 22795712
+},
+{
+"zeile_person": 5487174,
+"zeile_firma": 5487173,
+"person_id": 22795801,
+"firma_id": 22795806
+},
+{
+"zeile_person": 5487185,
+"zeile_firma": 5487184,
+"person_id": 22795767,
+"firma_id": 22795773
+},
+{
+"zeile_person": 5487189,
+"zeile_firma": 5487188,
+"person_id": 22795736,
+"firma_id": 22795743
+},
+{
+"zeile_person": 5487204,
+"zeile_firma": 5487203,
+"person_id": 22795692,
+"firma_id": 22795696
+},
+{
+"zeile_person": 5487211,
+"zeile_firma": 5487210,
+"person_id": 22795484,
+"firma_id": 22668773
+},
+{
+"zeile_person": 5487217,
+"zeile_firma": 5487216,
+"person_id": 22795472,
+"firma_id": 22668721
+},
+{
+"zeile_person": 5487221,
+"zeile_firma": 5487220,
+"person_id": 22668700,
+"firma_id": 22668721
+},
+{
+"zeile_person": 5487229,
+"zeile_firma": 5487228,
+"person_id": 22795415,
+"firma_id": 22731399
+},
+{
+"zeile_person": 5487231,
+"zeile_firma": 5487230,
+"person_id": 22795411,
+"firma_id": 22795414
+},
+{
+"zeile_person": 5487249,
+"zeile_firma": 5487248,
+"person_id": 22795400,
+"firma_id": 22795402
+},
+{
+"zeile_person": 5487252,
+"zeile_firma": 5487251,
+"person_id": 22795393,
+"firma_id": 22795396
+},
+{
+"zeile_person": 5487256,
+"zeile_firma": 5487255,
+"person_id": 22795391,
+"firma_id": 22683131
+},
+{
+"zeile_person": 5487258,
+"zeile_firma": 5487257,
+"person_id": 22683116,
+"firma_id": 22683131
+},
+{
+"zeile_person": 5487272,
+"zeile_firma": 5487271,
+"person_id": 22795380,
+"firma_id": 22795382
+},
+{
+"zeile_person": 5487276,
+"zeile_firma": 5487275,
+"person_id": 22795375,
+"firma_id": 22795376
+},
+{
+"zeile_person": 5487284,
+"zeile_firma": 5487283,
+"person_id": 22795371,
+"firma_id": 22795372
+},
+{
+"zeile_person": 5487293,
+"zeile_firma": 5487292,
+"person_id": 22795367,
+"firma_id": 22795369
+},
+{
+"zeile_person": 5487299,
+"zeile_firma": 5487298,
+"person_id": 22795363,
+"firma_id": 22795365
+},
+{
+"zeile_person": 5487307,
+"zeile_firma": 5487306,
+"person_id": 22786755,
+"firma_id": 22786764
+},
+{
+"zeile_person": 5487310,
+"zeile_firma": 5487309,
+"person_id": 22786632,
+"firma_id": 22760234
+},
+{
+"zeile_person": 5487315,
+"zeile_firma": 5487314,
+"person_id": 22786583,
+"firma_id": 18388802
+},
+{
+"zeile_person": 5487322,
+"zeile_firma": 5487321,
+"person_id": 22786501,
+"firma_id": 22786518
+},
+{
+"zeile_person": 5487325,
+"zeile_firma": 5487324,
+"person_id": 22786465,
+"firma_id": 22786472
+},
+{
+"zeile_person": 5487331,
+"zeile_firma": 5487330,
+"person_id": 22786413,
+"firma_id": 22786435
+},
+{
+"zeile_person": 5487334,
+"zeile_firma": 5487333,
+"person_id": 22760301,
+"firma_id": 22760311
+},
+{
+"zeile_person": 5487339,
+"zeile_firma": 5487338,
+"person_id": 22760269,
+"firma_id": 22760276
+},
+{
+"zeile_person": 5487345,
+"zeile_firma": 5487344,
+"person_id": 22760110,
+"firma_id": 22760136
+},
+{
+"zeile_person": 5487352,
+"zeile_firma": 5487351,
+"person_id": 22760025,
+"firma_id": 22760043
+},
+{
+"zeile_person": 5487380,
+"zeile_firma": 5487379,
+"person_id": 22759970,
+"firma_id": 22759988
+},
+{
+"zeile_person": 5487388,
+"zeile_firma": 5487387,
+"person_id": 22759950,
+"firma_id": 21833848
+},
+{
+"zeile_person": 5487424,
+"zeile_firma": 5487423,
+"person_id": 22759304,
+"firma_id": 22759312
+},
+{
+"zeile_person": 5487430,
+"zeile_firma": 5487429,
+"person_id": 22759178,
+"firma_id": 22759259
+},
+{
+"zeile_person": 5487439,
+"zeile_firma": 5487438,
+"person_id": 22759094,
+"firma_id": 22759107
+},
+{
+"zeile_person": 5487443,
+"zeile_firma": 5487442,
+"person_id": 22759009,
+"firma_id": 22759058
+},
+{
+"zeile_person": 5487451,
+"zeile_firma": 5487450,
+"person_id": 22758842,
+"firma_id": 22758951
+},
+{
+"zeile_person": 5487749,
+"zeile_firma": 5487748,
+"person_id": 22758780,
+"firma_id": 22758801
+},
+{
+"zeile_person": 5487754,
+"zeile_firma": 5487753,
+"person_id": 22758749,
+"firma_id": 22676024
+},
+{
+"zeile_person": 5487756,
+"zeile_firma": 5487755,
+"person_id": 22675998,
+"firma_id": 22676024
+},
+{
+"zeile_person": 5487761,
+"zeile_firma": 5487760,
+"person_id": 22758732,
+"firma_id": 19809617
+},
+{
+"zeile_person": 5487763,
+"zeile_firma": 5487762,
+"person_id": 22758705,
+"firma_id": 19809617
+},
+{
+"zeile_person": 5487778,
+"zeile_firma": 5487777,
+"person_id": 22758487,
+"firma_id": 18388705
+},
+{
+"zeile_person": 5487781,
+"zeile_firma": 5487780,
+"person_id": 22758267,
+"firma_id": 22758338
+},
+{
+"zeile_person": 5487785,
+"zeile_firma": 5487784,
+"person_id": 22736564,
+"firma_id": 21065601
+},
+{
+"zeile_person": 5487790,
+"zeile_firma": 5487789,
+"person_id": 21065617,
+"firma_id": 21065601
+},
+{
+"zeile_person": 5487794,
+"zeile_firma": 5487793,
+"person_id": 22731538,
+"firma_id": 22731541
+},
+{
+"zeile_person": 5487802,
+"zeile_firma": 5487801,
+"person_id": 22731448,
+"firma_id": 22731453
+},
+{
+"zeile_person": 5487807,
+"zeile_firma": 5487806,
+"person_id": 22731414,
+"firma_id": 22731399
+},
+{
+"zeile_person": 5487810,
+"zeile_firma": 5487809,
+"person_id": 22731407,
+"firma_id": 22731399
+},
+{
+"zeile_person": 5487815,
+"zeile_firma": 5487814,
+"person_id": 22731390,
+"firma_id": 22731399
+},
+{
+"zeile_person": 5487824,
+"zeile_firma": 5487823,
+"person_id": 22731362,
+"firma_id": 19809987
+},
+{
+"zeile_person": 5487838,
+"zeile_firma": 5487837,
+"person_id": 22731164,
+"firma_id": 22731179
+},
+{
+"zeile_person": 5487841,
+"zeile_firma": 5487840,
+"person_id": 22731076,
+"firma_id": 22731091
+},
+{
+"zeile_person": 5487846,
+"zeile_firma": 5487845,
+"person_id": 22731014,
+"firma_id": 22731028
+},
+{
+"zeile_person": 5487853,
+"zeile_firma": 5487852,
+"person_id": 22730989,
+"firma_id": 17501345
+},
+{
+"zeile_person": 5487908,
+"zeile_firma": 5487907,
+"person_id": 22717714,
+"firma_id": 22717718
+},
+{
+"zeile_person": 5487934,
+"zeile_firma": 5487933,
+"person_id": 22683088,
+"firma_id": 22683100
+},
+{
+"zeile_person": 5487946,
+"zeile_firma": 5487945,
+"person_id": 22683039,
+"firma_id": 22683045
+},
+{
+"zeile_person": 5488904,
+"zeile_firma": 5488903,
+"person_id": 22683005,
+"firma_id": 22683012
+},
+{
+"zeile_person": 5488908,
+"zeile_firma": 5488907,
+"person_id": 22677183,
+"firma_id": 22677189
+},
+{
+"zeile_person": 5488911,
+"zeile_firma": 5488910,
+"person_id": 22676201,
+"firma_id": 22676213
+},
+{
+"zeile_person": 5488913,
+"zeile_firma": 5488912,
+"person_id": 22675944,
+"firma_id": 22675959
+},
+{
+"zeile_person": 5488918,
+"zeile_firma": 5488917,
+"person_id": 22675861,
+"firma_id": 22671578
+},
+{
+"zeile_person": 5488920,
+"zeile_firma": 5488919,
+"person_id": 22671574,
+"firma_id": 22671578
+},
+{
+"zeile_person": 5488922,
+"zeile_firma": 5488921,
+"person_id": 22671552,
+"firma_id": 22671578
+},
+{
+"zeile_person": 5488924,
+"zeile_firma": 5488923,
+"person_id": 22675788,
+"firma_id": 22675837
+},
+{
+"zeile_person": 5490953,
+"zeile_firma": 5490952,
+"person_id": 23939041,
+"firma_id": 20465795
+},
+{
+"zeile_person": 5495918,
+"zeile_firma": 5495917,
+"person_id": 22675370,
+"firma_id": 22675373
+},
+{
+"zeile_person": 5495927,
+"zeile_firma": 5495926,
+"person_id": 22671778,
+"firma_id": 22671782
+},
+{
+"zeile_person": 5495941,
+"zeile_firma": 5495940,
+"person_id": 22671658,
+"firma_id": 22671688
+},
+{
+"zeile_person": 5495946,
+"zeile_firma": 5495945,
+"person_id": 22671636,
+"firma_id": 18152167
+},
+{
+"zeile_person": 5495948,
+"zeile_firma": 5495947,
+"person_id": 22671492,
+"firma_id": 22671500
+},
+{
+"zeile_person": 5495950,
+"zeile_firma": 5495949,
+"person_id": 22671470,
+"firma_id": 22671500
+},
+{
+"zeile_person": 5495954,
+"zeile_firma": 5495953,
+"person_id": 22671350,
+"firma_id": 22671376
+},
+{
+"zeile_person": 5495959,
+"zeile_firma": 5495958,
+"person_id": 22671265,
+"firma_id": 22671283
+},
+{
+"zeile_person": 5495970,
+"zeile_firma": 5495969,
+"person_id": 22671178,
+"firma_id": 22671199
+},
+{
+"zeile_person": 5495972,
+"zeile_firma": 5495971,
+"person_id": 22668802,
+"firma_id": 22668822
+},
+{
+"zeile_person": 5495978,
+"zeile_firma": 5495977,
+"person_id": 22657613,
+"firma_id": 22657648
+},
+{
+"zeile_person": 5495981,
+"zeile_firma": 5495980,
+"person_id": 22656478,
+"firma_id": 22656497
+},
+{
+"zeile_person": 5496003,
+"zeile_firma": 5496002,
+"person_id": 22658474,
+"firma_id": 22658498
+},
+{
+"zeile_person": 5496008,
+"zeile_firma": 5496007,
+"person_id": 22658450,
+"firma_id": 22658498
+},
+{
+"zeile_person": 5496014,
+"zeile_firma": 5496013,
+"person_id": 22658053,
+"firma_id": 22658071
+},
+{
+"zeile_person": 5496020,
+"zeile_firma": 5496019,
+"person_id": 22657980,
+"firma_id": 22657994
+},
+{
+"zeile_person": 5496022,
+"zeile_firma": 5496021,
+"person_id": 22657890,
+"firma_id": 22657935
+},
+{
+"zeile_person": 5496028,
+"zeile_firma": 5496027,
+"person_id": 22657453,
+"firma_id": 22657580
+},
+{
+"zeile_person": 5496558,
+"zeile_firma": 5496557,
+"person_id": 22657038,
+"firma_id": 22657111
+},
+{
+"zeile_person": 5496562,
+"zeile_firma": 5496561,
+"person_id": 22656954,
+"firma_id": 22657010
+},
+{
+"zeile_person": 5496567,
+"zeile_firma": 5496566,
+"person_id": 22082354,
+"firma_id": 22082360
+},
+{
+"zeile_person": 5496570,
+"zeile_firma": 5496569,
+"person_id": 22140267,
+"firma_id": 22140257
+},
+{
+"zeile_person": 5496581,
+"zeile_firma": 5496580,
+"person_id": 21388267,
+"firma_id": 21388253
+},
+{
+"zeile_person": 5496589,
+"zeile_firma": 5496588,
+"person_id": 20897420,
+"firma_id": 20897378
+},
+{
+"zeile_person": 5496606,
+"zeile_firma": 5496605,
+"person_id": 22671758,
+"firma_id": 17272050
+},
+{
+"zeile_person": 5504319,
+"zeile_firma": 5504318,
+"person_id": 24051549,
+"firma_id": 23378649
+},
+{
+"zeile_person": 5673184,
+"zeile_firma": 5673183,
+"person_id": 24335826,
+"firma_id": 24335800
+},
+{
+"zeile_person": 5680289,
+"zeile_firma": 5680290,
+"person_id": 23375493,
+"firma_id": 24370819
+},
+{
+"zeile_person": 5685958,
+"zeile_firma": 5685957,
+"person_id": 24429610,
+"firma_id": 24429634
+},
+{
+"zeile_person": 5691585,
+"zeile_firma": 5691584,
+"person_id": 24500691,
+"firma_id": 24429476
+},
+{
+"zeile_person": 5775869,
+"zeile_firma": 5775868,
+"person_id": 24972304,
+"firma_id": 24972382
+},
+{
+"zeile_person": 5776030,
+"zeile_firma": 5776029,
+"person_id": 24973136,
+"firma_id": 24973169
+},
+{
+"zeile_person": 5777239,
+"zeile_firma": 5777238,
+"person_id": 24981867,
+"firma_id": 24981877
+},
+{
+"zeile_person": 5777247,
+"zeile_firma": 5777246,
+"person_id": 24981896,
+"firma_id": 22759988
+},
+{
+"zeile_person": 5777271,
+"zeile_firma": 5777270,
+"person_id": 24982002,
+"firma_id": 24982021
+},
+{
+"zeile_person": 5777303,
+"zeile_firma": 5777302,
+"person_id": 24982099,
+"firma_id": 24982119
+},
+{
+"zeile_person": 5780093,
+"zeile_firma": 5780092,
+"person_id": 24987497,
+"firma_id": 18151829
+},
+{
+"zeile_person": 5780117,
+"zeile_firma": 5780116,
+"person_id": 24987658,
+"firma_id": 18273912
+},
+{
+"zeile_person": 5787826,
+"zeile_firma": 5787825,
+"person_id": 25013864,
+"firma_id": 25013846
+},
+{
+"zeile_person": 5787840,
+"zeile_firma": 5787839,
+"person_id": 25013918,
+"firma_id": 25013929
+},
+{
+"zeile_person": 5787921,
+"zeile_firma": 5787920,
+"person_id": 25014131,
+"firma_id": 22760083
+},
+{
+"zeile_person": 5798187,
+"zeile_firma": 5798186,
+"person_id": 25069645,
+"firma_id": 25069657
+},
+{
+"zeile_person": 5798192,
+"zeile_firma": 5798191,
+"person_id": 25069684,
+"firma_id": 23378649
+},
+{
+"zeile_person": 5798202,
+"zeile_firma": 5798201,
+"person_id": 25069705,
+"firma_id": 25069727
+},
+{
+"zeile_person": 5798229,
+"zeile_firma": 5798228,
+"person_id": 25069807,
+"firma_id": 25069830
+},
+{
+"zeile_person": 5798236,
+"zeile_firma": 5798235,
+"person_id": 25069867,
+"firma_id": 25069890
+},
+{
+"zeile_person": 5798242,
+"zeile_firma": 5798241,
+"person_id": 25069915,
+"firma_id": 25069934
+},
+{
+"zeile_person": 5802284,
+"zeile_firma": 5802283,
+"person_id": 25133708,
+"firma_id": 23378649
+},
+{
+"zeile_person": 5802286,
+"zeile_firma": 5802285,
+"person_id": 25133736,
+"firma_id": 23378649
+},
+{
+"zeile_person": 5811617,
+"zeile_firma": 5811616,
+"person_id": 22675572,
+"firma_id": 22668773
+},
+{
+"zeile_person": 5811619,
+"zeile_firma": 5811618,
+"person_id": 25184971,
+"firma_id": 22668773
+},
+{
+"zeile_person": 5811630,
+"zeile_firma": 5811629,
+"person_id": 25185028,
+"firma_id": 25185036
+},
+{
+"zeile_person": 5811640,
+"zeile_firma": 5811639,
+"person_id": 25185072,
+"firma_id": 17501223
+},
+{
+"zeile_person": 5831134,
+"zeile_firma": 5831133,
+"person_id": 25323691,
+"firma_id": 18028616
+},
+{
+"zeile_person": 5831143,
+"zeile_firma": 5831142,
+"person_id": 25323708,
+"firma_id": 18389095
+},
+{
+"zeile_person": 5831146,
+"zeile_firma": 5831145,
+"person_id": 25323749,
+"firma_id": 22665101
+},
+{
+"zeile_person": 5831149,
+"zeile_firma": 5831148,
+"person_id": 25323799,
+"firma_id": 25323825
+},
+{
+"zeile_person": 5831151,
+"zeile_firma": 5831150,
+"person_id": 25323779,
+"firma_id": 25323785
+},
+{
+"zeile_person": 5838410,
+"zeile_firma": 5838409,
+"person_id": 25388956,
+"firma_id": 17485309
+},
+{
+"zeile_person": 5839314,
+"zeile_firma": 5839313,
+"person_id": 25393942,
+"firma_id": 25393959
+},
+{
+"zeile_person": 5843024,
+"zeile_firma": 5843023,
+"person_id": 25420899,
+"firma_id": 18151629
+},
+{
+"zeile_person": 5873940,
+"zeile_firma": 5873939,
+"person_id": 25547242,
+"firma_id": 18273866
+},
+{
+"zeile_person": 5876207,
+"zeile_firma": 5876206,
+"person_id": 25323721,
+"firma_id": 22671578
+},
+{
+"zeile_person": 5877666,
+"zeile_firma": 5877665,
+"person_id": 25687007,
+"firma_id": 25687026
+},
+{
+"zeile_person": 5877684,
+"zeile_firma": 5877683,
+"person_id": 25687061,
+"firma_id": 17421538
+},
+{
+"zeile_person": 5877696,
+"zeile_firma": 5877695,
+"person_id": 25687115,
+"firma_id": 25687129
+},
+{
+"zeile_person": 5896326,
+"zeile_firma": 5896325,
+"person_id": 25723796,
+"firma_id": 25724072
+},
+{
+"zeile_person": 5905923,
+"zeile_firma": 5905922,
+"person_id": 25798182,
+"firma_id": 25798205
+},
+{
+"zeile_person": 5906016,
+"zeile_firma": 5906015,
+"person_id": 25798634,
+"firma_id": 25798666
+},
+{
+"zeile_person": 5909474,
+"zeile_firma": 5909473,
+"person_id": 25935863,
+"firma_id": 25935890
+},
+{
+"zeile_person": 5909483,
+"zeile_firma": 5909482,
+"person_id": 25935942,
+"firma_id": 25935980
+},
+{
+"zeile_person": 5909493,
+"zeile_firma": 5909492,
+"person_id": 25936019,
+"firma_id": 25936039
+},
+{
+"zeile_person": 5909501,
+"zeile_firma": 5909500,
+"person_id": 25936071,
+"firma_id": 25936089
+},
+{
+"zeile_person": 5909510,
+"zeile_firma": 5909509,
+"person_id": 25936117,
+"firma_id": 21117522
+},
+{
+"zeile_person": 5909812,
+"zeile_firma": 5909811,
+"person_id": 25937884,
+"firma_id": 17475881
+},
+{
+"zeile_person": 5909820,
+"zeile_firma": 5909819,
+"person_id": 25938002,
+"firma_id": 25938021
+},
+{
+"zeile_person": 5909829,
+"zeile_firma": 5909828,
+"person_id": 25938046,
+"firma_id": 25938051
+},
+{
+"zeile_person": 5924438,
+"zeile_firma": 5924437,
+"person_id": 26166964,
+"firma_id": 26166968
+},
+{
+"zeile_person": 5924445,
+"zeile_firma": 5924444,
+"person_id": 26167006,
+"firma_id": 26167011
+},
+{
+"zeile_person": 5924448,
+"zeile_firma": 5924447,
+"person_id": 26167027,
+"firma_id": 26167032
+},
+{
+"zeile_person": 5924450,
+"zeile_firma": 5924449,
+"person_id": 26167039,
+"firma_id": 26167042
+},
+{
+"zeile_person": 5924452,
+"zeile_firma": 5924451,
+"person_id": 26167055,
+"firma_id": 22759988
+},
+{
+"zeile_person": 5924454,
+"zeile_firma": 5924453,
+"person_id": 26167051,
+"firma_id": 22759988
+},
+{
+"zeile_person": 5947557,
+"zeile_firma": 5947556,
+"person_id": 17222011,
+"firma_id": 17475960
+},
+{
+"zeile_person": 5955561,
+"zeile_firma": 5955560,
+"person_id": 26412152,
+"firma_id": 26412167
+},
+{
+"zeile_person": 5955571,
+"zeile_firma": 5955570,
+"person_id": 26412218,
+"firma_id": 26412227
+},
+{
+"zeile_person": 5955579,
+"zeile_firma": 5955578,
+"person_id": 26412258,
+"firma_id": 26412167
+},
+{
+"zeile_person": 5955592,
+"zeile_firma": 5955591,
+"person_id": 26412283,
+"firma_id": 26412301
+},
+{
+"zeile_person": 5955629,
+"zeile_firma": 5955628,
+"person_id": 26412451,
+"firma_id": 26412470
+},
+{
+"zeile_person": 5956750,
+"zeile_firma": 5956749,
+"person_id": 26417889,
+"firma_id": 22731028
+},
+{
+"zeile_person": 5956754,
+"zeile_firma": 5956753,
+"person_id": 26417938,
+"firma_id": 22731028
+},
+{
+"zeile_person": 5956889,
+"zeile_firma": 5956888,
+"person_id": 26418517,
+"firma_id": 26418537
+},
+{
+"zeile_person": 5957810,
+"zeile_firma": 5957809,
+"person_id": 26425346,
+"firma_id": 22758338
+},
+{
+"zeile_person": 5957832,
+"zeile_firma": 5957831,
+"person_id": 26425401,
+"firma_id": 17958647
+},
+{
+"zeile_person": 5957858,
+"zeile_firma": 5957857,
+"person_id": 26425470,
+"firma_id": 24982021
+},
+{
+"zeile_person": 5957868,
+"zeile_firma": 5957867,
+"person_id": 26425505,
+"firma_id": 22758338
+},
+{
+"zeile_person": 5957886,
+"zeile_firma": 5957885,
+"person_id": 26425559,
+"firma_id": 26425581
+},
+{
+"zeile_person": 5957917,
+"zeile_firma": 5957916,
+"person_id": 26425632,
+"firma_id": 26425654
+},
+{
+"zeile_person": 5957938,
+"zeile_firma": 5957937,
+"person_id": 26425705,
+"firma_id": 26425755
+},
+{
+"zeile_person": 5957948,
+"zeile_firma": 5957947,
+"person_id": 26425784,
+"firma_id": 26425811
+},
+{
+"zeile_person": 5957973,
+"zeile_firma": 5957972,
+"person_id": 26425849,
+"firma_id": 26425876
+},
+{
+"zeile_person": 5958008,
+"zeile_firma": 5958007,
+"person_id": 26425922,
+"firma_id": 26425976
+},
+{
+"zeile_person": 5958039,
+"zeile_firma": 5958038,
+"person_id": 26426041,
+"firma_id": 26426074
+},
+{
+"zeile_person": 5958050,
+"zeile_firma": 5958049,
+"person_id": 26426121,
+"firma_id": 26426176
+},
+{
+"zeile_person": 5958075,
+"zeile_firma": 5958074,
+"person_id": 26426295,
+"firma_id": 24973169
+},
+{
+"zeile_person": 5958090,
+"zeile_firma": 5958089,
+"person_id": 26426337,
+"firma_id": 26426363
+},
+{
+"zeile_person": 5958095,
+"zeile_firma": 5958094,
+"person_id": 26426398,
+"firma_id": 26426406
+},
+{
+"zeile_person": 5958102,
+"zeile_firma": 5958101,
+"person_id": 26426432,
+"firma_id": 26426455
+},
+{
+"zeile_person": 5958110,
+"zeile_firma": 5958109,
+"person_id": 26426490,
+"firma_id": 19810321
+},
+{
+"zeile_person": 5958119,
+"zeile_firma": 5958118,
+"person_id": 26426523,
+"firma_id": 26426531
+},
+{
+"zeile_person": 5958139,
+"zeile_firma": 5958138,
+"person_id": 26426616,
+"firma_id": 26426623
+},
+{
+"zeile_person": 5958154,
+"zeile_firma": 5958153,
+"person_id": 26426666,
+"firma_id": 26426689
+},
+{
+"zeile_person": 5958168,
+"zeile_firma": 5958167,
+"person_id": 26426731,
+"firma_id": 26426747
+},
+{
+"zeile_person": 5958181,
+"zeile_firma": 5958180,
+"person_id": 26426790,
+"firma_id": 18151629
+},
+{
+"zeile_person": 5958208,
+"zeile_firma": 5958207,
+"person_id": 26426914,
+"firma_id": 18389095
+},
+{
+"zeile_person": 5958217,
+"zeile_firma": 5958216,
+"person_id": 26426929,
+"firma_id": 26426937
+},
+{
+"zeile_person": 5958222,
+"zeile_firma": 5958221,
+"person_id": 26426947,
+"firma_id": 26426958
+},
+{
+"zeile_person": 5958235,
+"zeile_firma": 5958234,
+"person_id": 26426974,
+"firma_id": 20465795
+},
+{
+"zeile_person": 5958243,
+"zeile_firma": 5958242,
+"person_id": 26427007,
+"firma_id": 26427015
+},
+{
+"zeile_person": 5958306,
+"zeile_firma": 5958305,
+"person_id": 26427091,
+"firma_id": 26427218
+},
+{
+"zeile_person": 5958312,
+"zeile_firma": 5958311,
+"person_id": 26427257,
+"firma_id": 26427269
+},
+{
+"zeile_person": 5997933,
+"zeile_firma": 5997932,
+"person_id": 26662356,
+"firma_id": 17958647
+},
+{
+"zeile_person": 5997941,
+"zeile_firma": 5997940,
+"person_id": 26662365,
+"firma_id": 26662373
+},
+{
+"zeile_person": 6043641,
+"zeile_firma": 6043640,
+"person_id": 26887728,
+"firma_id": 26521410
+},
+{
+"zeile_person": 6043657,
+"zeile_firma": 6043656,
+"person_id": 26887790,
+"firma_id": 26887815
+},
+{
+"zeile_person": 6052530,
+"zeile_firma": 6052529,
+"person_id": 26950444,
+"firma_id": 26950432
+},
+{
+"zeile_person": 6057770,
+"zeile_firma": 6057769,
+"person_id": 26984185,
+"firma_id": 17685990
+},
+{
+"zeile_person": 6057783,
+"zeile_firma": 6057782,
+"person_id": 26987367,
+"firma_id": 26987395
+},
+{
+"zeile_person": 6098658,
+"zeile_firma": 6098657,
+"person_id": 27330155,
+"firma_id": 27330190
+},
+{
+"zeile_person": 6098664,
+"zeile_firma": 6098663,
+"person_id": 27330216,
+"firma_id": 22676213
+},
+{
+"zeile_person": 6098703,
+"zeile_firma": 6098702,
+"person_id": 27330318,
+"firma_id": 18273411
+},
+{
+"zeile_person": 6103363,
+"zeile_firma": 6103362,
+"person_id": 27362655,
+"firma_id": 27362690
+},
+{
+"zeile_person": 6201744,
+"zeile_firma": 6201743,
+"person_id": 28038729,
+"firma_id": 28038742
+},
+{
+"zeile_person": 6201748,
+"zeile_firma": 6201747,
+"person_id": 28038767,
+"firma_id": 28038776
+},
+{
+"zeile_person": 6201768,
+"zeile_firma": 6201767,
+"person_id": 28039126,
+"firma_id": 18273866
+},
+{
+"zeile_person": 6201771,
+"zeile_firma": 6201770,
+"person_id": 28039164,
+"firma_id": 17366560
+},
+{
+"zeile_person": 6201774,
+"zeile_firma": 6201773,
+"person_id": 28039183,
+"firma_id": 18028734
+},
+{
+"zeile_person": 6201782,
+"zeile_firma": 6201781,
+"person_id": 28039250,
+"firma_id": 28039261
+},
+{
+"zeile_person": 6201991,
+"zeile_firma": 6201990,
+"person_id": 28044079,
+"firma_id": 28044087
+},
+{
+"zeile_person": 6201993,
+"zeile_firma": 6201992,
+"person_id": 28044109,
+"firma_id": 22658071
+},
+{
+"zeile_person": 6201996,
+"zeile_firma": 6201995,
+"person_id": 28044136,
+"firma_id": 17237035
+},
+{
+"zeile_person": 6202001,
+"zeile_firma": 6202000,
+"person_id": 28044154,
+"firma_id": 28044162
+},
+{
+"zeile_person": 6202003,
+"zeile_firma": 6202002,
+"person_id": 28044178,
+"firma_id": 28044196
+},
+{
+"zeile_person": 6202006,
+"zeile_firma": 6202005,
+"person_id": 28044245,
+"firma_id": 25687129
+},
+{
+"zeile_person": 6202014,
+"zeile_firma": 6202013,
+"person_id": 28044522,
+"firma_id": 28044531
+},
+{
+"zeile_person": 6202018,
+"zeile_firma": 6202017,
+"person_id": 28044559,
+"firma_id": 28044569
+},
+{
+"zeile_person": 6202028,
+"zeile_firma": 6202027,
+"person_id": 28044612,
+"firma_id": 28044627
+},
+{
+"zeile_person": 6211015,
+"zeile_firma": 6211014,
+"person_id": 28138655,
+"firma_id": 28138628
+},
+{
+"zeile_person": 6220164,
+"zeile_firma": 6220163,
+"person_id": 28208930,
+"firma_id": 25013846
+},
+{
+"zeile_person": 6249262,
+"zeile_firma": 6249261,
+"person_id": 28457611,
+"firma_id": 17366464
+},
+{
+"zeile_person": 6249267,
+"zeile_firma": 6249266,
+"person_id": 28457645,
+"firma_id": 17366464
+},
+{
+"zeile_person": 6250685,
+"zeile_firma": 6250684,
+"person_id": 28472465,
+"firma_id": 22665101
+},
+{
+"zeile_person": 6373854,
+"zeile_firma": 6373853,
+"person_id": 28938147,
+"firma_id": 25257968
+},
+{
+"zeile_person": 6373884,
+"zeile_firma": 6373883,
+"person_id": 28938319,
+"firma_id": 17958647
+},
+{
+"zeile_person": 6373916,
+"zeile_firma": 6373915,
+"person_id": 28938422,
+"firma_id": 28938439
+},
+{
+"zeile_person": 6373929,
+"zeile_firma": 6373928,
+"person_id": 28938476,
+"firma_id": 28938511
+},
+{
+"zeile_person": 6373938,
+"zeile_firma": 6373937,
+"person_id": 28938532,
+"firma_id": 28938439
+},
+{
+"zeile_person": 6374013,
+"zeile_firma": 6374012,
+"person_id": 28938564,
+"firma_id": 28938955
+},
+{
+"zeile_person": 6374042,
+"zeile_firma": 6374041,
+"person_id": 28938998,
+"firma_id": 28939089
+},
+{
+"zeile_person": 6374073,
+"zeile_firma": 6374072,
+"person_id": 28939183,
+"firma_id": 28939223
+},
+{
+"zeile_person": 6374099,
+"zeile_firma": 6374098,
+"person_id": 28939335,
+"firma_id": 17366464
+},
+{
+"zeile_person": 6375676,
+"zeile_firma": 6375675,
+"person_id": 28952183,
+"firma_id": 17475945
+},
+{
+"zeile_person": 6384469,
+"zeile_firma": 6384468,
+"person_id": 29025914,
+"firma_id": 29025899
+},
+{
+"zeile_person": 6525834,
+"zeile_firma": 6525833,
+"person_id": 29277454,
+"firma_id": 29277407
+}
+]
+}

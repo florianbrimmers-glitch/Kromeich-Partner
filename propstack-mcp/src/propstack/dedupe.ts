@@ -143,6 +143,16 @@ export function isMobile(phone: string): boolean {
 	return /^491[567]\d{7,}$/.test(normalizePhone(phone));
 }
 
+/**
+ * Nummer ohne Ländervorwahl, die wie eine deutsche Mobilnummer aussieht: 015x/016x/017x mit 11 oder 12 Ziffern.
+ * Die Länge trennt sie von gleich beginnenden Festnetznummern in den Niederlanden (Delft 015 …, 10 Ziffern),
+ * Frankreich (Paris 01 7…, 10 Ziffern) und Wien (01 7…, meist 9 Ziffern).
+ */
+export function isGermanMobileNational(phone: string): boolean {
+	const text = phone.trim();
+	return /^\(?\s*0(?!0)\s*\d/.test(text) && /^01[567]\d{8,9}$/.test(text.replace(/\D/g, ""));
+}
+
 export function normalizeText(text: unknown): string {
 	return String(text ?? "")
 		.toLocaleLowerCase("de")

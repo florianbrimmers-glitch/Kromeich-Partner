@@ -307,6 +307,25 @@ describe("create_contact", () => {
 		expect(updates[0]?.[0]).toBe("done");
 	});
 
+	it("Ausnahme (Oguzhan schreibt als Lena): Betreuer ist Lenas Propstack-Nutzer, Notiz und Protokoll nennen die Person", async () => {
+		// Entscheidung Florian, 20.11.2026
+		const { db, rows } = fakeDb();
+		let sent: Record<string, unknown> = {};
+		const { client } = fakeClient({
+			createContact: (payload) => {
+				sent = payload as Record<string, unknown>;
+				return { id: 503 };
+			},
+			getContact: () => ({ ...sent, id: 503, name: "Anna Test" }),
+		});
+		const oguzhan = { brokerId: 254958, brokerName: "Lena Klinnert", email: "oguzhan.sahin@kromeichpartner.de", name: "Oguzhan Sahin" };
+		const out = await createContact({ client, db, now: NOW, user: oguzhan }, { first_name: "Anna", last_name: "Test", test: true });
+		expect(out.result).toMatchObject({ broker: "Lena Klinnert", created: true, id: 503 });
+		expect(sent).toMatchObject({ broker_id: 254958 });
+		expect(sent.description).toMatch(/Angelegt über Claude \(Propstack MCP\) von Oguzhan Sahin am 2026-10-14/);
+		expect(rows[0].slice(1, 3)).toEqual(["oguzhan.sahin@kromeichpartner.de", 254958]);
+	});
+
 	it("meldet Felder, die Propstack still verworfen hat", async () => {
 		const { db, updates } = fakeDb();
 		const { client } = fakeClient({
@@ -416,7 +435,7 @@ describe("update_contact", () => {
 		};
 		const wien = await lauf({ office_country: "Österreich" }, { phone_office: "01 2345678" });
 		expect(wien.sent).toEqual({ office_phone: "+43 1 2345678" });
-		expect(wien.result).toMatchObject({ phone_adjusted: ["phone_office: „01 2345678“ → „+43 1 2345678“ (auf +43 umgestellt)"], updated: true });
+		expect(wien.result).toMatchObject({ phone_adjusted: ["phone_office: „01 2345678“ → „+43 1 2345678“ (auf +43 umgestellt – Land am Kontakt: Österreich)"], updated: true });
 		// kein Land gespeichert: als deutsche Nummer gewertet
 		const ohne = await lauf({}, { phone_office: "0221 4710199" });
 		expect(ohne.sent).toEqual({ office_phone: "+49 221 4710199" });
@@ -428,6 +447,49 @@ describe("update_contact", () => {
 		const gleich = await lauf({ office_phone: "+49 221 4710199" }, { phone_office: "0221 4710199" });
 		expect(gleich.sent).toEqual({});
 		expect(gleich.result).toMatchObject({ updated: false });
+	});
+
+	it("deutsche Mobilnummer ohne Ländervorwahl an einem Kontakt im Ausland: wird nicht geraten, sondern zurückgewiesen", async () => {
+		// Befund 20.11.2026 (nach v0.12.4): Am Kontakt steht Österreich, eingegeben wird die deutsche Handynummer „0171 …“ –
+		// gespeichert würde „+43 171 …“. Als Mobil kam stattdessen der irreführende Rat „bitte als phone_office angeben“.
+		const lauf = async (gespeichert: Record<string, unknown>, input: Record<string, unknown>) => {
+			let sent: Record<string, unknown> | undefined;
+			const { client } = fakeClient({
+				getContact: () => ({ ...current, ...gespeichert, ...(sent ?? {}) }),
+				updateContact: (_id, payload) => {
+					sent = payload as Record<string, unknown>;
+					return {};
+				},
+			});
+			const out = updateContact({ client, db: fakeDb().db, now: NOW, user: USER }, { id: 7, ...input });
+			return { gesendet: () => sent, out };
+		};
+		for (const feld of ["mobile", "phone_office"]) {
+			const fall = await lauf({ office_country: "Österreich" }, { [feld]: "0171 3920057" });
+			await expect(fall.out, feld).rejects.toThrow(
+				`${feld}: „0171 3920057“ hat keine Ländervorwahl. Sie sieht aus wie eine deutsche Mobilnummer, am Kontakt ist aber das Land Österreich gespeichert.`,
+			);
+			await expect(fall.out, feld).rejects.toThrow(/„\+49 171 3920057“, wenn es eine deutsche Mobilnummer ist – sonst „\+43 171 3920057“/);
+			expect(fall.gesendet(), feld).toBeUndefined();
+		}
+		// im selben Aufruf angegebenes Land: derselbe Schutz, anderer Wortlaut
+		const neu = await lauf({}, { country: "Niederlande", mobile: "(0171) 3920057" });
+		await expect(neu.out).rejects.toThrow(/angegeben ist aber das Land Niederlande/);
+		expect(neu.gesendet()).toBeUndefined();
+		// mit Ländervorwahl ist die Sache entschieden – die Nummer wird als Mobil angenommen
+		const klar = await lauf({ office_country: "Österreich" }, { mobile: "+49 171 3920057" });
+		await expect(klar.out).resolves.toMatchObject({ result: { updated: true } });
+		expect(klar.gesendet()).toEqual({ office_cell: "+49 171 3920057" });
+		// Deutschland oder gar kein Land: nichts ist mehrdeutig, es bleibt bei +49
+		for (const gespeichert of [{ office_country: "Deutschland" }, {}]) {
+			const deutsch = await lauf(gespeichert, { mobile: "0171 3920057" });
+			await expect(deutsch.out).resolves.toMatchObject({ result: { updated: true } });
+			expect(deutsch.gesendet()).toEqual({ office_cell: "+49 171 3920057" });
+		}
+		// ausländische Nummer am ausländischen Kontakt: wie bisher mit der Vorwahl des Landes
+		const graz = await lauf({ office_country: "Österreich" }, { phone_office: "0664 1234567" });
+		await expect(graz.out).resolves.toMatchObject({ result: { phone_adjusted: ["phone_office: „0664 1234567“ → „+43 664 1234567“ (auf +43 umgestellt – Land am Kontakt: Österreich)"] } });
+		expect(graz.gesendet()).toEqual({ office_phone: "+43 664 1234567" });
 	});
 
 	it("schreibt nur Änderungen, hängt Notiz an, sichert vorherigen Stand", async () => {
