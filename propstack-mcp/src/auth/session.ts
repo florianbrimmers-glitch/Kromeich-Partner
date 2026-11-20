@@ -1,6 +1,5 @@
-import type { PropstackClient } from "../propstack-client";
 import type { BrokerAlias } from "../config";
-import { type BrokerIdentity, resolveBroker } from "./broker-lookup";
+import { type BrokerIdentity, type BrokerSource, resolveBroker } from "./broker-lookup";
 import { AuthRejection } from "./errors";
 import { verifyGoogleIdToken } from "./google-id-token";
 
@@ -43,7 +42,7 @@ export function identityInfo(props: Props): Record<string, unknown> {
 export interface AuthDeps {
 	/** Nur für Tests: andere Ausnahmen als die hinterlegten (BROKER_ALIASES). */
 	aliases?: Record<string, BrokerAlias>;
-	client: Pick<PropstackClient, "listBrokers">;
+	client: BrokerSource;
 	kv: KVNamespace;
 	clientId: string;
 	fetchFn?: typeof fetch;

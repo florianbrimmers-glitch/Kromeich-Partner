@@ -187,7 +187,7 @@ app.get("/callback", async (c) => {
 		});
 		// 3a (ID-Token, hd, email_verified) + 3b (Propstack-Nutzer)
 		props = await authorizeLogin(idToken, {
-			client: new PropstackClient({ apiKey: c.env.PROPSTACK_API_KEY }),
+			client: new PropstackClient({ apiKey: c.env.PROPSTACK_API_KEY, apiKeyV2: c.env.PROPSTACK_API_KEY_V2 }),
 			clientId: c.env.GOOGLE_CLIENT_ID,
 			kv: c.env.OAUTH_KV,
 		});

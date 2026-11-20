@@ -5,6 +5,7 @@ import { env } from "cloudflare:workers";
 import { purgeOldAuditEntries, retentionCutoff } from "./audit";
 import { purgeOldBulkPlans } from "./bulk/store";
 import { purgeOldDashboardStands } from "./dashboard/store";
+import { authCheckMode } from "./auth/broker-lookup";
 import { identityInfo, recheckOnRefresh, type Props } from "./auth/session";
 import { ACCESS_TOKEN_TTL_SECONDS } from "./config";
 import { GoogleHandler } from "./google-handler";
@@ -16,7 +17,7 @@ import { purgeOldWriteLog } from "./write-log";
 export class PropstackMCP extends McpAgent<Env, Record<string, never>, Props> {
 	server = new McpServer({
 		name: "Propstack MCP – Kromeich",
-		version: "0.13.0",
+		version: "0.14.0",
 	});
 
 	async init() {
@@ -30,10 +31,10 @@ export class PropstackMCP extends McpAgent<Env, Record<string, never>, Props> {
 				annotations: { readOnlyHint: true },
 			},
 			async () =>
-				runTool(ctx, "whoami", {}, async () => {
+				runTool(ctx, "whoami", {}, async (client) => {
 					// Nur ob der zweite Schlüssel hinterlegt ist – nie der Wert.
 					const firmen = this.env.PROPSTACK_API_KEY_V2?.trim() ? "bereit (zweiter Propstack-Schlüssel ist hinterlegt)" : "gesperrt (PROPSTACK_API_KEY_V2 fehlt im Server)";
-					return { count: 1, result: { ...identityInfo(this.props!), firmen_und_verknuepfungen: firmen } };
+					return { count: 1, result: { ...identityInfo(this.props!), firmen_und_verknuepfungen: firmen, anmeldepruefung: await authCheckMode(client) } };
 				}),
 		);
 
@@ -54,7 +55,7 @@ const provider = new OAuthProvider({
 	tokenExchangeCallback: async ({ grantType, props }) => {
 		if (grantType !== GrantType.REFRESH_TOKEN) return;
 		const result = await recheckOnRefresh(props as Props, {
-			client: new PropstackClient({ apiKey: env.PROPSTACK_API_KEY }),
+			client: new PropstackClient({ apiKey: env.PROPSTACK_API_KEY, apiKeyV2: env.PROPSTACK_API_KEY_V2 }),
 			kv: env.OAUTH_KV,
 		});
 		if (result.ok) return { newProps: result.props };

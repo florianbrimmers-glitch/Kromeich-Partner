@@ -11,6 +11,13 @@ export const ALLOWED_HOSTED_DOMAIN = "kromeichpartner.de";
  * endet beim nächsten Token-Refresh (spätestens nach 1 h). Hat die Person später einen eigenen Propstack-Nutzer,
  * gilt automatisch der.
  */
+/**
+ * Sammelpostfächer (Freigabe Florian, 20.11.2026): in Propstack als technische Nutzer angelegt, aber keine Person.
+ * Sie dürfen sich nie anmelden – unabhängig davon, ob die strenge Prüfung über die zweite Schnittstelle gerade greift.
+ * Klein geschrieben.
+ */
+export const BLOCKED_LOGIN_EMAILS = ["info@kromeichpartner.de", "kontakt@kromeichpartner.de"];
+
 export type BrokerAlias = { name: string; propstackEmail: string; propstackId: number };
 export const BROKER_ALIASES: Record<string, BrokerAlias> = {
 	"oguzhan.sahin@kromeichpartner.de": { name: "Oguzhan Sahin", propstackEmail: "lena.klinnert@kromeichpartner.de", propstackId: 254958 },
