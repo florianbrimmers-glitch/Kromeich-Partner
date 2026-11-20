@@ -1,0 +1,489 @@
+{
+"hinweis": "Stand 20.11.2026: Telefonfelder mit einer 0 nach der L\u00e4ndervorwahl ('+49 (0) 151 \u2026'), aus denen nur diese 0 entfernt wird. Nur Kontakt-Nummer und Feld, keine Telefonnummern.",
+"felder": [
+{
+"contact_id": 18273509,
+"feld": "home_phone"
+},
+{
+"contact_id": 18273509,
+"feld": "home_phone"
+},
+{
+"contact_id": 22066293,
+"feld": "home_phone"
+},
+{
+"contact_id": 22082354,
+"feld": "home_cell"
+},
+{
+"contact_id": 22671636,
+"feld": "home_phone"
+},
+{
+"contact_id": 22675370,
+"feld": "home_cell"
+},
+{
+"contact_id": 22675370,
+"feld": "home_phone"
+},
+{
+"contact_id": 22675944,
+"feld": "home_cell"
+},
+{
+"contact_id": 22675944,
+"feld": "home_phone"
+},
+{
+"contact_id": 22677183,
+"feld": "home_phone"
+},
+{
+"contact_id": 22731076,
+"feld": "home_cell"
+},
+{
+"contact_id": 22731076,
+"feld": "home_phone"
+},
+{
+"contact_id": 22758267,
+"feld": "home_cell"
+},
+{
+"contact_id": 22786755,
+"feld": "home_cell"
+},
+{
+"contact_id": 22795382,
+"feld": "home_phone"
+},
+{
+"contact_id": 22795806,
+"feld": "office_phone"
+},
+{
+"contact_id": 22803270,
+"feld": "office_phone"
+},
+{
+"contact_id": 24500691,
+"feld": "home_cell"
+},
+{
+"contact_id": 24500691,
+"feld": "home_phone"
+},
+{
+"contact_id": 25069787,
+"feld": "home_cell"
+},
+{
+"contact_id": 25069787,
+"feld": "home_phone"
+},
+{
+"contact_id": 25935890,
+"feld": "home_phone"
+},
+{
+"contact_id": 25938046,
+"feld": "home_cell"
+},
+{
+"contact_id": 27330155,
+"feld": "home_phone"
+},
+{
+"contact_id": 27330216,
+"feld": "home_cell"
+},
+{
+"contact_id": 27330216,
+"feld": "home_phone"
+},
+{
+"contact_id": 28039183,
+"feld": "home_phone"
+},
+{
+"contact_id": 28044522,
+"feld": "home_cell"
+},
+{
+"contact_id": 28044522,
+"feld": "home_phone"
+},
+{
+"contact_id": 28044612,
+"feld": "home_cell"
+},
+{
+"contact_id": 28457611,
+"feld": "home_cell"
+},
+{
+"contact_id": 28457611,
+"feld": "home_phone"
+},
+{
+"contact_id": 28939335,
+"feld": "home_cell"
+},
+{
+"contact_id": 28939335,
+"feld": "home_phone"
+},
+{
+"contact_id": 28952183,
+"feld": "home_phone"
+},
+{
+"contact_id": 29320597,
+"feld": "home_cell"
+},
+{
+"contact_id": 29320597,
+"feld": "home_phone"
+},
+{
+"contact_id": 29417616,
+"feld": "home_cell"
+},
+{
+"contact_id": 29417617,
+"feld": "home_cell"
+},
+{
+"contact_id": 29417617,
+"feld": "home_phone"
+},
+{
+"contact_id": 29771658,
+"feld": "office_phone"
+},
+{
+"contact_id": 29771658,
+"feld": "office_phone"
+},
+{
+"contact_id": 29868774,
+"feld": "office_phone"
+},
+{
+"contact_id": 30283835,
+"feld": "office_phone"
+},
+{
+"contact_id": 30421570,
+"feld": "office_phone"
+},
+{
+"contact_id": 30421570,
+"feld": "office_phone"
+},
+{
+"contact_id": 30421681,
+"feld": "office_phone"
+},
+{
+"contact_id": 30502997,
+"feld": "office_phone"
+},
+{
+"contact_id": 30503061,
+"feld": "office_phone"
+},
+{
+"contact_id": 30503122,
+"feld": "office_phone"
+},
+{
+"contact_id": 30565646,
+"feld": "office_phone"
+},
+{
+"contact_id": 30588524,
+"feld": "office_phone"
+},
+{
+"contact_id": 30588524,
+"feld": "office_phone"
+},
+{
+"contact_id": 30588557,
+"feld": "office_phone"
+},
+{
+"contact_id": 30588557,
+"feld": "office_phone"
+},
+{
+"contact_id": 30681003,
+"feld": "home_cell"
+},
+{
+"contact_id": 30781904,
+"feld": "home_cell"
+},
+{
+"contact_id": 30781904,
+"feld": "home_phone"
+},
+{
+"contact_id": 31010292,
+"feld": "home_cell"
+},
+{
+"contact_id": 31010292,
+"feld": "home_phone"
+},
+{
+"contact_id": 31556348,
+"feld": "home_phone"
+},
+{
+"contact_id": 31775473,
+"feld": "office_phone"
+},
+{
+"contact_id": 31873624,
+"feld": "office_phone"
+},
+{
+"contact_id": 32056588,
+"feld": "office_phone"
+},
+{
+"contact_id": 32170565,
+"feld": "office_phone"
+},
+{
+"contact_id": 32197748,
+"feld": "office_phone"
+},
+{
+"contact_id": 32255382,
+"feld": "office_phone"
+},
+{
+"contact_id": 32301412,
+"feld": "office_phone"
+},
+{
+"contact_id": 32319044,
+"feld": "office_phone"
+},
+{
+"contact_id": 32440402,
+"feld": "office_phone"
+},
+{
+"contact_id": 32440402,
+"feld": "office_phone"
+},
+{
+"contact_id": 32598007,
+"feld": "office_phone"
+},
+{
+"contact_id": 32687277,
+"feld": "office_phone"
+},
+{
+"contact_id": 34690875,
+"feld": "office_phone"
+},
+{
+"contact_id": 34690879,
+"feld": "office_phone"
+},
+{
+"contact_id": 34707008,
+"feld": "office_phone"
+},
+{
+"contact_id": 34707018,
+"feld": "office_phone"
+},
+{
+"contact_id": 34707029,
+"feld": "office_phone"
+},
+{
+"contact_id": 35006889,
+"feld": "office_phone"
+},
+{
+"contact_id": 35117584,
+"feld": "office_phone"
+},
+{
+"contact_id": 35248598,
+"feld": "office_phone"
+},
+{
+"contact_id": 35407318,
+"feld": "office_phone"
+},
+{
+"contact_id": 35407324,
+"feld": "office_phone"
+},
+{
+"contact_id": 35551510,
+"feld": "office_phone"
+},
+{
+"contact_id": 35693862,
+"feld": "office_phone"
+},
+{
+"contact_id": 35842833,
+"feld": "home_cell"
+},
+{
+"contact_id": 35843032,
+"feld": "home_cell"
+},
+{
+"contact_id": 35843032,
+"feld": "home_phone"
+},
+{
+"contact_id": 36079729,
+"feld": "office_phone"
+},
+{
+"contact_id": 36454587,
+"feld": "office_phone"
+},
+{
+"contact_id": 36874539,
+"feld": "office_phone"
+},
+{
+"contact_id": 36874652,
+"feld": "office_phone"
+},
+{
+"contact_id": 36924648,
+"feld": "office_phone"
+},
+{
+"contact_id": 36924906,
+"feld": "office_phone"
+},
+{
+"contact_id": 36924909,
+"feld": "office_phone"
+},
+{
+"contact_id": 36924915,
+"feld": "office_phone"
+},
+{
+"contact_id": 36924933,
+"feld": "office_phone"
+},
+{
+"contact_id": 37125308,
+"feld": "office_cell"
+},
+{
+"contact_id": 37159227,
+"feld": "home_phone"
+},
+{
+"contact_id": 37199051,
+"feld": "office_phone"
+},
+{
+"contact_id": 37358401,
+"feld": "office_cell"
+},
+{
+"contact_id": 37358401,
+"feld": "office_phone"
+},
+{
+"contact_id": 37708819,
+"feld": "office_cell"
+},
+{
+"contact_id": 37727539,
+"feld": "office_cell"
+},
+{
+"contact_id": 37727539,
+"feld": "office_phone"
+},
+{
+"contact_id": 37863470,
+"feld": "home_phone"
+},
+{
+"contact_id": 37896458,
+"feld": "office_cell"
+},
+{
+"contact_id": 37921698,
+"feld": "home_cell"
+},
+{
+"contact_id": 37921698,
+"feld": "home_phone"
+},
+{
+"contact_id": 37921883,
+"feld": "home_phone"
+},
+{
+"contact_id": 37921883,
+"feld": "home_phone"
+},
+{
+"contact_id": 37921885,
+"feld": "home_phone"
+},
+{
+"contact_id": 37921885,
+"feld": "home_phone"
+},
+{
+"contact_id": 38123675,
+"feld": "office_phone"
+},
+{
+"contact_id": 38157947,
+"feld": "office_cell"
+},
+{
+"contact_id": 38249829,
+"feld": "office_phone"
+},
+{
+"contact_id": 38249842,
+"feld": "office_cell"
+},
+{
+"contact_id": 38249940,
+"feld": "office_cell"
+},
+{
+"contact_id": 38249940,
+"feld": "office_phone"
+},
+{
+"contact_id": 38470009,
+"feld": "office_phone"
+},
+{
+"contact_id": 38487905,
+"feld": "office_phone"
+}
+]
+}
