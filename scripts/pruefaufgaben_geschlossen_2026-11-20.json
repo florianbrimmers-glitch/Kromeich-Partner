@@ -1,5 +1,5 @@
 {
- "was": "Aufgaben „Newsletter-Vermietung prüfen“, geschlossen nach Vorprüfung (19.11.) und Nachprüfung (20.11.), jede mit dem Urteil als erster Zeile im Text. Freigabe Florian, 20.11.2026. 96 erledigt/betrifft uns nicht/schwache Spur, 7 + 6 eingetragen, 4 betrifft uns nicht, 6 Teilvermietung, 7 nicht bestimmbar.",
+ "was": "Alle 129 Aufgaben „Newsletter-Vermietung prüfen“, geschlossen nach Vorprüfung (19.11.) und Nachprüfung (20.11.), jede mit dem Urteil als erster Zeile im Text. Freigabe Florian, 20.11.2026. 49 erledigt, 32 betrifft uns nicht, 19 schwache Spur, 16 eingetragen (darunter 3 zu Frankfurt (Oder) nach Florians Ansage), 6 Teilvermietung, 7 nicht bestimmbar.",
  "zuruecknehmen": "python scripts/pruefaufgaben_aufraeumen.py --undo scripts/pruefaufgaben_geschlossen_2026-11-20.json --apply",
  "geschlossen": [
   145564174,
@@ -127,7 +127,10 @@
   156934267,
   156238723,
   143382485,
-  160441766
+  160441766,
+  157045785,
+  144510581,
+  144132108
  ],
  "unklar": [],
  "vermerke": {
@@ -256,6 +259,9 @@
   "156934267": "Vorprüfung 20.11.2026: nicht bestimmbar, nicht weiter verfolgt. Eine Teilfläche des Gewerbeparks wird Padel-Halle. Wie viel, nennt die Meldung nicht.<br><br>",
   "156238723": "Vorprüfung 20.11.2026: nicht bestimmbar, nicht weiter verfolgt. eLing mietet rund 4.250 m². Das passt zu keiner unserer offenen Einheiten als Ganzes; vermutlich ein Teil von Unit 3.<br><br>",
   "143382485": "Vorprüfung 20.11.2026: nicht bestimmbar, nicht weiter verfolgt. eLing mietet rund 4.250 m². Das passt zu keiner unserer offenen Einheiten als Ganzes; vermutlich ein Teil von Unit 3.<br><br>",
-  "160441766": "Vorprüfung 20.11.2026: nicht bestimmbar, nicht weiter verfolgt. Grundfos mietet ab Februar 2027 zwei Units mit zusammen rund 4.300 m². Welche, nennt die Meldung nicht.<br><br>"
+  "160441766": "Vorprüfung 20.11.2026: nicht bestimmbar, nicht weiter verfolgt. Grundfos mietet ab Februar 2027 zwei Units mit zusammen rund 4.300 m². Welche, nennt die Meldung nicht.<br><br>",
+  "157045785": "Vorprüfung 20.11.2026: eingetragen – die Einheit steht jetzt auf vermietet und Abgeschlossen. Florian, 20.11.2026: Halle A ist leer, Halle B ist vermietet. Halle B (1)–(10) steht jetzt auf vermietet und Abgeschlossen, Halle A (1)–(4) wieder in Vermarktung. Alcaro hatte am 08.06.2026 rund 94.000 m² in Halle B gemeldet; in Propstack war seit dem 07.09. Halle A statt Halle B geschlossen.<br><br>",
+  "144510581": "Vorprüfung 20.11.2026: eingetragen – die Einheit steht jetzt auf vermietet und Abgeschlossen. Florian, 20.11.2026: Halle A ist leer, Halle B ist vermietet. Halle B (1)–(10) steht jetzt auf vermietet und Abgeschlossen, Halle A (1)–(4) wieder in Vermarktung. Alcaro hatte am 08.06.2026 rund 94.000 m² in Halle B gemeldet; in Propstack war seit dem 07.09. Halle A statt Halle B geschlossen.<br><br>",
+  "144132108": "Vorprüfung 20.11.2026: eingetragen – die Einheit steht jetzt auf vermietet und Abgeschlossen. Florian, 20.11.2026: Halle A ist leer, Halle B ist vermietet. Halle B (1)–(10) steht jetzt auf vermietet und Abgeschlossen, Halle A (1)–(4) wieder in Vermarktung. Alcaro hatte am 08.06.2026 rund 94.000 m² in Halle B gemeldet; in Propstack war seit dem 07.09. Halle A statt Halle B geschlossen.<br><br>"
  }
 }

@@ -277,21 +277,22 @@ offenen Fragen: „Nicht nachfragen – entweder wissen oder nicht“):
 
 | Was | Zahl | Zurücknehmen |
 |---|---|---|
-| Geprüfte Newsletter-Aufgaben geschlossen, jede mit dem Urteil als erster Zeile im Text | 126 von 129 | `scripts/pruefaufgaben_geschlossen_2026-11-20.json` |
-| Vermietungen eingetragen (vermietet + Abgeschlossen), über den Connector | 17 Einheiten, 11 Objekte | `scripts/vermietungen_eingetragen_2026-11-20.json`, `undo_plan` bis 27.11. |
+| Geprüfte Newsletter-Aufgaben geschlossen, jede mit dem Urteil als erster Zeile im Text | 129 von 129 | `scripts/pruefaufgaben_geschlossen_2026-11-20.json` |
+| Vermietungen eingetragen (vermietet + Abgeschlossen), über den Connector | 28 Datensätze, 12 Objekte | `scripts/vermietungen_eingetragen_2026-11-20.json`, `undo_plan` bis 27.11. |
+| Frankfurt (Oder), Halle A wieder in Vermarktung | 4 Einheiten | ebenda (Gegenrichtung beschrieben) |
 | Teilvermietungen als Notiz am richtigen Objekt vermerkt | 5 Objekte | Notizen werden nur angehängt |
 
-Offen sind danach 449 Aufgaben (am 19.11. morgens 609).
+Offen sind danach 446 Aufgaben (am 19.11. morgens 609).
 
 Die 18 „klären“-Vorgänge wurden nicht beim Eigentümer erfragt, sondern an öffentlichen Quellen nachgeprüft
 (`scripts/radar_nachpruefung_2026-11-20.json`): fünf Vermietungen adressgenau belegt und eingetragen, vier betreffen
-uns nicht, drei sind Teilvermietungen, fünf bleiben unbestimmt – und einer bleibt offen:
+uns nicht, drei sind Teilvermietungen, fünf bleiben unbestimmt. Einer brauchte Florians Wort:
 
 **Frankfurt (Oder), Log Plaza.** Alcaro meldet am 08.06.2026 rund 94.000 m² vermietet, das ist der Großteil der
-Halle B; Halle A mit rund 47.500 m² sei verfügbar. In Propstack ist es umgekehrt: Halle A (1)–(4) steht seit dem
+Halle B; Halle A mit rund 47.500 m² sei verfügbar. In Propstack war es umgekehrt: Halle A (1)–(4) stand seit dem
 07.09. auf vermietet, Halle B (1)–(10) mit 97.660 m² auf „sofort“ frei. Die Prüfaufgabe zur Meldung „Halle B“ hing
-an einer Einheit der Halle A. Nicht angefasst: Halle B allein zu schließen nähme den ganzen Park aus dem Angebot,
-und Halle A wieder zu öffnen ist eine Entscheidung.
+an einer Einheit der Halle A. Florian am 20.11.: „Halle A ist leer, Halle B ist vermietet.“ Danach umgesetzt: Halle B
+(elf Datensätze) geschlossen, Halle A wieder in Vermarktung, frei ab sofort.
 
 **Was beim Schreiben aufgefallen ist** (alles im Protokoll): Der Connector zieht bei jedem Speichern „Gebäudefläche
 gesamt“ auf Halle + Mezzanine nach, auch wenn nur der Status geändert wird (drei Einheiten bekamen einen kleineren
@@ -300,11 +301,10 @@ wieder an.
 
 **Noch zu entscheiden:**
 
-1. Frankfurt (Oder): Halle B schließen und Halle A wieder öffnen?
-2. Die neun Widersprüche zwischen „vermietet“ und „Vermarktung“ (Liste im Protokoll vom 19.11.).
-3. Die 47 Antworten auf Vollzugsmeldungen aus #objekte schließen (oben Punkt 2, noch nicht freigegeben)?
-4. Die Zuordnung im Newsletter-Handler verbessern (Eigentümer in die Kandidatenzeile) und gegen die 129 Urteile messen.
-5. Punkte 6 bis 10 von oben sind unverändert offen.
+1. Die neun Widersprüche zwischen „vermietet“ und „Vermarktung“ (Liste im Protokoll vom 19.11.).
+2. Die 47 Antworten auf Vollzugsmeldungen aus #objekte schließen (oben Punkt 2, noch nicht freigegeben)?
+3. Die Zuordnung im Newsletter-Handler verbessern (Eigentümer in die Kandidatenzeile) und gegen die 129 Urteile messen.
+4. Punkte 6 bis 10 von oben sind unverändert offen.
 
 ## Nachrechnen
 

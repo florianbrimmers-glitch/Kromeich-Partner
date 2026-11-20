@@ -102,16 +102,17 @@ Zuordnung gelehrt hat:
 - **Regel 3 im Auswahl-Prompt** („ein Kandidat in der Gemeinde ist ein STARKER Treffer – auch ohne
   Projektname und ohne Flächenübereinstimmung“) erzeugt genau die 19 schwachen Spuren.
 
-**Ausgeführt am 20.11.2026** (mit Freigabe): 126 der 129 Aufgaben geschlossen, jede mit dem Urteil als erster Zeile
-im Text; 17 Einheiten als vermietet eingetragen. Die 18 „klären“-Vorgänge wurden an öffentlichen Quellen
+**Ausgeführt am 20.11.2026** (mit Freigabe): alle 129 Aufgaben geschlossen, jede mit dem Urteil als erster Zeile
+im Text; 28 Datensätze als vermietet eingetragen, Halle A in Frankfurt (Oder) wieder geöffnet. Die 18 „klären“-Vorgänge wurden an öffentlichen Quellen
 nachgeprüft statt beim Eigentümer erfragt (`scripts/radar_nachpruefung_2026-11-20.json`). Zwei Lehren daraus:
 
 - Bei 4 der 18 lag die KI im Ort daneben: Die Unizell-Halle steht in Schwanewede, nicht in Oyten; die Apex-Fläche in
   Witten, nicht in Bochum; in Dombühl und Pulheim war ein anderes Objekt gemeint. Adresse und Eigentümer standen
   jeweils in der Pressemitteilung, die der Radar verlinkt.
-- Frankfurt (Oder): Die Aufgabe zur Meldung „Halle B vermietet“ hing an einer Einheit der Halle A. In Propstack steht
-  heute Halle A auf vermietet und Halle B auf frei – laut Eigentümer ist es umgekehrt. Ob die falsche Verknüpfung
-  der Auslöser war, ist nicht belegt; die drei Aufgaben dazu sind als einzige noch offen.
+- Frankfurt (Oder): Die Aufgabe zur Meldung „Halle B vermietet“ hing an einer Einheit der Halle A. In Propstack stand
+  seit dem 07.09. Halle A auf vermietet und Halle B (97.660 m²) auf frei – umgekehrt zur Meldung des Eigentümers. Ob
+  die falsche Verknüpfung der Auslöser war, ist nicht belegt. Florian hat es am 20.11. bestätigt („Halle A ist leer,
+  Halle B ist vermietet“); seither stimmt der Stand. Eine falsch verknüpfte Aufgabe kostet also nicht nur Lesezeit.
 
 Nicht geändert: Eine Änderung am Prompt lässt sich ohne Schlüssel hier nicht ausprobieren. Die
 129 Urteile sind aber der erste belastbare Prüfsatz für diesen Handler – der nächste Schritt ist,

@@ -787,5 +787,652 @@
     }
    }
   }
- ]
+ ],
+ "frankfurt_oder": {
+  "ansage": "Florian, 20.11.2026: „Halle A ist leer, Halle B ist vermietet.“ Beleg: Alcaro, 08.06.2026 (rund 94.000 m² in Halle B vermietet, Halle A verfügbar).",
+  "halle_b": {
+   "was": "11 Datensätze auf vermietet + Abgeschlossen (Halle B (1)–(10) und der zweite Datensatz zu Halle B (1) an der Nordstraße)",
+   "plaene": {
+    "680d3e5a041h": "Probe: 5050191",
+    "5n5u3f2r3t2s": "10 Datensätze"
+   },
+   "zuruecknehmen": "undo_plan, möglich bis 27.11.2026",
+   "einheiten": [
+    {
+     "id": 5050191,
+     "einheit": "Halle B (1)",
+     "aenderungen": {
+      "cf.aktiv": {
+       "vorher": [
+        182817
+       ],
+       "nachher": [
+        182818
+       ]
+      },
+      "cf.bezug": {
+       "vorher": null,
+       "nachher": "vermietet"
+      },
+      "cf.gebaudeflache_gesamt": {
+       "vorher": null,
+       "nachher": 9865.0
+      },
+      "cf.status_logistik": {
+       "vorher": "Aktiv",
+       "nachher": "Inaktiv"
+      },
+      "free_from": {
+       "vorher": "Sofort",
+       "nachher": "vermietet"
+      },
+      "property_status": {
+       "vorher": "Vermarktung",
+       "nachher": "Abgeschlossen"
+      },
+      "rented": {
+       "vorher": false,
+       "nachher": true
+      },
+      "show_price_in_expose": {
+       "vorher": null,
+       "nachher": false
+      }
+     }
+    },
+    {
+     "id": 5050066,
+     "einheit": "Halle B (2)",
+     "aenderungen": {
+      "cf.aktiv": {
+       "vorher": [
+        182817
+       ],
+       "nachher": [
+        182818
+       ]
+      },
+      "cf.bezug": {
+       "vorher": null,
+       "nachher": "vermietet"
+      },
+      "cf.gebaudeflache_gesamt": {
+       "vorher": null,
+       "nachher": 10464.0
+      },
+      "cf.status_logistik": {
+       "vorher": "Aktiv",
+       "nachher": "Inaktiv"
+      },
+      "free_from": {
+       "vorher": "Sofort",
+       "nachher": "vermietet"
+      },
+      "property_status": {
+       "vorher": "Vermarktung",
+       "nachher": "Abgeschlossen"
+      },
+      "rented": {
+       "vorher": false,
+       "nachher": true
+      },
+      "show_price_in_expose": {
+       "vorher": null,
+       "nachher": false
+      }
+     }
+    },
+    {
+     "id": 5054002,
+     "einheit": "Halle B (3)",
+     "aenderungen": {
+      "cf.aktiv": {
+       "vorher": [
+        182817
+       ],
+       "nachher": [
+        182818
+       ]
+      },
+      "cf.bezug": {
+       "vorher": null,
+       "nachher": "vermietet"
+      },
+      "cf.gebaudeflache_gesamt": {
+       "vorher": null,
+       "nachher": 9788.0
+      },
+      "cf.status_logistik": {
+       "vorher": "Aktiv",
+       "nachher": "Inaktiv"
+      },
+      "free_from": {
+       "vorher": "Sofort",
+       "nachher": "vermietet"
+      },
+      "property_status": {
+       "vorher": "Vermarktung",
+       "nachher": "Abgeschlossen"
+      },
+      "rented": {
+       "vorher": false,
+       "nachher": true
+      },
+      "show_price_in_expose": {
+       "vorher": null,
+       "nachher": false
+      }
+     }
+    },
+    {
+     "id": 5054026,
+     "einheit": "Halle B (4)",
+     "aenderungen": {
+      "cf.aktiv": {
+       "vorher": [
+        182817
+       ],
+       "nachher": [
+        182818
+       ]
+      },
+      "cf.bezug": {
+       "vorher": null,
+       "nachher": "vermietet"
+      },
+      "cf.gebaudeflache_gesamt": {
+       "vorher": null,
+       "nachher": 10498.0
+      },
+      "cf.status_logistik": {
+       "vorher": "Aktiv",
+       "nachher": "Inaktiv"
+      },
+      "free_from": {
+       "vorher": "Sofort",
+       "nachher": "vermietet"
+      },
+      "property_status": {
+       "vorher": "Vermarktung",
+       "nachher": "Abgeschlossen"
+      },
+      "rented": {
+       "vorher": false,
+       "nachher": true
+      },
+      "show_price_in_expose": {
+       "vorher": null,
+       "nachher": false
+      }
+     }
+    },
+    {
+     "id": 5054059,
+     "einheit": "Halle B (5)",
+     "aenderungen": {
+      "cf.aktiv": {
+       "vorher": [
+        182817
+       ],
+       "nachher": [
+        182818
+       ]
+      },
+      "cf.bezug": {
+       "vorher": null,
+       "nachher": "vermietet"
+      },
+      "cf.gebaudeflache_gesamt": {
+       "vorher": null,
+       "nachher": 7204.0
+      },
+      "cf.status_logistik": {
+       "vorher": "Aktiv",
+       "nachher": "Inaktiv"
+      },
+      "free_from": {
+       "vorher": "Sofort",
+       "nachher": "vermietet"
+      },
+      "property_status": {
+       "vorher": "Vermarktung",
+       "nachher": "Abgeschlossen"
+      },
+      "rented": {
+       "vorher": false,
+       "nachher": true
+      },
+      "show_price_in_expose": {
+       "vorher": null,
+       "nachher": false
+      }
+     }
+    },
+    {
+     "id": 5054080,
+     "einheit": "Halle B (6)",
+     "aenderungen": {
+      "cf.aktiv": {
+       "vorher": [
+        182817
+       ],
+       "nachher": [
+        182818
+       ]
+      },
+      "cf.bezug": {
+       "vorher": null,
+       "nachher": "vermietet"
+      },
+      "cf.gebaudeflache_gesamt": {
+       "vorher": null,
+       "nachher": 7936.0
+      },
+      "cf.status_logistik": {
+       "vorher": "Aktiv",
+       "nachher": "Inaktiv"
+      },
+      "free_from": {
+       "vorher": "Sofort",
+       "nachher": "vermietet"
+      },
+      "property_status": {
+       "vorher": "Vermarktung",
+       "nachher": "Abgeschlossen"
+      },
+      "rented": {
+       "vorher": false,
+       "nachher": true
+      },
+      "show_price_in_expose": {
+       "vorher": null,
+       "nachher": false
+      }
+     }
+    },
+    {
+     "id": 5054095,
+     "einheit": "Halle B (7)",
+     "aenderungen": {
+      "cf.aktiv": {
+       "vorher": [
+        182817
+       ],
+       "nachher": [
+        182818
+       ]
+      },
+      "cf.bezug": {
+       "vorher": null,
+       "nachher": "vermietet"
+      },
+      "cf.gebaudeflache_gesamt": {
+       "vorher": null,
+       "nachher": 10764.0
+      },
+      "cf.status_logistik": {
+       "vorher": "Aktiv",
+       "nachher": "Inaktiv"
+      },
+      "free_from": {
+       "vorher": "Sofort",
+       "nachher": "vermietet"
+      },
+      "property_status": {
+       "vorher": "Vermarktung",
+       "nachher": "Abgeschlossen"
+      },
+      "rented": {
+       "vorher": false,
+       "nachher": true
+      },
+      "show_price_in_expose": {
+       "vorher": null,
+       "nachher": false
+      }
+     }
+    },
+    {
+     "id": 5050565,
+     "einheit": "Halle B (8)",
+     "aenderungen": {
+      "cf.aktiv": {
+       "vorher": [
+        182817
+       ],
+       "nachher": [
+        182818
+       ]
+      },
+      "cf.bezug": {
+       "vorher": null,
+       "nachher": "vermietet"
+      },
+      "cf.gebaudeflache_gesamt": {
+       "vorher": null,
+       "nachher": 11642.0
+      },
+      "cf.status_logistik": {
+       "vorher": "Aktiv",
+       "nachher": "Inaktiv"
+      },
+      "free_from": {
+       "vorher": "Sofort",
+       "nachher": "vermietet"
+      },
+      "property_status": {
+       "vorher": "Vermarktung",
+       "nachher": "Abgeschlossen"
+      },
+      "rented": {
+       "vorher": false,
+       "nachher": true
+      },
+      "show_price_in_expose": {
+       "vorher": null,
+       "nachher": false
+      }
+     }
+    },
+    {
+     "id": 5050578,
+     "einheit": "Halle B (9)",
+     "aenderungen": {
+      "cf.aktiv": {
+       "vorher": [
+        182817
+       ],
+       "nachher": [
+        182818
+       ]
+      },
+      "cf.bezug": {
+       "vorher": null,
+       "nachher": "vermietet"
+      },
+      "cf.gebaudeflache_gesamt": {
+       "vorher": null,
+       "nachher": 10896.0
+      },
+      "cf.status_logistik": {
+       "vorher": "Aktiv",
+       "nachher": "Inaktiv"
+      },
+      "free_from": {
+       "vorher": "Sofort",
+       "nachher": "vermietet"
+      },
+      "property_status": {
+       "vorher": "Vermarktung",
+       "nachher": "Abgeschlossen"
+      },
+      "rented": {
+       "vorher": false,
+       "nachher": true
+      },
+      "show_price_in_expose": {
+       "vorher": null,
+       "nachher": false
+      }
+     }
+    },
+    {
+     "id": 5050591,
+     "einheit": "Halle B (10)",
+     "aenderungen": {
+      "cf.aktiv": {
+       "vorher": [
+        182817
+       ],
+       "nachher": [
+        182818
+       ]
+      },
+      "cf.bezug": {
+       "vorher": null,
+       "nachher": "vermietet"
+      },
+      "cf.gebaudeflache_gesamt": {
+       "vorher": null,
+       "nachher": 8603.0
+      },
+      "cf.status_logistik": {
+       "vorher": "Aktiv",
+       "nachher": "Inaktiv"
+      },
+      "free_from": {
+       "vorher": "Sofort",
+       "nachher": "vermietet"
+      },
+      "property_status": {
+       "vorher": "Vermarktung",
+       "nachher": "Abgeschlossen"
+      },
+      "rented": {
+       "vorher": false,
+       "nachher": true
+      },
+      "show_price_in_expose": {
+       "vorher": null,
+       "nachher": false
+      }
+     }
+    },
+    {
+     "id": 5050043,
+     "einheit": "Halle B(1)",
+     "aenderungen": {
+      "cf.aktiv": {
+       "vorher": null,
+       "nachher": [
+        182818
+       ]
+      },
+      "cf.bezug": {
+       "vorher": null,
+       "nachher": "vermietet"
+      },
+      "cf.gebaudeflache_gesamt": {
+       "vorher": null,
+       "nachher": 9865.0
+      },
+      "cf.status_logistik": {
+       "vorher": null,
+       "nachher": "Inaktiv"
+      },
+      "free_from": {
+       "vorher": "Sofort",
+       "nachher": "vermietet"
+      },
+      "property_status": {
+       "vorher": null,
+       "nachher": "Abgeschlossen"
+      },
+      "rented": {
+       "vorher": false,
+       "nachher": true
+      },
+      "show_price_in_expose": {
+       "vorher": null,
+       "nachher": false
+      }
+     }
+    }
+   ]
+  },
+  "halle_a": {
+   "was": "4 Einheiten wieder auf Vermarktung, nicht vermietet, frei ab „sofort“, damit „Aktiv“ (update_object, je mit Änderungsvermerk)",
+   "zuruecknehmen": "kein undo_plan; Gegenrichtung: plan mit rented=true und status_id 163676 für 5033678–5033681",
+   "einheiten": [
+    {
+     "id": 5033678,
+     "einheit": "Halle A (1)",
+     "aenderungen": {
+      "cf.aktiv": {
+       "vorher": [
+        182818
+       ],
+       "nachher": [
+        182817
+       ]
+      },
+      "cf.bemerkung": {
+       "vorher": "(unverändert davor)",
+       "nachher": "Vermerk angehängt"
+      },
+      "cf.bezug": {
+       "vorher": null,
+       "nachher": "sofort"
+      },
+      "cf.status_logistik": {
+       "vorher": "Inaktiv",
+       "nachher": "Aktiv"
+      },
+      "free_from": {
+       "vorher": "vermietet",
+       "nachher": "sofort"
+      },
+      "property_status": {
+       "vorher": "Abgeschlossen",
+       "nachher": "Vermarktung"
+      },
+      "rented": {
+       "vorher": true,
+       "nachher": false
+      },
+      "show_price_in_expose": {
+       "vorher": null,
+       "nachher": false
+      }
+     }
+    },
+    {
+     "id": 5033679,
+     "einheit": "Halle A (2)",
+     "aenderungen": {
+      "cf.aktiv": {
+       "vorher": [
+        182818
+       ],
+       "nachher": [
+        182817
+       ]
+      },
+      "cf.bemerkung": {
+       "vorher": "(unverändert davor)",
+       "nachher": "Vermerk angehängt"
+      },
+      "cf.bezug": {
+       "vorher": null,
+       "nachher": "sofort"
+      },
+      "cf.status_logistik": {
+       "vorher": "Inaktiv",
+       "nachher": "Aktiv"
+      },
+      "free_from": {
+       "vorher": "vermietet",
+       "nachher": "sofort"
+      },
+      "property_status": {
+       "vorher": "Abgeschlossen",
+       "nachher": "Vermarktung"
+      },
+      "rented": {
+       "vorher": true,
+       "nachher": false
+      },
+      "show_price_in_expose": {
+       "vorher": null,
+       "nachher": false
+      }
+     }
+    },
+    {
+     "id": 5033680,
+     "einheit": "Halle A (3)",
+     "aenderungen": {
+      "cf.aktiv": {
+       "vorher": [
+        182818
+       ],
+       "nachher": [
+        182817
+       ]
+      },
+      "cf.bemerkung": {
+       "vorher": "(unverändert davor)",
+       "nachher": "Vermerk angehängt"
+      },
+      "cf.bezug": {
+       "vorher": null,
+       "nachher": "sofort"
+      },
+      "cf.status_logistik": {
+       "vorher": "Inaktiv",
+       "nachher": "Aktiv"
+      },
+      "free_from": {
+       "vorher": "vermietet",
+       "nachher": "sofort"
+      },
+      "property_status": {
+       "vorher": "Abgeschlossen",
+       "nachher": "Vermarktung"
+      },
+      "rented": {
+       "vorher": true,
+       "nachher": false
+      },
+      "show_price_in_expose": {
+       "vorher": null,
+       "nachher": false
+      }
+     }
+    },
+    {
+     "id": 5033681,
+     "einheit": "Halle A (4)",
+     "aenderungen": {
+      "cf.aktiv": {
+       "vorher": [
+        182818
+       ],
+       "nachher": [
+        182817
+       ]
+      },
+      "cf.bemerkung": {
+       "vorher": "(unverändert davor)",
+       "nachher": "Vermerk angehängt"
+      },
+      "cf.bezug": {
+       "vorher": null,
+       "nachher": "sofort"
+      },
+      "cf.status_logistik": {
+       "vorher": "Inaktiv",
+       "nachher": "Aktiv"
+      },
+      "free_from": {
+       "vorher": "vermietet",
+       "nachher": "sofort"
+      },
+      "property_status": {
+       "vorher": "Abgeschlossen",
+       "nachher": "Vermarktung"
+      },
+      "rented": {
+       "vorher": true,
+       "nachher": false
+      },
+      "show_price_in_expose": {
+       "vorher": null,
+       "nachher": false
+      }
+     }
+    }
+   ]
+  }
+ }
 }

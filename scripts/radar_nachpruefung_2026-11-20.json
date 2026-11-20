@@ -1,6 +1,6 @@
 {
  "stand": "20.11.2026",
- "hinweis": "Nachprüfung der 18 „klären“-Vorgänge aus scripts/radar_vorpruefung_2026-11-19.json an öffentlichen Quellen (Eigentümer- und Maklermeldungen, Fachpresse). Florian, 20.11.2026: „Nicht nachfragen – entweder wissen oder nicht.“ Gruppen: eintragen (adressgenau belegt, eingetragen), fremd, teil (Teilvermietung, am Objekt vermerkt), unbestimmt (aus den Quellen nicht zu entscheiden), offen (bleibt als Aufgabe stehen).",
+ "hinweis": "Nachprüfung der 18 „klären“-Vorgänge aus scripts/radar_vorpruefung_2026-11-19.json an öffentlichen Quellen (Eigentümer- und Maklermeldungen, Fachpresse). Florian, 20.11.2026: „Nicht nachfragen – entweder wissen oder nicht.“ Gruppen: eintragen (adressgenau belegt, eingetragen), fremd, teil (Teilvermietung, am Objekt vermerkt), unbestimmt (aus den Quellen nicht zu entscheiden). Frankfurt (Oder) stand zunächst auf „offen“ und wurde nach Florians Ansage am selben Tag eingetragen.",
  "faelle": [
   {
    "gruppe": "eintragen",
@@ -360,12 +360,12 @@
    ]
   },
   {
-   "gruppe": "offen",
+   "gruppe": "eintragen",
    "ort": "Frankfurt (Oder), Log Plaza",
    "wer": "Ceva Logistics für Amazon · Alcaro",
    "qm": 94000,
-   "urteil": "Alcaro meldet am 08.06.2026: rund 94.000 m² vermietet, das ist der Großteil der Halle B; Halle A mit rund 47.500 m² sei verfügbar. In Propstack ist es umgekehrt: Halle A (1)–(4) steht seit dem 07.09. auf vermietet, Halle B (1)–(10) mit 97.660 m² auf „sofort“ frei. Nicht angefasst – Halle A wieder zu öffnen ist eine Entscheidung.",
-   "quelle": "alcaro.de, 08.06.2026",
+   "urteil": "Florian, 20.11.2026: Halle A ist leer, Halle B ist vermietet. Halle B (1)–(10) steht jetzt auf vermietet und Abgeschlossen, Halle A (1)–(4) wieder in Vermarktung. Alcaro hatte am 08.06.2026 rund 94.000 m² in Halle B gemeldet; in Propstack war seit dem 07.09. Halle A statt Halle B geschlossen.",
+   "quelle": "Ansage Florian, 20.11.2026; alcaro.de, 08.06.2026",
    "aufgaben": [
     {
      "id": 157045785
@@ -379,11 +379,63 @@
    ],
    "einheiten": [
     {
-     "id": 5033678,
-     "rolle": "zu"
+     "id": 5050191,
+     "rolle": "eintragen"
     },
     {
-     "id": 5050191,
+     "id": 5050066,
+     "rolle": "eintragen"
+    },
+    {
+     "id": 5054002,
+     "rolle": "eintragen"
+    },
+    {
+     "id": 5054026,
+     "rolle": "eintragen"
+    },
+    {
+     "id": 5054059,
+     "rolle": "eintragen"
+    },
+    {
+     "id": 5054080,
+     "rolle": "eintragen"
+    },
+    {
+     "id": 5054095,
+     "rolle": "eintragen"
+    },
+    {
+     "id": 5050565,
+     "rolle": "eintragen"
+    },
+    {
+     "id": 5050578,
+     "rolle": "eintragen"
+    },
+    {
+     "id": 5050591,
+     "rolle": "eintragen"
+    },
+    {
+     "id": 5050043,
+     "rolle": "eintragen"
+    },
+    {
+     "id": 5033678,
+     "rolle": "offen"
+    },
+    {
+     "id": 5033679,
+     "rolle": "offen"
+    },
+    {
+     "id": 5033680,
+     "rolle": "offen"
+    },
+    {
+     "id": 5033681,
      "rolle": "offen"
     }
    ]
