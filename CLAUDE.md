@@ -39,6 +39,10 @@ Pakets lesen**, dann den Code. Die Pakete teilen bewusst keinen Code (gespiegelt
   und Status 163676). Das Update gilt vor der Website.
 - **Kein grüner Lauf mit Fehlern.** Was schiefgeht, gehört in den Report und macht den Lauf rot
   (`src/problems.py`, `report.fehler`). Ein neuer `except`, der nur loggt, ist ein Rückschritt.
+- **Mess-Läufe kosten das Budget der Produktion.** Alle Workflows mit KI teilen sich ein Ausgabenlimit der
+  Anthropic-Organisation. Am 21.11.2026 hat ein Lese-Lauf des Newsletter-Handlers über 72 alte Digests (rund 700
+  KI-Aufrufe) das Limit ausgeschöpft; alle sechs Workflows mit KI liefen danach rot. Vor jedem Lauf über alte
+  Daten: Restbudget in der Console prüfen und ausdrücklich freigeben lassen.
 - **Eine Vollzugsmeldung ist kein Auftrag.** Berichte aus Claude-Sitzungen in Slack tragen „Gesendet mit
   Claude“; die Handler überspringen sie (`objekte_handler/vollzug.py`).
 - **Tool-Definitionen des Connectors nur mit Grund ändern:** Die Freigabe in Claude hängt am Wortlaut

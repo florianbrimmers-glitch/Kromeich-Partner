@@ -141,6 +141,28 @@ ohne KI): Bei 48 der 129 Aufgaben fehlt der Eigentümer am Objekt – dort greif
 veralteter Eigentümer (Entwickler hat an einen Investor verkauft) lässt eine echte Vermietung nur
 durch, wenn Fläche oder Name stimmen (Wedel, Schwanewede, Mannheim blieben so stehen).
 
+
+**Lese-Läufe vom 20./21.11.2026** (GitHub Actions, `no_write` + `ignore_checkmark`, Fenster ab 06.09.2026, nichts geschrieben):
+
+| | Lauf 1 (Stand `292d6e3`) | Lauf 2 (Stand `551fea5`) |
+|---|---|---|
+| Digests | 72 von 72 | 36 von 72 – dann API-Limit erreicht (siehe unten) |
+| Vermietungen | 186 | auf denselben 36 Digests: 135 (Lauf 1: 87) |
+| Aufgaben nach Dublettenschutz | 33 | auf denselben 36 Digests: 20 (Lauf 1: 16) |
+| davon unnötig laut Prüfsatz | 14 von 27 zugeordneten | auf denselben 36 Digests: 3 (Lauf 1: 6) |
+
+- Lauf 1 zeigte zwei Rausch-Quellen: die zweite Wahl nach einer abgeschlossenen Einheit (8 Aufgaben, alle an einer
+  freien Nachbar-Einheit) und ganze Parks, die teils schon vermietet waren (8). Beides ist in `551fea5` über die
+  gemeldete Fläche abgestellt; in Lauf 2 sind Krefeld, Offenbach, Mülheim, Rheinau und Frankfurt (Oder) erledigt.
+- Lauf 2 liest mehr Meldungen als Vermietung, weil „Neubau für einen genannten Nutzer“ jetzt zählt. Darunter sind
+  prüfenswerte Treffer (Panattoni in Rohr und Eltmann, bauwo in Pocking) und neue Wiederholer (Triport an drei
+  Tagen, Rheindocks mit 13 Einheiten). **Nicht entschieden, nicht im nächtlichen Lauf** – erst nach einem
+  vollständigen Lauf.
+- **Kosten:** Lauf 1 brauchte 422 KI-Aufrufe (Opus). Am 21.11.2026 um 00:35 UTC war mitten in Lauf 2 das
+  Ausgabenlimit der Anthropic-Organisation erreicht („You will regain access on 2026-12-01“); danach liefen alle
+  sechs Workflows mit KI rot. Ein Lese-Lauf über Wochen alter Digests ist kein Testlauf, sondern ein spürbarer Teil
+  des Monatsbudgets – vorher Restbudget prüfen und freigeben lassen.
+
 ## Umgebungsvariablen
 
 | Variable | Pflicht | Default | Bedeutung |
