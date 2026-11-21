@@ -1434,5 +1434,18 @@
     }
    ]
   }
+ },
+ "grevenbroich": {
+  "ansage": "Florian, 21.11.2026: „Grevenbroich ist vermietet.“ Radar 03.09. und 10.09.2026: Inter Benefit mietet rund 14.200 m² von Mileway. Interne Notiz am Objekt nannte schon „Vermietet 5 Jahre - Inter Benefit GmbH“; Status stand noch auf Vermarktung.",
+  "einheit": {
+   "id": 5407879,
+   "adresse": "Lilienthalstraße 9, Grevenbroich",
+   "flaeche": 14225
+  },
+  "plan": {
+   "1i1b6f2q4e2s": "rented=true, Status 163676 (Abgeschlossen)"
+  },
+  "zurueckgelesen": "Status Abgeschlossen, vermietet, frei ab „vermietet“, status_logistik Inaktiv; total_floor_space 14.225 unverändert.",
+  "zuruecknehmen": "undo_plan 1i1b6f2q4e2s, möglich bis 28.11.2026"
  }
 }

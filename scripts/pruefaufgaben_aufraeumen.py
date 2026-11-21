@@ -40,9 +40,13 @@ Die zweite Datei scripts/radar_nachpruefung_2026-11-20.json hält fest, was die 
 „klären“-Vorgänge an öffentlichen Quellen ergeben hat (Florian: „Nicht nachfragen – entweder
 wissen oder nicht“). Die Schreibform mit Text ist damit live erprobt.
 
+Am 21.11.2026 mit Freigabe: 46 Antworten auf Vollzugsmeldungen, jetzt mit Vermerk („Aufgeräumt …“) –
+--nur vollzugsmeldung --ausser 158526533 (die P3-Aufgabe blieb auf Ansage offen). Protokoll:
+scripts/pruefaufgaben_geschlossen_2026-11-21.json.
+
 Aufruf:   python scripts/pruefaufgaben_aufraeumen.py                 # nur lesen
           python scripts/pruefaufgaben_aufraeumen.py --urteile scripts/radar_vorpruefung_2026-11-19.json [--gruppen erledigt,fremd] [--apply]
-          python scripts/pruefaufgaben_aufraeumen.py --apply [--limit N] [--nur gegenstandslos|dublette|vollzugsmeldung]
+          python scripts/pruefaufgaben_aufraeumen.py --apply [--limit N] [--nur gegenstandslos|dublette|vollzugsmeldung] [--ausser ID,ID]
           python scripts/pruefaufgaben_aufraeumen.py --undo pruefaufgaben_geschlossen_<Zeit>.json --apply
 Umgebung: PROPSTACK_API_KEY oder PROPSTACK_API_V1 (wird nie ausgegeben).
 """
@@ -197,11 +201,13 @@ def zitierte_nachricht(body: str | None) -> str:
     return html.unescape(re.sub(r"<br\s*/?>", "\n", m.group(1))).strip()
 
 
-def plane_vollzug(aufgaben: list[dict], texte: dict[int, str | None]) -> list[dict]:
+def plane_vollzug(aufgaben: list[dict], texte: dict[int, str | None], stand: str | None = None) -> list[dict]:
     """Aufgaben des #objekte-Handlers, die auf eine Vollzugsmeldung antworten.
 
     texte: Task-ID -> Text der Aufgabe (GET /v1/tasks/:id, Feld body). Fehlt der Text
-    oder enthält er kein Zitat, bleibt die Aufgabe offen."""
+    oder enthält er kein Zitat, bleibt die Aufgabe offen.
+    stand: Datum für den Vermerk. Mit stand bekommt jede Aufgabe eine erste Zeile, warum sie
+    zu ist (seit 21.11.2026; die 34 Dubletten vom 19.11. gingen noch ohne Vermerk zu)."""
     plan: list[dict] = []
     for aufgabe in offene_objekte_aufgaben(aufgaben):
         task_id = aufgabe["activatable_id"]
@@ -216,8 +222,14 @@ def plane_vollzug(aufgaben: list[dict], texte: dict[int, str | None]) -> list[di
             "grund": VOLLZUG,
             "behalten": None,
             "hinweis": grund,
+            **({"vermerk": vollzug_vermerk(stand)} if stand else {}),
         })
     return plan
+
+
+def vollzug_vermerk(stand: str) -> str:
+    return html.escape(f"Aufgeräumt {stand}: Antwort auf eine Vollzugsmeldung – kein Auftrag, "
+                       "das Gemeldete ist in Propstack schon erledigt.", quote=False) + VERMERK_ENDE
 
 
 URTEIL_WORT = {
@@ -434,7 +446,9 @@ def main() -> int:
     ap.add_argument("--undo", metavar="PROTOKOLL", help="die in diesem Protokoll genannten Aufgaben wieder öffnen")
     ap.add_argument("--urteile", metavar="VORPRUEFUNG", help="statt der drei Regeln: Aufgaben aus dieser Vorprüfung")
     ap.add_argument("--gruppen", default="erledigt,fremd", help="Gruppen der Vorprüfung (Standard: erledigt,fremd)")
+    ap.add_argument("--ausser", default="", help="Task-IDs, die offen bleiben (Komma-getrennt)")
     args = ap.parse_args()
+    ausser = {int(t) for t in args.ausser.replace(" ", "").split(",") if t}
 
     key = os.environ.get("PROPSTACK_API_KEY") or os.environ.get("PROPSTACK_API_V1")
     if not key:
@@ -458,9 +472,13 @@ def main() -> int:
         plan, hinweise = plane_urteile(aufgaben, vorpruefung, gruppen, ps.einheiten(zu_pruefen))
     else:
         plan = plane(aufgaben, ps.einheiten(unit_ids))
-        plan += plane_vollzug(aufgaben, ps.texte([a["activatable_id"] for a in objekte]))
+        plan += plane_vollzug(aufgaben, ps.texte([a["activatable_id"] for a in objekte]), f"{datetime.now():%d.%m.%Y}")
         if args.nur:
             plan = [e for e in plan if e["grund"] == args.nur]
+    if ausser:
+        bleiben = [e["task_id"] for e in plan if e["task_id"] in ausser]
+        plan = [e for e in plan if e["task_id"] not in ausser]
+        print(f"Bleiben auf Ansage offen: {bleiben}")
 
     print(f"{len(aufgaben)} Aufgaben über alle Nutzer, {len(alle_offenen)} offen – davon {len(offene)} "
           f"„{TITEL_PRAEFIX}“ und {len(objekte)} aus #objekte.")

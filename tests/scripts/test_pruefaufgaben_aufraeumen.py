@@ -121,6 +121,12 @@ def test_vollzugsmeldungen_koennen_zu_auftraege_bleiben():
     plan = {e["task_id"]: e for e in skript.plane_vollzug(aufgaben, texte)}
     assert set(plan) == {1, 2}
     assert all(e["grund"] == skript.VOLLZUG for e in plan.values())
+    assert "vermerk" not in plan[1]       # ohne Datum wie bisher: schließen ohne Vermerk
+
+    # 21.11.2026: mit Datum steht vorn im Text, warum die Aufgabe zu ist (--undo nimmt es wieder heraus)
+    plan = {e["task_id"]: e for e in skript.plane_vollzug(aufgaben, texte, "21.11.2026")}
+    assert plan[2]["vermerk"] == ("Aufgeräumt 21.11.2026: Antwort auf eine Vollzugsmeldung – kein Auftrag, "
+                                  "das Gemeldete ist in Propstack schon erledigt.<br><br>")
 
 
 # --- Nachträge aus dem Gegenlesen (19.11.2026) ----------------------------------------
