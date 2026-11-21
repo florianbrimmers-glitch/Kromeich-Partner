@@ -24,7 +24,7 @@ from .slack_reader import (
 )
 from .contact_extractor import (
     extract_contact_from_image,
-    extract_contact_from_text,
+    extract_contacts_from_text,
     categorize_contact,
 )
 from .apollo_client import enrich_contact, apply_enrichment, starte_lauf as apollo_starte_lauf
@@ -100,10 +100,8 @@ def run_pipeline() -> PipelineReport:
                         contacts.append(contact)
 
             if msg_text and not contacts:
-                contact = extract_contact_from_text(msg_text)
+                contacts.extend(extract_contacts_from_text(msg_text))
                 time.sleep(3)
-                if contact:
-                    contacts.append(contact)
 
             if not contacts:
                 logger.info("No contact data extracted from message %d", i)

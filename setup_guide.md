@@ -140,3 +140,11 @@ HEIC-Fotos und sehr große Bilder gehen als Slack-Vorschau an die KI.
 
 Ein Lauf ist **rot**, sobald etwas schiefging (Postfach nicht lesbar, Apollo oder Claude nicht erreichbar,
 Firma nicht verknüpft …). Dieselben Probleme stehen in der Slack-Zusammenfassung in `#visitenkarten`.
+
+**Was der Visitenkarten-Import nicht liest** (Stand 21.11.2026): die eigenen „KI-Scan“-Zusammenfassungen und
+Berichte aus Claude-Sitzungen, erkennbar an der Signatur „Gesendet mit Claude“. Die Routine „Email-Kontakt-Scan“
+postet jeden Morgen in `#visitenkarten`, welche Kontakte sie schon angelegt hat. Bis zum 21.11.2026 las der
+Import diese Berichte als Visitenkarten; als einer zwei Kontakte nannte, war die Antwort der KI nicht lesbar und
+der Lauf rot. Nur gelesen: 9 von 9 so signierten Nachrichten im Kanal (25.06.–21.11.2026) waren solche Berichte.
+Wer eine Karte über Claude postet, lässt die Signatur weg. Nennt eine Nachricht mehrere Personen, legt der Import
+jetzt jede einzeln an (vorher scheiterte die Nachricht).

@@ -306,15 +306,45 @@ Antworte ausschließlich mit einem JSON-Objekt in diesem Format:
   "city": "string oder null",
   "salutation": "mr wenn männliche Anrede/Person klar erkennbar (z.B. Herr), ms wenn weiblich (z.B. Frau), sonst null"
 }}
+Stehen mehrere Personen in der Nachricht, antworte mit einer JSON-Liste aus solchen Objekten, eines je Person.
 
 Slack-Nachricht:
 {text}
 """
 
 
-def _parse_contact_json(text: str, source: str) -> ContactData | None:
-    data = _json_object(text)
+def _json_objekte(text: str) -> list[dict]:
+    """Alle Kontakt-Objekte aus einer Modellantwort: ein Objekt, eine Liste von Objekten
+    oder mehrere Objekte hintereinander. Text davor oder danach stört nicht.
 
+    Am 21.11.2026 stand eine Slack-Nachricht mit zwei Personen im Kanal; die KI antwortete
+    mit zwei Objekten nacheinander, _json_object scheiterte an „Extra data“ und der Lauf
+    wurde rot – beide Kontakte wären verloren gewesen."""
+    text = text.strip()
+    if text.startswith("```"):
+        text = text.split("\n", 1)[1].rsplit("```", 1)[0].strip() if "\n" in text else text.strip("`")
+    anfaenge = [p for p in (text.find("{"), text.find("[")) if p != -1]
+    if not anfaenge:
+        raise KeinJson(text[:80])
+    leser = json.JSONDecoder(strict=False)
+    objekte: list[dict] = []
+    stelle = min(anfaenge)
+    while stelle < len(text) and text[stelle] in "{[":
+        wert, stelle = leser.raw_decode(text, stelle)
+        werte = wert if isinstance(wert, list) else [wert]
+        objekte.extend(w for w in werte if isinstance(w, dict))
+        while stelle < len(text) and text[stelle] in " \t\r\n,":
+            stelle += 1
+    if not objekte:
+        raise json.JSONDecodeError("Antwort enthält kein JSON-Objekt", text, 0)
+    return objekte
+
+
+def _parse_contact_json(text: str, source: str) -> ContactData | None:
+    return _kontakt_aus(_json_object(text), source)
+
+
+def _kontakt_aus(data: dict, source: str) -> ContactData | None:
     first_name = _text_or_none(data.get("first_name"))
     last_name = _text_or_none(data.get("last_name"))
 
@@ -382,20 +412,23 @@ def extract_contact_from_image(image_data: bytes, media_type: str = "image/jpeg"
         return None
 
 
-def extract_contact_from_text(slack_text: str) -> ContactData | None:
+def extract_contacts_from_text(slack_text: str) -> list[ContactData]:
+    """Kontakte aus einer Slack-Nachricht – eine Nachricht kann mehrere Personen nennen.
+    Leere Liste = kein Kontakt erkennbar."""
     client = _get_client()
     prompt = SLACK_TEXT_PROMPT.format(text=slack_text[:4000])
 
     try:
         response = client.messages.create(
             model="claude-sonnet-4-6",
-            max_tokens=1024,
+            max_tokens=2048,
             messages=[{"role": "user", "content": prompt}],
         )
-        return _parse_contact_json(response.content[0].text, "slack text")
+        kontakte = [_kontakt_aus(daten, "slack text") for daten in _json_objekte(response.content[0].text)]
+        return [k for k in kontakte if k]
     except KeinJson as e:
         logger.warning("Kein JSON in der Antwort (Slack-Text) – als „kein Kontakt“ gewertet: %s", e)
-        return None
+        return []
     except (json.JSONDecodeError, KeyError, IndexError) as e:
         problems.melde("Antwort der KI nicht lesbar (Slack-Text)", str(e)[:80])
-        return None
+        return []

@@ -79,6 +79,10 @@ def fetch_recent_messages(hours: int = 24, latest_hours: int = 0) -> list[dict]:
 
     # Skip messages from our own bot (KI-Scan summaries)
     filtered = [m for m in messages if not _is_bot_summary(m)]
+    berichte = [m for m in filtered if ist_bericht(m)]
+    if berichte:
+        logger.info("%d Bericht(e) aus Claude-Sitzungen übersprungen (Signatur „Gesendet mit Claude“)", len(berichte))
+        filtered = [m for m in filtered if not ist_bericht(m)]
     logger.info("Fetched %d messages from #visitenkarten (last %dh)", len(filtered), hours)
     return filtered
 
@@ -86,6 +90,28 @@ def fetch_recent_messages(hours: int = 24, latest_hours: int = 0) -> list[dict]:
 def _is_bot_summary(msg: dict) -> bool:
     text = msg.get("text", "")
     return "KI-Scan" in text and "Neue Kontakte" in text
+
+
+# Slack-Formatierung (*fett*, _kursiv_, ~durch~, `code`, > Zitat) für den Vergleich entfernen.
+# Gespiegelt aus objekte_handler/vollzug.py – die Pakete teilen bewusst keinen Code.
+_FORMAT = re.compile(r"[*_~`>]")
+_CLAUDE_SIGNATUR = re.compile(r"gesendet\s+mit\s+claude", re.IGNORECASE)
+
+
+def ist_bericht(msg: dict) -> bool:
+    """Ein Bericht aus einer Claude-Sitzung – keine neue Visitenkarte.
+
+    Die Routine „Email-Kontakt-Scan“ postet jeden Morgen, welche Kontakte sie schon in
+    Propstack angelegt hat, mit Signatur „Gesendet mit Claude“. Der Import las diese
+    Berichte als Visitenkarten: Bei einem Kontakt kostete das nur einen KI-Aufruf und eine
+    Dublettenprüfung, bei zweien (21.11.2026) lieferte die KI zwei JSON-Objekte, die
+    Antwort galt als unlesbar und der Lauf wurde rot.
+
+    Stand 21.11.2026 (nur gelesen, #visitenkarten 25.06.–21.11.2026): 9 von 9 Nachrichten
+    mit dieser Signatur waren solche Berichte. Grenze wie beim #objekte-Handler: Wer eine
+    Karte über Claude postet, lässt die Signatur weg.
+    """
+    return bool(_CLAUDE_SIGNATUR.search(_FORMAT.sub("", msg.get("text") or "")))
 
 
 # Bildformate, die die Claude-API annimmt, und die Größe, bis zu der wir das Original schicken
