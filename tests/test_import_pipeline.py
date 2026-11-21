@@ -693,3 +693,100 @@ def test_visitenkarte_ein_kaputtes_bild_kostet_nicht_die_anderen(monkeypatch):
     assert "anlegen:max@firma.de:Visitenkarte" in aufrufe
     assert len(report.contacts_created) == 1
     assert any("Visitenkarte nicht auswertbar" in e.error for e in report.errors)
+
+
+# --- Berichte aus Claude-Sitzungen und mehrere Personen in einer Nachricht (21.11.2026) ---
+
+BERICHT_21_11 = (
+    ":mailbox_with_mail: _Email-Kontakt-Scan – 21.11.2026_ | 2 neue Kontakte angelegt\n\n"
+    "_1. Joyce Wen_\n:office: PATAC GMBH\n:e-mail: <mailto:joyce.wen0912@gmail.com|joyce.wen0912@gmail.com>\n"
+    ":link: <https://app.propstack.de/contacts/38672065|app.propstack.de/contacts/38672065>\n\n"
+    "_2. Timo Kaiser_\n:briefcase: Associate Director (MRICS)\n:office: Sonar Real Estate GmbH\n"
+    ":link: <https://app.propstack.de/contacts/38672066|app.propstack.de/contacts/38672066>\n\n"
+    ":white_check_mark: 13 Emails geprüft · 2 neu angelegt · 5 Duplikate übersprungen · 6 Emails gefiltert\n"
+    "*Gesendet mit* Claude"
+)
+KARTE_28_07 = (
+    "*Peter Denkinger*\n\n\nTel.: +49 (0)173 / 9683 000\nMail: peter@<http://denkinger-logistik.de|denkinger-logistik.de>\n\n"
+    "*DENKINGER GMBH*\nRöntgenstraße 6 | D-89584 Ehingen (Donau)"
+)
+
+
+def test_bericht_einer_claude_sitzung_ist_keine_visitenkarte():
+    """#visitenkarten, 25.06.–21.11.2026 (nur gelesen): 9 von 9 Nachrichten mit „Gesendet mit
+    Claude“ waren Berichte der Routine „Email-Kontakt-Scan“ über schon angelegte Kontakte."""
+    from src.slack_reader import ist_bericht
+
+    assert ist_bericht({"text": BERICHT_21_11}) is True
+    assert ist_bericht({"text": "Bericht\n_Gesendet mit_ Claude"}) is True
+    assert ist_bericht({"text": KARTE_28_07}) is False          # echte Karte, von Hand gepostet
+    assert ist_bericht({"text": ""}) is False and ist_bericht({}) is False   # Foto ohne Text
+
+
+def test_berichte_kommen_gar_nicht_erst_beim_import_an(monkeypatch):
+    from src import slack_reader
+
+    class Antwort:
+        def json(self):
+            return {"ok": True, "messages": [
+                {"ts": "1795316912.1", "text": BERICHT_21_11},
+                {"ts": "1795316913.1", "text": KARTE_28_07},
+                {"ts": "1795316914.1", "text": "", "files": [{"mimetype": "image/jpeg"}]},
+            ]}
+
+    monkeypatch.setenv("SLACK_BOT_TOKEN", "xoxb-test")
+    monkeypatch.setattr(slack_reader.httpx, "get", lambda *a, **k: Antwort())
+    assert [m["ts"] for m in slack_reader.fetch_recent_messages(hours=48)] == ["1795316913.1", "1795316914.1"]
+
+
+ZWEI_OBJEKTE = """{
+  "first_name": "Joyce",
+  "last_name": "Wen",
+  "email": "joyce.wen0912@gmail.com",
+  "phone": null,
+  "mobile": null,
+  "company": "PATAC GMBH",
+  "position": null,
+  "street": "Hamborner Str.",
+  "house_number": "32",
+  "zip_code": "47137",
+  "city": "Duisburg",
+  "salutation": "ms"
+}
+{
+  "first_name": "Timo",
+  "last_name": "Kaiser",
+  "email": "t.kaiser@sonar-re.com",
+  "company": "Sonar Real Estate GmbH"
+}"""
+
+
+@pytest.mark.parametrize("antwort, namen", [
+    (ZWEI_OBJEKTE, ["Wen", "Kaiser"]),                                   # so am 21.11.2026: „Extra data“
+    ("[" + ZWEI_OBJEKTE.replace("}\n{", "},\n{") + "]", ["Wen", "Kaiser"]),   # wie der Prompt es jetzt verlangt
+    ('Hier die Daten:\n```json\n{"first_name": "Max", "last_name": "Muster"}\n```', ["Muster"]),
+    ('{"first_name": "Max", "last_name": "Muster"}\nMehr war nicht zu erkennen.', ["Muster"]),
+])
+def test_eine_slack_nachricht_kann_mehrere_personen_nennen(monkeypatch, antwort, namen):
+    from src import contact_extractor
+
+    antwort_obj = SimpleNamespace(content=[SimpleNamespace(text=antwort)])
+    client = SimpleNamespace(messages=SimpleNamespace(create=lambda **kw: antwort_obj))
+    monkeypatch.setattr(contact_extractor, "_get_client", lambda: client)
+    assert [k.last_name for k in contact_extractor.extract_contacts_from_text("…")] == namen
+
+
+def test_slack_antwort_ohne_json_ist_kein_kontakt(monkeypatch):
+    from src import contact_extractor
+
+    antwort_obj = SimpleNamespace(content=[SimpleNamespace(text="In der Nachricht steht keine Person.")])
+    client = SimpleNamespace(messages=SimpleNamespace(create=lambda **kw: antwort_obj))
+    monkeypatch.setattr(contact_extractor, "_get_client", lambda: client)
+    assert contact_extractor.extract_contacts_from_text("Golden Nugget des heutigen Tages") == []
+    assert problems.anzahl() == 0
+
+
+def test_prompt_fuer_slack_text_bleibt_formatierbar():
+    from src import contact_extractor
+
+    assert "JSON-Liste" in contact_extractor.SLACK_TEXT_PROMPT.format(text="x")
