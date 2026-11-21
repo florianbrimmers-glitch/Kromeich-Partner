@@ -209,25 +209,60 @@ def test_anderer_eigentuemer_und_nichts_spricht_dafuer_ist_kein_eigener_bestand(
     assert decide(_deal(vermieter="Panattoni"), res).tier == Tier.NONE
 
 
-def test_anderer_eigentuemer_aber_flaeche_passt_bleibt_als_unsicherer_treffer(monkeypatch):
-    """Der Eigentümer am Objekt kann veraltet sein (Entwickler verkauft an Investor). Passt
-    die Fläche, bleibt die Einheit zur Prüfung stehen – nie als sicherer Treffer.
-    Wedel, 28.10.2026: 3.000 m² gegen Unit 3 mit 3.097 m²."""
-    _antworten(monkeypatch, '{"unit_ids": [6159434], "confidence": 0.9, "begruendung": "Fläche passt"}')
-    res = match_ai.select_match_geprueft(_deal(vermieter="Aroundtown", groessen_hinweis="3000", stadt="Wedel"), [WEDEL_3])
-    assert res.status == MatchStatus.AMBIGUOUS and res.anderer_eigentuemer is False
-    assert [u.id for u in res.units] == [6159434]
-    assert res.grund.startswith("Eigentümer passt nicht (")
+def test_anderer_eigentuemer_bleibt_fremd_auch_wenn_die_flaeche_passt(monkeypatch):
+    """Wedel, 28.10.2026: „VINCORION mietet 3.000 m² von Aroundtown“. Unit 3 an der
+    Industriestraße 60 hat 3.097 m², gehört aber thirteen seven. Der erste Entwurf ließ
+    solche Treffer wegen der passenden Fläche stehen; an den 129 geprüften Aufgaben waren
+    das sieben, alle sieben fremd."""
+    _antworten(monkeypatch, '{"unit_ids": [6159434], "confidence": 0.5, "begruendung": "Größe passt"}')
+    res = match_ai.select_match_geprueft(_deal(vermieter="Aroundtown", groessen_hinweis="3000"), [WEDEL_3])
+    assert res.status == MatchStatus.NONE and res.anderer_eigentuemer is True and res.units == []
 
 
-def test_summe_der_adresse_zaehlt_als_passende_flaeche(monkeypatch):
-    """Langenselbold: am Objekt steht Hillwood, die Meldung nennt Propel Industrial. Die
-    gemeldete Fläche entspricht der Summe der Einheiten an der Adresse – kein Verwerfen."""
-    eins = Unit(id=1, street="Diebacher Weg", city="Langenselbold", property_space_value=8040.0, eigentuemer="Hillwood Germany GmbH")
-    zwei = eins.model_copy(update={"id": 2, "property_space_value": 11510.0})
-    _antworten(monkeypatch, '{"unit_ids": [1], "confidence": 0.6, "begruendung": "Park in Langenselbold"}')
-    res = match_ai.select_match_geprueft(_deal(vermieter="Propel Industrial / Invesco Real Estate", groessen_hinweis="19500"), [eins, zwei])
-    assert res.status == MatchStatus.AMBIGUOUS and [u.id for u in res.units] == [1]
+def test_veralteter_eigentuemer_kostet_die_meldung(monkeypatch):
+    """Die Kehrseite, bewusst in Kauf genommen: Langenselbold, 16.09.2026. Am Objekt steht
+    Hillwood, verkauft ist es an Propel Industrial; 6.250 m² passen auf keine Einheit. Die
+    Meldung war echt und fällt durch – sichtbar nur in der Slack-Antwort."""
+    eins = Unit(id=3158483, street="Diebacher Weg", city="Langenselbold", property_space_value=8040.0,
+                eigentuemer="Hillwood Germany GmbH", status_id=VERMARKTUNG)
+    _antworten(monkeypatch, '{"unit_ids": [3158483], "confidence": 0.6, "begruendung": "Park in Langenselbold"}')
+    res = match_ai.select_match_geprueft(
+        _deal(vermieter="Propel Industrial / Invesco Real Estate", groessen_hinweis="6250"), [eins])
+    assert res.status == MatchStatus.NONE and res.anderer_eigentuemer is True
+
+
+def test_mehrere_einheiten_ohne_flaechenbeleg_sind_nie_eine_sichere_zuordnung(monkeypatch):
+    """Düsseldorf, Rheindocks, 17.09.2026: Die KI nannte 13 Einheiten mit conf 0.90 – das
+    Objekt stimmt, die Einheit ist offen. Sicher (und damit Stufe A fähig) ist das nicht."""
+    docks = [Unit(id=i, street="Reisholzer Werftstraße", city="Düsseldorf", property_space_value=1500.0,
+                  eigentuemer="BEOS AG", status_id=VERMARKTUNG) for i in range(1, 4)]
+    _antworten(monkeypatch, '{"unit_ids": [1, 2, 3], "confidence": 0.9, "begruendung": "Rheindocks von BEOS"}')
+    res = match_ai.select_match(_deal(objekt_name="Rheindocks (Werft68)", vermieter="BEOS"), docks)
+    assert res.status == MatchStatus.AMBIGUOUS and len(res.units) == 3
+    assert res.grund.startswith("Objekt erkannt, Einheit offen (conf 0.90)")
+    # mit passender Summe bleibt es sicher (Oberhausen: 18.400 m² = Unit 1 + Unit 2)
+    _antworten(monkeypatch, '{"unit_ids": [3147067, 3147070], "confidence": 0.9, "begruendung": "Summe passt"}')
+    assert match_ai.select_match(_deal(vermieter="Hillwood", groessen_hinweis="18400"),
+                                 [WALDTEICH_1, WALDTEICH_2]).status == MatchStatus.UNIQUE
+
+
+def test_neubau_mit_genanntem_nutzer_ist_eine_vermietung():
+    """Wiesloch, 28.09.2026 („Movianto nimmt den Vollbetrieb im VGP Park auf“) und Hagen,
+    11.11.2026 (Panattoni und Lesjöfors) wurden damals als Vermietung gelesen – beides
+    eigene Objekte. Im Lese-Lauf vom 20.11.2026 stufte die KI beide als Neubau ein; die
+    Grenze stand nicht im Prompt."""
+    from newsletter_handler import classifier
+    assert "baut FÜR einen Nutzer" in classifier.EXTRACTION_PROMPT
+    assert "ohne genannten Nutzer" in classifier.EXTRACTION_PROMPT
+    classifier.EXTRACTION_PROMPT.format(text="x")   # geschweifte Klammern im Prompt bleiben gültig
+
+
+def test_prompt_verlangt_einheiten_statt_leerer_liste():
+    """Delmenhorst, 11.09.2026: „Gewerbecampus Delmenhorst“ ohne Mieter, Vermieter und
+    Fläche. Im Lese-Lauf vom 20.11.2026 antwortete die KI „passt zu den Kandidaten, aber
+    keine konkrete Einheit zuzuordnen“ und gab nichts zurück – die Meldung wäre verloren."""
+    assert "KEINE leere Liste" in match_ai.SELECT_PROMPT
+    assert "leere Liste nur zurück, wenn KEIN Kandidat" in match_ai.SELECT_PROMPT
 
 
 @pytest.mark.parametrize("vermieter, einheit", [

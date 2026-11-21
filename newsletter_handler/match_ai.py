@@ -30,9 +30,9 @@ So gehst du vor:
 1. Nutze dein WELTWISSEN, um den tatsächlichen Standort des Projekts zu bestimmen. Der Ort in der Meldung ist oft die grobe Region (z.B. "Berlin"), das Objekt liegt aber im Umland. Beispiel: "Verdion PremierPark Berlin" liegt in LUDWIGSFELDE.
 2. Objekte sind in Propstack häufig nach ihrer ADRESSE benannt (z.B. "Brandenburgische Straße 51 - Ludwigsfelde"), NICHT nach dem Projekt-/Entwicklernamen aus der Meldung. Verlange also NICHT, dass "Verdion" oder "PremierPark" im Kandidatennamen steht.
 3. EIGENTÜMER: Steht bei einem Kandidaten ein "eigentuemer", vergleiche ihn mit dem Vermieter/Entwickler der Meldung. Stimmen sie überein, ist das das stärkste Indiz – stärker als eine besser passende Fläche bei einem Kandidaten eines anderen Eigentümers. Gehört ein Kandidat erkennbar jemand anderem als dem genannten Vermieter, ist er in aller Regel NICHT gemeint, auch wenn der Ort stimmt. Umgekehrt ersetzt der Eigentümer nie den Ort: Ein Kandidat desselben Eigentümers in einer anderen Gemeinde als der des Projekts ist NICHT gemeint.
-4. MEHRERE EINHEITEN: Eine Vermietung betrifft oft mehrere Einheiten desselben Objekts. Passt die Fläche der Meldung zur Summe mehrerer Einheiten an derselben Adresse, oder ist das Objekt laut Meldung vollständig vermietet, nenne ALLE diese Einheiten. Sonst genau eine.
+4. EINHEITEN: Eine Vermietung betrifft oft mehrere Einheiten desselben Objekts. Passt die Fläche der Meldung zu einer Einheit, nenne nur diese. Passt sie zur Summe mehrerer Einheiten an derselben Adresse, oder ist das Objekt laut Meldung vollständig vermietet, nenne genau diese Einheiten. Ist das Objekt eindeutig, aber NICHT zu erkennen, welche seiner Einheiten gemeint ist (keine Fläche genannt, mehrere gleich große Einheiten), dann nenne alle in Frage kommenden Einheiten dieses Objekts und bleibe bei confidence höchstens 0.7. Gib in diesem Fall KEINE leere Liste zurück – das Objekt ist gefunden, nur die Einheit ist offen.
 5. Ein Kandidat, der nur in der Gemeinde des Projekts liegt – ohne passenden Eigentümer, ohne passende Fläche, ohne Projekt- oder Straßennamen – ist eine schwache Spur: confidence höchstens 0.5.
-6. Wähle den plausibelsten Kandidaten und drücke die Sicherheit über confidence aus (hoch = sehr sicher, mittel = plausibel/prüfen). Gib eine leere Liste zurück, wenn KEIN Kandidat zur tatsächlichen Lage des Projekts passt.
+6. Wähle den plausibelsten Kandidaten und drücke die Sicherheit über confidence aus (hoch = sehr sicher, mittel = plausibel/prüfen). Gib eine leere Liste nur zurück, wenn KEIN Kandidat zur tatsächlichen Lage des Projekts passt.
 
 Antworte ausschließlich mit JSON:
 {{
@@ -160,6 +160,14 @@ def select_match(deal: Deal, candidates: list[Unit]) -> MatchResult:
     ids = {u.id for u in gewaehlt}
     andere = [u for u in candidates if u.id not in ids][:max(0, 10 - len(gewaehlt))]
     wo = gewaehlt[0].adresse() + (f" ({len(gewaehlt)} Einheiten)" if len(gewaehlt) > 1 else "")
+    if len(gewaehlt) > 1 and not _gesamt_passt(groesse(deal), gewaehlt):
+        # „Eine oder mehrere von diesen“ – das Objekt steht, die Einheit nicht. Nie Stufe A.
+        return MatchResult(
+            status=MatchStatus.AMBIGUOUS,
+            units=gewaehlt,
+            kandidaten=gewaehlt + andere,
+            grund=f"Objekt erkannt, Einheit offen (conf {confidence:.2f}): {wo} – {begruendung}",
+        )
     if confidence < config.CONFIDENCE_THRESHOLD:
         return MatchResult(
             status=MatchStatus.AMBIGUOUS,
@@ -225,37 +233,37 @@ def groesse(deal: Deal) -> float | None:
 FLAECHEN_TOLERANZ = 0.10
 
 
-def _flaeche_passt(deal: Deal, units: list[Unit], candidates: list[Unit]) -> bool:
-    """Passt die gemeldete Fläche auf eine der gewählten Einheiten, auf ihre Summe oder
-    auf die Summe aller Einheiten an derselben Adresse (±10 %)?"""
-    soll = groesse(deal)
-    if not soll or not units:
+def _summe_passt(soll: float | None, units: list[Unit]) -> bool:
+    """Passt die gemeldete Fläche (±10 %) auf eine der Einheiten oder auf ihre Summe?"""
+    if not soll:
         return False
-    erste = units[0]
-    selbe_adresse = [
-        u for u in candidates
-        if erste.street and u.street and _ort(u) == _ort(erste)
-        and normalize_street(u.street) == normalize_street(erste.street)
-        and (u.house_number or "") == (erste.house_number or "")
-    ]
     werte = [u.property_space_value for u in units if u.property_space_value]
-    summen = [sum(werte)] if len(werte) > 1 else []
-    adresse = [u.property_space_value for u in selbe_adresse if u.property_space_value]
-    if len(adresse) > 1:
-        summen.append(sum(adresse))
-    return any(abs(ist - soll) <= FLAECHEN_TOLERANZ * soll for ist in werte + summen)
+    if len(werte) > 1:
+        werte = werte + [sum(werte)]
+    return any(abs(ist - soll) <= FLAECHEN_TOLERANZ * soll for ist in werte)
 
 
-def _name_passt(deal: Deal, unit: Unit) -> bool:
-    """Nennt die Meldung die Straße der Einheit, oder steht ein Wort des Projektnamens in
-    ihrem Namen? Ortsname und Eigentümername zählen nicht – die sagen nichts über das Objekt."""
-    if deal.strasse and unit.street and normalize_street(deal.strasse) == normalize_street(unit.street):
-        return True
-    ohne = eigentuemer.namen(deal.vermieter) | eigentuemer.namen(unit.eigentuemer)
-    ohne |= set(re.findall(r"[a-zäöüß0-9]+", f"{unit.city or ''} {deal.stadt or ''}".lower()))
-    woerter = {w for w in eigentuemer.namen(deal.objekt_name) if len(w) >= 4} - ohne
-    heuhaufen = f"{unit.name or ''} {unit.title or ''} {unit.street or ''}".lower()
-    return any(w in heuhaufen for w in woerter)
+def _teilmenge_passt(soll: float | None, units: list[Unit]) -> bool:
+    """Lässt sich die gemeldete Fläche (±10 %) aus einigen der Einheiten zusammensetzen?
+
+    Schwacher Beleg dafür, starker dagegen: Bei vielen kleinen Einheiten geht fast jede
+    Fläche auf – aber 19.000 m² lassen sich nicht aus einer freien Halle mit 3.318 m² bilden."""
+    werte = [u.property_space_value for u in units if u.property_space_value]
+    if not soll or not werte:
+        return False
+    unten, oben = soll * (1 - FLAECHEN_TOLERANZ), soll * (1 + FLAECHEN_TOLERANZ)
+    if len(werte) > 16:   # zu viele Kombinationen – dann zählt, ob die Fläche überhaupt reicht
+        return sum(werte) >= unten and min(werte) <= oben
+    erreichbar = {0.0}
+    for wert in werte:
+        erreichbar |= {summe + wert for summe in erreichbar if summe + wert <= oben}
+    return any(summe >= unten for summe in erreichbar)
+
+
+def _gesamt_passt(soll: float | None, units: list[Unit]) -> bool:
+    """Passt die gemeldete Fläche (±10 %) auf die Summe ALLER genannten Einheiten?"""
+    werte = [u.property_space_value for u in units if u.property_space_value]
+    return bool(soll) and len(werte) == len(units) and abs(sum(werte) - soll) <= FLAECHEN_TOLERANZ * soll
 
 
 def select_match_geprueft(deal: Deal, candidates: list[Unit]) -> MatchResult:
@@ -268,9 +276,14 @@ def select_match_geprueft(deal: Deal, candidates: list[Unit]) -> MatchResult:
       Kandidaten). Nur am selben Ort: Die Suche nach dem Vermieternamen bringt dessen
       Einheiten aus dem ganzen Bestand unter die Kandidaten – Aurelis lag am 20.11.2026
       in zwölf Städten. Eine Meldung aus München darf nicht in Kerpen landen.
-    - Sonst: Spricht die Fläche oder der Name trotzdem für die Einheit, bleibt sie als
-      unsicherer Treffer stehen – der Eigentümer am Objekt kann veraltet sein (Entwickler
-      verkauft an Investor). Spricht nichts für sie, ist es kein eigener Bestand: NONE.
+    - Sonst ist es kein eigener Bestand: NONE.
+
+    Keine Ausnahme für „Fläche oder Name passt trotzdem“. Die gab es im ersten Entwurf;
+    an den 129 geprüften Aufgaben hätte sie sieben stehen lassen, alle sieben Rauschen
+    (Wedel: 3.000 m² gemeldet, 3.097 m² bei uns, anderer Eigentümer, andere Halle). Der
+    Preis: Steht am Objekt ein veralteter Eigentümer (Langenselbold: bei uns Hillwood,
+    verkauft an Propel), fällt eine echte Meldung durch – sie steht dann in der
+    Slack-Antwort („gehört einem anderen Eigentümer“), nicht in einer Aufgabe.
     """
     match = select_match(deal, candidates)
     if not match.units:
@@ -290,14 +303,6 @@ def select_match_geprueft(deal: Deal, candidates: list[Unit]) -> MatchResult:
         if zweite.units:
             zweite.grund = f"Erste Wahl verworfen ({hinweis}). {zweite.grund}"
             return zweite
-
-    if _flaeche_passt(deal, match.units, candidates) or _name_passt(deal, erste):
-        return MatchResult(
-            status=MatchStatus.AMBIGUOUS,
-            units=match.units,
-            kandidaten=match.kandidaten,
-            grund=f"Eigentümer passt nicht ({hinweis}), Fläche oder Name aber schon. {match.grund}",
-        )
     return MatchResult(
         status=MatchStatus.NONE,
         kandidaten=match.kandidaten,
@@ -318,37 +323,68 @@ def select_open_match(deal: Deal, candidates: list[Unit]) -> tuple[MatchResult, 
     die in Propstack vermietet, abgeschlossen oder archiviert waren – Westring 8 in Dissen
     bekam sieben Aufgaben, nachdem das Objekt schon abgeschlossen war.
 
-    Die KI wählt weiterhin aus ALLEN Kandidaten: So erkennt sie das gemeinte Objekt
-    auch dann, wenn es schon abgeschlossen ist, statt auf ein anderes auszuweichen.
-    Ist die Wahl abgeschlossen, folgt eine zweite Auswahl nur unter Einheiten in Vermarktung:
-    - sichere Wahl (UNIQUE): nur am selben Ort – gemeint sein kann dann noch eine andere
-      Einheit desselben Parks oder der richtige Datensatz neben einer stillgelegten Dublette;
-    - unsichere Wahl (AMBIGUOUS): unter allen offenen Kandidaten – die erste Wahl kann
-      schlicht falsch gewesen sein.
-    Bleibt die zweite Auswahl ohne Treffer: NONE, bereits_abgeschlossen=True (nichts zu tun).
+    Die KI wählt aus ALLEN Kandidaten: So erkennt sie das gemeinte Objekt auch dann, wenn
+    es schon abgeschlossen ist, statt auf ein anderes auszuweichen. Ist unter den gewählten
+    Einheiten eine abgeschlossene, entscheidet die gemeldete Fläche, ob noch etwas zu tun ist:
+
+    1. Sie passt (±10 %) auf eine der abgeschlossenen Einheiten oder auf deren Summe -> erledigt.
+    2. Gewählt waren auch offene Einheiten: Aufgabe an ihnen nur, wenn sich die Fläche aus
+       offenen Einheiten zusammensetzen lässt oder erst mit ihnen zusammen aufgeht. Ohne
+       Flächenangabe -> erledigt.
+    3. Alle gewählten sind abgeschlossen und die Fläche passt nicht auf sie: zweite Auswahl
+       unter den offenen Einheiten (sichere erste Wahl: nur am selben Ort) – sie zählt nur,
+       wenn die Fläche auf sie passt. Ohne Flächenangabe -> erledigt.
+
+    Warum so streng (Lese-Lauf über 72 Digests, 20.11.2026): Vorher folgte auf jede
+    abgeschlossene Wahl eine zweite unter den freien Einheiten am Ort. Das ergab 8 Aufgaben,
+    alle an einer freien Nachbar-Einheit (Krefeld: 19.000 m² gemeldet, Aufgabe an 3.318 m²).
+    Weitere 8 entstanden, weil die KI einen ganzen Park nannte, in dem ein Teil schon
+    vermietet war (Frankfurt (Oder): 16 Einheiten, 10 davon abgeschlossen).
+    Die Grenze: Zwei gleich große Hallen, eine vermietet, eine frei – eine neue Meldung mit
+    dieser Fläche gilt als die schon erfasste. Und ohne Flächenangabe wird ein teils
+    vermieteter Park nicht mehr zur Aufgabe.
     """
     match = select_match_geprueft(deal, candidates)
-    if not match.units or not all(u.ist_abgeschlossen(config.STATUS_ABGESCHLOSSEN) for u in match.units):
+    zu = [u for u in match.units if u.ist_abgeschlossen(config.STATUS_ABGESCHLOSSEN)]
+    if not zu:
         return match, False
 
-    gewaehlt = match.units[0]
-    hinweis = f"{gewaehlt.adresse()} (Unit {gewaehlt.id}) ist in Propstack bereits vermietet/abgeschlossen"
+    offen = [u for u in match.units if not u.ist_abgeschlossen(config.STATUS_ABGESCHLOSSEN)]
+    soll = groesse(deal)
+    erste = zu[0]
+    weitere = f" und {len(zu) - 1} weitere" if len(zu) > 1 else ""
+    hinweis = f"{erste.adresse()} (Unit {erste.id}{weitere}) ist in Propstack bereits vermietet/abgeschlossen"
+
+    def erledigt(zusatz: str = "") -> tuple[MatchResult, bool]:
+        return MatchResult(status=MatchStatus.NONE, kandidaten=match.kandidaten, grund=hinweis + zusatz), True
+
+    if _summe_passt(soll, zu):
+        return erledigt()
+
+    if offen:
+        if _teilmenge_passt(soll, offen) or _gesamt_passt(soll, match.units):
+            return MatchResult(
+                status=MatchStatus.AMBIGUOUS,
+                units=offen,
+                kandidaten=match.kandidaten,
+                grund=f"{len(zu)} der genannten Einheiten sind schon vermietet; die gemeldete Fläche "
+                      f"spricht für die {len(offen)} offene(n). {match.grund}",
+            ), False
+        return erledigt(f"; für die {len(offen)} offene(n) Einheit(en) daneben spricht keine Fläche")
+
+    if not soll:
+        return erledigt()
     offene = [u for u in candidates if not u.ist_abgeschlossen(config.STATUS_ABGESCHLOSSEN)]
     if match.status == MatchStatus.UNIQUE:
-        ort = _ort(gewaehlt)
-        offene = [u for u in offene if ort and _ort(u) == ort]
+        offene = [u for u in offene if _ort(erste) and _ort(u) == _ort(erste)]
         wo = "am selben Ort"
     else:
         wo = "unter den Kandidaten"
     if not offene:
-        return MatchResult(status=MatchStatus.NONE, kandidaten=match.kandidaten, grund=hinweis), True
+        return erledigt()
 
     zweite = select_match_geprueft(deal, offene)
-    if zweite.status == MatchStatus.NONE:
-        return MatchResult(
-            status=MatchStatus.NONE,
-            kandidaten=match.kandidaten,
-            grund=f"{hinweis}; keine der {len(offene)} offenen Einheiten {wo} passt",
-        ), True
+    if not zweite.units or not _summe_passt(soll, zweite.units):
+        return erledigt(f"; keine der {len(offene)} offenen Einheiten {wo} passt zur gemeldeten Fläche")
     zweite.grund = f"Erste Wahl bereits abgeschlossen ({hinweis}). {zweite.grund}"
     return zweite, False

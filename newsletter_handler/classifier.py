@@ -18,9 +18,12 @@ Zerlege die Nachricht in ALLE einzelnen Deal-Items und gib sie als JSON-Liste zu
 - "vermietung": eine (Anschluss-)Vermietung, ein abgeschlossener Mietvertrag, eine verfügbare oder gesuchte Fläche. Beispiele:
   "REALOGIS sichert Anschlussvermietung für CityLink-Logistikimmobilie mit rund 6.000 m² – Nutzer LAMPAG GmbH"
   "TCC und CBRE IM vermieten 10.000 m² Logistikfläche in Schönefeld an die GVS Group"
+  Auch dann "vermietung", wenn die Meldung zeigt, dass ein genannter Nutzer Fläche im Objekt eines anderen bekommt oder bezogen hat – die Fläche ist damit vergeben: ein Entwickler baut FÜR einen Nutzer (Vorvermietung, Built-to-suit), übergibt an ihn, oder der Nutzer zieht ein, eröffnet oder nimmt den Betrieb auf. Beispiele:
+  "Panattoni entwickelt in Hagen eine Halle für Lesjöfors"
+  "Movianto nimmt den Vollbetrieb im VGP Park Wiesloch-Walldorf auf"
 - "transaktion": An-/Verkauf, Investment, Erwerb einer Immobilie. Beispiel:
   "Realterm erwirbt 25.620 m² große Logistikimmobilie bei Hamburg"
-- "neubau": Neubau-Ankündigung, Baustart, Fertigstellung, Richtfest. Beispiel:
+- "neubau": Neubau-Ankündigung, Baustart, Fertigstellung, Richtfest – ohne genannten Nutzer, oder ein Unternehmen baut für sich selbst. Beispiel:
   "Verdion errichtet 24.000 m² Logistik- und Gewerbezentrum bei Köln"
 - "sonstiges": Marktnews ohne konkreten Flächen-Deal, Personalien, Smalltalk, Emojis.
 

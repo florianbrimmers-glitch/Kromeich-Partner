@@ -56,3 +56,20 @@ def test_pruefsatz_im_repo():
     assert len(zeilen) == len({z["aufgabe"] for z in zeilen}) == 129
     assert all(z["digest_ts"].count(".") == 1 and len(z["digest_ts"]) == 17 for z in zeilen)
     assert all(z["gemeint"] for z in zeilen if z["urteil"] in ("erledigt", "eintragen"))
+
+
+def test_ausgang_und_dublettenschutz():
+    tag = 86400
+    lauf = [
+        _zeile(ts="1790000000.000100", stufe="B", units=[1]),
+        _zeile(ts=f"{1790000000 + 3 * tag}.000100", stufe="B", units=[1]),          # Wiederholung nach 3 Tagen
+        _zeile(ts=f"{1790000000 + 4 * tag}.000100", stufe="B", units=[1, 2]),       # Unit 2 ist neu
+        _zeile(ts=f"{1790000000 + 40 * tag}.000100", stufe="B", units=[1]),         # nach 40 Tagen wieder eine
+        _zeile(ts=f"{1790000000 + 41 * tag}.000100", stufe="B", units=[]),          # ohne Einheit: immer
+        _zeile(ts=f"{1790000000 + 42 * tag}.000100", bereits_abgeschlossen=True),
+        _zeile(ts=f"{1790000000 + 42 * tag}.000100", idx=1, grund="Keine Kandidaten gefunden"),
+    ]
+    assert [z["units"] for z in skript.neue_aufgaben(lauf)] == [[1], [1, 2], [1], []]
+    assert [skript.ausgang(z) for z in lauf[-3:]] == [
+        "Aufgabe", "keine Aufgabe: Einheit geschlossen", "keine Aufgabe: nichts im Bestand gefunden"]
+

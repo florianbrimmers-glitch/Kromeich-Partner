@@ -26,6 +26,7 @@ from pathlib import Path
 
 PRUEFSATZ = Path(__file__).resolve().parent / "radar_pruefsatz_2026-11-20.json"
 OHNE_AUFGABE_RICHTIG = {"erledigt", "eintragen", "fremd"}
+DEDUP_TAGE = 30   # wie newsletter_handler.config.REVIEW_DEDUP_TAGE
 
 
 def lies_lauf(text: str) -> list[dict]:
@@ -40,6 +41,43 @@ def lies_lauf(text: str) -> list[dict]:
         except json.JSONDecodeError:
             continue
     return zeilen
+
+
+def ausgang(zeile: dict) -> str:
+    """Wohin die Vermietung im Lauf gegangen ist – eine von sechs Schubladen."""
+    if zeile.get("stufe") != "none":
+        return "Aufgabe"
+    if zeile.get("verlaengerung"):
+        return "keine Aufgabe: Verlängerung"
+    if zeile.get("bereits_abgeschlossen"):
+        return "keine Aufgabe: Einheit geschlossen"
+    if zeile.get("anderer_eigentuemer"):
+        return "keine Aufgabe: anderer Eigentümer"
+    if "Keine Kandidaten" in str(zeile.get("grund") or ""):
+        return "keine Aufgabe: nichts im Bestand gefunden"
+    return "keine Aufgabe: kein Treffer"
+
+
+def neue_aufgaben(lauf: list[dict]) -> list[dict]:
+    """Die Zeilen, aus denen wirklich eine Aufgabe würde. Der Handler legt keine zweite an,
+    solange zu JEDER der Einheiten eine Aufgabe aus den letzten 30 Tagen offen ist; hier
+    gerechnet, als bliebe jede Aufgabe offen. (Der Lese-Lauf selbst merkt sich Aufgaben
+    ohne Verfallsdatum und zählt deshalb über lange Fenster etwas zu wenig.)"""
+    zuletzt: dict[int, float] = {}
+    neu = []
+    for zeile in sorted(lauf, key=lambda z: (float(z.get("ts") or 0), z.get("idx") or 0)):
+        if zeile.get("stufe") == "none":
+            continue
+        jetzt = float(zeile.get("ts") or 0)
+        units = zeile.get("units") or []
+        if units and all(jetzt - zuletzt.get(u, float("-inf")) <= DEDUP_TAGE * 86400 for u in units):
+            continue
+        for unit in units:
+            zuletzt.setdefault(unit, jetzt)
+            if jetzt - zuletzt[unit] > DEDUP_TAGE * 86400:
+                zuletzt[unit] = jetzt
+        neu.append(zeile)
+    return neu
 
 
 def _woerter(*texte: str | None) -> set[str]:
@@ -110,6 +148,11 @@ def main() -> int:
 
     print(f"Lauf: {len(lauf)} Vermietungen aus {len(digests)} Digests. "
           f"Geprüfte Aufgaben zu diesen Digests: {len(urteile)} von {len(alle)}.")
+    print("\nWohin die Vermietungen gehen:")
+    for text, zahl in collections.Counter(ausgang(z) for z in lauf).most_common():
+        print(f"  {zahl:3}  {text}")
+    angelegt = neue_aufgaben(lauf)
+    print(f"Nach Dublettenschutz ({DEDUP_TAGE} Tage je Einheit) entstehen {len(angelegt)} Aufgaben.")
     tabelle: dict[str, collections.Counter] = collections.defaultdict(collections.Counter)
     for urteil, zeile in paare:
         tabelle[urteil["urteil"]][ergebnis(urteil, zeile)] += 1
@@ -123,7 +166,7 @@ def main() -> int:
     damals = len(urteile)
     heute = sum(1 for u, z in paare if ergebnis(u, z).startswith("Aufgabe"))
     falsch = [(u, z) for u, z in paare if u["urteil"] in OHNE_AUFGABE_RICHTIG and ergebnis(u, z).startswith("Aufgabe")]
-    print(f"\nAufgaben damals: {damals}. Heute entstünden daraus: {heute}.")
+    print(f"\nAufgaben damals: {damals}. Heute entstünden daraus (vor Dublettenschutz): {heute}.")
     print(f"Davon unnötig (Urteil erledigt, eintragen oder fremd): {len(falsch)}")
     for urteil, zeile in falsch:
         print(f"  - {urteil['ort']} | {urteil.get('mieter') or '–'} / {urteil.get('vermieter') or '–'} | {ergebnis(urteil, zeile)} "
