@@ -42,6 +42,14 @@ Mit der Änderung vom 19.11.2026 erledigt:
 - Nachname allein reicht nicht mehr für einen Treffer („Setz ist jetzt bei Goodman“ → Stufe B, mit dem Hinweis, dass die Person vorhanden sein kann – nicht „neu anlegen“).
 - Die neue Verknüpfung wird gegengelesen, bevor die alte gelöscht wird (HTTP 422 heißt nicht immer „besteht bereits“).
 
+**Befund vom 21.11.2026 (nur gelesen): Der Handler hat lange nichts gelesen.** Slack antwortet auf
+`conversations.history` für `C090NSRC36U` mit `channel_not_found` – so meldet Slack einen privaten Kanal, in dem der
+Bot (`demo_app`, U0AK18H9LTU) nicht Mitglied ist. Den Kanal gibt es (privat, nicht archiviert). Bis zur Änderung vom
+19.11.2026 schrieb der Handler das nur ins Log und lief grün mit „0 Nachrichten“ (so noch im Lauf vom 20.11.2026);
+seit dem 21.11. ist der Lauf rot. Die Meldung vom 12.10.2026 im Kanal trägt kein ✅, sie ist also nie verarbeitet
+worden. Ältere Protokolle sind bei GitHub abgelaufen, seit wann genau, ist offen. Abhilfe: in
+#personalkarussel-logistik `/invite @demo_app`.
+
 Offen:
 1. **Abbruch mitten in Stufe A hinterlässt einen Teilzustand ohne Spur.** Scheitert das Entfernen der alten Verknüpfung, das Ändern des Firmenfelds oder die Notiz, bleibt der Kontakt halb umgestellt; welche Verknüpfung schon gelöscht ist, steht nirgends. Nötig: Exception in `_stufe_a` fangen, Review-Aufgabe „teilweise ausgeführt“ mit den erledigten Schritten anlegen.
 2. **Die Absicherung gegen Firmen-Umbenennung greift nur im geraden Durchlauf.** Wirft der PUT nach dem Schreiben (Timeout) oder die Namensprüfung selbst, bleibt ein falsch umbenannter Firmenname stehen, und der nächste Lauf meldet „bereits aktuell“. Nötig: Prüfung in ein `finally`, jede Firma einzeln.
