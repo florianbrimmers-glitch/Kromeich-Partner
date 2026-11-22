@@ -49,6 +49,9 @@ Bot (`demo_app`, U0AK18H9LTU) nicht Mitglied ist. Den Kanal gibt es (privat, nic
 seit dem 21.11. ist der Lauf rot. Die Meldung vom 12.10.2026 im Kanal trägt kein ✅, sie ist also nie verarbeitet
 worden. Ältere Protokolle sind bei GitHub abgelaufen, seit wann genau, ist offen. Abhilfe: in
 #personalkarussel-logistik `/invite @demo_app`.
+Nachtrag 22.11.2026: Bot eingeladen, danach antwortet Slack mit `missing_scope` – der App fehlt die Berechtigung für
+private Kanäle (`groups:history`, `groups:read`, siehe „Einrichtung“). Sie wird unter api.slack.com/apps → App →
+OAuth & Permissions → Bot Token Scopes ergänzt, danach „Reinstall to Workspace“.
 
 Offen:
 1. **Abbruch mitten in Stufe A hinterlässt einen Teilzustand ohne Spur.** Scheitert das Entfernen der alten Verknüpfung, das Ändern des Firmenfelds oder die Notiz, bleibt der Kontakt halb umgestellt; welche Verknüpfung schon gelöscht ist, steht nirgends. Nötig: Exception in `_stufe_a` fangen, Review-Aufgabe „teilweise ausgeführt“ mit den erledigten Schritten anlegen.
