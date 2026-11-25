@@ -1,6 +1,6 @@
 import { brokerLabel, type Props } from "./auth/session";
 import type { PropstackClient } from "./propstack-client";
-import { beginWrite, finishWrite } from "./write-log";
+import { beginWrite, finishWrite, writer } from "./write-log";
 
 // Automatische Prüfaufgabe nach jedem Anlegen über den MCP (Entscheidung Florian, 15.10.2026).
 // Propstack-Regeln (Skill/Team-Prozess): is_reminder: true (sonst Notiz),
@@ -70,7 +70,7 @@ export async function createReviewTask(
 			overrideReason: null,
 			request: task,
 			tool: "review_task",
-			userEmail: input.user.email,
+			...writer(input.user),
 			warnings: [],
 		});
 	} catch (error) {

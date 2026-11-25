@@ -1105,6 +1105,39 @@ describe("create_object / update_object", () => {
 		expect(unit.custom).toMatchObject({ lagerflache: 5000, lagerflache_gesamt: 5000 });
 	});
 
+	it("Service-Zugang (objekte-handler): immer Vorbereitung, nie aktiv – Vermerk und Write-Log nennen Ablauf und Auftrag", async () => {
+		// Auftrag Florian, 25.11.2026: Objekte aus dem GitHub-Workflow „Objekte Handler“ bleiben inaktiv, bis ein Mensch sie prüft
+		const unit = fakeUnit();
+		const { client } = fakeClient(unit.impl);
+		const { db, rows } = fakeDb();
+		const service = { ...USER, auftrag: "1764099999.123456", service: "objekte-handler" };
+		const out = await createObject({ client, db, now: NOW, sleep, user: service }, { ...input, active: true, industrial_area: 5000, status_id: 163674 });
+		expect(unit.stored.property_status_id).toBe(163673);
+		expect(unit.custom).toMatchObject({ aktiv: [8], status_logistik: "Inaktiv" });
+		expect(out.result).toMatchObject({
+			broker: "Florian Brimmers",
+			created: true,
+			link: "https://crm.propstack.de/app/portfolio/properties/900",
+			service_hinweise: [expect.stringMatching(/163674 durch 163673 Vorbereitung ersetzt/), expect.stringMatching(/active: true nicht übernommen/)],
+		});
+		expect(String(unit.custom.bemerkung)).toMatch(/^Angelegt über Claude \(objekte-handler, Slack 1764099999\.123456\) für Florian Brimmers am 2026-10-14\./);
+		// Write-Log: Ablauf und Auftrag in den beiden letzten Spalten – bei jedem Eintrag (Objekt und Prüfaufgabe)
+		expect(rows.length).toBeGreaterThan(0);
+		for (const row of rows) expect(row.slice(-2)).toEqual(["objekte-handler", "1764099999.123456"]);
+		// mit dem richtigen Status: kein Hinweis
+		const ruhig = await createObject({ client: fakeClient(fakeUnit().impl).client, db: fakeDb().db, now: NOW, sleep, user: service }, { ...input, industrial_area: 5000 });
+		expect(ruhig.result).not.toHaveProperty("service_hinweise", expect.anything());
+
+		// Mensch: Status und Aktiv wie angegeben, Vermerk wie bisher, Write-Log ohne Ablauf
+		const mensch = fakeUnit();
+		const menschDb = fakeDb();
+		await createObject({ client: fakeClient(mensch.impl).client, db: menschDb.db, now: NOW, sleep, user: USER }, { ...input, active: true, industrial_area: 5000, status_id: 163674 });
+		expect(mensch.stored.property_status_id).toBe(163674);
+		expect(mensch.custom).toMatchObject({ status_logistik: "Aktiv" });
+		expect(String(mensch.custom.bemerkung)).toMatch(/^Angelegt über Claude \(Propstack MCP\) von Florian Brimmers am 2026-10-14\./);
+		for (const row of menschDb.rows) expect(row.slice(-2)).toEqual([null, null]);
+	});
+
 	it("update_object: zieht fehlende Flächen-Varianten auch bei unveränderter Standardfläche nach", async () => {
 		const unit = fakeUnit();
 		Object.assign(unit.stored, { industrial_area: 5000, marketing_type: "RENT", rented: false, title: "Alt" });

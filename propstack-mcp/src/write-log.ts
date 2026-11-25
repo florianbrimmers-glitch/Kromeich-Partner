@@ -1,3 +1,4 @@
+import type { Props } from "./auth/session";
 import { AUDIT_RETENTION_MONTHS } from "./config";
 import { retentionCutoff } from "./audit";
 import { PropstackError } from "./propstack-client";
@@ -16,6 +17,14 @@ export interface WriteStart {
 	request: Record<string, unknown>;
 	warnings: string[];
 	overrideReason: string | null;
+	/** Service-Zugang: welcher Ablauf und welcher Auftrag (Slack-Zeitstempel). Bei Menschen leer. */
+	service?: string | null;
+	serviceRef?: string | null;
+}
+
+/** Wer schreibt – für den Write-Log-Eintrag: E-Mail und, im Service-Zugang, Ablauf und Auftrag. */
+export function writer(user: Pick<Props, "email" | "service" | "auftrag">): Pick<WriteStart, "userEmail" | "service" | "serviceRef"> {
+	return { service: user.service ?? null, serviceRef: user.auftrag ?? null, userEmail: user.email };
 }
 
 export type WriteStatus = "done" | "done_with_gaps" | "failed" | "blocked";
@@ -27,7 +36,7 @@ export async function beginWrite(db: D1Database | undefined, entry: WriteStart, 
 	try {
 		const result = await db
 			.prepare(
-				"INSERT INTO write_log (ts, user_email, broker_id, tool, entity, entity_id, action, before, request, status, warnings, override_reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)",
+				"INSERT INTO write_log (ts, user_email, broker_id, tool, entity, entity_id, action, before, request, status, warnings, override_reason, service, service_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)",
 			)
 			.bind(
 				now.toISOString(),
@@ -41,6 +50,8 @@ export async function beginWrite(db: D1Database | undefined, entry: WriteStart, 
 				JSON.stringify(entry.request),
 				entry.warnings.length ? JSON.stringify(entry.warnings) : null,
 				entry.overrideReason,
+				entry.service ?? null,
+				entry.serviceRef ?? null,
 			)
 			.run();
 		const id = result.meta.last_row_id;

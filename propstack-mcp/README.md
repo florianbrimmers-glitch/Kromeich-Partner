@@ -185,6 +185,7 @@ Bewusste Lücken: Ein einzelner Deal per ID und die Kontakt-Status-Liste sind nu
 - **Flächen gespiegelt:** Exposé und Teamansicht lesen die Flächen-Custom-Felder. Aus `industrial_area`, `usable_floor_space`, `total_floor_space` und `hall_height` füllt das Tool deshalb automatisch `lagerflache`/`_gesamt`, `buroflache`/`_gesamt`, `gebaudeflache_gesamt` und `hallenhohe`. Ist das Objekt nicht vermietet, kommen auch die `*_verfugbar`-Felder dazu, bei „Preis auf Anfrage“ außerdem `preisangabe`. Explizit übergebene Custom-Felder haben Vorrang. Bei Updates werden fehlende Varianten auch an Altobjekten nachgezogen.
 - **Vermietet** (`rented: true`, Team-Prozess): Das Tool setzt automatisch `free_from` „vermietet“, `status_logistik` und `aktiv` auf Inaktiv und die verfügbaren Flächen auf „X m² (vermietet)“. `status_logistik`/`aktiv` stehen **nur bei Status Vermarktung oder Reserviert** (und nicht vermietet) auf Aktiv, sonst auf Inaktiv; sie werden beim Anlegen und bei jedem Status- oder Vermietungswechsel neu gesetzt. Grund: Objekte in Akquise oder Vorbereitung dürfen nicht in Automatisierungen wie Exposéversand oder Webseite landen. Testobjekte bekommen zusätzlich `kein_automatischer_exposeversand` = Ja. Den Status (163676 Abgeschlossen) setzt man weiterhin separat.
   - **Flächen beim Schließen und Wiederöffnen (ab v0.15.0):** Aus den gespeicherten Flächen schreibt das Tool nur noch die „verfügbar“-Felder („X m² (vermietet)“ bzw. „X m²“). Die übrigen Varianten (`lagerflache`, `lagerflache_gesamt`, `buroflache`, `gebaudeflache_gesamt` …) bleiben unberührt – die Fläche selbst wurde ja nicht geändert. Bis v0.14.0 zog das Tool sie mit und glich damit „Gebäudefläche gesamt“ still an die gespeicherte Gesamtfläche an, ohne die Prüfung, die `align_building_area` dafür macht (nur auf eine Gesamtfläche, die selbst Halle + Mezzanine ist). **Befund Stresstest 20.11.2026:** Beim Schließen bekamen drei Einheiten so eine kleinere „Gebäudefläche gesamt“ – ob der neue Wert nach der Regel vom 11.11. stimmt, ist nicht geprüft. Bei zwei alten Dubletten in Soest leerte Propstack dabei die Gesamtfläche und nimmt den Wert nicht wieder an; die Ursache ist nicht geklärt. Angleichen geht weiter, aber nur ausdrücklich mit `align_building_area`.
+  - **Live-Abnahme mit v0.15.0 (25.11.2026, 20:13 Uhr) – bestanden**, am Testobjekt 6396742: „Gebäudefläche gesamt“ zuvor absichtlich auf 3.650 m² gesetzt (Gesamtfläche 3.400 m²), dann `rented: true`. Geschrieben wurden nur `rented`, `free_from`, die beiden „verfügbar“-Felder („3.000 m² (vermietet)“, „250 m² (vermietet)“) und „Bezug“; „Gebäudefläche gesamt“ blieb bei 3.650 (bis v0.14.0 wäre sie auf 3.400 gesetzt worden), die Gesamtfläche bei 3.400. Danach wieder geöffnet und die 3.400 zurückgesetzt – der Ausgangsstand ist wiederhergestellt. Alles unabhängig über die Propstack-Schnittstelle gegengelesen.
 - **Flächen:** nie 0 m². `total_floor_space` = Halle + Mezzanine, ohne Büro (Regel seit 13.08.2026).
 - **„Gebäudefläche gesamt“ ist ebenfalls ohne Büro** (Entscheidung Florian, 11.11.2026): `gebaudeflache_gesamt` und `gebaudeflache_verfugbar` tragen denselben Wert wie die Gesamtfläche – so spiegelt sie das Tool schon immer. Befund am Hillwood-Bestand: Bei 42 von 46 Einheiten stand dort seit der Bereinigung im August noch Halle + Mezzanine + Büro.
   - **Angleichen** (v0.9.14): `update_object` mit `align_building_area: true` setzt `gebaudeflache_gesamt` auf die gespeicherte Gesamtfläche und hängt einen Änderungsvermerk mit altem und neuem Wert an. `gebaudeflache_verfugbar` zieht nur mit, wo es schon befüllt und das Objekt nicht vermietet ist – leere Felder bleiben leer, damit nichts Neues ins Exposé kommt.
@@ -217,6 +218,7 @@ Bewusste Lücken: Ein einzelner Deal per ID und die Kontakt-Status-Liste sind nu
   - Die gültige Anlage lief ohne `not_applied` und ohne `write_errors`. Zurückgelesen: Gesamtfläche 3.400 m² = Halle 3.000 + Mezzanine 400 (Büro 250 m² getrennt), „Gebäudefläche gesamt“ 3.400 m², „Bezug“ „ab 01.07.2027“ mit „Bezug (Datum)“ 01.07.2027, Provision vom Projekt samt „Provision extern“, Bemerkung nur mit dem Anlage-Vermerk, interne Notiz im Feld „Notiz“, Merkmal MCP-TEST, Koordinaten vom Projekt.
   - `add_images` (Bild per Link) lief dabei zum ersten Mal live: Bild 56305980 kam mit Titel am Objekt an.
   - Befund: Ohne `status_id` entsteht das Objekt **ohne Status**, und das Ergebnis weist nicht darauf hin. Objekte ohne Status fallen aus Statusfiltern. **Entschieden (Florian, 25.11.2026): Der Status ist beim Anlegen Pflicht (ab v0.15.0).** `create_object` nimmt ohne `status_id` nichts an; die Beschreibung nennt die fünf Status und sagt: Vermarktung nur, wenn wir das Objekt anbieten können (es wird dann aktiv), im Zweifel den Nutzer fragen. Kein Standard-Status, weil jeder Vorgabewert falsch sein kann – Vermarktung schickt ein Objekt womöglich zu früh in Automatisierungen, Vorbereitung versteckt eines, das angeboten werden soll. Beim Ändern bleibt der Status freiwillig. Die Definition von `create_object` hat sich dadurch geändert – einmal neu erlauben.
+    - **Live geprüft (25.11.2026):** `create_object` ohne `status_id` lehnt der Server mit einem Eingabefehler ab; es entsteht nichts.
   - Einordnung: Über den Connector ist bis zum 11.11.2026 **kein echtes Objekt** angelegt worden, nur Testobjekte. Der letzte echte Lauf (Mileway, 09.11.) lief über den Skill `propstack-expose-workflow`. Nicht live geprüft sind Kaufobjekte und öffentliche Preise.
 - **Koordinaten (Entscheidung Florian, 16.10.; korrigiert 09.11.):** Reihenfolge: angegebene Werte > Koordinaten des Projekts (Einheit mit gleicher Adresse) > was Propstack selbst ermittelt > OpenStreetMap (Nominatim) aus der Adresse. Das Tool meldet die Genauigkeit ehrlich: „Hausnummer“ nur, wenn OpenStreetMap die Hausnummer wirklich kennt, sonst „Straße“. Straßengenaue Treffer werden **gesetzt** und in der Prüfaufgabe zum Nachsehen markiert. Geschrieben wird mit dem Trick aus Notion-Korrektur 34: erst `lat`, dann `lng` mit 1, 2, 3, 4 Nachkommastellen und zuletzt exakt. Die Kontrolle läuft per Einzel-GET. An den Kartendienst geht nur die Adresse, mit neutralem Client-Namen.
 - **Eigentümer und Ansprechpartner an Einheiten:** `create_object` mit `owner_contact_id` und `contact_person_id`, nachträglich über `set_project_owner` mit `object_id` (und `role`). Die Prüfung erfolgt wie bei Projekten über die Gegenprobe.
@@ -449,6 +451,53 @@ SELECT ts, user_email, tool, params, result_count, ok FROM audit_log ORDER BY ts
    - Schlägt eine Prüfung fehl, gibt es eine Seite „Zugriff verweigert“ (403) und kein Token. Ist Propstack nicht erreichbar, gibt es 503 (fail closed).
 4. Das Token enthält nur `email`, `name` und `brokerId`. Das Google-Access-Token wird verworfen.
 5. Access-Token-Laufzeit: 1 h. Bei jedem Refresh wird 3b erneut geprüft (`tokenExchangeCallback` in `src/index.ts`), Cache inklusive. Ohne Propstack-Nutzer bekommt der Client `invalid_grant` und muss sich neu anmelden.
+
+### Service-Zugang objekte-handler (ab v0.16.0, Auftrag Florian 25.11.2026)
+
+**Zweck:** Der GitHub-Workflow „Objekte Handler“ ruft den Connector über die Claude-API auf (MCP-Connector, `mcp_servers` mit `authorization_token`). Anthropic schickt das Token als `Authorization: Bearer <token>` an `/mcp`. Das ist ein zweiter Weg neben der Google-Anmeldung – nur für `/mcp`, nur für Tokens, die mit `svc.` beginnen, und nur, wenn das Worker-Secret `SERVICE_TOKEN_SECRET` gesetzt ist. Ohne Secret ist der Weg aus (fail closed). Alles andere – kein Token, OAuth-Tokens, andere Pfade, ungültige Service-Tokens – geht unverändert an den OAuth-Provider, der wie bisher mit 401 antwortet.
+
+**Format:** `svc.<payload>.<signatur>`
+- `payload` = base64url ohne Padding von `{"sub":"objekte-handler","broker_id":<int>,"ts":"<slack-ts>","iat":<unix>,"exp":<unix>}` – genau diese fünf Felder, keine weiteren.
+- `signatur` = base64url ohne Padding von HMAC-SHA256(`SERVICE_TOKEN_SECRET`, `"svc." + payload`).
+- Beispiel (Python, nur Standardbibliothek):
+  ```python
+  import base64, hashlib, hmac, json, time
+  b64url = lambda b: base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+  now = int(time.time())
+  payload = b64url(json.dumps({"sub": "objekte-handler", "broker_id": broker_id, "ts": slack_ts, "iat": now, "exp": now + 1500}).encode())
+  token = f"svc.{payload}." + b64url(hmac.new(secret.encode(), f"svc.{payload}".encode(), hashlib.sha256).digest())
+  ```
+  Das Token im Workflow-Log maskieren (`::add-mask::`).
+
+**Prüfungen** (`src/auth/service-token.ts`, `src/service-access.ts`), bei jedem Aufruf:
+- Signatur zeitkonstant (`crypto.subtle.verify`), bevor der Inhalt gelesen wird; Tokens über 2.048 Zeichen werden vorher abgewiesen.
+- `sub` ist `objekte-handler`; `exp` > jetzt; `exp` − `iat` ≤ 1.800 s und `exp` > `iat`; `iat` höchstens 60 s in der Zukunft; `ts` im Slack-Format (`1764099999.123456`); `broker_id` eine positive Ganzzahl.
+- Secret kürzer als 32 Zeichen gilt als nicht gesetzt.
+- Ungültig oder fehlend → 401 wie heute.
+- `broker_id` muss ein aktiver, persönlicher Propstack-Nutzer sein – dieselben Regeln wie Prüfung 3b streng (aktiv, nicht gesperrt, nicht archiviert, nicht technisch, kein Sammelpostfach). Anders als beim Login gibt es keinen Rückfall auf die einfache Prüfung: Kann die zweite Schnittstelle die Nutzerliste nicht lesen, wird abgelehnt. Abgelehnt → 403; Propstack nicht erreichbar → 503. Das Ergebnis der Nutzerprüfung wird 5 Minuten zwischengespeichert.
+
+**Sitzung:** wie die eines angemeldeten Nutzers – E-Mail, Name und Propstack-ID aus `broker_id`, dazu `service: "objekte-handler"` und `auftrag: <ts>`. `whoami` zeigt beides.
+
+**Werkzeuge:** nur `whoami`, `search_objects`, `get_object`, `get_project`, `search_contacts`, `get_contact`, `list_reference`, `list_fields`, `create_project`, `create_object`, `set_project_owner`, `add_images`, `create_task`. Alle anderen werden in Service-Sitzungen nicht angeboten und beim Aufruf abgewiesen (`src/tools/service-rules.ts`). Der Wortlaut der Tool-Definitionen bleibt unverändert – für Menschen ändert sich nichts.
+
+**Regeln, weil kein Mensch davorsitzt:**
+- `create_object` legt immer mit Status 163673 (Vorbereitung) an; ein anderer Status wird ersetzt. `active: true` wird nicht übernommen – sonst landete das Objekt trotz Vorbereitung in Automatisierungen (Exposéversand, Webseite). Beides steht im Ergebnis unter `service_hinweise`.
+- `allow_duplicate_reason` und `public_price_confirmed` werden abgewiesen: Beides ist eine menschliche Bestätigung. (Auftrag nannte `allow_duplicate_reason`; `active` und `public_price_confirmed` sind beim Bau ergänzt, weil sie dieselbe Lücke öffnen.)
+- Betreuer wird wie bisher der Nutzer aus `broker_id`. Anlagevermerk: „Angelegt über Claude (objekte-handler, Slack <ts>) für <Name> am <Datum>.“ – ebenso in Notizen und Prüfaufgaben.
+- `create_object` und `create_project` liefern die Propstack-Adresse des Datensatzes unter `link`.
+
+**Protokoll:** Audit- und Write-Log haben die Spalten `service` und `service_ref` (Slack-ts; Migration `0005_service_zugang.sql`). Bei Menschen bleiben sie leer.
+
+**Secret:** `SERVICE_TOKEN_SECRET`, mindestens 32 Zeichen, zufällig (Passwort-Manager). Derselbe Wert an zwei Stellen: als Worker-Secret in Cloudflare (Workers → propstack-mcp → Einstellungen → Variablen und Secrets, Typ „Secret“; oder `wrangler secret put SERVICE_TOKEN_SECRET`) und als Repository-Secret für den Workflow. Nie in Code, Repo oder Chat.
+
+**Sperren:** Secret in Cloudflare löschen oder tauschen – das wirkt beim **nächsten Aufruf**, weil die Signatur bei jedem Aufruf geprüft wird; ein altes Token gilt danach nicht mehr. Ohnehin läuft jedes Token nach spätestens 30 Minuten ab. Wird der Propstack-Nutzer aus `broker_id` deaktiviert, ist der Weg für ihn nach spätestens 5 Minuten zu (Zwischenspeicher).
+
+**Restrisiken (bewusst so gebaut):**
+- Wer das Secret hat, kann für jeden aktiven Propstack-Nutzer schreiben – `broker_id` bestimmt der Workflow. Das Secret gehört deshalb nur in diesen einen Workflow.
+- `set_project_owner` wirkt auch auf bestehende Projekte und Objekte, und der Connector kann Verknüpfungen nicht lösen. Eine falsche Verknüpfung muss ein Mensch in Propstack entfernen.
+- Slack-Nachrichten und Exposés sind fremde Eingaben. Was Claude daraus macht, sichern Vorbereitung, Prüfaufgabe und die Werkzeugliste ab – nicht der Inhalt.
+
+**Rauchtest nach jeder Auslieferung:** Ein richtig gebautes, aber mit einem Zufallsschlüssel signiertes Token muss 401 bekommen (`.github/workflows/propstack-mcp-deploy.yml`).
 
 ### Ausnahme: Oguzhan schreibt unter Lenas Propstack-Nutzer (ab v0.13.0, Entscheidung Florian 20.11.2026)
 

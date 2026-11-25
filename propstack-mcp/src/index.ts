@@ -11,19 +11,23 @@ import { ACCESS_TOKEN_TTL_SECONDS } from "./config";
 import { GoogleHandler } from "./google-handler";
 import { handleImageUpload } from "./image-upload";
 import { PropstackClient } from "./propstack-client";
+import { serviceAccess } from "./service-access";
 import { registerReadTools, registerWriteTools, runTool, type ToolContext } from "./tools/register";
+import { serviceServer } from "./tools/service-rules";
 import { purgeOldWriteLog } from "./write-log";
 
 export class PropstackMCP extends McpAgent<Env, Record<string, never>, Props> {
 	server = new McpServer({
 		name: "Propstack MCP – Kromeich",
-		version: "0.15.0",
+		version: "0.16.0",
 	});
 
 	async init() {
 		const ctx: ToolContext = { env: this.env, props: () => this.props! };
+		// Service-Sitzungen (objekte-handler) bekommen nur die freigegebenen Werkzeuge – Menschen alle wie bisher
+		const server = serviceServer(this.server, this.props);
 
-		this.server.registerTool(
+		server.registerTool(
 			"whoami",
 			{
 				description:
@@ -38,14 +42,16 @@ export class PropstackMCP extends McpAgent<Env, Record<string, never>, Props> {
 				}),
 		);
 
-		registerReadTools(this.server, ctx);
-		registerWriteTools(this.server, ctx);
+		registerReadTools(server, ctx);
+		registerWriteTools(server, ctx);
 	}
 }
 
+const mcpHandler = PropstackMCP.serve("/mcp");
+
 const provider = new OAuthProvider({
 	accessTokenTTL: ACCESS_TOKEN_TTL_SECONDS,
-	apiHandler: PropstackMCP.serve("/mcp"),
+	apiHandler: mcpHandler,
 	apiRoute: "/mcp",
 	authorizeEndpoint: "/authorize",
 	clientRegistrationEndpoint: "/register",
@@ -71,9 +77,21 @@ const provider = new OAuthProvider({
 });
 
 export default {
-	fetch: (request: Request, env: Env, ctx: ExecutionContext) => {
+	fetch: async (request: Request, env: Env, ctx: ExecutionContext) => {
 		// Bild-Upload per Einmal-Adresse aus image_upload_url – das Token in der URL ist die Berechtigung.
 		if (new URL(request.url).pathname.startsWith("/upload/images/")) return handleImageUpload(request, env);
+		// Service-Zugang (objekte-handler): nur „Bearer svc.…“ an /mcp. Alles andere – auch ungültige Service-Tokens –
+		// geht unverändert an den OAuth-Provider, der wie bisher mit 401 antwortet.
+		const service = await serviceAccess(request, env, {
+			client: new PropstackClient({ apiKey: env.PROPSTACK_API_KEY, apiKeyV2: env.PROPSTACK_API_KEY_V2 }),
+			kv: env.OAUTH_KV,
+		});
+		if (service?.kind === "response") return service.response;
+		if (service?.kind === "props") {
+			// wie der OAuth-Provider: die Sitzungsdaten über ctx.props an den MCP-Handler geben
+			(ctx as ExecutionContext & { props: unknown }).props = service.props;
+			return mcpHandler.fetch(request, env, ctx);
+		}
 		return provider.fetch(request, env, ctx);
 	},
 	// Täglich: Audit- und Write-Log-Einträge älter als 12 Monate löschen, Dashboard-Zwischenspeicher älter als 24 Stunden.

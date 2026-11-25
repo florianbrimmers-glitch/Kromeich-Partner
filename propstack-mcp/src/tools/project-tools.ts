@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { brokerLabel } from "../auth/session";
+import { brokerLabel, type Props, viaClaude } from "../auth/session";
 import { PropstackClient, PropstackError } from "../propstack-client";
 import { type DedupeResult, sameAddress } from "../propstack/dedupe";
 import { validateCustomFields } from "../propstack/field-rules";
@@ -24,7 +24,7 @@ import { scalar } from "../propstack/mappers";
 import { appendNote } from "../propstack/notes";
 import { linkContact, type RelationResult, type RelationRole, relationLine, ROLE_LABEL } from "../propstack/relations";
 import { CRM_BASE, createReviewTask } from "../review-task";
-import { beginWrite, finishWrite } from "../write-log";
+import { beginWrite, finishWrite, writer } from "../write-log";
 import { flag, id, optionalText } from "./params";
 import { loadAll, type ToolOutput } from "./read-tools";
 import { same, TEST_TAG, type WriteDeps } from "./write-tools";
@@ -96,8 +96,8 @@ function compareProject(fields: Raw, actual: Raw, customExpect?: Raw): { missing
 	return { missing, unverified };
 }
 
-function originNoteText(name: string, now: Date, verb: "Angelegt" | "Ergänzt"): string {
-	return `${verb} über Claude (Propstack MCP) von ${name} am ${today(now)}.`;
+function originNoteText(user: Pick<Props, "name" | "service" | "auftrag">, now: Date, verb: "Angelegt" | "Ergänzt"): string {
+	return `${verb} ${viaClaude(user)} am ${today(now)}.`;
 }
 
 /** Kontakt laden und auf id + Name kürzen (404 → Fehler, bevor etwas angelegt wird). */
@@ -228,7 +228,7 @@ export async function createProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 
 	// Interne Notiz (How-to: Exposé-Link, Mandat, Mietpreise, Provisionsregelung, Projektname des Entwicklers)
 	const noteLines = [...internalNoteLines(input), ...(input.internal_note ? [input.internal_note] : [])];
-	fields.note = [originNoteText(user.name, now, "Angelegt"), ...noteLines].join("\n");
+	fields.note = [originNoteText(user, now, "Angelegt"), ...noteLines].join("\n");
 	const custom = await validateCustomFields(client, "for_projects", input.custom_fields);
 	if (custom) fields.partial_custom_fields = custom.send;
 
@@ -241,7 +241,7 @@ export async function createProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 		overrideReason,
 		request: { ...fields, contact_person_id: input.contact_person_id, owner_contact_id: input.owner_contact_id },
 		tool: "create_project",
-		userEmail: user.email,
+		...writer(user),
 		warnings: [...dedupe.warnings, ...textWarnings],
 	});
 	let projectId: number;
@@ -308,7 +308,7 @@ export async function createProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 		lines: [
 			`Projekt ${projectId}: ${name}`,
 			`${CRM_BASE}/projects/${projectId}`,
-			`Angelegt über Claude (Propstack MCP) von ${user.name} am ${today(now)}.`,
+			`Angelegt ${viaClaude(user)} am ${today(now)}.`,
 			relationLine("owner", owner, ownerResult),
 			relationLine("contact_person", contactPerson, contactResult),
 			coordinatesLine(coordinates),
@@ -459,7 +459,7 @@ export async function updateProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 		}
 		const old = String(scalar(current.note) ?? "").trim();
 		// Nicht doppelt: Steht derselbe Text schon in der Notiz, wird er nicht noch einmal angehängt
-		const appended = appendNote(old, originNoteText(user.name, deps.now?.() ?? new Date(), "Ergänzt"), [input.note_append]);
+		const appended = appendNote(old, originNoteText(user, deps.now?.() ?? new Date(), "Ergänzt"), [input.note_append]);
 		if (appended.text === undefined) alreadyPresent.push("note_append (steht schon in der internen Notiz)");
 		else {
 			fields.note = appended.text;
@@ -491,7 +491,7 @@ export async function updateProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 		overrideReason,
 		request: { ...fields, ...(custom ? { partial_custom_fields: custom.send } : {}), ...(coordsRequested ? { lat: input.lat, lng: input.lng } : {}) },
 		tool: "update_project",
-		userEmail: user.email,
+		...writer(user),
 		warnings,
 	});
 	if (Object.keys(fields).length || custom) {
@@ -587,7 +587,7 @@ export async function setProjectOwner(deps: WriteDeps, input: z.infer<z.ZodObjec
 		overrideReason: null,
 		request: { contact_id: input.contact_id, role },
 		tool: "set_project_owner",
-		userEmail: user.email,
+		...writer(user),
 		warnings: [],
 	});
 	const result = await linkContact(client, target, input.contact_id, role);
@@ -691,7 +691,7 @@ export async function addImages(
 		overrideReason: null,
 		request: { imageable_id: target.id, imageable_type: target.type, images: valid },
 		tool: "add_images",
-		userEmail: user.email,
+		...writer(user),
 		warnings: rejected.map((r) => `${r.url}: ${r.reason}`),
 	});
 	const uploaded: number[] = [];

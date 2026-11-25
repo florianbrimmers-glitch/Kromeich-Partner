@@ -57,6 +57,7 @@ import { dashboardDaten, dashboardDatenInput } from "../dashboard/aufbau";
 import { D1DashboardStore, type DashboardStore } from "../dashboard/store";
 import { type ZodRawShape, z } from "zod";
 import { id } from "./params";
+import { assertServiceAllowed } from "./service-rules";
 
 export interface ToolContext {
 	env: Env;
@@ -92,6 +93,8 @@ export async function runTool(
 	let output: ToolOutput | undefined;
 	let failure: unknown;
 	try {
+		// Service-Zugang: nur freigegebene Werkzeuge, keine menschlichen Bestätigungen (src/tools/service-rules.ts)
+		assertServiceAllowed(props, tool, params);
 		const client = ctx.createClient ? ctx.createClient() : new PropstackClient({ apiKey: ctx.env.PROPSTACK_API_KEY, apiKeyV2: ctx.env.PROPSTACK_API_KEY_V2 });
 		output = await fn(client);
 	} catch (error) {
@@ -107,6 +110,8 @@ export async function runTool(
 		params,
 		resultCount: output?.count ?? null,
 		tool,
+		service: props.service ?? null,
+		serviceRef: props.auftrag ?? null,
 		ts: new Date(started).toISOString(),
 		userEmail: props.email,
 	});

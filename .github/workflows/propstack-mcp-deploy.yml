@@ -70,3 +70,17 @@ jobs:
           status=$(curl -s -o /dev/null -w "%{http_code}" -X POST https://propstack-mcp.kromeichpartner.workers.dev/mcp)
           echo "POST /mcp ohne Token → $status"
           test "$status" = "401"
+
+      - name: Smoke-Test (gefälschtes Service-Token muss 401 kommen)
+        if: steps.secrets.outputs.ready == 'true'
+        run: |
+          # Richtig gebautes Token (svc.<payload>.<signatur>), aber mit einem Zufallsschlüssel signiert –
+          # der Service-Zugang muss es ablehnen, ob SERVICE_TOKEN_SECRET gesetzt ist oder nicht.
+          now=$(date +%s)
+          b64url() { openssl base64 -A | tr '+/' '-_' | tr -d '='; }
+          payload=$(printf '{"sub":"objekte-handler","broker_id":1,"ts":"%s.000000","iat":%s,"exp":%s}' "$now" "$now" "$((now + 60))" | b64url)
+          key=$(openssl rand -hex 32)
+          sig=$(printf 'svc.%s' "$payload" | openssl dgst -sha256 -hmac "$key" -binary | b64url)
+          status=$(curl -s -o /dev/null -w "%{http_code}" -X POST -H "Authorization: Bearer svc.$payload.$sig" https://propstack-mcp.kromeichpartner.workers.dev/mcp)
+          echo "POST /mcp mit gefälschtem Service-Token → $status"
+          test "$status" = "401"
