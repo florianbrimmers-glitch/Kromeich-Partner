@@ -898,6 +898,10 @@ export const createObjectInput = {
 	...objectFieldsShape,
 	marketing_type: z.enum(["BUY", "RENT"]).describe("BUY = Kauf, RENT = Miete (Pflicht)"),
 	rs_type: z.string().regex(/^[A-Z_]+$/).describe("Objektart (Pflicht), z. B. INDUSTRY (Halle/Produktion)"),
+	// Pflicht seit v0.15.0 (Entscheidung Florian, 25.11.2026): Ohne Status entstand das Objekt still ohne Status und fiel aus jeder Statussuche
+	status_id: id.describe(
+		"Objekt-Status (Pflicht): 163672 Akquise, 163673 Vorbereitung, 163674 Vermarktung, 163675 Reserviert, 163676 Abgeschlossen. Vermarktung nur, wenn wir das Objekt anbieten können (es wird dann aktiv und kann in Exposéversand und Webseite landen) – im Zweifel den Nutzer fragen. Einen Status „vermietet“ gibt es nicht – dafür rented",
+	),
 	zip_code: z.string().trim().regex(/^\d{4,5}$/).optional(),
 	owner_contact_id: id.optional().describe("Eigentümer-Kontakt (eigener Shop) – wird als Eigentümer verknüpft. Bei Einheiten im Projekt denselben wie am Projekt angeben"),
 	contact_person_id: id.optional().describe("Ansprechpartner-Kontakt, sofern vorhanden – wird als Kontakt verknüpft. Bei Einheiten im Projekt denselben wie am Projekt"),

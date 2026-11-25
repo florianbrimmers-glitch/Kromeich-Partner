@@ -674,6 +674,8 @@ describe("create_object / update_object", () => {
 		house_number: "99",
 		marketing_type: "RENT" as const,
 		rs_type: "INDUSTRY",
+		// Pflicht seit v0.15.0; Vorbereitung lässt das Objekt inaktiv
+		status_id: 163673,
 		street: "Schlebuscher Straße",
 		title: "Logistikhalle in (51) Leverkusen",
 		unit_id: "Unit 9",
@@ -1136,7 +1138,7 @@ describe("create_object / update_object", () => {
 
 describe("create_object / update_object – Team-How-to", () => {
 	const sleep = async () => {};
-	const standalone = { city: "Herford", house_number: "8", marketing_type: "RENT" as const, rs_type: "INDUSTRY", street: "Röntgenstraße", title: "Logistikhalle in (32) Herford", zip_code: "32052" };
+	const standalone = { city: "Herford", house_number: "8", marketing_type: "RENT" as const, rs_type: "INDUSTRY", status_id: 163673, street: "Röntgenstraße", title: "Logistikhalle in (32) Herford", zip_code: "32052" };
 	const PROJECT = {
 		city: "Hillscheid",
 		courtage: "Provisionsfrei",
@@ -1218,7 +1220,7 @@ describe("create_object / update_object – Team-How-to", () => {
 		const w = world();
 		const out = await createObject(
 			{ client: w.client, db: fakeDb().db, now: NOW, sleep, user: USER },
-			{ industrial_area: 10000, marketing_type: "RENT", project_id: 604473, rs_category: "HALL", rs_type: "INDUSTRY", unit_id: "Unit 1" },
+			{ industrial_area: 10000, marketing_type: "RENT", project_id: 604473, rs_category: "HALL", rs_type: "INDUSTRY", status_id: 163673, unit_id: "Unit 1" },
 		);
 		expect(w.posted()).toMatchObject({
 			city: "Hillscheid",
@@ -1246,15 +1248,15 @@ describe("create_object / update_object – Team-How-to", () => {
 	it("Einheit im Projekt braucht eine Einheitennummer; eigene Provision schlägt die des Projekts", async () => {
 		const w = world();
 		const deps = { client: w.client, db: fakeDb().db, now: NOW, sleep, user: USER };
-		await expect(createObject(deps, { marketing_type: "RENT", project_id: 604473, rs_type: "INDUSTRY" })).rejects.toThrow(/unit_id/);
-		await createObject(deps, { commission: "staffel", marketing_type: "RENT", project_id: 604473, rs_type: "INDUSTRY", unit_id: "Unit 2" });
+		await expect(createObject(deps, { marketing_type: "RENT", project_id: 604473, rs_type: "INDUSTRY", status_id: 163673 })).rejects.toThrow(/unit_id/);
+		await createObject(deps, { commission: "staffel", marketing_type: "RENT", project_id: 604473, rs_type: "INDUSTRY", status_id: 163673, unit_id: "Unit 2" });
 		expect(w.posted().courtage).toBeUndefined();
 		expect(String(w.posted().courtage_note)).toMatch(/^Bei Mietverträgen mit einer Laufzeit von weniger als fünf/);
 	});
 
 	it("Einzelobjekt ohne Pflichtangaben wird abgewiesen", async () => {
 		const w = world();
-		await expect(createObject({ client: w.client, db: fakeDb().db, now: NOW, sleep, user: USER }, { marketing_type: "RENT", rs_type: "INDUSTRY", title: "Halle" })).rejects.toThrow(
+		await expect(createObject({ client: w.client, db: fakeDb().db, now: NOW, sleep, user: USER }, { marketing_type: "RENT", rs_type: "INDUSTRY", status_id: 163673, title: "Halle" })).rejects.toThrow(
 			/Pflichtangaben fehlen: street, zip_code, city/,
 		);
 	});
@@ -1386,7 +1388,7 @@ describe("create_object / update_object – Team-How-to", () => {
 
 		// Einheit im Projekt: die Provision kommt vom Projekt („Provisionsfrei“) – das Custom-Feld folgt
 		const inProject = world();
-		const unit = await createObject(deps(inProject), { industrial_area: 10000, marketing_type: "RENT", project_id: 604473, rs_type: "INDUSTRY", unit_id: "Unit 1" });
+		const unit = await createObject(deps(inProject), { industrial_area: 10000, marketing_type: "RENT", project_id: 604473, rs_type: "INDUSTRY", status_id: 163673, unit_id: "Unit 1" });
 		expect((inProject.posted().partial_custom_fields as Record<string, unknown>).provision_extern).toBe("Provisionsfrei");
 		// fehlt die interne Regelung, steht das unter „nicht angegeben“ – auch bei Einheiten im Projekt
 		expect((unit.result as { howto_not_provided: string[] }).howto_not_provided).toContain("Provisionsregelung intern (Herkunft der Provisionsaussage, Sonderregeln)");
@@ -1449,7 +1451,7 @@ describe("create_object / update_object – Team-How-to", () => {
 		await expect(createObject(deps, { ...standalone, description_note: "Halle an der Röntgenstraße 8." })).rejects.toThrow(/die Adresse darf in Exposé-Texten nicht vorkommen/);
 		expect(w.calls.some((c) => c.method === "createUnit")).toBe(false);
 		// Alttext des Projekts blockiert die Einheit nicht, wird aber gemeldet
-		const out = await createObject(deps, { marketing_type: "RENT", owner_contact_id: 111, project_id: 604473, rs_type: "INDUSTRY", unit_id: "Unit 3" });
+		const out = await createObject(deps, { marketing_type: "RENT", owner_contact_id: 111, project_id: 604473, rs_type: "INDUSTRY", status_id: 163673, unit_id: "Unit 3" });
 		const warnings = (out.result as { text_warnings: string[] }).text_warnings.join(" ");
 		expect(warnings).toMatch(/Vom Projekt übernommen – Beschreibung: nennt den Eigentümer/);
 		expect(warnings).toMatch(/Vom Projekt übernommen – Beschreibung: enthält einen Preis/);
@@ -1604,7 +1606,7 @@ describe("create_object / update_object – Team-How-to", () => {
 		const w = world();
 		const out = await createObject(
 			{ client: w.client, db: fakeDb().db, now: NOW, sleep, user: USER },
-			{ city: "Hillscheid", free_from: "ab 01.07.2027", marketing_type: "RENT", rs_type: "INDUSTRY", street: "Am Scheid", title: "Logistikhalle in (56) Hillscheid", zip_code: "56204" },
+			{ city: "Hillscheid", free_from: "ab 01.07.2027", marketing_type: "RENT", rs_type: "INDUSTRY", status_id: 163673, street: "Am Scheid", title: "Logistikhalle in (56) Hillscheid", zip_code: "56204" },
 		);
 		expect(w.custom).toMatchObject({ bezug: "ab 01.07.2027", bezug_datum: "2027-07-01" });
 		expect((out.result as { mirrored_custom_fields: string[] }).mirrored_custom_fields).toEqual(expect.arrayContaining(["bezug", "bezug_datum"]));
@@ -1614,7 +1616,7 @@ describe("create_object / update_object – Team-How-to", () => {
 		const rented = world();
 		await createObject(
 			{ client: rented.client, db: fakeDb().db, now: NOW, sleep, user: USER },
-			{ city: "Hillscheid", marketing_type: "RENT", rented: true, rs_type: "INDUSTRY", street: "Am Scheid", title: "Logistikhalle in (56) Hillscheid", zip_code: "56204" },
+			{ city: "Hillscheid", marketing_type: "RENT", rented: true, rs_type: "INDUSTRY", status_id: 163673, street: "Am Scheid", title: "Logistikhalle in (56) Hillscheid", zip_code: "56204" },
 		);
 		expect(rented.custom.bezug).toBe("vermietet");
 		expect("bezug_datum" in rented.custom).toBe(false);
