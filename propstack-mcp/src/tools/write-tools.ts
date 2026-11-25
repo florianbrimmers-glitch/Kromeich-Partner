@@ -1347,13 +1347,15 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 		}
 	}
 	// Aus den angefragten (nicht nur geänderten) Flächen – so werden auch Altobjekte nachgezogen,
-	// deren Custom-Varianten fehlen. Bei Vermietungswechsel auch die vorhandenen Flächen für
-	// „X m² (vermietet)“ heranziehen. Bereits richtige Werte nicht erneut schreiben.
+	// deren Custom-Varianten fehlen. Bei Vermietungswechsel die gespeicherten Flächen nur für die
+	// „verfügbar“-Felder heranziehen („X m² (vermietet)“ bzw. „X m²“) – nie für die Gesamt-Varianten
+	// (Befund Stresstest 20.11.2026). Bereits richtige Werte nicht erneut schreiben.
 	const areaSource: Raw = { ...requested };
+	const storedAreas: Raw = {};
 	if (rentChanged) {
 		for (const key of ["industrial_area", "usable_floor_space", "total_floor_space"]) {
 			const actual = scalar(currentValue(key));
-			if (areaSource[key] === undefined && typeof actual === "number" && actual > 0) areaSource[key] = actual;
+			if (areaSource[key] === undefined && typeof actual === "number" && actual > 0) storedAreas[key] = actual;
 		}
 	}
 	const howto = howtoCustomFields(input, defs, input.custom_fields, rentState);
@@ -1404,6 +1406,7 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 				marketable: ACTIVE_STATUSES.includes(Number(requested.property_status_id ?? currentValue("property_status_id"))),
 				priceOnInquiry: requested.price_on_inquiry === true,
 				rent: rentState,
+				stored: storedAreas,
 			}),
 			...howto,
 			...provision,

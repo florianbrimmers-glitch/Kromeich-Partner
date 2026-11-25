@@ -1058,8 +1058,7 @@ describe("create_object / update_object", () => {
 					bemerkung: expect.stringMatching(/^Alte Bemerkung\n\nErgänzt über Claude .* am 2026-10-14\.\nEigentümer will 6 €\/m²$/),
 					// „Bezug“ folgt „Verfügbar ab“
 					bezug: "vermietet",
-					lagerflache: 5000,
-					lagerflache_gesamt: 5000,
+					// nur die „verfügbar“-Variante – Gesamt-Varianten bleiben beim Schließen unberührt (seit v0.15.0)
 					lagerflache_verfugbar: "5.000 m² (vermietet)",
 					status_logistik: "Inaktiv",
 				},
@@ -1071,6 +1070,37 @@ describe("create_object / update_object", () => {
 		expect((out.result as { changed: string[] }).changed).toEqual(expect.arrayContaining(["rented", "status_id", "free_from", "bemerkung (angehängt)", "custom_fields.lagerflache_verfugbar"]));
 		expect((out.result as { not_applied?: string[] }).not_applied).toBeUndefined();
 		expect(JSON.parse(rows[0][7] as string)).toMatchObject({ custom_fields: { bemerkung: "Alte Bemerkung" }, free_from: "nicht lesbar", rented: null, status_id: 163674 });
+	});
+
+	it("update_object: Schließen und Wiederöffnen ändern keine Gesamtflächen – nur die „verfügbar“-Felder (Befund Stresstest 20.11.2026)", async () => {
+		// Am 20.11.2026 bekamen drei Einheiten beim Schließen eine kleinere „Gebäudefläche gesamt“: Der Connector kopierte die
+		// Standardflächen auch in die Gesamt-Varianten, obwohl nur Status und „vermietet“ geändert wurden. Bei Altbeständen
+		// weichen beide oft voneinander ab.
+		const unit = fakeUnit();
+		Object.assign(unit.stored, { industrial_area: 5000, marketing_type: "RENT", property_status_id: 163674, rented: false, title: "ALT1", total_floor_space: 5000, usable_floor_space: 300 });
+		const gesamt = { buroflache: 350, gebaudeflache_gesamt: 5600, lagerflache: 5200, lagerflache_gesamt: 5200 };
+		Object.assign(unit.custom, { ...gesamt, gebaudeflache_verfugbar: 5600, lagerflache_verfugbar: "5.200 m²" });
+		const { client } = fakeClient(unit.impl);
+		const deps = { client, db: fakeDb().db, now: NOW, sleep, user: USER };
+		const geschrieben = (von: number) =>
+			unit.puts.slice(von).flatMap((p) => Object.keys((p as { partial_custom_fields?: Record<string, unknown> }).partial_custom_fields ?? {}));
+
+		const zu = await updateObject(deps, { id: 900, rented: true, status_id: 163676 });
+		for (const key of Object.keys(gesamt)) expect(geschrieben(0), key).not.toContain(key);
+		expect(unit.custom).toMatchObject({ ...gesamt, lagerflache_verfugbar: "5.000 m² (vermietet)", status_logistik: "Inaktiv" });
+		// Zahlenfeld „verfügbar“ bekommt keinen „(vermietet)“-Text – es bleibt, wie es ist
+		expect(unit.custom.gebaudeflache_verfugbar).toBe(5600);
+		expect((zu.result as { changed: string[] }).changed.filter((c) => c.includes("gesamt") || /\.(lagerflache|buroflache)$/.test(c))).toEqual([]);
+
+		// wieder verfügbar: die „verfügbar“-Felder bekommen die gespeicherte Fläche, die Gesamt-Varianten bleiben
+		const vorher = unit.puts.length;
+		await updateObject(deps, { free_from: "sofort", id: 900, rented: false, status_id: 163674 });
+		for (const key of Object.keys(gesamt)) expect(geschrieben(vorher), key).not.toContain(key);
+		expect(unit.custom).toMatchObject({ ...gesamt, gebaudeflache_verfugbar: 5000, lagerflache_verfugbar: "5.000 m²" });
+
+		// wer eine Fläche ausdrücklich setzt, bekommt wie bisher alle Varianten nachgezogen
+		await updateObject(deps, { id: 900, industrial_area: 5000 });
+		expect(unit.custom).toMatchObject({ lagerflache: 5000, lagerflache_gesamt: 5000 });
 	});
 
 	it("update_object: zieht fehlende Flächen-Varianten auch bei unveränderter Standardfläche nach", async () => {
