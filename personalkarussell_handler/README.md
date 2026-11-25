@@ -52,6 +52,7 @@ worden. Ältere Protokolle sind bei GitHub abgelaufen, seit wann genau, ist offe
 Nachtrag 22.11.2026: Bot eingeladen, danach antwortet Slack mit `missing_scope` – der App fehlt die Berechtigung für
 private Kanäle (`groups:history`, `groups:read`, siehe „Einrichtung“). Sie wird unter api.slack.com/apps → App →
 OAuth & Permissions → Bot Token Scopes ergänzt, danach „Reinstall to Workspace“.
+Nachtrag 25.11.2026: Scopes ergänzt, Probelauf grün – der Kanal ist lesbar (1 Nachricht in 96 h, keine im 50-h-Fenster).
 
 Offen:
 1. **Abbruch mitten in Stufe A hinterlässt einen Teilzustand ohne Spur.** Scheitert das Entfernen der alten Verknüpfung, das Ändern des Firmenfelds oder die Notiz, bleibt der Kontakt halb umgestellt; welche Verknüpfung schon gelöscht ist, steht nirgends. Nötig: Exception in `_stufe_a` fangen, Review-Aufgabe „teilweise ausgeführt“ mit den erledigten Schritten anlegen.
