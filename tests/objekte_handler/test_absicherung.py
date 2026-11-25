@@ -46,6 +46,11 @@ def _cls(**kwargs) -> Classification:
     # so melden Kollegen eine fertige Anlage
     "neues Objekt angelegt\n SEGRO - (32) Herford\n gesamt ca. 9.133 m² Mietfläche …",
     "*Neues Objekt angelegt*: CTPark Recklinghausen",
+    # 24.11.2026, Oguzhan: „nicht vermietet“ ist eine Zustandsangabe, kein „ist aber schon vermietet“
+    "neues Objekt angelegt\n Hillwood - (32) Kirchlengern\n gesamt ca. 38.614 m² Mietfläche … 10,5 m lichte Höhe, "
+    "5.000 kg/m², 33 Rampentore … DGNB Gold angestrebt – nicht vermietet, sofort verfügbar",
+    "neues Objekt angelegt\nHillwood - (32) Porta Westfalica\ngesamt ca. 33.298 m² Mietfläche auf 3 Hallen … "
+    "verfügbar Q1/Q2 2027 – nicht vermietet",
 ])
 def test_vollzugsmeldung_erkannt(text):
     assert vollzugsmeldung(text)
@@ -60,6 +65,7 @@ def test_vollzugsmeldung_erkannt(text):
     "Bilder herne prologis sind im drive",
     "Haben wir das objekt?",
     "Das Objekt wurde letzte Woche neu angelegt, bitte Bilder ergänzen",   # „angelegt“ nicht am Anfang
+    "neues Objekt angelegt: Gewerbepark Unna – Halle 1 ist aber schon vermietet",   # weiter ein Hinweis
     "", None,
 ])
 def test_auftraege_bleiben_auftraege(text):
