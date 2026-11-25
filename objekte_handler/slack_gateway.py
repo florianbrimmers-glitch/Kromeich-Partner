@@ -204,6 +204,37 @@ def post_thread_reply(thread_ts: str, text: str) -> bool:
         return False
 
 
+def download_file(url: str) -> bytes:
+    """Datei aus Slack laden (Bot-Token, Scope files:read). Fehler werden nicht geschluckt:
+    Ohne das Exposé gibt es keine Anlage, und der Lauf soll das zeigen."""
+    response = httpx.get(url, headers=_headers(), timeout=60.0, follow_redirects=True)
+    response.raise_for_status()
+    if "text/html" in response.headers.get("content-type", ""):
+        raise RuntimeError("Slack lieferte statt der Datei eine HTML-Seite – fehlt dem Bot files:read?")
+    return response.content
+
+
+def user_profile(user_id: str | None) -> dict:
+    """Profil eines Slack-Nutzers (users.info). E-Mail nur mit Scope users:read.email –
+    ohne ihn bleibt der Name, über den der Betreuer gesucht wird."""
+    if not user_id:
+        return {}
+    try:
+        response = httpx.get(f"{SLACK_API_URL}/users.info", headers=_headers(),
+                             params={"user": user_id}, timeout=30.0)
+        data = response.json()
+    except httpx.HTTPError as e:
+        logger.warning("users.info error für %s: %s", user_id, e)
+        return {}
+    if not data.get("ok"):
+        logger.warning("users.info fehlgeschlagen für %s: %s", user_id, data.get("error"))
+        return {}
+    user = data.get("user") or {}
+    profil = dict(user.get("profile") or {})
+    profil.setdefault("real_name", user.get("real_name") or "")
+    return profil
+
+
 def get_permalink(ts: str) -> str | None:
     try:
         response = httpx.get(

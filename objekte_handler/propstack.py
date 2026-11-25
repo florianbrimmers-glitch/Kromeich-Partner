@@ -107,6 +107,16 @@ def _to_unit(raw: dict) -> Unit:
     )
 
 
+def fetch_brokers() -> list[dict]:
+    """Propstack-Nutzer (id, name, email) – für den Betreuer neuer Objekte."""
+    data = _request("GET", "/brokers", key=config.propstack_key_objekte()).json()
+    rows = data if isinstance(data, list) else data.get("data", [])
+    return [
+        {"id": r.get("id"), "name": _scalar(r.get("name")) or "", "email": _scalar(r.get("email")) or ""}
+        for r in rows if isinstance(r, dict) and r.get("id")
+    ]
+
+
 def search_units(q: str) -> list[Unit]:
     """GET /units?q=... – Volltextsuche, Ergebnis muss lokal nachgefiltert werden."""
     response = _request(

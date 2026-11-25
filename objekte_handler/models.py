@@ -107,4 +107,6 @@ class RunReport(BaseModel):
     vollzugsmeldungen: int = 0  # Berichte über Erledigtes – kein Auftrag, keine Aufgabe
     stufe_a: int = 0
     stufe_b: int = 0
+    angelegt: int = 0     # über den Connector angelegt (auch teilweise)
+    existiert: int = 0    # Anlage verlangt, Objekt stand schon in Propstack
     fehler: list[str] = Field(default_factory=list)

@@ -16,6 +16,7 @@ Eigenständiges Paket – **kein Code-Sharing mit `src/`** (Visitenkarten-Pipeli
      - Mehrere Einheiten an einer Adresse gelten nur dann als „ganzes Objekt“, wenn weder die Nachricht noch ihr Thread eine einzelne Einheit nennt („Halle 2“, „Hallen 1 und 2“, „die hintere Halle“, „Teilfläche“) – sonst Stufe B.
      - Eine Quadratmeterzahl muss auf ±15 % zu genau einer Einheit passen. Ist bei „die kleine/große Einheit“ die kleinste/größte schon vermietet, entscheidet ein Mensch – der Handler weicht nie auf die nächste freie aus.
      - Ist die Einheit gesetzt und scheitert ein späterer Schritt (Doku-Notiz, eine Absage), läuft der Rest trotzdem; die Antwort im Thread lautet dann „Nur teilweise erledigt …“ und der Lauf endet rot.
+   - **Anlage** (seit 25.11.2026, Schalter `OBJEKT_ANLAGE`): Exposé-PDFs und „bitte anlegen“/„Objekt fehlt“ legt der Handler über den Propstack-Connector an, statt eine Aufgabe zu schreiben – Abschnitt „Objekt-Anlage über den Connector“.
    - **Stufe B** (mehrdeutig oder konsequenzreich): Review-Aufgabe an den Objekt-Verantwortlichen (Fallback: Sammelpostfach 254958, heute Lena Klinnert), fällig +2 Werktage, mit Original-Text, Permalink und vorbereiteter Aktion.
 6. Rückmeldung als Thread-Reply + ✅-Reaction; jede Entscheidung landet als JSONL-Zeile im Entscheidungslog (nur lokal, siehe unten).
 
@@ -44,6 +45,10 @@ Eigenständiges Paket – **kein Code-Sharing mit `src/`** (Visitenkarten-Pipeli
 | `SCAN_LATEST_HOURS` | nein | `0` | Obere Fenstergrenze (0 = bis jetzt), für Backfill |
 | `THREAD_LOOKBACK_HOURS` | nein | `96` | Wie weit zurück Threads nach neuen Replies durchsucht werden |
 | `DECISION_LOG_PATH` | nein | `objekte_decisions.jsonl` | Pfad des Entscheidungslogs |
+| `OBJEKT_ANLAGE` | nein | `false` | Objekte über den Connector anlegen (im Workflow: Repo-Variable `OBJEKT_ANLAGE` oder Eingabe). Im Dry-Run nie |
+| `PROPSTACK_MCP_SERVICE_SECRET` | für die Anlage | – | Gemeinsames Secret mit dem Connector (`SERVICE_TOKEN_SECRET`) zum Signieren des Service-Tokens |
+| `PROPSTACK_MCP_URL` | nein | `https://propstack-mcp.kromeichpartner.workers.dev/mcp` | Adresse des Connectors |
+| `NUR_TS` | nein | – | Probelauf: nur diese eine Nachricht, auch wenn sie schon ein ✅ trägt |
 
 ## Secrets-Setup
 
@@ -95,6 +100,79 @@ Nur gelesen, über alle Nutzer:
 
 Offen (Entscheidung nötig, nicht geändert): Stufe A setzt nur `rented=true`. Der Connector schließt nach den Feldregeln vollständig – Status „Abgeschlossen“ (163676), „Status Logistik“ und „Aktiv“ auf Inaktiv –, damit die Einheit aus Exposéversand und Website fällt (`propstack-mcp/src/propstack/field-rules.ts`). Was der Handler schließt, bleibt dort aktiv. Am 19.11.2026 standen 7 Einheiten als vermietet **und** in „Vermarktung“.
 
+## Objekt-Anlage über den Connector (Stand 25.11.2026)
+
+Anlass: Für jedes Exposé und jedes „bitte anlegen“ schrieb der Handler nur eine Aufgabe „Objekt fehlt in
+Propstack“ an Lena – auch für Objekte, die es längst gab. Florian, 25.11.2026: „Die Workflows sollen arbeiten,
+nicht nur so tun.“ Code: `anlage.py`, Tests: `tests/objekte_handler/test_anlage.py`.
+
+1. **Welche Nachrichten:** Klassifikation `fehlt_in_ps`, oder ein PDF, das nach Exposé aussieht (Wort „Exposé“ im
+   Text oder Dateinamen, oder nur die Datei ohne Text). Vollzugsmeldungen bleiben außen vor.
+2. **Material:** Text, PDFs, Links, die Nachricht(en) desselben Autors bis 15 Minuten davor (Link und „bitte
+   anlegen“ kommen oft getrennt) und der Thread.
+3. **Claude mit den Connector-Tools** (Messages-API, MCP-Connector, Modell `claude-opus-5-5`): erst suchen; gibt
+   es das Objekt, wird nichts angelegt („existiert“). Sonst Projekt und Einheiten nach den Regeln, die der
+   Connector in seinen Tool-Beschreibungen mitbringt. Nichts erfinden – Fehlendes steht unter „offen“.
+4. **Ergebnis im Thread**, ✅ heißt „erledigt“: angelegt (Status **Vorbereitung**, Betreuer = wer gepostet hat),
+   teilweise, oder „steht schon in Propstack“ mit IDs. Nur bei „unklar“ (Material reicht nicht, KI bricht ab)
+   gibt es wie bisher eine Aufgabe, mit Grund. Ein Fehler (Connector, Download) macht den Lauf rot, ohne ✅.
+5. **Keine behauptete Erledigung:** „angelegt“ zählt nur, wenn im Verlauf `create_project` oder `create_object`
+   ohne Fehler zurückkam. Sonst gilt das Ergebnis als unklar.
+
+**Zugang:** ein kurzlebiges Service-Token `svc.<payload>.<signatur>` (HMAC-SHA256 mit
+`PROPSTACK_MCP_SERVICE_SECRET`, 30 Minuten gültig). Es trägt den Propstack-Nutzer, unter dem angelegt wird. Der
+Betreuer wird über die Slack-E-Mail, ersatzweise den vollen Namen gefunden; ohne Treffer (Oguzhan) der
+Review-Sitz 254958.
+
+**Kosten:** je Exposé schätzungsweise 1–3 $ (PDF plus mehrere Tool-Runden). Wird gemessen, sobald es läuft.
+
+**Einschalten – in dieser Reihenfolge:**
+1. Gegenstück im Connector ausliefern (Anweisung unten).
+2. Ein zufälliges Secret (mind. 32 Byte, z. B. `openssl rand -base64 48`) als Worker-Secret `SERVICE_TOKEN_SECRET`
+   und als GitHub-Secret `PROPSTACK_MCP_SERVICE_SECRET` setzen.
+3. Probe ohne Schreiben: Objekte Handler von Hand mit `dry_run=false`, `objekt_anlage=true`,
+   `nur_ts=1795600175.387459` (Remscheid). Erwartet: „Steht schon in Propstack“ mit 5159361, nichts angelegt.
+4. Probe mit Schreiben: eine echte offene Anfrage (z. B. Marek, 24.11.: Frasers Unna oder Marq Ense-Höingen),
+   danach das Ergebnis in der Propstack-Oberfläche ansehen.
+5. Erst dann die Repo-Variable `OBJEKT_ANLAGE=true` setzen.
+
+### Anweisung für das Gegenstück im Connector (`propstack-mcp`)
+
+Der Handler ruft den Connector über die Claude-API auf (MCP-Connector, `mcp_servers` mit `authorization_token`).
+Anthropic sendet das Token als `Authorization: Bearer <token>` an `/mcp`. Zu bauen:
+
+1. **Service-Token annehmen** – zusätzlicher Weg neben OAuth, nur für `/mcp`, nur wenn das Worker-Secret
+   `SERVICE_TOKEN_SECRET` gesetzt ist (sonst aus, fail closed):
+   - Format `svc.<payload>.<signatur>`. `payload` = base64url ohne Padding von
+     `{"sub":"objekte-handler","broker_id":<int>,"ts":"<slack-ts>","iat":<unix>,"exp":<unix>}`;
+     `signatur` = base64url ohne Padding von HMAC-SHA256(secret, `"svc." + payload`).
+   - Prüfen: Signatur zeitkonstant; `sub` in der Liste `["objekte-handler"]`; `exp` > jetzt; `exp − iat` ≤ 1800;
+     `iat` höchstens 60 s in der Zukunft.
+   - `broker_id` muss ein aktiver Propstack-Nutzer nach denselben Regeln wie Prüfung 3b sein (aktiv, nicht
+     gesperrt, nicht archiviert, kein technischer Nutzer). Sonst 403.
+   - Ungültig oder fehlend → 401 wie heute. Der OAuth-Weg bleibt unverändert.
+   - Sitzung wie die eines angemeldeten Nutzers: `email`, `name`, `brokerId` aus `broker_id`, dazu
+     `service: "objekte-handler"` und `auftrag: <ts>`.
+2. **Nur diese Tools** in Service-Sitzungen: `whoami`, `search_objects`, `get_object`, `get_project`,
+   `search_contacts`, `get_contact`, `list_reference`, `list_fields`, `create_project`, `create_object`,
+   `set_project_owner`, `add_images`, `create_task`. Alle anderen nicht anbieten bzw. abweisen (keine Updates,
+   keine Sammeländerungen, keine Kontakte oder Firmen anlegen).
+3. **Status „Vorbereitung“ erzwingen:** `create_object` aus einer Service-Sitzung legt immer mit Status 163673 an;
+   ein anderer übergebener Status wird ersetzt und das im Ergebnis gesagt. Damit stehen `status_logistik`/`aktiv`
+   nach den Feldregeln auf Inaktiv – kein Exposéversand, keine Website, bis ein Mensch auf Vermarktung stellt.
+4. **Dubletten:** `allow_duplicate_reason` in Service-Sitzungen nicht annehmen.
+5. **Protokoll:** Write-Log mit `service: objekte-handler` und dem Slack-ts. Anlagevermerk in der Bemerkung:
+   „Angelegt über Claude (objekte-handler, Slack <ts>) für <Name>“. Betreuer wie bisher `user.brokerId`.
+6. **Im Ergebnis** von `create_project`/`create_object` die Propstack-URL des Datensatzes mitgeben, wenn möglich
+   (der Handler zeigt sie im Slack-Thread).
+7. **Tests:** gültiges Token; falsche Signatur; abgelaufen; `exp − iat` > 1800; `iat` in der Zukunft; falsches
+   `sub`; `broker_id` unbekannt, technisch oder inaktiv → 403; Secret fehlt → Weg aus; Tool außerhalb der Liste
+   abgewiesen; `create_object` mit `status_id` 163674 → 163673; `allow_duplicate_reason` abgewiesen; OAuth-Weg
+   unverändert. Das Token-Format prüft auch `tests/objekte_handler/test_anlage.py` (`_pruefe_token`).
+8. **Wortlaut der Tool-Definitionen nicht ändern** – die Freigabe in Claude hängt daran.
+9. **README des Connectors:** Abschnitt „Service-Zugang objekte-handler“ (Zweck, Format, Secret, Sperren:
+   Secret löschen oder tauschen wirkt beim nächsten Token, spätestens nach 30 Minuten).
+
 ## Befund vom 25.11.2026: Lauf mit 5 Review-Aufgaben, davon 3 unnötig
 
 Nur gelesen (Propstack und Slack):
@@ -124,7 +202,6 @@ Review-Aufgabe angelegt wurde. Was passiert ist, steht in der Antwort im Thread.
 
 ## Explizit außerhalb des Scopes
 
-- Exposé-PDF-Verarbeitung (Workflow abgeschaltet)
-- Objekt-Neuanlage aus Nachrichten (nur Review-Aufgabe an den Fallback-Sitz)
+- Exposé-PDF-Verarbeitung und Objekt-Neuanlage **ohne** den Connector – seit 25.11.2026 über den Connector, wenn `OBJEKT_ANLAGE` an ist (siehe oben). Der alte Skill-Weg mit eigenen Schlüsseln bleibt abgeschaltet.
 - Newsletter-Parsing der Flächenupdates (nur Review-Aufgabe)
 - Änderungen an Objekt-Status, Suchprofilen oder Kontakten
