@@ -898,6 +898,10 @@ export const createObjectInput = {
 	...objectFieldsShape,
 	marketing_type: z.enum(["BUY", "RENT"]).describe("BUY = Kauf, RENT = Miete (Pflicht)"),
 	rs_type: z.string().regex(/^[A-Z_]+$/).describe("Objektart (Pflicht), z. B. INDUSTRY (Halle/Produktion)"),
+	// Pflicht seit v0.15.0 (Entscheidung Florian, 25.11.2026): Ohne Status entstand das Objekt still ohne Status und fiel aus jeder Statussuche
+	status_id: id.describe(
+		"Objekt-Status (Pflicht): 163672 Akquise, 163673 Vorbereitung, 163674 Vermarktung, 163675 Reserviert, 163676 Abgeschlossen. Vermarktung nur, wenn wir das Objekt anbieten können (es wird dann aktiv und kann in Exposéversand und Webseite landen) – im Zweifel den Nutzer fragen. Einen Status „vermietet“ gibt es nicht – dafür rented",
+	),
 	zip_code: z.string().trim().regex(/^\d{4,5}$/).optional(),
 	owner_contact_id: id.optional().describe("Eigentümer-Kontakt (eigener Shop) – wird als Eigentümer verknüpft. Bei Einheiten im Projekt denselben wie am Projekt angeben"),
 	contact_person_id: id.optional().describe("Ansprechpartner-Kontakt, sofern vorhanden – wird als Kontakt verknüpft. Bei Einheiten im Projekt denselben wie am Projekt"),
@@ -1347,13 +1351,15 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 		}
 	}
 	// Aus den angefragten (nicht nur geänderten) Flächen – so werden auch Altobjekte nachgezogen,
-	// deren Custom-Varianten fehlen. Bei Vermietungswechsel auch die vorhandenen Flächen für
-	// „X m² (vermietet)“ heranziehen. Bereits richtige Werte nicht erneut schreiben.
+	// deren Custom-Varianten fehlen. Bei Vermietungswechsel die gespeicherten Flächen nur für die
+	// „verfügbar“-Felder heranziehen („X m² (vermietet)“ bzw. „X m²“) – nie für die Gesamt-Varianten
+	// (Befund Stresstest 20.11.2026). Bereits richtige Werte nicht erneut schreiben.
 	const areaSource: Raw = { ...requested };
+	const storedAreas: Raw = {};
 	if (rentChanged) {
 		for (const key of ["industrial_area", "usable_floor_space", "total_floor_space"]) {
 			const actual = scalar(currentValue(key));
-			if (areaSource[key] === undefined && typeof actual === "number" && actual > 0) areaSource[key] = actual;
+			if (areaSource[key] === undefined && typeof actual === "number" && actual > 0) storedAreas[key] = actual;
 		}
 	}
 	const howto = howtoCustomFields(input, defs, input.custom_fields, rentState);
@@ -1404,6 +1410,7 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 				marketable: ACTIVE_STATUSES.includes(Number(requested.property_status_id ?? currentValue("property_status_id"))),
 				priceOnInquiry: requested.price_on_inquiry === true,
 				rent: rentState,
+				stored: storedAreas,
 			}),
 			...howto,
 			...provision,

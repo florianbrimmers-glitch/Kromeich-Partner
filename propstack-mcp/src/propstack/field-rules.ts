@@ -209,12 +209,15 @@ export type RentState = "available" | "rented" | "unknown";
  * Akquise/Vorbereitung nicht in Automatisierungen (Exposéversand, Webseite) landen.
  * active: ausdrückliche Ansage (How-to: „Aktiv hinterlegen, wenn wir das Objekt anbieten können“) – hat Vorrang.
  * Ablauf laut Team-Prozess: vermietete Einheit → status_logistik Inaktiv, aktiv Inaktiv, Fläche „(vermietet)“.
+ * stored: gespeicherte Flächen beim Wechsel vermietet/verfügbar. Daraus werden NUR die „verfügbar“-Felder geschrieben –
+ * die Fläche selbst wurde ja nicht geändert, die übrigen Varianten bleiben, wie sie sind (Befund Stresstest 20.11.2026:
+ * Beim Schließen bekamen drei Einheiten eine kleinere „Gebäudefläche gesamt“).
  */
 export function mirroredCustomFields(
 	fields: Raw,
 	defs: Map<string, FieldDef>,
 	explicit: Raw | undefined,
-	options: { rent: RentState; flags: boolean; marketable: boolean; priceOnInquiry: boolean; active?: boolean },
+	options: { rent: RentState; flags: boolean; marketable: boolean; priceOnInquiry: boolean; active?: boolean; stored?: Raw },
 ): Raw {
 	const out: Raw = {};
 	const free = (key: string) => defs.has(key) && !(explicit && key in explicit) && !BLOCKED_OBJECT_FIELDS[key];
@@ -226,9 +229,11 @@ export function mirroredCustomFields(
 		} else out[key] = `${formatSqm(value)}${suffix}`;
 	};
 	for (const [field, targets] of Object.entries(AREA_MIRRORS)) {
-		const value = fields[field];
-		if (typeof value !== "number") continue;
-		for (const key of targets.always) put(key, value);
+		const given = fields[field];
+		const stored = options.stored?.[field];
+		const value = typeof given === "number" ? given : typeof stored === "number" ? stored : undefined;
+		if (value === undefined) continue;
+		if (typeof given === "number") for (const key of targets.always) put(key, value);
 		if (options.rent === "available") for (const key of targets.available) put(key, value);
 		if (options.rent === "rented") for (const key of targets.available) put(key, value, " (vermietet)");
 	}

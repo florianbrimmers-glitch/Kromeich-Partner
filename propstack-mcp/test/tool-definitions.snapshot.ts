@@ -7,7 +7,7 @@ export const TOOL_DEFINITIONS: Record<string, string> = {
 	apply_plan: "245acf9b6597f276",
 	create_company: "7b8d436644b5590f",
 	create_contact: "6c7527bfddacd71e",
-	create_object: "0c30c329ffd8cfff",
+	create_object: "583382da1d69412d",
 	create_project: "e8c30b13d15e8541",
 	create_task: "b60da91fc5b63afb",
 	dashboard_daten: "3a473e7f9e04ace9",

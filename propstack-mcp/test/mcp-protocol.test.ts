@@ -214,7 +214,11 @@ describe("MCP-Protokoll", () => {
 		expect(objectFields).toEqual(
 			expect.arrayContaining(["dock_doors", "ground_level_doors", "hall_divisible_from", "mezzanine_area", "car_parking", "truck_parking", "wgk", "lighting", "sprinkler", "heating", "certification", "internal_rent_hall", "active", "commission", "source_link", "mandate", "owner_contact_id", "contact_person_id"]),
 		);
-		expect(createObject.inputSchema.required).toEqual(["marketing_type", "rs_type"]);
+		// Status ist Pflicht (Entscheidung Florian, 25.11.2026): Ohne Status fiel ein Objekt still aus jeder Statussuche
+		expect(createObject.inputSchema.required).toEqual(["marketing_type", "rs_type", "status_id"]);
+		expect((createObject.inputSchema.properties as Record<string, { description?: string }>).status_id.description).toMatch(/Pflicht.*163673 Vorbereitung.*im Zweifel.*fragen/s);
+		// beim Ändern bleibt der Status freiwillig
+		expect(tools.find((t) => t.name === "update_object")!.inputSchema.required ?? []).not.toContain("status_id");
 		const props = createObject.inputSchema.properties as Record<string, { type?: string }>;
 		expect(props.dock_doors.type).toBe("integer");
 		expect(props.active.type).toBe("boolean");
