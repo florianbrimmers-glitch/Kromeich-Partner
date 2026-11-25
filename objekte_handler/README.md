@@ -95,6 +95,25 @@ Nur gelesen, über alle Nutzer:
 
 Offen (Entscheidung nötig, nicht geändert): Stufe A setzt nur `rented=true`. Der Connector schließt nach den Feldregeln vollständig – Status „Abgeschlossen“ (163676), „Status Logistik“ und „Aktiv“ auf Inaktiv –, damit die Einheit aus Exposéversand und Website fällt (`propstack-mcp/src/propstack/field-rules.ts`). Was der Handler schließt, bleibt dort aktiv. Am 19.11.2026 standen 7 Einheiten als vermietet **und** in „Vermarktung“.
 
+## Befund vom 25.11.2026: Lauf mit 5 Review-Aufgaben, davon 3 unnötig
+
+Nur gelesen (Propstack und Slack):
+
+- **Remscheid – LIP Invest** (Exposé-PDF von Marek): „Objekt fehlt in Propstack“. Das Objekt steht seit dem 20.03.2026
+  in Propstack (5159361, Am Weidenbroich 20-22); Marek schrieb eine Minute später „Hab ich schon ordentlich angelegt“.
+  Der Handler prüft bei `fehlt_in_ps` nicht, ob es das Objekt schon gibt, und liest Folgenachrichten nicht als Antwort.
+- **Hillwood Porta Westfalica und Kirchlengern** („neues Objekt angelegt …“ von Oguzhan): Die Vollzugsregel las
+  „– nicht vermietet“ als Hinweis wie „ist aber schon vermietet“. Behoben: „nicht vermietet“ zählt nicht mehr.
+- Die zwei „bitte anlegen“ von Marek (Frasers Unna, Marq Ense-Höingen) sind echte Aufträge; der Titel lautet nur
+  „bitte anlegen“, weil der Link in der Nachricht davor steht.
+- Nebenbefund: Die Anlage vom 24.11. hat bei Hillwood Dubletten erzeugt. Je Park standen Halle 2/3 (Kirchlengern
+  002–004) schon seit 08/2026 bzw. 03/2025 im Bestand, ohne Projekt; am 24.11. kamen dieselben Hallen mit gleicher
+  Fläche noch einmal im Projekt dazu – 7 Datensätze doppelt (Bünde 5766185/6571928, 5766186/6571938; Kirchlengern
+  3158471/6572519, 3158472/6572520, 3158474/6572521; Porta Westfalica 5766203/6572506, 5766204/6572508).
+
+Das ✅ heißt bei diesem Handler „verarbeitet“, nicht „erledigt“: Es steht auch an Nachrichten, zu denen nur eine
+Review-Aufgabe angelegt wurde. Was passiert ist, steht in der Antwort im Thread.
+
 ## Bekannte Einschränkungen
 
 - **Editierte Nachrichten** werden nach Verarbeitung (✅) nicht erneut verarbeitet – bei Korrekturen bitte eine neue Nachricht schreiben.
