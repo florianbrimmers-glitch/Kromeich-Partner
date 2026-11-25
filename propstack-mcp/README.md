@@ -452,6 +452,53 @@ SELECT ts, user_email, tool, params, result_count, ok FROM audit_log ORDER BY ts
 4. Das Token enthält nur `email`, `name` und `brokerId`. Das Google-Access-Token wird verworfen.
 5. Access-Token-Laufzeit: 1 h. Bei jedem Refresh wird 3b erneut geprüft (`tokenExchangeCallback` in `src/index.ts`), Cache inklusive. Ohne Propstack-Nutzer bekommt der Client `invalid_grant` und muss sich neu anmelden.
 
+### Service-Zugang objekte-handler (ab v0.16.0, Auftrag Florian 25.11.2026)
+
+**Zweck:** Der GitHub-Workflow „Objekte Handler“ ruft den Connector über die Claude-API auf (MCP-Connector, `mcp_servers` mit `authorization_token`). Anthropic schickt das Token als `Authorization: Bearer <token>` an `/mcp`. Das ist ein zweiter Weg neben der Google-Anmeldung – nur für `/mcp`, nur für Tokens, die mit `svc.` beginnen, und nur, wenn das Worker-Secret `SERVICE_TOKEN_SECRET` gesetzt ist. Ohne Secret ist der Weg aus (fail closed). Alles andere – kein Token, OAuth-Tokens, andere Pfade, ungültige Service-Tokens – geht unverändert an den OAuth-Provider, der wie bisher mit 401 antwortet.
+
+**Format:** `svc.<payload>.<signatur>`
+- `payload` = base64url ohne Padding von `{"sub":"objekte-handler","broker_id":<int>,"ts":"<slack-ts>","iat":<unix>,"exp":<unix>}` – genau diese fünf Felder, keine weiteren.
+- `signatur` = base64url ohne Padding von HMAC-SHA256(`SERVICE_TOKEN_SECRET`, `"svc." + payload`).
+- Beispiel (Python, nur Standardbibliothek):
+  ```python
+  import base64, hashlib, hmac, json, time
+  b64url = lambda b: base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+  now = int(time.time())
+  payload = b64url(json.dumps({"sub": "objekte-handler", "broker_id": broker_id, "ts": slack_ts, "iat": now, "exp": now + 1500}).encode())
+  token = f"svc.{payload}." + b64url(hmac.new(secret.encode(), f"svc.{payload}".encode(), hashlib.sha256).digest())
+  ```
+  Das Token im Workflow-Log maskieren (`::add-mask::`).
+
+**Prüfungen** (`src/auth/service-token.ts`, `src/service-access.ts`), bei jedem Aufruf:
+- Signatur zeitkonstant (`crypto.subtle.verify`), bevor der Inhalt gelesen wird; Tokens über 2.048 Zeichen werden vorher abgewiesen.
+- `sub` ist `objekte-handler`; `exp` > jetzt; `exp` − `iat` ≤ 1.800 s und `exp` > `iat`; `iat` höchstens 60 s in der Zukunft; `ts` im Slack-Format (`1764099999.123456`); `broker_id` eine positive Ganzzahl.
+- Secret kürzer als 32 Zeichen gilt als nicht gesetzt.
+- Ungültig oder fehlend → 401 wie heute.
+- `broker_id` muss ein aktiver, persönlicher Propstack-Nutzer sein – dieselben Regeln wie Prüfung 3b streng (aktiv, nicht gesperrt, nicht archiviert, nicht technisch, kein Sammelpostfach). Anders als beim Login gibt es keinen Rückfall auf die einfache Prüfung: Kann die zweite Schnittstelle die Nutzerliste nicht lesen, wird abgelehnt. Abgelehnt → 403; Propstack nicht erreichbar → 503. Das Ergebnis der Nutzerprüfung wird 5 Minuten zwischengespeichert.
+
+**Sitzung:** wie die eines angemeldeten Nutzers – E-Mail, Name und Propstack-ID aus `broker_id`, dazu `service: "objekte-handler"` und `auftrag: <ts>`. `whoami` zeigt beides.
+
+**Werkzeuge:** nur `whoami`, `search_objects`, `get_object`, `get_project`, `search_contacts`, `get_contact`, `list_reference`, `list_fields`, `create_project`, `create_object`, `set_project_owner`, `add_images`, `create_task`. Alle anderen werden in Service-Sitzungen nicht angeboten und beim Aufruf abgewiesen (`src/tools/service-rules.ts`). Der Wortlaut der Tool-Definitionen bleibt unverändert – für Menschen ändert sich nichts.
+
+**Regeln, weil kein Mensch davorsitzt:**
+- `create_object` legt immer mit Status 163673 (Vorbereitung) an; ein anderer Status wird ersetzt. `active: true` wird nicht übernommen – sonst landete das Objekt trotz Vorbereitung in Automatisierungen (Exposéversand, Webseite). Beides steht im Ergebnis unter `service_hinweise`.
+- `allow_duplicate_reason` und `public_price_confirmed` werden abgewiesen: Beides ist eine menschliche Bestätigung. (Auftrag nannte `allow_duplicate_reason`; `active` und `public_price_confirmed` sind beim Bau ergänzt, weil sie dieselbe Lücke öffnen.)
+- Betreuer wird wie bisher der Nutzer aus `broker_id`. Anlagevermerk: „Angelegt über Claude (objekte-handler, Slack <ts>) für <Name> am <Datum>.“ – ebenso in Notizen und Prüfaufgaben.
+- `create_object` und `create_project` liefern die Propstack-Adresse des Datensatzes unter `link`.
+
+**Protokoll:** Audit- und Write-Log haben die Spalten `service` und `service_ref` (Slack-ts; Migration `0005_service_zugang.sql`). Bei Menschen bleiben sie leer.
+
+**Secret:** `SERVICE_TOKEN_SECRET`, mindestens 32 Zeichen, zufällig (Passwort-Manager). Derselbe Wert an zwei Stellen: als Worker-Secret in Cloudflare (Workers → propstack-mcp → Einstellungen → Variablen und Secrets, Typ „Secret“; oder `wrangler secret put SERVICE_TOKEN_SECRET`) und als Repository-Secret für den Workflow. Nie in Code, Repo oder Chat.
+
+**Sperren:** Secret in Cloudflare löschen oder tauschen – das wirkt beim **nächsten Aufruf**, weil die Signatur bei jedem Aufruf geprüft wird; ein altes Token gilt danach nicht mehr. Ohnehin läuft jedes Token nach spätestens 30 Minuten ab. Wird der Propstack-Nutzer aus `broker_id` deaktiviert, ist der Weg für ihn nach spätestens 5 Minuten zu (Zwischenspeicher).
+
+**Restrisiken (bewusst so gebaut):**
+- Wer das Secret hat, kann für jeden aktiven Propstack-Nutzer schreiben – `broker_id` bestimmt der Workflow. Das Secret gehört deshalb nur in diesen einen Workflow.
+- `set_project_owner` wirkt auch auf bestehende Projekte und Objekte, und der Connector kann Verknüpfungen nicht lösen. Eine falsche Verknüpfung muss ein Mensch in Propstack entfernen.
+- Slack-Nachrichten und Exposés sind fremde Eingaben. Was Claude daraus macht, sichern Vorbereitung, Prüfaufgabe und die Werkzeugliste ab – nicht der Inhalt.
+
+**Rauchtest nach jeder Auslieferung:** Ein richtig gebautes, aber mit einem Zufallsschlüssel signiertes Token muss 401 bekommen (`.github/workflows/propstack-mcp-deploy.yml`).
+
 ### Ausnahme: Oguzhan schreibt unter Lenas Propstack-Nutzer (ab v0.13.0, Entscheidung Florian 20.11.2026)
 
 Oguzhan Sahin hat keinen eigenen Propstack-Nutzer und arbeitet in Propstack unter dem von Lena Klinnert (ID 254958). Damit er den Connector nutzen kann, gibt es genau eine Ausnahme von Prüfung 3b – hinterlegt im Code (`BROKER_ALIASES` in `src/config.ts`), bewusst nicht als Variable.

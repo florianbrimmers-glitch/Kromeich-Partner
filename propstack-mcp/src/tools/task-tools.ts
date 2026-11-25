@@ -1,9 +1,9 @@
 import { z } from "zod";
-import type { Props } from "../auth/session";
+import { type Props, viaClaude } from "../auth/session";
 import { PropstackError, type PropstackClient } from "../propstack-client";
 import { compact, scalar } from "../propstack/mappers";
 import { escapeHtml, nextWorkdayNine } from "../review-task";
-import { beginWrite, finishWrite } from "../write-log";
+import { beginWrite, finishWrite, writer } from "../write-log";
 import { flag, id } from "./params";
 import type { ToolOutput } from "./read-tools";
 
@@ -214,7 +214,7 @@ export async function createTask(deps: TaskDeps, input: z.infer<z.ZodObject<type
 
 	const title = `${input.test ? "[MCP-TEST] " : ""}${input.title}`;
 	// In Propstack erscheint als Ersteller der Nutzer des API-Keys – deshalb steht im Text, von wem die Aufgabe kommt
-	const stamp = `Angelegt über Claude (Propstack MCP) von ${user.name} am ${berlinDate(now)}.`;
+	const stamp = `Angelegt ${viaClaude(user)} am ${berlinDate(now)}.`;
 	const task: Raw = {
 		body: `${taskBodyHtml(input.body)}<p>${escapeHtml(stamp)}</p>`,
 		broker_id: assigneeId,
@@ -236,7 +236,7 @@ export async function createTask(deps: TaskDeps, input: z.infer<z.ZodObject<type
 		overrideReason: null,
 		request: task,
 		tool: "create_task",
-		userEmail: user.email,
+		...writer(user),
 		warnings: [],
 	});
 	let taskId: number | undefined;

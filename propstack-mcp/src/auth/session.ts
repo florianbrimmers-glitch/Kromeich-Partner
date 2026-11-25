@@ -14,7 +14,19 @@ export type Props = {
 	 * email und name sind dann die der Person, brokerId die des Propstack-Nutzers.
 	 */
 	brokerName?: string;
+	/** Nur im Service-Zugang (src/service-access.ts): welcher Ablauf – z. B. „objekte-handler“. */
+	service?: string;
+	/** Nur im Service-Zugang: der Auftrag, um den es geht (Slack-Zeitstempel der Nachricht). */
+	auftrag?: string;
 };
+
+/**
+ * Wer etwas über Claude geschrieben hat – für Anlage- und Änderungsvermerke:
+ * „über Claude (Propstack MCP) von <Name>“, im Service-Zugang „über Claude (objekte-handler, Slack <ts>) für <Name>“.
+ */
+export function viaClaude(user: Pick<Props, "name" | "service" | "auftrag">): string {
+	return user.service ? `über Claude (${user.service}, Slack ${user.auftrag}) für ${user.name}` : `über Claude (Propstack MCP) von ${user.name}`;
+}
 
 const toProps = (broker: BrokerIdentity): Props => ({
 	brokerId: broker.id,
@@ -30,7 +42,12 @@ export function brokerLabel(user: Pick<Props, "name" | "brokerName">): string {
 
 /** Für whoami: als wer man angemeldet ist – und bei einer Ausnahme, unter wessen Propstack-Nutzer geschrieben wird. */
 export function identityInfo(props: Props): Record<string, unknown> {
-	const base = { email: props.email, name: props.name, propstack_user_id: props.brokerId };
+	const base = {
+		email: props.email,
+		name: props.name,
+		propstack_user_id: props.brokerId,
+		...(props.service ? { auftrag: props.auftrag, service: props.service } : {}),
+	};
 	if (!props.brokerName) return base;
 	return {
 		...base,

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { brokerLabel, type Props } from "../auth/session";
+import { brokerLabel, type Props, viaClaude } from "../auth/session";
 import { type GroupEntity, PropstackClient, PropstackError } from "../propstack-client";
 import {
 	contactDuplicates,
@@ -20,7 +20,8 @@ import { appendNote } from "../propstack/notes";
 import { scalar } from "../propstack/mappers";
 import { readUnit, UNVERIFIABLE, type UnitState, unitCustomValue, unitValue } from "../propstack/unit-state";
 import { CRM_BASE, createReviewTask } from "../review-task";
-import { beginWrite, finishWrite } from "../write-log";
+import { beginWrite, finishWrite, writer } from "../write-log";
+import { serviceObjectInput } from "./service-rules";
 import { coordinatesLine, coordsOf, ensureCoordinates, hasCoordinates } from "../propstack/geo";
 import {
 	checkExposeTexts,
@@ -84,7 +85,7 @@ function today(now: Date): string {
 }
 
 export function originNote(user: Props, now: Date, verb: "Angelegt" | "Ergänzt"): string {
-	return `${verb} über Claude (Propstack MCP) von ${user.name} am ${today(now)}.`;
+	return `${verb} ${viaClaude(user)} am ${today(now)}.`;
 }
 
 /** Test-Merkmal suchen, bei Bedarf anlegen (Entscheidung Florian). */
@@ -437,7 +438,7 @@ export async function createContact(deps: WriteDeps, given: z.infer<z.ZodObject<
 		overrideReason,
 		request: payload,
 		tool: "create_contact",
-		userEmail: user.email,
+		...writer(user),
 		warnings: dedupe.warnings,
 	});
 
@@ -573,7 +574,7 @@ export async function updateContact(deps: WriteDeps, given: z.infer<z.ZodObject<
 		overrideReason,
 		request: payload,
 		tool: deps.logTool ?? "update_contact",
-		userEmail: user.email,
+		...writer(user),
 		warnings: dedupe.warnings,
 	});
 	try {
@@ -909,8 +910,10 @@ export const createObjectInput = {
 	allow_duplicate_reason: optionalText(500).describe("Nur wenn die Dublettenprüfung blockiert und es nachweislich ein anderes Objekt ist: Begründung (wird protokolliert)"),
 };
 
-export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<typeof createObjectInput>>): Promise<ToolOutput> {
+export async function createObject(deps: WriteDeps, requested: z.infer<z.ZodObject<typeof createObjectInput>>): Promise<ToolOutput> {
 	const { client, user } = deps;
+	// Service-Zugang (objekte-handler): immer Vorbereitung, nie aktiv – bis ein Mensch das Objekt prüft
+	const { input, notes: serviceNotes } = serviceObjectInput(user, requested);
 	const now = deps.now?.() ?? new Date();
 	if ((input.lat === undefined) !== (input.lng === undefined)) throw new PropstackError("lat und lng nur zusammen angeben.", 400);
 
@@ -1077,7 +1080,7 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 			public_price_confirmed: input.public_price_confirmed,
 		},
 		tool: "create_object",
-		userEmail: user.email,
+		...writer(user),
 		warnings: [...dedupe.warnings, ...textWarnings, ...(bezugNote ? [bezugNote] : [])],
 	});
 	let newId: number;
@@ -1148,7 +1151,7 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 					`Objekt ${newId}: ${title}${input.unit_id ? ` – ${input.unit_id}` : ""}`,
 					`${CRM_BASE}/properties/${newId}`,
 					...(input.project_id ? [`Projekt: ${CRM_BASE}/projects/${input.project_id}`] : []),
-					`Angelegt über Claude (Propstack MCP) von ${user.name} am ${today(now)}.`,
+					`Angelegt ${viaClaude(user)} am ${today(now)}.`,
 					relationLine("owner", owner, ownerResult),
 					relationLine("contact_person", contactPerson, contactResult),
 					coordinatesLine(coordinates),
@@ -1181,6 +1184,7 @@ export async function createObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 			link: `${CRM_BASE}/properties/${newId}`,
 			review_task: review,
 			broker: brokerLabel(user),
+			service_hinweise: serviceNotes.length ? serviceNotes : undefined,
 			test: input.test || undefined,
 			override_reason: overrideReason ?? undefined,
 			owner: owner ? { ...owner, linked: ownerResult?.linked } : undefined,
@@ -1529,7 +1533,7 @@ export async function updateObject(deps: WriteDeps, input: z.infer<z.ZodObject<t
 			...(categoryExpected ? { kategorie_sicherstellen: categoryExpected } : {}),
 		},
 		tool: deps.logTool ?? "update_object",
-		userEmail: user.email,
+		...writer(user),
 		warnings: [...dedupe.warnings, ...notes],
 	});
 	if (Object.keys(payload).length) {

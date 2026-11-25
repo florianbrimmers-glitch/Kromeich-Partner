@@ -13,6 +13,9 @@ export interface AuditEntry {
 	ok: boolean;
 	error: string | null;
 	durationMs: number;
+	/** Service-Zugang: welcher Ablauf und welcher Auftrag (Slack-Zeitstempel). Bei Menschen leer. */
+	service?: string | null;
+	serviceRef?: string | null;
 }
 
 const MAX_PARAMS_LENGTH = 2000;
@@ -40,7 +43,7 @@ export async function writeAuditEntry(db: D1Database | undefined, entry: AuditEn
 	try {
 		await db
 			.prepare(
-				"INSERT INTO audit_log (ts, user_email, broker_id, tool, params, result_count, ok, error, duration_ms) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+				"INSERT INTO audit_log (ts, user_email, broker_id, tool, params, result_count, ok, error, duration_ms, service, service_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
 			)
 			.bind(
 				entry.ts,
@@ -52,6 +55,8 @@ export async function writeAuditEntry(db: D1Database | undefined, entry: AuditEn
 				entry.ok ? 1 : 0,
 				entry.error,
 				entry.durationMs,
+				entry.service ?? null,
+				entry.serviceRef ?? null,
 			)
 			.run();
 	} catch (error) {

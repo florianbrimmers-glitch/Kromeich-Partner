@@ -162,3 +162,42 @@ export async function resolveBroker(
 	if (alias) return resolveAlias(brokers, wanted, alias, states);
 	throw new AuthRejection(NO_ACTIVE_USER);
 }
+
+const SERVICE_CACHE_PREFIX = "propstack-service-broker:v1:";
+const NO_ACTIVE_SERVICE_USER = "Zu dieser broker_id gibt es keinen aktiven, persönlichen Propstack-Nutzer.";
+/** Nutzerprüfung im Service-Zugang: 5 Minuten zwischengespeichert (sonst zwei Propstack-Abfragen je MCP-Aufruf). */
+export const SERVICE_BROKER_CACHE_TTL_SECONDS = 300;
+
+/**
+ * Service-Zugang (objekte-handler): Propstack-Nutzer per ID – nach denselben Regeln wie Prüfung 3b (aktiv, nicht
+ * gesperrt, nicht archiviert, kein technischer Nutzer, kein Sammelpostfach). Anders als beim Login gibt es keine
+ * einfache Prüfung als Rückfall: Ohne die zweite Schnittstelle wird abgelehnt (fail closed).
+ * AuthRejection = 403. Andere Fehler (Propstack nicht erreichbar) = vorübergehend.
+ */
+export async function resolveServiceBroker(brokerId: number, deps: { client: BrokerSource; kv: KVNamespace }): Promise<BrokerIdentity> {
+	const key = SERVICE_CACHE_PREFIX + brokerId;
+	const cached = cachedSchema.safeParse(await deps.kv.get(key, "json"));
+	if (cached.success && cached.data.id === brokerId) return cached.data;
+
+	const [brokers, states] = await Promise.all([deps.client.listBrokers(), loadBrokerStates(deps.client)]);
+	if (!states) {
+		throw new AuthRejection("Der Service-Zugang braucht die strenge Nutzerprüfung – die zweite Propstack-Schnittstelle ist dafür nicht nutzbar.");
+	}
+	const list = brokerListSchema.safeParse(brokers);
+	if (!list.success) throw new Error("Unerwartetes Format von GET /v1/brokers");
+	const matches = list.data.map((raw) => brokerSchema.safeParse(raw)).filter((row) => row.success && row.data.id === brokerId);
+	const row = matches.length === 1 && matches[0].success ? matches[0].data : null;
+	if (!row || !row.email) throw new AuthRejection(NO_ACTIVE_SERVICE_USER);
+	const email = normalizeEmail(row.email);
+	if (BLOCKED_LOGIN_EMAILS.includes(email)) throw new AuthRejection(SHARED_MAILBOX);
+	try {
+		assertUsable(states, brokerId);
+	} catch (error) {
+		if (error instanceof AuthRejection && error.message === NO_ACTIVE_USER) throw new AuthRejection(NO_ACTIVE_SERVICE_USER);
+		throw error;
+	}
+	const name = row.name || [row.first_name, row.last_name].filter(Boolean).join(" ") || email;
+	const broker: BrokerIdentity = { email, id: brokerId, name };
+	await deps.kv.put(key, JSON.stringify(broker), { expirationTtl: SERVICE_BROKER_CACHE_TTL_SECONDS });
+	return broker;
+}

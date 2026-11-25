@@ -4,7 +4,7 @@ import { PropstackError, type PropstackClient } from "../propstack-client";
 import { companyCandidates, companyDuplicates, isCompanyRow, strictCompanyName } from "../propstack/companies";
 import { normalizeCompany } from "../propstack/dedupe";
 import { scalar } from "../propstack/mappers";
-import { beginWrite, finishWrite } from "../write-log";
+import { beginWrite, finishWrite, writer } from "../write-log";
 import { id, optionalText } from "./params";
 import type { ToolOutput } from "./read-tools";
 import {
@@ -131,7 +131,7 @@ async function insertCompany(
 		overrideReason: log.overrideReason,
 		request: payload,
 		tool: log.tool,
-		userEmail: user.email,
+		...writer(user),
 		warnings: log.warnings,
 	});
 
@@ -302,7 +302,7 @@ export async function linkContactCompany(deps: WriteDeps, input: z.infer<z.ZodOb
 		overrideReason: null,
 		request,
 		tool,
-		userEmail: user.email,
+		...writer(user),
 		warnings: mismatch ? [mismatch] : [],
 	});
 
