@@ -499,6 +499,8 @@ SELECT ts, user_email, tool, params, result_count, ok FROM audit_log ORDER BY ts
 
 **Rauchtest nach jeder Auslieferung:** Ein richtig gebautes, aber mit einem Zufallsschlüssel signiertes Token muss 401 bekommen (`.github/workflows/propstack-mcp-deploy.yml`).
 
+**Stand der Abnahme (25.11.2026, 21:45 Uhr):** v0.16.0 ausgeliefert (Lauf 67 erfolgreich: Migration 0005 angewandt, beide Rauchtests grün – ohne Token und mit gefälschtem Service-Token je 401). Die Google-Anmeldung ist unverändert: `whoami` ohne `service`, Prüfung „streng“; Lesen und Schreiben laufen (Schreibprobe am Testobjekt 6396742 – das Write-Log mit den neuen Spalten schreibt, sonst hätte der Connector nichts gespeichert). **Nicht belegt ist der Service-Weg selbst:** Er ist aus, bis `SERVICE_TOKEN_SECRET` in Cloudflare gesetzt ist. Beleg ist der erste echte Lauf des Workflows – `whoami` muss dort `service: objekte-handler` und den Slack-ts zeigen, `tools/list` die 13 Werkzeuge.
+
 ### Ausnahme: Oguzhan schreibt unter Lenas Propstack-Nutzer (ab v0.13.0, Entscheidung Florian 20.11.2026)
 
 Oguzhan Sahin hat keinen eigenen Propstack-Nutzer und arbeitet in Propstack unter dem von Lena Klinnert (ID 254958). Damit er den Connector nutzen kann, gibt es genau eine Ausnahme von Prüfung 3b – hinterlegt im Code (`BROKER_ALIASES` in `src/config.ts`), bewusst nicht als Variable.
