@@ -84,6 +84,18 @@ def _pruefe_token(token: str, secret: str) -> dict:
     return json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
 
 
+def test_service_token_wie_im_readme_des_connectors():
+    """Gleiches Ergebnis wie das Python-Beispiel in propstack-mcp/README.md (v0.16.0) bei gleicher Laufzeit."""
+    import time as _time
+    b64url = lambda b: base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+    now = 1_795_600_000
+    payload = b64url(json.dumps({"sub": "objekte-handler", "broker_id": 387451, "ts": "1795600175.387459",
+                                 "iat": now, "exp": now + 1800}, separators=(",", ":")).encode())
+    beispiel = f"svc.{payload}." + b64url(hmac.new(GEHEIM.encode(), f"svc.{payload}".encode(), hashlib.sha256).digest())
+    assert anlage.service_token(GEHEIM, 387451, "1795600175.387459", jetzt=now) == beispiel
+    assert len(beispiel) < 2048
+
+
 def test_service_token_traegt_nutzer_und_laeuft_ab():
     token = anlage.service_token("geheim", 387451, "1795600175.387459", jetzt=1_795_600_000)
     daten = _pruefe_token(token, "geheim")
@@ -95,10 +107,19 @@ def test_service_token_traegt_nutzer_und_laeuft_ab():
 
 # --- Claude mit den Connector-Tools ------------------------------------------------------
 
-def _tool(id_, name, ok=True):
+GEHEIM = "x" * 48   # der Connector verlangt mindestens 32 Zeichen
+
+
+def _tool(id_, name, ok=True, text="{}"):
     return [SimpleNamespace(type="mcp_tool_use", id=id_, name=name, server_name="propstack", input={}),
             SimpleNamespace(type="mcp_tool_result", tool_use_id=id_, is_error=not ok,
-                            content=[SimpleNamespace(type="text", text="{}")])]
+                            content=[SimpleNamespace(type="text", text=text)])]
+
+
+# So antwortet whoami in einer Service-Sitzung (propstack-mcp v0.16.0, README „Service-Zugang objekte-handler“)
+WHOAMI = _tool("w0", "whoami", text=json.dumps({"email": "marek.zimmermann@kromeichpartner.de", "name": "Marek Zimmermann",
+                                                "propstack_user_id": 387451, "service": "objekte-handler",
+                                                "auftrag": "1795600175.387459"}))
 
 
 def _antwort(bloecke, json_text=None, stop="end_turn"):
@@ -109,7 +130,7 @@ def _antwort(bloecke, json_text=None, stop="end_turn"):
 @pytest.fixture
 def ki(monkeypatch):
     """Ersetzt den Anthropic-Client; liefert der Reihe nach die vorgegebenen Antworten."""
-    monkeypatch.setenv("PROPSTACK_MCP_SERVICE_SECRET", "geheim")
+    monkeypatch.setenv("PROPSTACK_MCP_SERVICE_SECRET", GEHEIM)
     aufrufe: list[dict] = []
     antworten: list = []
 
@@ -129,18 +150,18 @@ def _lege_an(pdf=b"%PDF-1.7 ..."):
 def test_remscheid_existiert_schon(ki):
     """25.11.2026: Das Objekt steht seit 20.03.2026 in Propstack (5159361). Gesucht, nichts angelegt."""
     antworten, aufrufe = ki
-    antworten.append(_antwort(_tool("t1", "search_objects") + _tool("t2", "get_object"), json.dumps({
+    antworten.append(_antwort(WHOAMI + _tool("t1", "search_objects") + _tool("t2", "get_object"), json.dumps({
         "ergebnis": "existiert", "objekte": [{"id": 5159361, "art": "einheit", "titel": "Am Weidenbroich 20-22 - Remscheid"}],
         "offen": [], "begruendung": "Gleiche Adresse und Fläche, Eigentümer LIP Invest."})))
     e = _lege_an()
     assert e.ergebnis == "existiert" and [o["id"] for o in e.objekte] == [5159361]
-    assert e.aufrufe == ["search_objects", "get_object"]
+    assert e.aufrufe == ["whoami", "search_objects", "get_object"]
 
     kw = aufrufe[0]
     assert kw["model"] == config.ANLAGE_MODELL and config.MCP_BETA in kw["betas"]
     server = kw["mcp_servers"][0]
     assert server["name"] == "propstack" and server["url"] == config.MCP_URL_STANDARD
-    assert _pruefe_token(server["authorization_token"], "geheim")["broker_id"] == 387451
+    assert _pruefe_token(server["authorization_token"], GEHEIM)["broker_id"] == 387451
     assert {"type": "mcp_toolset", "mcp_server_name": "propstack"} in kw["tools"]
     assert kw["tools"][1]["type"] == "web_fetch_20260209"
     inhalt = kw["messages"][0]["content"]
@@ -186,6 +207,27 @@ def test_ohne_secret_kein_lauf(monkeypatch):
     monkeypatch.delenv("PROPSTACK_MCP_SERVICE_SECRET", raising=False)
     with pytest.raises(RuntimeError, match="PROPSTACK_MCP_SERVICE_SECRET"):
         _lege_an()
+    monkeypatch.setenv("PROPSTACK_MCP_SERVICE_SECRET", "zu-kurz")
+    with pytest.raises(RuntimeError, match="32 Zeichen"):
+        _lege_an()
+
+
+def test_whoami_ohne_service_ist_ein_fehler(ki):
+    """Beleg beim ersten Lauf: whoami muss service objekte-handler und den Slack-ts zeigen."""
+    antworten, _ = ki
+    falsch = _tool("w0", "whoami", text=json.dumps({"email": "marek.zimmermann@kromeichpartner.de", "propstack_user_id": 387451}))
+    antworten.append(_antwort(falsch, json.dumps({"ergebnis": "existiert", "objekte": [{"id": 1}], "offen": [], "begruendung": ""})))
+    with pytest.raises(RuntimeError, match="nicht als Service-Sitzung"):
+        _lege_an()
+
+
+def test_token_wird_im_workflow_log_maskiert(ki, monkeypatch, capsys):
+    antworten, aufrufe = ki
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    antworten.append(_antwort(WHOAMI, json.dumps({"ergebnis": "unklar", "objekte": [], "offen": [], "begruendung": "x"})))
+    _lege_an()
+    token = aufrufe[0]["mcp_servers"][0]["authorization_token"]
+    assert f"::add-mask::{token}" in capsys.readouterr().out
 
 
 def test_antwort_im_thread():
