@@ -74,6 +74,13 @@ def test_betreuer_ueber_mail_name_und_rueckfall():
     assert anlage.betreuer({}, BROKERS) == (254958, "Lena Klinnert")
 
 
+def test_feste_zuordnung_ohne_slack_scope():
+    """26.11.2026: users.info → missing_scope; ohne Zuordnung wäre Marek unter Lena gelaufen."""
+    assert anlage.betreuer({}, BROKERS, MAREK) == (387451, "Marek Zimmermann")
+    assert anlage.betreuer({}, BROKERS, "U087H2UMREF") == (254958, "Lena Klinnert")   # Oguzhan
+    assert anlage.betreuer({}, BROKERS, "U_UNBEKANNT") == (254958, "Lena Klinnert")
+
+
 def _pruefe_token(token: str, secret: str) -> dict:
     """So muss der Connector prüfen (Anweisung im README)."""
     praefix, payload, signatur = token.split(".")

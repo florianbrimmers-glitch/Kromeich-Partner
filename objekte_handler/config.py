@@ -24,6 +24,19 @@ VERMIETUNGS_PIPELINE_PRAEFIX = "300"
 
 CHECK_EMOJI = "white_check_mark"
 
+# Slack-Nutzer → Propstack-Nutzer (Betreuer neuer Objekte). Gebraucht, solange der Bot den Slack-Scope
+# users:read nicht hat (26.11.2026: users.info → missing_scope, Marek wäre sonst unter Lena gelaufen).
+# Stand der IDs: GET /v1/brokers und Slack, 26.11.2026. Oguzhan hat keinen eigenen Propstack-Nutzer
+# und schreibt wie im Connector unter Lena.
+SLACK_ZU_PROPSTACK = {
+    "U08E7PCGQHX": 347158,   # Florian Brimmers
+    "U092XRXSY3X": 387451,   # Marek Zimmermann
+    "U0806EX3EFL": 259613,   # Denise Kromeich
+    "U0AJNQEMLRW": 254958,   # Lena Klinnert
+    "U0A75JTEQRX": 254960,   # Marlene Jung
+    "U087H2UMREF": 254958,   # Oguzhan Sahin → Lena Klinnert
+}
+
 # Objekt-Anlage über den Propstack-Connector (objekte_handler/anlage.py)
 ANLAGE_MODELL = "claude-opus-5-5"
 MCP_BETA = "mcp-client-2025-11-20"

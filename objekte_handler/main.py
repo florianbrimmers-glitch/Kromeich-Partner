@@ -290,7 +290,9 @@ def _anlage(msg: dict, cls: Classification | None, context: str | None, nachbarn
     """Objekt über den Propstack-Connector anlegen lassen (anlage.py). Gelingt es nicht
     eindeutig, bleibt es beim bisherigen Weg: eine Aufgabe mit dem Grund."""
     k = anlage.kontext(msg, nachbarn, context)
-    broker_id, broker_name = anlage.betreuer(user_profile(msg.get("user")), _brokers())
+    autor = msg.get("user")
+    profil = {} if autor in config.SLACK_ZU_PROPSTACK else user_profile(autor)
+    broker_id, broker_name = anlage.betreuer(profil, _brokers(), autor)
     permalink = get_permalink(msg["ts"]) or ""
     if config.no_write():
         logger.info("[NO_WRITE] Würde über den Connector anlegen lassen: Betreuer %s, %d PDF, Links %s, davor %d Nachricht(en)",
