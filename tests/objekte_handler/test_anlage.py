@@ -27,23 +27,28 @@ MARQ_LINK = {"ts": "1795513770.693139", "user": MAREK,
 BITTE_ANLEGEN_MARQ = {"ts": "1795513776.599219", "user": MAREK, "text": "bitte anlegen"}
 DENISE = "U0806EX3EFL"
 # 04.10.2026: Denise leitet das Angebot als E-Mail in den Kanal weiter, Text „bitte anlegen“.
-# Felder der E-Mail-Datei nach der Slack-Doku (file object, „Email properties“).
+# Felder und Anhänge so, wie conversations.history sie am 26.11.2026 lieferte (Lese-Probe
+# 45805677168); Text und Absender gekürzt bzw. ersetzt.
 RECKLINGHAUSEN = {
     "ts": "1791107185.325199", "user": DENISE, "text": "bitte anlegen",
     "files": [{
-        "id": "F0C6KRT6VJN", "name": "CTPark Recklinghausen | Neuer Teaser verfügbar",
-        "title": "CTPark Recklinghausen | Neuer Teaser verfügbar", "mimetype": "text/html",
-        "filetype": "email", "mode": "email", "size": 10_171_187,
-        "subject": "CTPark Recklinghausen | Neuer Teaser verfügbar",
+        "id": "F0C6KRT6VJN", "name": "CTPark Recklinghausen | Neuer Teaser verfügbar    ",
+        "title": "CTPark Recklinghausen | Neuer Teaser verfügbar    ", "mimetype": "text/html",
+        "filetype": "email", "mode": "email", "pretty_type": "Email", "size": 10_218_147,
+        "subject": "CTPark Recklinghausen | Neuer Teaser verfügbar    ",
         "from": [{"address": "vermietung@ctp.example", "name": "CTP Germany", "original": "CTP Germany <vermietung@ctp.example>"}],
         "plain_text": "Sehr geehrte Damen und Herren, anbei der neue Teaser für den CTPark Recklinghausen …",
-        "has_more": True,
-        "url_private": "https://files.slack.com/files-pri/T07GCS7CDTJ-F0C6KRT6VJN/fwd",
-        "attachments": [{"filename": "CTPark_Recklinghausen_Teaser.pdf", "mimetype": "application/pdf",
-                         "size": 9_400_000, "url": "https://files.slack.com/files-email/T07GCS7CDTJ-F0C6KRT6VJN/teaser.pdf",
-                         "slack_file_id": "F0C6KRT6VJP"},
-                        {"filename": "logo.png", "mimetype": "image/png", "size": 12_000,
-                         "url": "https://files.slack.com/files-email/T07GCS7CDTJ-F0C6KRT6VJN/logo.png"}],
+        "has_more": True, "original_attachment_count": 2, "inline_attachment_count": 0,
+        "url_private": "https://files.slack.com/files-pri/T07GCS7CDTJ-F0C6KRT6VJN/ctpark_recklinghausen___neuer_teaser_verf__gbar___",
+        "url_private_download": "https://files.slack.com/files-pri/T07GCS7CDTJ-F0C6KRT6VJN/download/ctpark_recklinghausen___neuer_teaser_verf__gbar___",
+        "attachments": [
+            {"filename": "2026 Teaser CTPark Recklinghausen - EN.pdf", "mimetype": "application/pdf", "size": 5_061_417,
+             "url": "https://files-origin.slack.com/files-email-priv/T07GCS7CDTJ-F0C6KRT6VJN-158b320ac1-99ea45c1/2026_teaser_ctpark_recklinghausen_-_en.pdf",
+             "slack_file_id": "F0C6KRT6VJP", "metadata": {}},
+            {"filename": "2026 Teaser CTPark Recklinghausen - DE.pdf", "mimetype": "application/pdf", "size": 5_070_100,
+             "url": "https://files-origin.slack.com/files-email-priv/T07GCS7CDTJ-F0C6KRT6VJN-158b320ac1-589fcbef/2026_teaser_ctpark_recklinghausen_-_de.pdf",
+             "slack_file_id": "F0C6KRT6VJQ", "metadata": {}},
+        ],
     }],
 }
 REMSCHEID = {
@@ -133,7 +138,19 @@ def test_weitergeleitete_mail_ist_material():
     k = anlage.kontext(RECKLINGHAUSEN, [RECKLINGHAUSEN], None)
     assert [(m.betreff, m.von, m.vollstaendig) for m in k.mails] == [
         ("CTPark Recklinghausen | Neuer Teaser verfügbar", "CTP Germany", False)]
-    assert [d.name for d in k.dateien] == ["CTPark_Recklinghausen_Teaser.pdf"]     # das Logo nicht
+    assert [d.name for d in k.dateien] == ["2026 Teaser CTPark Recklinghausen - DE.pdf"]   # EN nur einmal bezahlen
+
+
+@pytest.mark.parametrize("namen, bleibt", [
+    (["2026 Teaser CTPark Recklinghausen - EN.pdf", "2026 Teaser CTPark Recklinghausen - DE.pdf"],
+     ["2026 Teaser CTPark Recklinghausen - DE.pdf"]),
+    (["Expose_Unna_EN.pdf", "Expose_Unna_DE.pdf", "Lageplan.pdf"], ["Expose_Unna_DE.pdf", "Lageplan.pdf"]),
+    (["Expose Halle 1.pdf", "Expose Halle 2.pdf"], ["Expose Halle 1.pdf", "Expose Halle 2.pdf"]),
+    (["Teaser (EN).pdf"], ["Teaser (EN).pdf"]),                                         # nur Englisch: bleibt
+])
+def test_dasselbe_expose_in_zwei_sprachen_nur_einmal(namen, bleibt):
+    dateien = [anlage.Datei(name=n, mimetype="application/pdf", url=f"https://x/{i}") for i, n in enumerate(namen)]
+    assert [d.name for d in anlage.ohne_doppelte_sprache(dateien)] == bleibt
 
 
 def test_mail_ohne_text_ist_kein_expose():
@@ -419,7 +436,7 @@ def test_mail_wird_vollstaendig_gelesen(handler, monkeypatch):
     monkeypatch.setattr(main.anlage, "lege_an", lege_an)
     report = RunReport()
     main._process_message(RECKLINGHAUSEN, None, "lauf", report, [RECKLINGHAUSEN])
-    assert gesehen == {"text": "Halle 12.500 m²\nRecklinghausen", "pdfs": ["CTPark_Recklinghausen_Teaser.pdf"], "nicht": []}
+    assert gesehen == {"text": "Halle 12.500 m²\nRecklinghausen", "pdfs": ["2026 Teaser CTPark Recklinghausen - DE.pdf"], "nicht": []}
     assert report.fehler == []
 
 
@@ -435,7 +452,7 @@ def test_nicht_lesbares_material_macht_den_lauf_rot(handler, monkeypatch):
     monkeypatch.setattr(main.anlage, "lege_an", lege_an)
     report = RunReport()
     main._process_message(RECKLINGHAUSEN, None, "lauf", report, [RECKLINGHAUSEN])
-    assert len(gesehen["nicht"]) == 2 and len(report.fehler) == 2      # die KI erfährt es, der Lauf wird rot
+    assert len(gesehen["nicht"]) == 2 and len(report.fehler) == 2      # Mail + PDF: die KI erfährt es, der Lauf wird rot
     assert handler[0] == "aufgabe:Objekt fehlt in Propstack: CTPark Recklinghausen | Neuer Teaser verfügbar"
 
 

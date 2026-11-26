@@ -140,6 +140,29 @@ def pdfs(msg: dict, mit_mail: bool = True) -> list[Datei]:
     return out
 
 
+_SPRACHE = re.compile(r"[\s_\-(]+(de|deu|ger|deutsch|en|eng|engl|english|englisch)\)?$", re.IGNORECASE)
+_DEUTSCH = ("de", "deu", "ger", "deutsch")
+
+
+def ohne_doppelte_sprache(dateien: list[Datei]) -> list[Datei]:
+    """Dasselbe Exposé als EN und DE (CTPark Recklinghausen, 04.10.2026: je 5 MB) nur einmal
+    mitgeben, die deutsche Fassung – sonst zahlt die Anlage doppelt."""
+    gruppen: dict[str, list[Datei]] = {}
+    for d in dateien:
+        stamm = re.sub(r"\.pdf$", "", d.name.strip(), flags=re.IGNORECASE)
+        gruppen.setdefault(_SPRACHE.sub("", stamm).strip().lower(), []).append(d)
+    out = []
+    for gruppe in gruppen.values():
+        if len(gruppe) == 1:
+            out.append(gruppe[0])
+            continue
+        def deutsch(d: Datei) -> bool:
+            m = _SPRACHE.search(re.sub(r"\.pdf$", "", d.name.strip(), flags=re.IGNORECASE))
+            return bool(m) and m.group(1).lower() in _DEUTSCH
+        out.append(next((d for d in gruppe if deutsch(d)), gruppe[0]))
+    return out
+
+
 def mails(msg: dict) -> list[Mail]:
     out = []
     for f in msg.get("files") or []:
@@ -148,7 +171,7 @@ def mails(msg: dict) -> list[Mail]:
         von = ", ".join(a.get("name") or a.get("address") or "" for a in f.get("from") or [] if isinstance(a, dict))
         text = f.get("plain_text") or ""
         out.append(Mail(
-            betreff=f.get("subject") or f.get("title") or f.get("name") or "",
+            betreff=(f.get("subject") or f.get("title") or f.get("name") or "").strip(),
             von=von,
             text=text,
             url=f.get("url_private_download") or f.get("url_private"),
@@ -265,6 +288,7 @@ def kontext(msg: dict, nachbarn: list[dict], thread: str | None) -> Kontext:
         k.dateien.extend(pdfs(quelle))
         k.mails.extend(mails(quelle))
     k.links = list(dict.fromkeys(k.links))
+    k.dateien = ohne_doppelte_sprache(k.dateien)
     return k
 
 
