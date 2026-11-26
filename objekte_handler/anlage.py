@@ -32,6 +32,7 @@ import hashlib
 import hmac
 import json
 import logging
+import os
 import re
 import time
 from dataclasses import dataclass, field
@@ -176,15 +177,17 @@ def service_token(secret: str, broker_id: int, slack_ts: str, jetzt: float | Non
 
 SYSTEM = """Du arbeitest für Kromeich & Partner, Makler für Logistikimmobilien. Aus einer Slack-Nachricht im Kanal #ver-objekte legst du ein Objekt in Propstack an – ausschließlich mit den Propstack-Tools. Ihre Beschreibungen enthalten die Regeln des Teams; halte dich genau daran.
 
+0. Rufe als Erstes whoami auf.
+
 1. LESEN: Bestimme aus Exposé, verlinkter Seite (web_fetch) und Text: Adresse(n) mit Ort, Eigentümer bzw. Anbieter, Projektname, die Einheiten mit Hallen-, Büro- und Mezzaninefläche, Verfügbarkeit, Hallenhöhe, Tore. Preise und Provision nur, wenn sie im Material stehen.
 2. PRÜFEN, BEVOR DU ANLEGST: Suche mit search_objects nach Straße und Ort, nach Ort und Eigentümer und nach dem Projektnamen; lies Treffer mit get_object bzw. get_project. Gibt es das Objekt mit diesen Einheiten schon, legst du NICHTS an (Ergebnis „existiert“). Fehlen in einem vorhandenen Projekt nur einzelne Einheiten, legst du nur diese an.
-3. ANLEGEN: Projekt (bei mehreren Einheiten oder einem Park) mit create_project, je Einheit create_object. Nichts erfinden: Was nicht im Material steht, bleibt leer und gehört in „offen“. Eigentümer nur verknüpfen, wenn search_contacts genau einen passenden Kontakt findet. Den Status setzt der Server selbst. Lies jedes angelegte Objekt mit get_object zurück.
+3. ANLEGEN: Projekt (bei mehreren Einheiten oder einem Park) mit create_project, je Einheit create_object mit status_id 163673 (Vorbereitung). Kein active, keine öffentlichen Preise (public_price_confirmed), kein allow_duplicate_reason. Nichts erfinden: Was nicht im Material steht, bleibt leer und gehört in „offen“. Eigentümer nur verknüpfen, wenn search_contacts genau einen passenden Kontakt findet. Lies jedes angelegte Objekt mit get_object zurück. Was ein Ergebnis unter service_hinweise meldet, gehört ebenfalls in „offen“.
 4. Blockiert die Dublettenprüfung, gibt es das Objekt vermutlich schon: nicht umgehen, sondern prüfen und „existiert“ melden. Ändere keine vorhandenen Objekte.
 5. Reicht das Material nicht (kein Ort, keine Fläche, Link nicht lesbar), lege nichts an: Ergebnis „unklar“ mit Begründung.
 
 Antworte am Ende ausschließlich mit diesem JSON:
 {"ergebnis": "angelegt" | "teilweise" | "existiert" | "unklar",
- "objekte": [{"id": <Propstack-ID>, "art": "projekt" | "einheit", "titel": "...", "url": "<falls ein Tool eine geliefert hat>"}],
+ "objekte": [{"id": <Propstack-ID>, "art": "projekt" | "einheit", "titel": "...", "url": "<Feld link aus dem Tool-Ergebnis>"}],
  "offen": ["was fehlt oder ein Mensch prüfen sollte"],
  "begruendung": "1–2 Sätze"}
 Unter „objekte“ stehen bei „existiert“ die gefundenen, sonst die angelegten Datensätze."""
@@ -211,6 +214,23 @@ def _nachricht(k: Kontext, autor_name: str, permalink: str, pdf_inhalte: list[tu
     ]
     inhalt.append({"type": "text", "text": "\n\n".join(teile)})
     return [{"role": "user", "content": inhalt}]
+
+
+def _ergebnistext(block) -> str:
+    inhalt = getattr(block, "content", None)
+    if isinstance(inhalt, str):
+        return inhalt
+    return "".join(getattr(t, "text", "") for t in inhalt or [])
+
+
+def whoami_beleg(bloecke: list, slack_ts: str) -> str | None:
+    """Das Ergebnis von whoami, falls aufgerufen. Belegt, dass der Connector die Sitzung als
+    Service-Sitzung führt: Es muss „objekte-handler“ und den Slack-ts zeigen."""
+    ids = {b.id for b in bloecke if getattr(b, "type", None) == "mcp_tool_use" and b.name == "whoami"}
+    for b in bloecke:
+        if getattr(b, "type", None) == "mcp_tool_result" and getattr(b, "tool_use_id", None) in ids:
+            return _ergebnistext(b)
+    return None
 
 
 def _aufrufe(bloecke: list) -> tuple[list[str], set[str]]:
@@ -242,8 +262,12 @@ def _client() -> anthropic.Anthropic:
 def lege_an(k: Kontext, broker_id: int, autor_name: str, slack_ts: str, permalink: str,
             pdf_inhalte: list[tuple[Datei, bytes]]) -> Ergebnis:
     secret = config.mcp_service_secret()
-    if not secret:
-        raise RuntimeError("PROPSTACK_MCP_SERVICE_SECRET fehlt – Anlage über den Connector nicht möglich")
+    if len(secret) < 32:
+        # Der Connector wertet ein kürzeres Secret als „nicht gesetzt“ – dann käme nur 401 zurück.
+        raise RuntimeError("PROPSTACK_MCP_SERVICE_SECRET fehlt oder ist kürzer als 32 Zeichen – Anlage über den Connector nicht möglich")
+    token = service_token(secret, broker_id, slack_ts)
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        print(f"::add-mask::{token}", flush=True)   # das Token nie im Workflow-Log
     params = dict(
         model=config.ANLAGE_MODELL,
         max_tokens=16000,
@@ -252,7 +276,7 @@ def lege_an(k: Kontext, broker_id: int, autor_name: str, slack_ts: str, permalin
         betas=[config.MCP_BETA],
         mcp_servers=[{
             "type": "url", "url": config.mcp_url(), "name": MCP_NAME,
-            "authorization_token": service_token(secret, broker_id, slack_ts),
+            "authorization_token": token,
         }],
         tools=[
             {"type": "mcp_toolset", "mcp_server_name": MCP_NAME},
@@ -271,6 +295,13 @@ def lege_an(k: Kontext, broker_id: int, autor_name: str, slack_ts: str, permalin
 
     aufrufe, erfolgreich = _aufrufe(bloecke)
     logger.info("Connector-Aufrufe: %s", ", ".join(aufrufe) or "keine")
+    beleg = whoami_beleg(bloecke, slack_ts)
+    if beleg is None:
+        logger.warning("whoami wurde nicht aufgerufen – kein Beleg für die Service-Sitzung")
+    elif "objekte-handler" not in beleg or slack_ts not in beleg:
+        raise RuntimeError(f"Connector führt die Sitzung nicht als Service-Sitzung (whoami: {beleg[:300]})")
+    else:
+        logger.info("whoami: %s", " ".join(beleg.split())[:300])
     if antwort is None or antwort.stop_reason in ("refusal", "max_tokens", "pause_turn"):
         grund = getattr(antwort, "stop_reason", "keine Antwort")
         return Ergebnis("unklar", begruendung=f"KI-Lauf ohne Abschluss ({grund})", aufrufe=aufrufe)
