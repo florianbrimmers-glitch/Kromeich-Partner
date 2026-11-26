@@ -108,6 +108,7 @@ class Ergebnis:
     offen: list[str] = field(default_factory=list)
     begruendung: str = ""
     aufrufe: list[str] = field(default_factory=list)
+    fehler: list[str] = field(default_factory=list)      # technisch gescheitert – macht den Lauf rot
 
 
 # --- Welche Nachrichten ---------------------------------------------------------------
@@ -346,6 +347,7 @@ Antworte am Ende ausschließlich mit diesem JSON:
 {"ergebnis": "angelegt" | "teilweise" | "existiert" | "unklar",
  "objekte": [{"id": <Propstack-ID>, "art": "projekt" | "einheit", "titel": "...", "url": "<Feld link aus dem Tool-Ergebnis>"}],
  "offen": ["was fehlt oder ein Mensch prüfen sollte"],
+ "fehler": ["was am Ende nicht erledigt ist, weil ein Tool scheiterte (Überlastung, Fehlermeldung, nicht übernommen) – nicht: was im Material fehlt, und nicht die Dublettenprüfung"],
  "begruendung": "1–2 Sätze"}
 Unter „objekte“ stehen bei „existiert“ die gefundenen, sonst die angelegten Datensätze."""
 
@@ -448,15 +450,19 @@ def lege_an(k: Kontext, broker_id: int, autor_name: str, slack_ts: str, permalin
     messages = _nachricht(k, autor_name, permalink, pdf_inhalte)
     bloecke: list = []
     antwort = None
+    verbrauch = {"input_tokens": 0, "output_tokens": 0}
     for _ in range(MAX_RUNDEN):
         antwort = _client().beta.messages.create(messages=messages, **params)
         bloecke.extend(antwort.content)
+        for feld in verbrauch:
+            verbrauch[feld] += int(getattr(getattr(antwort, "usage", None), feld, 0) or 0)
         if antwort.stop_reason != "pause_turn":
             break
         messages = [*messages, {"role": "assistant", "content": antwort.content}]
 
     aufrufe, erfolgreich = _aufrufe(bloecke)
     logger.info("Connector-Aufrufe: %s", ", ".join(aufrufe) or "keine")
+    logger.info("Verbrauch: %d Eingabe-, %d Ausgabe-Token", verbrauch["input_tokens"], verbrauch["output_tokens"])
     beleg = whoami_beleg(bloecke, slack_ts)
     if beleg is None:
         logger.warning("whoami wurde nicht aufgerufen – kein Beleg für die Service-Sitzung")
@@ -481,6 +487,7 @@ def lege_an(k: Kontext, broker_id: int, autor_name: str, slack_ts: str, permalin
         offen=[str(o) for o in daten.get("offen") or []],
         begruendung=str(daten.get("begruendung") or ""),
         aufrufe=aufrufe,
+        fehler=[str(f) for f in daten.get("fehler") or []],
     )
     if e.ergebnis in ("angelegt", "teilweise") and not erfolgreich:
         e.begruendung = f"Antwort meldet „{e.ergebnis}“, aber kein Anlege-Aufruf war erfolgreich. {e.begruendung}".strip()
