@@ -54,8 +54,8 @@ button, input { font: inherit; color: inherit; }
 .chips { display: flex; flex-wrap: wrap; gap: .4rem; }
 .chip { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: .3rem .75rem; cursor: pointer; font-size: .85rem; white-space: nowrap; }
 .chip small { color: var(--muted); font-variant-numeric: tabular-nums; }
-.chip[aria-pressed="true"] { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
-.chip[aria-pressed="true"] small { color: var(--brand-muted); }
+.chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: var(--bg); font-weight: 500; }
+.chip[aria-pressed="true"] small { color: var(--bg); opacity: .75; }
 .filter input[type="search"] { flex: 1 1 11rem; min-width: 0; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: .35rem .9rem; }
 
 /* Abschnitte */
@@ -313,7 +313,8 @@ body.mit-rueckmeldung .urteil { display: flex; }
 
   function baue(daten) {
     const k = daten.kopf;
-    const mit = daten.gesuche.filter((g) => g.vorschlaege.length);
+    const mit = daten.gesuche.filter((g) => g.vorschlaege.length)
+      .sort((a, b) => (b.bearbeitet || b.angelegt).localeCompare(a.bearbeitet || a.angelegt));
     const ohne = daten.gesuche.filter((g) => !g.vorschlaege.length);
     $("stand").textContent = "Stand " + datum(daten.stand) + " · nur aus Propstack gelesen";
 
