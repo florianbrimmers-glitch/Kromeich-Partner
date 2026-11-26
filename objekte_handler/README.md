@@ -106,10 +106,15 @@ Anlass: Für jedes Exposé und jedes „bitte anlegen“ schrieb der Handler nur
 Propstack“ an Lena – auch für Objekte, die es längst gab. Florian, 25.11.2026: „Die Workflows sollen arbeiten,
 nicht nur so tun.“ Code: `anlage.py`, Tests: `tests/objekte_handler/test_anlage.py`.
 
-1. **Welche Nachrichten:** Klassifikation `fehlt_in_ps`, oder ein PDF, das nach Exposé aussieht (Wort „Exposé“ im
-   Text oder Dateinamen, oder nur die Datei ohne Text). Vollzugsmeldungen bleiben außen vor.
-2. **Material:** Text, PDFs, Links, die Nachricht(en) desselben Autors bis 15 Minuten davor (Link und „bitte
-   anlegen“ kommen oft getrennt) und der Thread.
+1. **Welche Nachrichten:** „bitte anlegen“ als ganze Nachricht (auch „bitte in Propstack anlegen“, mit Erwähnung)
+   mit Link, PDF oder E-Mail in der Nachricht oder direkt davor – **ohne KI-Einordnung**. Sonst Klassifikation
+   `fehlt_in_ps`, oder ein PDF, das nach Exposé aussieht (Wort „Exposé“ im Text oder Dateinamen, oder nur die
+   Datei ohne Text). Eine weitergeleitete E-Mail ohne Text startet keine Anlage (meist Eigentümer-Newsletter).
+   Vollzugsmeldungen bleiben außen vor.
+2. **Material:** Text, PDFs, Links, weitergeleitete E-Mails (Betreff, Absender, Text, PDF-Anhänge), die
+   Nachricht(en) desselben Autors direkt davor und der Thread. „Davor“ heißt: höchstens 15 Minuten, und Schluss
+   bei einer Nachricht von jemand anderem oder einem früheren „bitte anlegen“. Was nicht lesbar ist, erfährt die
+   KI („offen“), und der Lauf wird rot.
 3. **Claude mit den Connector-Tools** (Messages-API, MCP-Connector, Modell `claude-opus-5-5`): erst suchen; gibt
    es das Objekt, wird nichts angelegt („existiert“). Sonst Projekt und Einheiten nach den Regeln, die der
    Connector in seinen Tool-Beschreibungen mitbringt. Nichts erfinden – Fehlendes steht unter „offen“.
