@@ -360,6 +360,23 @@ def test_token_wird_im_workflow_log_maskiert(ki, monkeypatch, capsys):
     assert f"::add-mask::{token}" in capsys.readouterr().out
 
 
+def test_ein_werkzeug_je_schritt(ki):
+    """26.11.2026, Connector ab v0.18.0: gleichzeitige Schreibaufrufe einer Sitzung werden abgewiesen."""
+    antworten, aufrufe = ki
+    antworten.append(_antwort(WHOAMI, json.dumps({"ergebnis": "unklar", "objekte": [], "offen": [], "begruendung": "x"})))
+    _lege_an()
+    assert aufrufe[0]["tool_choice"] == {"type": "auto", "disable_parallel_tool_use": True}
+    assert "Ein anderer Schreibvorgang dieser Sitzung läuft noch" in aufrufe[0]["system"]
+
+
+def test_parallele_aufrufe_werden_erkannt():
+    nacheinander = WHOAMI + _tool("t1", "create_object") + _tool("t2", "create_object")
+    assert anlage.parallele_aufrufe(nacheinander) == []
+    # So sah Unna aus: mehrere create_object, bevor das erste Ergebnis da war
+    a, b = _tool("p1", "create_object"), _tool("p2", "create_object")
+    assert anlage.parallele_aufrufe([a[0], b[0], a[1], b[1]]) == ["create_object+create_object"]
+
+
 def test_antwort_im_thread():
     e = anlage.Ergebnis("angelegt", objekte=[{"id": 1, "art": "projekt", "titel": "Logistikpark Remscheid"},
                                              {"id": 2, "art": "einheit", "titel": "Halle 1"}],
