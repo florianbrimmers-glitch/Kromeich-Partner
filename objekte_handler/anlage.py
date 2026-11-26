@@ -340,6 +340,7 @@ SYSTEM = """Du arbeitest für Kromeich & Partner, Makler für Logistikimmobilien
 1. LESEN: Bestimme aus Exposé, weitergeleiteter E-Mail, verlinkter Seite (web_fetch) und Text: Adresse(n) mit Ort, Eigentümer bzw. Anbieter, Projektname, die Einheiten mit Hallen-, Büro- und Mezzaninefläche, Verfügbarkeit, Hallenhöhe, Tore. Preise und Provision nur, wenn sie im Material stehen.
 2. PRÜFEN, BEVOR DU ANLEGST: Suche mit search_objects nach Straße und Ort, nach Ort und Eigentümer und nach dem Projektnamen; lies Treffer mit get_object bzw. get_project. Gibt es das Objekt mit diesen Einheiten schon, legst du NICHTS an (Ergebnis „existiert“). Fehlen in einem vorhandenen Projekt nur einzelne Einheiten, legst du nur diese an.
 3. ANLEGEN: Projekt (bei mehreren Einheiten oder einem Park) mit create_project, je Einheit create_object mit status_id 163673 (Vorbereitung). Kein active, keine öffentlichen Preise (public_price_confirmed), kein allow_duplicate_reason. Nichts erfinden: Was nicht im Material steht, bleibt leer und gehört in „offen“. Eigentümer nur verknüpfen, wenn search_contacts genau einen passenden Kontakt findet. Lies jedes angelegte Objekt mit get_object zurück. Was ein Ergebnis unter service_hinweise meldet, gehört ebenfalls in „offen“.
+   Immer nur ein Werkzeug je Schritt: Projekt und Einheiten strikt nacheinander anlegen, erst das Ergebnis abwarten. Meldet ein Werkzeug „Ein anderer Schreibvorgang dieser Sitzung läuft noch“, rufe es mit denselben Angaben einfach noch einmal auf – das ist kein Fehler.
 4. Blockiert die Dublettenprüfung, gibt es das Objekt vermutlich schon: nicht umgehen, sondern prüfen und „existiert“ melden. Ändere keine vorhandenen Objekte.
 5. Reicht das Material nicht (kein Ort, keine Fläche, Link nicht lesbar), lege nichts an: Ergebnis „unklar“ mit Begründung.
 
@@ -397,6 +398,22 @@ def whoami_beleg(bloecke: list, slack_ts: str) -> str | None:
     return None
 
 
+def parallele_aufrufe(bloecke: list) -> list[str]:
+    """Werkzeugaufrufe, die abgesetzt wurden, bevor das Ergebnis des vorigen da war – also
+    gleichzeitig. Mit disable_parallel_tool_use sollte die Liste leer sein."""
+    offen: list[str] = []
+    parallel: list[str] = []
+    for b in bloecke:
+        typ = getattr(b, "type", None)
+        if typ in ("mcp_tool_use", "server_tool_use"):
+            if offen:
+                parallel.append(f"{offen[-1]}+{b.name}")
+            offen.append(b.name)
+        elif typ in ("mcp_tool_result", "web_fetch_tool_result") and offen:
+            offen.pop(0)
+    return parallel
+
+
 def _aufrufe(bloecke: list) -> tuple[list[str], set[str]]:
     """Namen aller Connector-Aufrufe und die Anlege-Tools, die ohne Fehler zurückkamen."""
     namen: dict[str, str] = {}
@@ -446,6 +463,10 @@ def lege_an(k: Kontext, broker_id: int, autor_name: str, slack_ts: str, permalin
             {"type": "mcp_toolset", "mcp_server_name": MCP_NAME},
             {"type": "web_fetch_20260209", "name": "web_fetch", "max_uses": 5},
         ],
+        # Ein Werkzeug je Schritt (Connector-Fenster, 26.11.2026): Bei Unna liefen 4 create_object in
+        # derselben Sekunde, drei Prüfaufgaben scheiterten an „Too many subrequests“. Der Connector
+        # weist ab v0.18.0 gleichzeitige Schreibaufrufe einer Sitzung ab.
+        tool_choice={"type": "auto", "disable_parallel_tool_use": True},
     )
     messages = _nachricht(k, autor_name, permalink, pdf_inhalte)
     bloecke: list = []
@@ -462,6 +483,10 @@ def lege_an(k: Kontext, broker_id: int, autor_name: str, slack_ts: str, permalin
 
     aufrufe, erfolgreich = _aufrufe(bloecke)
     logger.info("Connector-Aufrufe: %s", ", ".join(aufrufe) or "keine")
+    parallel = parallele_aufrufe(bloecke)
+    if parallel:
+        # Belegt, ob disable_parallel_tool_use auch für die Connector-Werkzeuge greift
+        logger.warning("Parallele Connector-Aufrufe trotz disable_parallel_tool_use: %s", parallel)
     logger.info("Verbrauch: %d Eingabe-, %d Ausgabe-Token", verbrauch["input_tokens"], verbrauch["output_tokens"])
     beleg = whoami_beleg(bloecke, slack_ts)
     if beleg is None:
