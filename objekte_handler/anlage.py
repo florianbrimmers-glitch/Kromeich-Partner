@@ -141,9 +141,13 @@ def kontext(msg: dict, nachbarn: list[dict], thread: str | None) -> Kontext:
 
 # --- Betreuer und Zugang ---------------------------------------------------------------
 
-def betreuer(slack_profil: dict | None, brokers: list[dict]) -> tuple[int, str]:
-    """Propstack-Nutzer zum Slack-Autor: erst über die E-Mail, dann über den vollen Namen.
-    Ohne Treffer (z. B. Oguzhan, der keinen eigenen Propstack-Nutzer hat): Review-Sitz."""
+def betreuer(slack_profil: dict | None, brokers: list[dict], slack_user: str | None = None) -> tuple[int, str]:
+    """Propstack-Nutzer zum Slack-Autor: erst über die feste Zuordnung (config.SLACK_ZU_PROPSTACK),
+    dann über die E-Mail, dann über den vollen Namen. Ohne Treffer: Review-Sitz."""
+    fest = config.SLACK_ZU_PROPSTACK.get(slack_user or "")
+    if fest:
+        name = next((b.get("name") for b in brokers if int(b.get("id") or 0) == fest), None)
+        return fest, name or str(fest)
     profil = slack_profil or {}
     mail = (profil.get("email") or "").strip().lower()
     namen = {(profil.get(k) or "").strip().lower() for k in ("real_name", "real_name_normalized", "display_name")} - {""}
