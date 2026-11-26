@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { Page, PropstackClient } from "../src/propstack-client";
 import { createReviewTask, nextWorkdayNine } from "../src/review-task";
 import { addImages, checkImageUrl, createProject, setProjectOwner, updateProject } from "../src/tools/project-tools";
+import { MemoryKV } from "./helpers";
 
 const page = (rows: Record<string, unknown>[]): Page => ({ rows, total: rows.length });
 const USER = { brokerId: 347158, email: "florian.brimmers@kromeichpartner.de", name: "Florian Brimmers" };
@@ -118,6 +119,33 @@ describe("create_project", () => {
 			review_task: { assigned_to: "Florian Brimmers", due: "2026-10-19T09:00:00", id: 77 },
 		});
 		expect((out.result as { not_applied?: string[] }).not_applied).toBeUndefined();
+		expect((out.result as { fehlgeschlagen?: unknown[] }).fehlgeschlagen).toEqual([]);
+	});
+
+	it("merkt sich die eigene Prüfaufgabe – damit Einheiten nur auf eine Aufgabe verweisen, die es gibt", async () => {
+		const { client } = fakeClient({
+			createProject: () => ({ id: 600 }),
+			getProject: () => ({ broker: { id: 347158 }, id: 600, lat: 51.2, lng: 6.8, name: "MCP-TEST Logistikhalle in (40) Düsseldorf – Kappeler Straße" }),
+			updateProject: () => ({}),
+		});
+		const kv = new MemoryKV();
+		await createProject({ client, db: fakeDb().db, kv: kv.asKV(), now: NOW, user: USER }, { ...input, test: true });
+		expect(kv.store.get("review-task:project:600")).toBe("77");
+		// scheitert die Aufgabe, wird nichts gemerkt – und das Ergebnis sagt es
+		const leer = new MemoryKV();
+		const kaputt = fakeClient({
+			createProject: () => ({ id: 601 }),
+			createTask: () => {
+				throw new Error("Propstack-Serverfehler (502)");
+			},
+			getProject: () => ({ broker: { id: 347158 }, id: 601, lat: 51.2, lng: 6.8 }),
+			updateProject: () => ({}),
+		});
+		const out = await createProject({ client: kaputt.client, db: fakeDb().db, kv: leer.asKV(), now: NOW, user: USER }, { ...input, test: true });
+		expect(leer.store.size).toBe(0);
+		expect((out.result as { fehlgeschlagen: { schritt: string }[] }).fehlgeschlagen).toEqual(
+			expect.arrayContaining([{ grund: "Prüfaufgabe nicht angelegt: Propstack-Serverfehler (502)", schritt: "Prüfaufgabe" }]),
+		);
 	});
 
 	it("Dublette per Adresse blockiert", async () => {

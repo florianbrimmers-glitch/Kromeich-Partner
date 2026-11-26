@@ -15,6 +15,7 @@ import {
 	personName,
 } from "../src/propstack/dedupe";
 import { type Page, type PropstackClient, PropstackError, type Query } from "../src/propstack-client";
+import { MemoryKV } from "./helpers";
 import { createContact, createObject, notApplied, updateContact, updateObject, validateCustomFields } from "../src/tools/write-tools";
 
 const page = (rows: Record<string, unknown>[]): Page => ({ rows, total: rows.length });
@@ -946,10 +947,13 @@ describe("create_object / update_object", () => {
 	it("Einheit im Projekt: keine eigene Prüfaufgabe, solange alles übernommen wurde", async () => {
 		const unit = fakeUnit();
 		const { client, calls } = fakeClient(unit.impl);
-		const out = await createObject({ client, db: fakeDb().db, now: NOW, sleep, user: USER }, { ...input, project_id: 603710 });
+		// die Prüfaufgabe des Projekts ist bekannt (create_project merkt sie sich)
+		const kv = new MemoryKV();
+		kv.store.set("review-task:project:603710", "159643494");
+		const out = await createObject({ client, db: fakeDb().db, kv: kv.asKV(), now: NOW, sleep, user: USER }, { ...input, project_id: 603710 });
 		expect(out.result).toMatchObject({
 			inherited_from_project: ["location_note", "furnishing_note"],
-			review_task: { covered_by: "Prüfaufgabe des Projekts 603710" },
+			review_task: { covered_by: "Prüfaufgabe 159643494 des Projekts 603710" },
 		});
 		expect(unit.posted()).toMatchObject({ furnishing_note: "- 10 Rampen\n- LED", location_note: "Direkt an der A48." });
 		expect(calls.some((c) => c.method === "createTask")).toBe(false);
@@ -1249,10 +1253,52 @@ describe("create_object / update_object – Team-How-to", () => {
 		return { calls, client, coords, custom, links, posted: () => posted, puts, stored, task: () => task };
 	}
 
+	it("fehlgeschlagen: leer, wenn alles klappt – sonst je Teilschritt ein Eintrag (Auftrag 26.11.2026)", async () => {
+		type Raw = Record<string, unknown>;
+		const ok = await createObject({ client: world().client, db: fakeDb().db, now: NOW, sleep, user: USER }, { ...standalone, contact_person_id: 222, industrial_area: 10000, owner_contact_id: 111 });
+		// nicht gegenlesbare Einzelfelder (not_verifiable) gibt es fast immer – sie zählen nicht als fehlgeschlagen
+		expect((ok.result as Raw).fehlgeschlagen).toEqual([]);
+
+		// Live 26.11.2026, Unit 4 (6581032): Cloudflare-Grenze beim Verknüpfen des Ansprechpartners
+		const w = world();
+		const grenze = new PropstackError("Cloudflare-Grenze für Unteraufrufe je Aufruf erreicht – diese Anfrage wurde nicht abgeschickt.", 0);
+		const client = new Proxy(w.client, {
+			get: (target, prop) =>
+				prop === "updateUnit"
+					? async (id: number, body: Raw) => {
+							if (JSON.stringify(body).includes('"partner"')) throw grenze;
+							return (target as unknown as { updateUnit: (i: number, b: Raw) => unknown }).updateUnit(id, body);
+						}
+					: Reflect.get(target, prop),
+		});
+		const out = await createObject({ client, db: fakeDb().db, now: NOW, sleep, user: USER }, { ...standalone, contact_person_id: 222, industrial_area: 10000, owner_contact_id: 111 });
+		expect((out.result as Raw).fehlgeschlagen).toEqual([{ grund: grenze.message, schritt: "Ansprechpartner verknüpfen" }]);
+	});
+
+	it("Einheit im Projekt: „von der Prüfaufgabe des Projekts abgedeckt“ nur, wenn es die wirklich gibt – sonst eigene Aufgabe", async () => {
+		// Live 26.11.2026, Projekt 623542: Unit 1 meldete, die Prüfaufgabe des Projekts sei zuständig – die gab es nicht.
+		type Raw = Record<string, unknown>;
+		const einheit = { industrial_area: 10000, marketing_type: "RENT" as const, project_id: 604473, rs_category: "HALL", rs_type: "INDUSTRY", status_id: 163673, unit_id: "Unit 1" };
+		const ohne = world();
+		const a = await createObject({ client: ohne.client, db: fakeDb().db, kv: new MemoryKV().asKV(), now: NOW, sleep, user: USER }, einheit);
+		expect((a.result as Raw).review_task).toMatchObject({ assigned_to: "Lena Klinnert", id: 4711 });
+		expect(String(ohne.task()?.body)).toMatch(/Für das Projekt 604473 ist keine Prüfaufgabe des Connectors bekannt/);
+
+		// Prüfaufgabe des Projekts bekannt (create_project merkt sie sich) → keine zweite Aufgabe, mit Nummer
+		const kv = new MemoryKV();
+		kv.store.set("review-task:project:604473", "162886001");
+		const mit = world();
+		const b = await createObject({ client: mit.client, db: fakeDb().db, kv: kv.asKV(), now: NOW, sleep, user: USER }, einheit);
+		expect((b.result as Raw).review_task).toEqual({ covered_by: "Prüfaufgabe 162886001 des Projekts 604473" });
+		expect(mit.task()).toBeUndefined();
+	});
+
 	it("Einheit im Projekt: Adresse, Überschrift, Beschreibung, Lage, Ausstattung, Provision und Koordinaten kommen vom Projekt", async () => {
 		const w = world();
+		const kv = new MemoryKV();
+		kv.store.set("review-task:project:604473", "159643494");
 		const out = await createObject(
-			{ client: w.client, db: fakeDb().db, now: NOW, sleep, user: USER },
+			{ client: w.client, db: fakeDb().db, kv: kv.asKV(), now: NOW, sleep, user: USER },
 			{ industrial_area: 10000, marketing_type: "RENT", project_id: 604473, rs_category: "HALL", rs_type: "INDUSTRY", status_id: 163673, unit_id: "Unit 1" },
 		);
 		expect(w.posted()).toMatchObject({
@@ -1270,7 +1316,7 @@ describe("create_object / update_object – Team-How-to", () => {
 		expect(out.result).toMatchObject({
 			coordinates: { lat: 50.4109821, lng: 7.6811256, source: "Projekt", verified: true },
 			inherited_from_project: ["address", "title", "description_note", "location_note", "furnishing_note", "courtage", "courtage_note"],
-			review_task: { covered_by: "Prüfaufgabe des Projekts 604473" },
+			review_task: { covered_by: "Prüfaufgabe 159643494 des Projekts 604473" },
 		});
 		// Lücken laut How-to stehen im Ergebnis, auch ohne eigene Prüfaufgabe
 		expect((out.result as { howto_not_provided: string[] }).howto_not_provided).toEqual(expect.arrayContaining(["Eigentümer", "Hallenhöhe (m UKB)", "Rampentore", "Verfügbar ab"]));

@@ -19,7 +19,8 @@ import { availabilityMirror, BEZUG_KEY, bezugDeviation } from "../propstack/avai
 import { appendNote } from "../propstack/notes";
 import { scalar } from "../propstack/mappers";
 import { readUnit, UNVERIFIABLE, type UnitState, unitCustomValue, unitValue } from "../propstack/unit-state";
-import { CRM_BASE, createReviewTask } from "../review-task";
+import { CRM_BASE, createReviewTask, projectReviewTask } from "../review-task";
+import { failuresOf } from "./failures";
 import { beginWrite, finishWrite, writer } from "../write-log";
 import { serviceObjectInput } from "./service-rules";
 import { coordinatesLine, coordsOf, ensureCoordinates, hasCoordinates } from "../propstack/geo";
@@ -1142,8 +1143,10 @@ export async function createObject(deps: WriteDeps, requested: z.infer<z.ZodObje
 	const notProvided = objectNotProvided(input, fields, { explicit: input.custom_fields, inProject: Boolean(project) });
 
 	// Einheit im Projekt: die Prüfaufgabe des Projekts deckt sie ab – eigene Aufgabe nur bei Problemen
-	// (Live-Befund 16.10.: 1 Projekt + 4 Einheiten = 5 Aufgaben für Lena).
-	const needsOwnTask = !input.project_id || missing.length > 0 || writeErrors.length > 0 || overrideReason !== null;
+	// (Live-Befund 16.10.: 1 Projekt + 4 Einheiten = 5 Aufgaben für Lena). Aber nur, wenn es diese Aufgabe
+	// wirklich gibt (Live-Befund 26.11., Projekt 623542): Kennt der Connector keine, bekommt die Einheit eine eigene.
+	const projectTask = input.project_id ? await projectReviewTask(deps.kv, input.project_id) : null;
+	const needsOwnTask = !input.project_id || !projectTask || missing.length > 0 || writeErrors.length > 0 || overrideReason !== null;
 	const title = String(fields.title);
 	const review = needsOwnTask
 		? await createReviewTask(client, deps.db, {
@@ -1151,6 +1154,9 @@ export async function createObject(deps: WriteDeps, requested: z.infer<z.ZodObje
 					`Objekt ${newId}: ${title}${input.unit_id ? ` – ${input.unit_id}` : ""}`,
 					`${CRM_BASE}/properties/${newId}`,
 					...(input.project_id ? [`Projekt: ${CRM_BASE}/projects/${input.project_id}`] : []),
+					...(input.project_id && !projectTask
+						? [`Für das Projekt ${input.project_id} ist keine Prüfaufgabe des Connectors bekannt – diese Aufgabe deckt die Einheit ab.`]
+						: []),
 					`Angelegt ${viaClaude(user)} am ${today(now)}.`,
 					relationLine("owner", owner, ownerResult),
 					relationLine("contact_person", contactPerson, contactResult),
@@ -1173,7 +1179,7 @@ export async function createObject(deps: WriteDeps, requested: z.infer<z.ZodObje
 				title: `${title} - Objekt ${newId}`,
 				user,
 			})
-		: { covered_by: `Prüfaufgabe des Projekts ${input.project_id}` };
+		: { covered_by: `Prüfaufgabe ${projectTask} des Projekts ${input.project_id}` };
 
 	return {
 		count: 1,
@@ -1183,6 +1189,8 @@ export async function createObject(deps: WriteDeps, requested: z.infer<z.ZodObje
 			title: scalar(state.row?.title ?? state.detail.title),
 			link: `${CRM_BASE}/properties/${newId}`,
 			review_task: review,
+			// maschinenlesbar, immer da (leer = alles geklappt) – Auftrag 26.11.2026
+			fehlgeschlagen: failuresOf({ coordinatesNote: coordinates.note, missing, reviewTask: review, writeErrors }),
 			broker: brokerLabel(user),
 			service_hinweise: serviceNotes.length ? serviceNotes : undefined,
 			test: input.test || undefined,

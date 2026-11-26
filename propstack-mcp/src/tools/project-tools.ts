@@ -23,7 +23,8 @@ import {
 import { scalar } from "../propstack/mappers";
 import { appendNote } from "../propstack/notes";
 import { linkContact, type RelationResult, type RelationRole, relationLine, ROLE_LABEL } from "../propstack/relations";
-import { CRM_BASE, createReviewTask } from "../review-task";
+import { CRM_BASE, createReviewTask, rememberProjectReviewTask } from "../review-task";
+import { failuresOf } from "./failures";
 import { beginWrite, finishWrite, writer } from "../write-log";
 import { flag, id, optionalText } from "./params";
 import { loadAll, type ToolOutput } from "./read-tools";
@@ -327,6 +328,8 @@ export async function createProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 		title: `${name} - Projekt ${projectId}`,
 		user,
 	});
+	// Damit Einheiten nur auf eine Prüfaufgabe verweisen, die es gibt (create_object fragt danach)
+	if (review.id) await rememberProjectReviewTask(deps.kv, projectId, review.id);
 
 	return {
 		count: 1,
@@ -335,6 +338,8 @@ export async function createProject(deps: WriteDeps, input: z.infer<z.ZodObject<
 			id: projectId,
 			name,
 			link: `${CRM_BASE}/projects/${projectId}`,
+			// maschinenlesbar, immer da (leer = alles geklappt) – Auftrag 26.11.2026
+			fehlgeschlagen: failuresOf({ coordinatesNote: coordinates.note, missing: [...missing, ...gaps], reviewTask: review, writeErrors }),
 			broker: brokerLabel(user),
 			test: input.test || undefined,
 			owner: owner ? { ...owner, linked: ownerResult?.linked } : undefined,
