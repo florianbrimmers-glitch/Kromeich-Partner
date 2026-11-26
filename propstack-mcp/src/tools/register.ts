@@ -67,6 +67,29 @@ export interface ToolContext {
 	now?: () => number;
 	/** Für Tests austauschbar: Zwischenspeicher des Dashboards (sonst D1). */
 	dashboardStore?: () => DashboardStore;
+	/** Läuft in dieser Sitzung gerade ein Schreib-Werkzeug? (siehe oneWriteAtATime) */
+	writeGate?: { running: boolean };
+}
+
+export const CONCURRENT_WRITE_MESSAGE =
+	"Ein anderer Schreibvorgang dieser Sitzung läuft noch. Schreib-Werkzeuge bitte nacheinander aufrufen, nicht gleichzeitig: Gleichzeitige Aufrufe teilen sich bei Cloudflare die Grenze für Unteraufrufe, dann bleiben Schritte unerledigt. Hier wurde nichts geschrieben – nach dem Ende des anderen Aufrufs erneut aufrufen.";
+
+/**
+ * Je Sitzung nur ein Schreibvorgang auf einmal. Live 26.11.2026 (Projekt 623542): Unit 1 lief allein vollständig
+ * durch; die vier gleichzeitig angelegten Units 2–5 scheiterten an „Too many subrequests“ – gleichzeitige Aufrufe
+ * teilen sich im Sitzungsobjekt die Grenze (Workers Free: 50). Ein zweiter, gleichzeitiger Schreibvorgang wird
+ * deshalb sofort abgewiesen, bevor er etwas tut. Prüfen und Setzen geschehen ohne await dazwischen – das ist atomar.
+ */
+async function oneWriteAtATime<T>(ctx: ToolContext, run: () => Promise<T>): Promise<T> {
+	ctx.writeGate ??= { running: false };
+	const gate = ctx.writeGate;
+	if (gate.running) throw new PropstackError(CONCURRENT_WRITE_MESSAGE, 409);
+	gate.running = true;
+	try {
+		return await run();
+	} finally {
+		gate.running = false;
+	}
 }
 
 type ToolResult = { content: { type: "text"; text: string }[]; isError?: boolean };
@@ -238,7 +261,9 @@ export function registerWriteTools(server: McpServer, ctx: ToolContext): void {
 				inputSchema: z.strictObject(shape),
 			},
 			(async (input: z.infer<z.ZodObject<S>>) =>
-				runTool(ctx, name, input, (client) => fn({ client, db: ctx.env.AUDIT_DB, kv: ctx.env.OAUTH_KV, user: ctx.props() }, input))) as never,
+				runTool(ctx, name, input, (client) =>
+					oneWriteAtATime(ctx, () => fn({ client, db: ctx.env.AUDIT_DB, kv: ctx.env.OAUTH_KV, user: ctx.props() }, input)),
+				)) as never,
 		);
 	};
 
