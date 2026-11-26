@@ -46,7 +46,7 @@ Eigenständiges Paket – **kein Code-Sharing mit `src/`** (Visitenkarten-Pipeli
 | `THREAD_LOOKBACK_HOURS` | nein | `96` | Wie weit zurück Threads nach neuen Replies durchsucht werden |
 | `DECISION_LOG_PATH` | nein | `objekte_decisions.jsonl` | Pfad des Entscheidungslogs |
 | `OBJEKT_ANLAGE` | nein | `false` | Objekte über den Connector anlegen (im Workflow: Repo-Variable `OBJEKT_ANLAGE` oder Eingabe). Im Dry-Run nie |
-| `PROPSTACK_MCP_SERVICE_SECRET` | für die Anlage | – | Gemeinsames Secret mit dem Connector (`SERVICE_TOKEN_SECRET`) zum Signieren des Service-Tokens |
+| `PROPSTACK_MCP_SERVICE_SECRET` | für die Anlage | – | Secret zum Signieren des Service-Tokens. Im Workflow aus dem Repository-Secret `SERVICE_TOKEN_SECRET` – derselbe Wert und Name wie das Worker-Secret im Connector |
 | `PROPSTACK_MCP_URL` | nein | `https://propstack-mcp.kromeichpartner.workers.dev/mcp` | Adresse des Connectors |
 | `NUR_TS` | nein | – | Probelauf: nur diese eine Nachricht, auch wenn sie schon ein ✅ trägt |
 
@@ -129,7 +129,7 @@ Review-Sitz 254958.
 **Einschalten – in dieser Reihenfolge:**
 1. Gegenstück im Connector ausliefern (Anweisung unten).
 2. Ein zufälliges Secret (mind. 32 Byte, z. B. `openssl rand -base64 48`) als Worker-Secret `SERVICE_TOKEN_SECRET`
-   und als GitHub-Secret `PROPSTACK_MCP_SERVICE_SECRET` setzen.
+   und als GitHub-Repository-Secret, ebenfalls `SERVICE_TOKEN_SECRET` (so gesetzt am 26.11.2026).
 3. Probe ohne Schreiben: Objekte Handler von Hand mit `dry_run=false`, `objekt_anlage=true`,
    `nur_ts=1795600175.387459` (Remscheid). Erwartet: „Steht schon in Propstack“ mit 5159361, nichts angelegt.
 4. Probe mit Schreiben: eine echte offene Anfrage (z. B. Marek, 24.11.: Frasers Unna oder Marq Ense-Höingen),
