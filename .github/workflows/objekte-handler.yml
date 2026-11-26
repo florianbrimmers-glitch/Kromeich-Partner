@@ -34,6 +34,19 @@ on:
         description: "Thread-Discovery-Fenster in Stunden"
         required: false
         default: "96"
+      objekt_anlage:
+        description: "Exposés/„bitte anlegen“ über den Propstack-Connector anlegen (leer = Repo-Variable OBJEKT_ANLAGE, sonst an)"
+        required: false
+        default: ""
+        type: choice
+        options:
+          - ""
+          - "true"
+          - "false"
+      nur_ts:
+        description: "Probelauf: nur diese eine Slack-Nachricht (ts, z. B. 1795600175.387459)"
+        required: false
+        default: ""
 
 concurrency:
   group: objekte-handler
@@ -42,7 +55,7 @@ concurrency:
 jobs:
   objekte-handler:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Checkout repository
@@ -72,6 +85,14 @@ jobs:
           SCAN_HOURS: ${{ github.event.inputs.scan_from_hours || '50' }}
           SCAN_LATEST_HOURS: ${{ github.event.inputs.scan_to_hours || '0' }}
           THREAD_LOOKBACK_HOURS: ${{ github.event.inputs.thread_lookback_hours || '96' }}
+          # Anlage über den Connector (objekte_handler/anlage.py) – an seit 26.11.2026 (Florian, nach
+          # den Proben Remscheid/Unna/Recklinghausen). Ausschalten ohne Code: Repo-Variable
+          # OBJEKT_ANLAGE=false. Ohne das Secret SERVICE_TOKEN_SECRET endet eine Anlage mit Fehler
+          # (Lauf rot), nie still.
+          OBJEKT_ANLAGE: ${{ github.event.inputs.objekt_anlage || vars.OBJEKT_ANLAGE || 'true' }}
+          # Repository-Secret heißt wie das Worker-Secret im Connector: SERVICE_TOKEN_SECRET (derselbe Wert)
+          PROPSTACK_MCP_SERVICE_SECRET: ${{ secrets.SERVICE_TOKEN_SECRET }}
+          NUR_TS: ${{ github.event.inputs.nur_ts || '' }}
           # Entscheidungslog bleibt lokal auf dem Runner: bewusst kein Artefakt,
           # das füllte nur die Quota und meldete grüne Läufe rot.
           DECISION_LOG_PATH: objekte_decisions.jsonl

@@ -7,7 +7,7 @@ import uuid
 from collections import Counter
 from datetime import datetime, timedelta, timezone
 
-from . import config
+from . import anlage, config
 from .classifier import build_thread_context, classify_message
 from .decision import decide, due_date_plus_business_days
 from .logbuch import append_record
@@ -26,6 +26,7 @@ from .propstack import (
     TaskPayload,
     absage_hindernis,
     create_task,
+    fetch_brokers,
     fetch_vermietungs_pipelines,
     get_open_deals,
     set_rented,
@@ -33,12 +34,15 @@ from .propstack import (
 from .vollzug import vollzugsmeldung
 from .slack_gateway import (
     add_checkmark,
+    download_file,
+    download_text,
     fetch_channel_messages,
     fetch_thread_replies,
     get_bot_user_id,
     get_permalink,
     has_bot_checkmark,
     post_thread_reply,
+    user_profile,
 )
 
 logging.basicConfig(
@@ -272,7 +276,85 @@ def _stufe_b(msg: dict, cls: Classification | None, match: MatchResult | None,
     return [f"Review-Aufgabe an {broker_name} ({broker_id}), Task {task_id}"]
 
 
-def _process_message(msg: dict, context: str | None, run_id: str, report: RunReport) -> None:
+_BROKERS: list[dict] | None = None
+
+
+def _brokers() -> list[dict]:
+    global _BROKERS
+    if _BROKERS is None:
+        _BROKERS = fetch_brokers()
+    return _BROKERS
+
+
+def _anlage(msg: dict, cls: Classification | None, context: str | None, nachbarn: list[dict],
+            report: RunReport) -> list[str]:
+    """Objekt über den Propstack-Connector anlegen lassen (anlage.py). Gelingt es nicht
+    eindeutig, bleibt es beim bisherigen Weg: eine Aufgabe mit dem Grund."""
+    k = anlage.kontext(msg, nachbarn, context)
+    autor = msg.get("user")
+    profil = {} if autor in config.SLACK_ZU_PROPSTACK else user_profile(autor)
+    broker_id, broker_name = anlage.betreuer(profil, _brokers(), autor)
+    permalink = get_permalink(msg["ts"]) or ""
+    if cls is None:
+        # „bitte anlegen“ ohne KI-Einordnung: fällt es auf die Aufgabe zurück, soll sie sagen, worum es geht
+        cls = Classification(typ=MessageType.FEHLT_IN_PS, confidence=1.0,
+                             objekt_name=(k.links[0] if k.links else None) or (k.mails[0].betreff if k.mails else None)
+                             or (k.dateien[0].name if k.dateien else None))
+
+    # Material lesen – auch im Lese-Lauf (NO_WRITE), damit die Probe zeigt, was Slack wirklich liefert
+    for quelle in [msg, *anlage.vorher(msg, nachbarn)]:
+        for f in quelle.get("files") or []:
+            logger.info("Datei %s: %s, filetype=%s, %s B, Felder %s, Anhänge %s", f.get("id"), f.get("mimetype"),
+                        f.get("filetype"), f.get("size"), sorted(f),
+                        [(a.get("filename"), a.get("mimetype"), a.get("size"), sorted(a)) for a in f.get("attachments") or []])
+    for m in k.mails:
+        if not m.vollstaendig and m.url:
+            try:
+                m.text = anlage.html_zu_text(download_text(m.url))
+                m.vollstaendig = True
+            except Exception as e:
+                k.nicht_lesbar.append(f"E-Mail „{m.betreff}“: {e}")
+    pdf_inhalte = []
+    for datei in k.dateien:
+        if datei.groesse > anlage.MAX_PDF_BYTES:
+            k.nicht_lesbar.append(f"{datei.name}: zu groß ({datei.groesse} Bytes)")
+            continue
+        try:
+            pdf_inhalte.append((datei, download_file(datei.url)))
+        except Exception as e:
+            k.nicht_lesbar.append(f"{datei.name}: {e}")
+    logger.info("Material: Betreuer %s | davor %d | Links %s | PDF %s | E-Mails %s | nicht lesbar %s",
+                broker_name, len(k.vorher), k.links,
+                [f"{d.name} ({len(b)} B)" for d, b in pdf_inhalte],
+                [f"{m.betreff} ({len(m.text)} Zeichen{'' if m.vollstaendig else ', gekürzt'})" for m in k.mails],
+                k.nicht_lesbar)
+    # Was nicht gelesen werden konnte, macht den Lauf rot – auch wenn die Anlage trotzdem gelingt.
+    report.fehler.extend(f"Nachricht {msg['ts']}: nicht lesbar – {x}" for x in k.nicht_lesbar)
+    if config.no_write():
+        logger.info("[NO_WRITE] Würde über den Connector anlegen lassen – KI nicht aufgerufen")
+        return ["NO_WRITE: Anlage nicht ausgeführt"]
+
+    erg = anlage.lege_an(k, broker_id, broker_name, msg["ts"], permalink, pdf_inhalte)
+    logger.info("Nachricht %s: Anlage %s – %s", msg["ts"], erg.ergebnis, erg.begruendung)
+    # Was technisch scheiterte (26.11.2026: „Too many subrequests“ bei 3 von 4 Prüfaufgaben), macht den Lauf rot
+    report.fehler.extend(f"Nachricht {msg['ts']}: Connector – {f}" for f in erg.fehler)
+    if erg.ergebnis in ("angelegt", "teilweise", "existiert"):
+        add_checkmark(msg["ts"])
+        post_thread_reply(msg.get("thread_ts") or msg["ts"], anlage.antwort(erg, broker_name))
+        if erg.ergebnis == "existiert":
+            report.existiert += 1
+        else:
+            report.angelegt += 1
+        ids = ", ".join(str(o["id"]) for o in erg.objekte)
+        return [f"Anlage: {erg.ergebnis} ({ids or 'ohne IDs'}) – Betreuer {broker_name}"]
+
+    decision = Decision(tier=Tier.B, grund=f"Anlage nicht eindeutig möglich: {erg.begruendung}")
+    report.stufe_b += 1
+    return _stufe_b(msg, cls, None, decision, permalink)
+
+
+def _process_message(msg: dict, context: str | None, run_id: str, report: RunReport,
+                     nachbarn: list[dict] | None = None) -> None:
     text = (msg.get("text") or "").strip()
     record = DecisionRecord(
         run_id=run_id,
@@ -292,6 +374,16 @@ def _process_message(msg: dict, context: str | None, run_id: str, report: RunRep
             report.vollzugsmeldungen += 1
             return
 
+        if not text:
+            # Nur eine Datei, kein Text – kommt hierher nur bei eingeschalteter Anlage (Exposé-PDF)
+            record.ausgefuehrte_aktionen = _anlage(msg, None, context, nachbarn or [], report)
+            return
+
+        if config.objekt_anlage() and anlage.auftrag_ohne_ki(msg, nachbarn or []):
+            logger.info("Nachricht %s: „bitte anlegen“ mit Material – Anlage ohne Einordnung durch die KI", msg["ts"])
+            record.ausgefuehrte_aktionen = _anlage(msg, None, context, nachbarn or [], report)
+            return
+
         cls = classify_message(text, context)
         time.sleep(3)
         record.classification = cls
@@ -300,6 +392,10 @@ def _process_message(msg: dict, context: str | None, run_id: str, report: RunRep
             # Kein ✅: Der Lauf endet rot, der nächste Lauf (Fenster 50 h) versucht es erneut.
             report.fehler.append(f"Nachricht {msg['ts']}: nicht klassifizierbar")
             record.fehler = "Klassifikation fehlgeschlagen"
+            return
+
+        if config.objekt_anlage() and anlage.ist_anlagefall(msg, cls.typ.value):
+            record.ausgefuehrte_aktionen = _anlage(msg, cls, context, nachbarn or [], report)
             return
 
         match: MatchResult | None = None
@@ -354,6 +450,10 @@ def run_pipeline() -> RunReport:
     logger.info("Bot-User-ID: %s, Kanal: %s", bot_user_id, config.OBJEKTE_CHANNEL)
 
     candidates = _collect_candidates(bot_user_id)
+    nachbarn = [m for m, ctx in candidates if ctx is None]
+    if config.nur_ts():
+        candidates = [(m, ctx) for m, ctx in candidates if m["ts"] == config.nur_ts()]
+        logger.info("Probelauf: nur Nachricht %s (%d gefunden)", config.nur_ts(), len(candidates))
     report.nachrichten_gesehen = len(candidates)
     logger.info("%d Nachrichten im Scan-Fenster (%dh)", len(candidates), config.scan_hours())
 
@@ -361,17 +461,18 @@ def run_pipeline() -> RunReport:
         preview = (msg.get("text") or "")[:80]
         logger.info("--- Nachricht %d/%d (%s): %s ---", i, len(candidates), msg["ts"], preview)
 
-        if has_bot_checkmark(msg, bot_user_id):
+        # Ein Probelauf auf genau eine Nachricht (NUR_TS) verarbeitet sie auch mit ✅ noch einmal.
+        if not config.nur_ts() and has_bot_checkmark(msg, bot_user_id):
             logger.info("Bereits verarbeitet (eigenes ✅) – übersprungen")
             report.bereits_verarbeitet += 1
             continue
 
-        if not (msg.get("text") or "").strip():
+        if not (msg.get("text") or "").strip() and not (config.objekt_anlage() and anlage.pdfs(msg, mit_mail=False)):
             logger.info("Kein Text – übersprungen")
             report.ignoriert += 1
             continue
 
-        _process_message(msg, context, run_id, report)
+        _process_message(msg, context, run_id, report, nachbarn)
 
     _print_summary(report)
     return report
@@ -386,6 +487,8 @@ def _print_summary(report: RunReport) -> None:
     logger.info("  Vollzugsmeldungen:        %d", report.vollzugsmeldungen)
     logger.info("  Stufe A (ausgeführt):     %d", report.stufe_a)
     logger.info("  Stufe B (Review-Aufgabe): %d", report.stufe_b)
+    logger.info("  Angelegt (Connector):     %d", report.angelegt)
+    logger.info("  Stand schon in Propstack: %d", report.existiert)
     logger.info("  Fehler:                   %d", len(report.fehler))
     for fehler in report.fehler:
         logger.info("    - %s", fehler)

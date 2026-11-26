@@ -23,6 +23,24 @@ RESERVATION_REASON_ABSAGE = 256998
 VERMIETUNGS_PIPELINE_PRAEFIX = "300"
 
 CHECK_EMOJI = "white_check_mark"
+
+# Slack-Nutzer → Propstack-Nutzer (Betreuer neuer Objekte). Gebraucht, solange der Bot den Slack-Scope
+# users:read nicht hat (26.11.2026: users.info → missing_scope, Marek wäre sonst unter Lena gelaufen).
+# Stand der IDs: GET /v1/brokers und Slack, 26.11.2026. Oguzhan hat keinen eigenen Propstack-Nutzer
+# und schreibt wie im Connector unter Lena.
+SLACK_ZU_PROPSTACK = {
+    "U08E7PCGQHX": 347158,   # Florian Brimmers
+    "U092XRXSY3X": 387451,   # Marek Zimmermann
+    "U0806EX3EFL": 259613,   # Denise Kromeich
+    "U0AJNQEMLRW": 254958,   # Lena Klinnert
+    "U0A75JTEQRX": 254960,   # Marlene Jung
+    "U087H2UMREF": 254958,   # Oguzhan Sahin → Lena Klinnert
+}
+
+# Objekt-Anlage über den Propstack-Connector (objekte_handler/anlage.py)
+ANLAGE_MODELL = "claude-opus-5-5"
+MCP_BETA = "mcp-client-2025-11-20"
+MCP_URL_STANDARD = "https://propstack-mcp.kromeichpartner.workers.dev/mcp"
 CONFIDENCE_THRESHOLD = 0.8
 
 
@@ -38,6 +56,25 @@ def dry_run() -> bool:
 def no_write() -> bool:
     """Reiner Lese-/Loglauf: keine Propstack-Writes, keine Reactions/Replies."""
     return _env_bool("NO_WRITE", "false")
+
+
+def objekt_anlage() -> bool:
+    """Exposés und „bitte anlegen“ über den Connector anlegen statt eine Aufgabe zu schreiben.
+    Aus (Standard), bis der Connector das Service-Token kennt; im Dry-Run nie."""
+    return _env_bool("OBJEKT_ANLAGE", "false") and not dry_run()
+
+
+def mcp_url() -> str:
+    return os.environ.get("PROPSTACK_MCP_URL") or MCP_URL_STANDARD
+
+
+def mcp_service_secret() -> str:
+    return os.environ.get("PROPSTACK_MCP_SERVICE_SECRET", "")
+
+
+def nur_ts() -> str:
+    """Probelauf: nur diese eine Nachricht verarbeiten (Slack-ts)."""
+    return os.environ.get("NUR_TS", "").strip()
 
 
 def scan_hours() -> int:

@@ -6,10 +6,13 @@ import re
 _FORMAT = re.compile(r"[*_~`>]")
 _CLAUDE_SIGNATUR = re.compile(r"gesendet\s+mit\s+claude", re.IGNORECASE)
 _ANGELEGT = re.compile(r"^(neues\s+objekt\s+angelegt|neu\s+angelegt|objekt\s+angelegt)\b", re.IGNORECASE)
-# Steht so etwas in einer „angelegt“-Meldung, ist sie (auch) ein Auftrag oder eine Frage
+# Steht so etwas in einer „angelegt“-Meldung, ist sie (auch) ein Auftrag oder eine Frage.
+# „nicht vermietet“ ist dagegen eine Zustandsangabe: Am 25.11.2026 bekamen zwei Meldungen
+# „neues Objekt angelegt … – nicht vermietet, sofort verfügbar“ (Hillwood Porta Westfalica,
+# Kirchlengern) deshalb eine Aufgabe „Objekt fehlt in Propstack“.
 _BITTE = re.compile(
     r"\?|\bbitte\b|\bmuss\b|\bm(?:ü|ue)ss(?:en|te|ten)\b|\bsoll(?:en|te|ten)?\b|\bfehl(?:t|en)\b"
-    r"|\bnoch\s+(?:zu|nicht)\b|\bvermietet\b|\bwerden\b",
+    r"|\bnoch\s+(?:zu|nicht)\b|(?<!nicht )(?<!nicht\n)\bvermietet\b|\bwerden\b",
     re.IGNORECASE,
 )
 

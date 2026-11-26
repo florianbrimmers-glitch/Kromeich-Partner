@@ -1,0 +1,507 @@
+"""Objekt-Anlage über den Propstack-Connector (objekte_handler/anlage.py), ohne Netz.
+
+Die Slack-Nachrichten sind die aus #ver-objekte vom 24./25.11.2026, so wie
+conversations.history sie liefert. Die Antworten der KI sind wie die der Messages-API mit
+MCP-Connector aufgebaut: mcp_tool_use / mcp_tool_result / text.
+"""
+from __future__ import annotations
+
+import base64
+import hashlib
+import hmac
+import json
+from types import SimpleNamespace
+
+import pytest
+
+from objekte_handler import anlage, config, main
+from objekte_handler.models import Classification, MessageType, RunReport
+
+MAREK = "U092XRXSY3X"
+UNNA_LINK = {"ts": "1795513641.524429", "user": MAREK,
+             "text": "<https://www.fraserspropertyindustrial.com/de/objekt/germany/unna22.html|fraserspropertyindustrial.com/de/objekt/germany/unna22.html>"}
+BITTE_ANLEGEN = {"ts": "1795513645.740279", "user": MAREK, "text": "bitte anlegen"}
+UNNA_URL = "https://www.fraserspropertyindustrial.com/de/objekt/germany/unna22.html"
+MARQ_LINK = {"ts": "1795513770.693139", "user": MAREK,
+             "text": "<https://marqlogistics.com/en-de/property/marq-logistics-ense-hoeingen|marqlogistics.com/en-de/property/marq-logistics-ense-hoeingen>"}
+BITTE_ANLEGEN_MARQ = {"ts": "1795513776.599219", "user": MAREK, "text": "bitte anlegen"}
+DENISE = "U0806EX3EFL"
+# 04.10.2026: Denise leitet das Angebot als E-Mail in den Kanal weiter, Text „bitte anlegen“.
+# Felder und Anhänge so, wie conversations.history sie am 26.11.2026 lieferte (Lese-Probe
+# 45805677168); Text und Absender gekürzt bzw. ersetzt.
+RECKLINGHAUSEN = {
+    "ts": "1791107185.325199", "user": DENISE, "text": "bitte anlegen",
+    "files": [{
+        "id": "F0C6KRT6VJN", "name": "CTPark Recklinghausen | Neuer Teaser verfügbar    ",
+        "title": "CTPark Recklinghausen | Neuer Teaser verfügbar    ", "mimetype": "text/html",
+        "filetype": "email", "mode": "email", "pretty_type": "Email", "size": 10_218_147,
+        "subject": "CTPark Recklinghausen | Neuer Teaser verfügbar    ",
+        "from": [{"address": "vermietung@ctp.example", "name": "CTP Germany", "original": "CTP Germany <vermietung@ctp.example>"}],
+        "plain_text": "Sehr geehrte Damen und Herren, anbei der neue Teaser für den CTPark Recklinghausen …",
+        "has_more": True, "original_attachment_count": 2, "inline_attachment_count": 0,
+        "url_private": "https://files.slack.com/files-pri/T07GCS7CDTJ-F0C6KRT6VJN/ctpark_recklinghausen___neuer_teaser_verf__gbar___",
+        "url_private_download": "https://files.slack.com/files-pri/T07GCS7CDTJ-F0C6KRT6VJN/download/ctpark_recklinghausen___neuer_teaser_verf__gbar___",
+        "attachments": [
+            {"filename": "2026 Teaser CTPark Recklinghausen - EN.pdf", "mimetype": "application/pdf", "size": 5_061_417,
+             "url": "https://files-origin.slack.com/files-email-priv/T07GCS7CDTJ-F0C6KRT6VJN-158b320ac1-99ea45c1/2026_teaser_ctpark_recklinghausen_-_en.pdf",
+             "slack_file_id": "F0C6KRT6VJP", "metadata": {}},
+            {"filename": "2026 Teaser CTPark Recklinghausen - DE.pdf", "mimetype": "application/pdf", "size": 5_070_100,
+             "url": "https://files-origin.slack.com/files-email-priv/T07GCS7CDTJ-F0C6KRT6VJN-158b320ac1-589fcbef/2026_teaser_ctpark_recklinghausen_-_de.pdf",
+             "slack_file_id": "F0C6KRT6VJQ", "metadata": {}},
+        ],
+    }],
+}
+REMSCHEID = {
+    "ts": "1795600175.387459", "user": MAREK, "text": "Exposé Objekt Remscheid - LIP Invest",
+    "files": [{"id": "F0CLNJLLG75", "name": "Remscheid_Exposé.pdf", "mimetype": "application/pdf", "size": 2_831_155,
+               "url_private_download": "https://files.slack.com/files-pri/T07GCS7CDTJ-F0CLNJLLG75/download/remscheid_expos_.pdf"}],
+}
+SCHON_ANGELEGT = {"ts": "1795600187.788809", "user": MAREK, "text": "Hab ich schon ordentlich angelegt"}
+BROKERS = [
+    {"id": 347158, "name": "Florian Brimmers", "email": "florian.brimmers@kromeichpartner.de"},
+    {"id": 387451, "name": "Marek Zimmermann", "email": "marek.zimmermann@kromeichpartner.de"},
+    {"id": 254958, "name": "Lena Klinnert", "email": "lena.klinnert@kromeichpartner.de"},
+]
+
+
+# --- Welche Nachrichten, welches Material ------------------------------------------------
+
+@pytest.mark.parametrize("msg, typ, erwartet", [
+    (BITTE_ANLEGEN, "fehlt_in_ps", True),
+    (REMSCHEID, "fehlt_in_ps", True),
+    (REMSCHEID, "ignorieren", True),                                   # Exposé erkennt man auch ohne die KI
+    ({**REMSCHEID, "text": ""}, None, True),                           # nur die Datei
+    ({**REMSCHEID, "text": "Mietvertrag Entwurf", "files": [{**REMSCHEID["files"][0], "name": "Vertrag.pdf"}]},
+     "ignorieren", False),
+    ({"ts": "1.1", "text": "Mietpreis zwischen 6 - 6,40€"}, "ignorieren", False),
+])
+def test_ist_anlagefall(msg, typ, erwartet):
+    assert anlage.ist_anlagefall(msg, typ) is erwartet
+
+
+def test_link_und_bitte_anlegen_gehoeren_zusammen():
+    """24.11.2026: Marek postet den Link und 4 Sekunden später „bitte anlegen“."""
+    andere = {"ts": "1795513600.000100", "user": "U0806EX3EFL", "text": "<https://example.org/fremd|fremd>"}
+    alt = {"ts": "1795510000.000100", "user": MAREK, "text": "<https://example.org/alt|alt>"}   # > 15 min davor
+    k = anlage.kontext(BITTE_ANLEGEN, [alt, andere, UNNA_LINK, BITTE_ANLEGEN], None)
+    assert k.vorher == [UNNA_LINK["text"]]
+    assert k.links == ["https://www.fraserspropertyindustrial.com/de/objekt/germany/unna22.html"]
+
+
+def test_exposé_pdf_kommt_mit():
+    k = anlage.kontext(REMSCHEID, [REMSCHEID, SCHON_ANGELEGT], None)
+    assert [d.name for d in k.dateien] == ["Remscheid_Exposé.pdf"]
+    assert k.vorher == []        # die Folgenachricht „schon angelegt“ zählt nicht als Material
+
+
+@pytest.mark.parametrize("text, erwartet", [
+    ("bitte anlegen", True),                                            # Marek 24.11., Denise 04.10.
+    ("Bitte anlegen!", True),
+    ("bitte in Propstack anlegen", True),
+    ("bitte Objekt anlegen", True),
+    ("<@U092XRXSY3X> bitte anlegen", True),
+    ("anlegen bitte", True),
+    # Mehr als ein Anlegeauftrag – das bleibt bei der KI:
+    ("<@U0A75JTEQRX|Marlene Jung> bitte Research Aufgaben für Ratingen &amp; Bergheim anlegen", False),
+    ("@marek: Bitte anlegen und an Baaske  senden, bitte kurze Info an mich, wen erfolgt", False),
+    ("bitte Objekt &amp; Provisionsvereinbarung anlegen", False),
+    ("Hab ich schon ordentlich angelegt", False),
+    ("", False),
+])
+def test_ist_auftrag(text, erwartet):
+    assert anlage.ist_auftrag(text) is erwartet
+
+
+def test_davor_endet_am_vorigen_auftrag():
+    """24.11.2026, 10:47–10:49: Unna-Link, „bitte anlegen“, Ense-Höingen-Link, „bitte anlegen“.
+    Der zweite Auftrag gehört nur zu Ense-Höingen – 15 Minuten allein reichen als Grenze nicht."""
+    kanal = [UNNA_LINK, BITTE_ANLEGEN, MARQ_LINK, BITTE_ANLEGEN_MARQ]
+    assert anlage.vorher(BITTE_ANLEGEN_MARQ, kanal) == [MARQ_LINK]
+    assert anlage.vorher(BITTE_ANLEGEN, kanal) == [UNNA_LINK]
+
+
+def test_thread_antwort_nimmt_nichts_aus_dem_kanal():
+    antwort = {**BITTE_ANLEGEN, "ts": "1795513700.000100", "thread_ts": "1795400000.000100"}
+    assert anlage.vorher(antwort, [UNNA_LINK, BITTE_ANLEGEN]) == []
+
+
+def test_bitte_anlegen_geht_ohne_ki_nur_mit_material():
+    """26.11.2026, Probe 45803737220: Die KI ordnete „bitte anlegen“ ohne den Link davor als „kein
+    Objektbezug“ ein (am 24.11. dieselbe Nachricht als „Objekt fehlt“)."""
+    assert anlage.auftrag_ohne_ki(BITTE_ANLEGEN, [UNNA_LINK, BITTE_ANLEGEN]) is True
+    assert anlage.auftrag_ohne_ki(BITTE_ANLEGEN, [BITTE_ANLEGEN]) is False          # nichts zum Anlegen da
+    assert anlage.auftrag_ohne_ki(RECKLINGHAUSEN, [RECKLINGHAUSEN]) is True         # Material hängt dran
+    assert anlage.auftrag_ohne_ki(UNNA_LINK, [UNNA_LINK]) is False                  # ein Link ist kein Auftrag
+
+
+def test_weitergeleitete_mail_ist_material():
+    k = anlage.kontext(RECKLINGHAUSEN, [RECKLINGHAUSEN], None)
+    assert [(m.betreff, m.von, m.vollstaendig) for m in k.mails] == [
+        ("CTPark Recklinghausen | Neuer Teaser verfügbar", "CTP Germany", False)]
+    assert [d.name for d in k.dateien] == ["2026 Teaser CTPark Recklinghausen - DE.pdf"]   # EN nur einmal bezahlen
+
+
+@pytest.mark.parametrize("namen, bleibt", [
+    (["2026 Teaser CTPark Recklinghausen - EN.pdf", "2026 Teaser CTPark Recklinghausen - DE.pdf"],
+     ["2026 Teaser CTPark Recklinghausen - DE.pdf"]),
+    (["Expose_Unna_EN.pdf", "Expose_Unna_DE.pdf", "Lageplan.pdf"], ["Expose_Unna_DE.pdf", "Lageplan.pdf"]),
+    (["Expose Halle 1.pdf", "Expose Halle 2.pdf"], ["Expose Halle 1.pdf", "Expose Halle 2.pdf"]),
+    (["Teaser (EN).pdf"], ["Teaser (EN).pdf"]),                                         # nur Englisch: bleibt
+])
+def test_dasselbe_expose_in_zwei_sprachen_nur_einmal(namen, bleibt):
+    dateien = [anlage.Datei(name=n, mimetype="application/pdf", url=f"https://x/{i}") for i, n in enumerate(namen)]
+    assert [d.name for d in anlage.ohne_doppelte_sprache(dateien)] == bleibt
+
+
+def test_mail_ohne_text_ist_kein_expose():
+    """Eine weitergeleitete E-Mail ohne Text ist meist ein Eigentümer-Newsletter – kein Anlegen."""
+    nur_mail = {**RECKLINGHAUSEN, "text": ""}
+    assert anlage.pdfs(nur_mail, mit_mail=False) == []
+    assert anlage.ist_anlagefall(nur_mail, None) is False
+
+
+def test_html_der_mail_wird_text():
+    html = ("<html><head><style>p{color:red}</style></head><body><p>CTPark Recklinghausen</p>"
+            "<table><tr><td>Halle</td><td>12.500 m²</td></tr></table>Gruß<br>CTP</body></html>")
+    assert anlage.html_zu_text(html) == "CTPark Recklinghausen\nHalle 12.500 m²\nGruß\nCTP"
+
+
+def test_mailtext_geht_an_die_ki():
+    k = anlage.kontext(RECKLINGHAUSEN, [RECKLINGHAUSEN], None)
+    k.mails[0].text = "Halle 12.500 m², verfügbar ab Q3"
+    text = anlage._nachricht(k, "Denise Kromeich", "https://slack/p", [])[0]["content"][-1]["text"]
+    assert "Weitergeleitete E-Mail – Betreff: CTPark Recklinghausen | Neuer Teaser verfügbar – Von: CTP Germany" in text
+    assert "Halle 12.500 m², verfügbar ab Q3" in text
+
+
+# --- Betreuer und Zugang ------------------------------------------------------------------
+
+def test_betreuer_ueber_mail_name_und_rueckfall():
+    assert anlage.betreuer({"email": "Marek.Zimmermann@kromeichpartner.de"}, BROKERS) == (387451, "Marek Zimmermann")
+    assert anlage.betreuer({"real_name": "Marek Zimmermann"}, BROKERS) == (387451, "Marek Zimmermann")   # ohne users:read.email
+    # Oguzhan hat keinen eigenen Propstack-Nutzer – wie im Connector: Review-Sitz
+    assert anlage.betreuer({"real_name": "Oguzhan Sahin"}, BROKERS) == (254958, "Lena Klinnert")
+    assert anlage.betreuer({}, BROKERS) == (254958, "Lena Klinnert")
+
+
+def test_feste_zuordnung_ohne_slack_scope():
+    """26.11.2026: users.info → missing_scope; ohne Zuordnung wäre Marek unter Lena gelaufen."""
+    assert anlage.betreuer({}, BROKERS, MAREK) == (387451, "Marek Zimmermann")
+    assert anlage.betreuer({}, BROKERS, "U087H2UMREF") == (254958, "Lena Klinnert")   # Oguzhan
+    assert anlage.betreuer({}, BROKERS, "U_UNBEKANNT") == (254958, "Lena Klinnert")
+
+
+def _pruefe_token(token: str, secret: str) -> dict:
+    """So muss der Connector prüfen (Anweisung im README)."""
+    praefix, payload, signatur = token.split(".")
+    assert praefix == "svc"
+    erwartet = base64.urlsafe_b64encode(
+        hmac.new(secret.encode(), f"svc.{payload}".encode(), hashlib.sha256).digest()).rstrip(b"=").decode()
+    assert hmac.compare_digest(signatur, erwartet)
+    return json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
+
+
+def test_service_token_wie_im_readme_des_connectors():
+    """Gleiches Ergebnis wie das Python-Beispiel in propstack-mcp/README.md (v0.16.0) bei gleicher Laufzeit."""
+    import time as _time
+    b64url = lambda b: base64.urlsafe_b64encode(b).rstrip(b"=").decode()
+    now = 1_795_600_000
+    payload = b64url(json.dumps({"sub": "objekte-handler", "broker_id": 387451, "ts": "1795600175.387459",
+                                 "iat": now, "exp": now + 1800}, separators=(",", ":")).encode())
+    beispiel = f"svc.{payload}." + b64url(hmac.new(GEHEIM.encode(), f"svc.{payload}".encode(), hashlib.sha256).digest())
+    assert anlage.service_token(GEHEIM, 387451, "1795600175.387459", jetzt=now) == beispiel
+    assert len(beispiel) < 2048
+
+
+def test_service_token_traegt_nutzer_und_laeuft_ab():
+    token = anlage.service_token("geheim", 387451, "1795600175.387459", jetzt=1_795_600_000)
+    daten = _pruefe_token(token, "geheim")
+    assert daten == {"sub": "objekte-handler", "broker_id": 387451, "ts": "1795600175.387459",
+                     "iat": 1_795_600_000, "exp": 1_795_600_000 + 30 * 60}
+    with pytest.raises(AssertionError):
+        _pruefe_token(token, "anderes-geheimnis")
+
+
+# --- Claude mit den Connector-Tools ------------------------------------------------------
+
+GEHEIM = "x" * 48   # der Connector verlangt mindestens 32 Zeichen
+
+
+def _tool(id_, name, ok=True, text="{}"):
+    return [SimpleNamespace(type="mcp_tool_use", id=id_, name=name, server_name="propstack", input={}),
+            SimpleNamespace(type="mcp_tool_result", tool_use_id=id_, is_error=not ok,
+                            content=[SimpleNamespace(type="text", text=text)])]
+
+
+# So antwortet whoami in einer Service-Sitzung (propstack-mcp v0.16.0, README „Service-Zugang objekte-handler“)
+WHOAMI = _tool("w0", "whoami", text=json.dumps({"email": "marek.zimmermann@kromeichpartner.de", "name": "Marek Zimmermann",
+                                                "propstack_user_id": 387451, "service": "objekte-handler",
+                                                "auftrag": "1795600175.387459"}))
+
+
+def _antwort(bloecke, json_text=None, stop="end_turn"):
+    inhalt = list(bloecke) + ([SimpleNamespace(type="text", text=json_text)] if json_text else [])
+    return SimpleNamespace(stop_reason=stop, content=inhalt)
+
+
+@pytest.fixture
+def ki(monkeypatch):
+    """Ersetzt den Anthropic-Client; liefert der Reihe nach die vorgegebenen Antworten."""
+    monkeypatch.setenv("PROPSTACK_MCP_SERVICE_SECRET", GEHEIM)
+    aufrufe: list[dict] = []
+    antworten: list = []
+
+    def create(**kw):
+        aufrufe.append(kw)
+        return antworten[len(aufrufe) - 1]
+
+    monkeypatch.setattr(anlage, "_client", lambda: SimpleNamespace(beta=SimpleNamespace(messages=SimpleNamespace(create=create))))
+    return antworten, aufrufe
+
+
+def _lege_an(pdf=b"%PDF-1.7 ..."):
+    k = anlage.kontext(REMSCHEID, [REMSCHEID], None)
+    return anlage.lege_an(k, 387451, "Marek Zimmermann", REMSCHEID["ts"], "https://slack/p1", [(k.dateien[0], pdf)])
+
+
+def test_remscheid_existiert_schon(ki):
+    """25.11.2026: Das Objekt steht seit 20.03.2026 in Propstack (5159361). Gesucht, nichts angelegt."""
+    antworten, aufrufe = ki
+    antworten.append(_antwort(WHOAMI + _tool("t1", "search_objects") + _tool("t2", "get_object"), json.dumps({
+        "ergebnis": "existiert", "objekte": [{"id": 5159361, "art": "einheit", "titel": "Am Weidenbroich 20-22 - Remscheid"}],
+        "offen": [], "begruendung": "Gleiche Adresse und Fläche, Eigentümer LIP Invest."})))
+    e = _lege_an()
+    assert e.ergebnis == "existiert" and [o["id"] for o in e.objekte] == [5159361]
+    assert e.aufrufe == ["whoami", "search_objects", "get_object"]
+
+    kw = aufrufe[0]
+    assert kw["model"] == config.ANLAGE_MODELL and config.MCP_BETA in kw["betas"]
+    server = kw["mcp_servers"][0]
+    assert server["name"] == "propstack" and server["url"] == config.MCP_URL_STANDARD
+    assert _pruefe_token(server["authorization_token"], GEHEIM)["broker_id"] == 387451
+    assert {"type": "mcp_toolset", "mcp_server_name": "propstack"} in kw["tools"]
+    assert kw["tools"][1]["type"] == "web_fetch_20260209"
+    inhalt = kw["messages"][0]["content"]
+    assert inhalt[0]["type"] == "document" and inhalt[0]["source"]["media_type"] == "application/pdf"
+    assert "Exposé Objekt Remscheid - LIP Invest" in inhalt[-1]["text"]
+
+
+def test_fehler_und_verbrauch_aus_der_antwort(ki, caplog):
+    antworten, _ = ki
+    a = _antwort(WHOAMI + _tool("t1", "create_object"), json.dumps({
+        "ergebnis": "angelegt", "objekte": [{"id": 6581028, "art": "einheit"}], "offen": [],
+        "fehler": ["Prüfaufgabe nicht angelegt (Too many subrequests)"], "begruendung": "x"}))
+    a.usage = SimpleNamespace(input_tokens=41_000, output_tokens=3_200)
+    antworten.append(a)
+    caplog.set_level("INFO")
+    e = _lege_an()
+    assert e.fehler == ["Prüfaufgabe nicht angelegt (Too many subrequests)"]
+    assert "Verbrauch: 41000 Eingabe-, 3200 Ausgabe-Token" in caplog.text
+
+
+def test_angelegt_zaehlt_nur_mit_erfolgreichem_anlegeaufruf(ki):
+    antworten, _ = ki
+    antworten.append(_antwort(_tool("t1", "search_objects") + _tool("t2", "create_project") + _tool("t3", "create_object"),
+                              json.dumps({"ergebnis": "angelegt", "objekte": [{"id": 1, "art": "projekt"}, {"id": 2, "art": "einheit"}],
+                                          "offen": ["Mietpreis fehlt im Exposé"], "begruendung": "neu"})))
+    assert _lege_an().ergebnis == "angelegt"
+
+
+def test_behauptete_anlage_ohne_aufruf_ist_unklar(ki):
+    """„Die Workflows sollen arbeiten, nicht nur so tun“ – auch die KI darf es nicht."""
+    antworten, _ = ki
+    antworten.append(_antwort(_tool("t1", "search_objects") + _tool("t2", "create_object", ok=False),
+                              json.dumps({"ergebnis": "angelegt", "objekte": [{"id": 9}], "offen": [], "begruendung": "x"})))
+    e = _lege_an()
+    assert e.ergebnis == "unklar" and "kein Anlege-Aufruf war erfolgreich" in e.begruendung
+
+
+def test_pause_turn_wird_fortgesetzt(ki):
+    antworten, aufrufe = ki
+    erste = _antwort(_tool("t1", "search_objects"), stop="pause_turn")
+    antworten.extend([erste, _antwort(_tool("t2", "create_object"),
+                                      json.dumps({"ergebnis": "angelegt", "objekte": [{"id": 7}], "offen": [], "begruendung": ""}))])
+    e = _lege_an()
+    assert e.ergebnis == "angelegt" and len(aufrufe) == 2
+    assert aufrufe[1]["messages"][-1] == {"role": "assistant", "content": erste.content}
+
+
+@pytest.mark.parametrize("stop", ["refusal", "max_tokens"])
+def test_abbruch_der_ki_ist_unklar(ki, stop):
+    antworten, _ = ki
+    antworten.append(_antwort(_tool("t1", "create_object"), stop=stop))
+    assert _lege_an().ergebnis == "unklar"
+
+
+def test_ohne_secret_kein_lauf(monkeypatch):
+    monkeypatch.delenv("PROPSTACK_MCP_SERVICE_SECRET", raising=False)
+    with pytest.raises(RuntimeError, match="PROPSTACK_MCP_SERVICE_SECRET"):
+        _lege_an()
+    monkeypatch.setenv("PROPSTACK_MCP_SERVICE_SECRET", "zu-kurz")
+    with pytest.raises(RuntimeError, match="32 Zeichen"):
+        _lege_an()
+
+
+def test_whoami_ohne_service_ist_ein_fehler(ki):
+    """Beleg beim ersten Lauf: whoami muss service objekte-handler und den Slack-ts zeigen."""
+    antworten, _ = ki
+    falsch = _tool("w0", "whoami", text=json.dumps({"email": "marek.zimmermann@kromeichpartner.de", "propstack_user_id": 387451}))
+    antworten.append(_antwort(falsch, json.dumps({"ergebnis": "existiert", "objekte": [{"id": 1}], "offen": [], "begruendung": ""})))
+    with pytest.raises(RuntimeError, match="nicht als Service-Sitzung"):
+        _lege_an()
+
+
+def test_token_wird_im_workflow_log_maskiert(ki, monkeypatch, capsys):
+    antworten, aufrufe = ki
+    monkeypatch.setenv("GITHUB_ACTIONS", "true")
+    antworten.append(_antwort(WHOAMI, json.dumps({"ergebnis": "unklar", "objekte": [], "offen": [], "begruendung": "x"})))
+    _lege_an()
+    token = aufrufe[0]["mcp_servers"][0]["authorization_token"]
+    assert f"::add-mask::{token}" in capsys.readouterr().out
+
+
+def test_antwort_im_thread():
+    e = anlage.Ergebnis("angelegt", objekte=[{"id": 1, "art": "projekt", "titel": "Logistikpark Remscheid"},
+                                             {"id": 2, "art": "einheit", "titel": "Halle 1"}],
+                        offen=["Mietpreis fehlt"])
+    text = anlage.antwort(e, "Marek Zimmermann")
+    assert "Betreuer Marek Zimmermann, Status Vorbereitung" in text
+    assert "• Projekt 1 – Logistikpark Remscheid" in text and "• Einheit 2 – Halle 1" in text and "• Mietpreis fehlt" in text
+    assert anlage.antwort(anlage.Ergebnis("existiert", objekte=[{"id": 5159361}]), "x").startswith("Steht schon in Propstack")
+
+
+# --- Im Ablauf des Handlers -------------------------------------------------------------
+
+@pytest.fixture
+def handler(monkeypatch):
+    monkeypatch.setenv("DRY_RUN", "false")
+    monkeypatch.setenv("NO_WRITE", "false")
+    monkeypatch.setenv("OBJEKT_ANLAGE", "true")
+    monkeypatch.setenv("PROPSTACK_MCP_SERVICE_SECRET", "geheim")
+    spur: list[str] = []
+    monkeypatch.setattr(main, "classify_message",
+                        lambda text, ctx: Classification(typ=MessageType.FEHLT_IN_PS, confidence=0.9, objekt_name="Remscheid LIP Invest"))
+    monkeypatch.setattr(main, "user_profile", lambda uid: {"real_name": "Marek Zimmermann"})
+    monkeypatch.setattr(main, "_BROKERS", BROKERS)
+    monkeypatch.setattr(main, "get_permalink", lambda ts: "https://slack/p1")
+    monkeypatch.setattr(main, "download_file", lambda url: spur.append("pdf") or b"%PDF")
+    monkeypatch.setattr(main, "add_checkmark", lambda ts: spur.append("haken") or True)
+    monkeypatch.setattr(main, "post_thread_reply", lambda ts, text: spur.append(f"antwort:{text.splitlines()[0]}") or True)
+    monkeypatch.setattr(main, "create_task", lambda payload: spur.append(f"aufgabe:{payload.title}") or 1)
+    monkeypatch.setattr(main, "append_record", lambda record: None)
+    monkeypatch.setattr(main.time, "sleep", lambda s: None)
+    return spur
+
+
+def test_existiert_gibt_antwort_und_haken_aber_keine_aufgabe(handler, monkeypatch):
+    erg = anlage.Ergebnis("existiert", objekte=[{"id": 5159361}])
+    monkeypatch.setattr(main.anlage, "lege_an", lambda *a, **k: erg)
+    report = RunReport()
+    main._process_message(REMSCHEID, None, "lauf", report, [REMSCHEID])
+    assert handler == ["pdf", "haken", "antwort:Steht schon in Propstack – nichts neu angelegt:"]
+    assert report.existiert == 1 and report.stufe_b == 0 and report.fehler == []
+
+
+def test_unklar_faellt_auf_die_aufgabe_zurueck(handler, monkeypatch):
+    monkeypatch.setattr(main.anlage, "lege_an", lambda *a, **k: anlage.Ergebnis("unklar", begruendung="Link nicht lesbar"))
+    report = RunReport()
+    main._process_message(BITTE_ANLEGEN, None, "lauf", report, [UNNA_LINK, BITTE_ANLEGEN])
+    # „bitte anlegen“ läuft ohne KI-Einordnung – die Aufgabe nennt dann den Link
+    assert handler[0] == f"aufgabe:Objekt fehlt in Propstack: {UNNA_URL}" and report.stufe_b == 1
+
+
+def test_fehler_beim_anlegen_macht_den_lauf_rot_ohne_haken(handler, monkeypatch):
+    def kaputt(*a, **k):
+        raise RuntimeError("MCP 401")
+    monkeypatch.setattr(main.anlage, "lege_an", kaputt)
+    report = RunReport()
+    main._process_message(REMSCHEID, None, "lauf", report, [REMSCHEID])
+    assert "haken" not in handler and report.fehler and "MCP 401" in report.fehler[0]
+
+
+def test_no_write_ruft_die_ki_nicht_auf(handler, monkeypatch):
+    """Der Lese-Lauf lädt das Material (lesen ist erlaubt, die Probe soll es zeigen), schreibt nichts."""
+    monkeypatch.setenv("NO_WRITE", "true")
+    monkeypatch.setattr(main.anlage, "lege_an", lambda *a, **k: pytest.fail("kein Aufruf im Lese-Lauf"))
+    main._process_message(REMSCHEID, None, "lauf", RunReport(), [REMSCHEID])
+    assert handler == ["pdf"]
+
+
+def test_bitte_anlegen_wird_ohne_ki_angelegt(handler, monkeypatch):
+    monkeypatch.setattr(main, "classify_message", lambda text, ctx: pytest.fail("keine KI-Einordnung nötig"))
+    gesehen = {}
+    def lege_an(k, broker_id, name, ts, permalink, pdfs):
+        gesehen.update(links=k.links, vorher=k.vorher, broker=broker_id)
+        return anlage.Ergebnis("angelegt", objekte=[{"id": 1, "art": "einheit"}])
+    monkeypatch.setattr(main.anlage, "lege_an", lege_an)
+    report = RunReport()
+    main._process_message(BITTE_ANLEGEN, None, "lauf", report, [UNNA_LINK, BITTE_ANLEGEN])
+    assert gesehen == {"links": [UNNA_URL], "vorher": [UNNA_LINK["text"]], "broker": 387451}
+    assert report.angelegt == 1 and "haken" in handler
+
+
+def test_mail_wird_vollstaendig_gelesen(handler, monkeypatch):
+    monkeypatch.setattr(main, "download_text", lambda url: "<p>Halle 12.500 m²</p><p>Recklinghausen</p>")
+    gesehen = {}
+    def lege_an(k, broker_id, name, ts, permalink, pdfs):
+        gesehen.update(text=k.mails[0].text, pdfs=[d.name for d, _ in pdfs], nicht=k.nicht_lesbar)
+        return anlage.Ergebnis("angelegt", objekte=[{"id": 2}])
+    monkeypatch.setattr(main.anlage, "lege_an", lege_an)
+    report = RunReport()
+    main._process_message(RECKLINGHAUSEN, None, "lauf", report, [RECKLINGHAUSEN])
+    assert gesehen == {"text": "Halle 12.500 m²\nRecklinghausen", "pdfs": ["2026 Teaser CTPark Recklinghausen - DE.pdf"], "nicht": []}
+    assert report.fehler == []
+
+
+def test_nicht_lesbares_material_macht_den_lauf_rot(handler, monkeypatch):
+    def kaputt(url):
+        raise RuntimeError("Slack leitete auf kromeichpartner.slack.com um – fehlt dem Bot files:read?")
+    monkeypatch.setattr(main, "download_text", kaputt)
+    monkeypatch.setattr(main, "download_file", kaputt)
+    gesehen = {}
+    def lege_an(k, *a):
+        gesehen["nicht"] = k.nicht_lesbar
+        return anlage.Ergebnis("unklar", begruendung="Material nicht lesbar")
+    monkeypatch.setattr(main.anlage, "lege_an", lege_an)
+    report = RunReport()
+    main._process_message(RECKLINGHAUSEN, None, "lauf", report, [RECKLINGHAUSEN])
+    assert len(gesehen["nicht"]) == 2 and len(report.fehler) == 2      # Mail + PDF: die KI erfährt es, der Lauf wird rot
+    assert handler[0] == "aufgabe:Objekt fehlt in Propstack: CTPark Recklinghausen | Neuer Teaser verfügbar"
+
+
+def test_gescheiterte_tools_machen_den_lauf_rot(handler, monkeypatch):
+    """26.11.2026, Unna (Lauf 45805784900): 5 Einheiten angelegt, aber 3 Prüfaufgaben scheiterten im
+    Connector an „Too many subrequests“ – der Lauf war grün. Angelegt bleibt angelegt (✅, Antwort),
+    der Lauf wird rot."""
+    erg = anlage.Ergebnis("angelegt", objekte=[{"id": 6581028}],
+                          fehler=["Prüfaufgabe für Unit 2, 3 und 5 nicht angelegt (Too many subrequests)"])
+    monkeypatch.setattr(main.anlage, "lege_an", lambda *a, **k: erg)
+    report = RunReport()
+    main._process_message(BITTE_ANLEGEN, None, "lauf", report, [UNNA_LINK, BITTE_ANLEGEN])
+    assert "haken" in handler and report.angelegt == 1
+    assert report.fehler == [f"Nachricht {BITTE_ANLEGEN['ts']}: Connector – Prüfaufgabe für Unit 2, 3 und 5 nicht angelegt (Too many subrequests)"]
+
+
+def test_ausgeschaltet_bleibt_alles_wie_bisher(handler, monkeypatch):
+    monkeypatch.setenv("OBJEKT_ANLAGE", "false")
+    monkeypatch.setattr(main.anlage, "lege_an", lambda *a, **k: pytest.fail("Anlage ist aus"))
+    main._process_message(REMSCHEID, None, "lauf", RunReport(), [REMSCHEID])
+    assert handler[0].startswith("aufgabe:Objekt fehlt in Propstack")
+
+
+def test_im_dry_run_nie_anlegen(monkeypatch):
+    monkeypatch.setenv("OBJEKT_ANLAGE", "true")
+    monkeypatch.setenv("DRY_RUN", "true")
+    assert config.objekt_anlage() is False
+
+
+def test_probelauf_auf_eine_nachricht_trotz_haken(monkeypatch):
+    """NUR_TS: Remscheid trägt schon das ✅ vom 25.11. – der Probelauf soll sie trotzdem sehen."""
+    monkeypatch.setenv("NUR_TS", REMSCHEID["ts"])
+    mit_haken = {**REMSCHEID, "reactions": [{"name": "white_check_mark", "users": ["UBOT"], "count": 1}]}
+    monkeypatch.setattr(main, "get_bot_user_id", lambda: "UBOT")
+    monkeypatch.setattr(main, "_collect_candidates", lambda bot: [(UNNA_LINK, None), (mit_haken, None)])
+    gesehen = []
+    monkeypatch.setattr(main, "_process_message", lambda msg, ctx, run_id, report, nachbarn=None: gesehen.append((msg["ts"], len(nachbarn))))
+    main.run_pipeline()
+    assert gesehen == [(REMSCHEID["ts"], 2)]
