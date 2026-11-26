@@ -121,7 +121,12 @@ nicht nur so tun.“ Code: `anlage.py`, Tests: `tests/objekte_handler/test_anlag
 4. **Ergebnis im Thread**, ✅ heißt „erledigt“: angelegt (Status **Vorbereitung**, Betreuer = wer gepostet hat),
    teilweise, oder „steht schon in Propstack“ mit IDs. Nur bei „unklar“ (Material reicht nicht, KI bricht ab)
    gibt es wie bisher eine Aufgabe, mit Grund. Ein Fehler (Connector, Download) macht den Lauf rot, ohne ✅.
-5. **Keine behauptete Erledigung:** „angelegt“ zählt nur, wenn im Verlauf `create_project` oder `create_object`
+5. **Ein Werkzeug je Schritt** (seit 26.11.2026): `tool_choice: {"type": "auto", "disable_parallel_tool_use": true}`,
+   Einheiten strikt nacheinander. Bei Unna liefen 4 `create_object` in derselben Sekunde, 3 Prüfaufgaben scheiterten
+   an „Too many subrequests“; der Connector weist ab v0.18.0 gleichzeitige Schreibaufrufe einer Sitzung ab („Ein
+   anderer Schreibvorgang dieser Sitzung läuft noch …“) – dann wiederholt die KI den Aufruf. Kommen trotzdem
+   gleichzeitige Aufrufe, steht im Log „Parallele Connector-Aufrufe trotz disable_parallel_tool_use“.
+6. **Keine behauptete Erledigung:** „angelegt“ zählt nur, wenn im Verlauf `create_project` oder `create_object`
    ohne Fehler zurückkam. Sonst gilt das Ergebnis als unklar.
 
 **Zugang:** ein kurzlebiges Service-Token `svc.<payload>.<signatur>` (HMAC-SHA256 mit
