@@ -44,9 +44,15 @@ Am 21.11.2026 mit Freigabe: 46 Antworten auf Vollzugsmeldungen, jetzt mit Vermer
 --nur vollzugsmeldung --ausser 158526533 (die P3-Aufgabe blieb auf Ansage offen). Protokoll:
 scripts/pruefaufgaben_geschlossen_2026-11-21.json.
 
+Dritter Weg, --einzeln: genau die Aufgaben einer Liste (Task-ID und Grund), z. B. auf Ansage nach
+einer Einzelprüfung. Nur, was heute noch offen ist; jede bekommt „Aufgeräumt <Datum>: <Grund>“ als
+erste Zeile. Am 26.11.2026 mit Freigabe (Florian: „ja, schließen“): vier „Objekt fehlt“-Aufgaben vom
+25.11., deren Objekte in Propstack stehen – scripts/pruefaufgaben_einzeln_2026-11-26.json.
+
 Aufruf:   python scripts/pruefaufgaben_aufraeumen.py                 # nur lesen
           python scripts/pruefaufgaben_aufraeumen.py --urteile scripts/radar_vorpruefung_2026-11-19.json [--gruppen erledigt,fremd] [--apply]
           python scripts/pruefaufgaben_aufraeumen.py --apply [--limit N] [--nur gegenstandslos|dublette|vollzugsmeldung] [--ausser ID,ID]
+          python scripts/pruefaufgaben_aufraeumen.py --einzeln scripts/pruefaufgaben_einzeln_2026-11-26.json [--apply]
           python scripts/pruefaufgaben_aufraeumen.py --undo pruefaufgaben_geschlossen_<Zeit>.json --apply
 Umgebung: PROPSTACK_API_KEY oder PROPSTACK_API_V1 (wird nie ausgegeben).
 """
@@ -232,6 +238,31 @@ def vollzug_vermerk(stand: str) -> str:
                        "das Gemeldete ist in Propstack schon erledigt.", quote=False) + VERMERK_ENDE
 
 
+def plane_einzeln(aufgaben: list[dict], liste: list[dict], stand: str) -> tuple[list[dict], list[str]]:
+    """Schließplan aus einer Liste [{task_id, grund}]: nur Aufgaben, die heute noch offen sind.
+    Was nicht (mehr) offen oder unbekannt ist, steht in den Hinweisen statt im Plan."""
+    offen = {a["activatable_id"]: a for a in _je_aufgabe_einmal(aufgaben) if not _scalar(a.get("done"))}
+    plan: list[dict] = []
+    hinweise: list[str] = []
+    for eintrag in liste:
+        task_id = int(eintrag["task_id"])
+        aufgabe = offen.get(task_id)
+        if aufgabe is None:
+            hinweise.append(f"Task {task_id} ist nicht (mehr) offen – ausgelassen")
+            continue
+        plan.append({
+            "task_id": task_id,
+            "titel": _scalar(aufgabe.get("title")),
+            "angelegt": str(aufgabe.get("original_created_at") or "")[:10],
+            "units": [u for u in (aufgabe.get("property_ids") or []) if isinstance(u, int)],
+            "grund": "einzeln",
+            "behalten": None,
+            "hinweis": eintrag["grund"],
+            "vermerk": html.escape(f"Aufgeräumt {stand}: {eintrag['grund']}", quote=False) + VERMERK_ENDE,
+        })
+    return plan, hinweise
+
+
 URTEIL_WORT = {
     "erledigt": "erledigt – die gemeinte Einheit ist in Propstack geschlossen",
     "eintragen": "eingetragen – die Einheit steht jetzt auf vermietet und Abgeschlossen",
@@ -391,6 +422,8 @@ def _drucke(plan: list[dict]) -> None:
     for grund, wort in URTEIL_WORT.items():
         if any(e["grund"] == grund for e in plan):
             _drucke_gruppe(plan, grund, f"Vorprüfung: {wort}")
+    if any(e["grund"] == "einzeln" for e in plan):
+        _drucke_gruppe(plan, "einzeln", "Auf Ansage (Liste)")
 
 
 def _drucke_gruppe(plan: list[dict], grund: str, ueberschrift: str) -> None:
@@ -447,6 +480,7 @@ def main() -> int:
     ap.add_argument("--urteile", metavar="VORPRUEFUNG", help="statt der drei Regeln: Aufgaben aus dieser Vorprüfung")
     ap.add_argument("--gruppen", default="erledigt,fremd", help="Gruppen der Vorprüfung (Standard: erledigt,fremd)")
     ap.add_argument("--ausser", default="", help="Task-IDs, die offen bleiben (Komma-getrennt)")
+    ap.add_argument("--einzeln", metavar="LISTE", help="genau diese Aufgaben (JSON: [{task_id, grund}])")
     args = ap.parse_args()
     ausser = {int(t) for t in args.ausser.replace(" ", "").split(",") if t}
 
@@ -464,7 +498,10 @@ def main() -> int:
     objekte = offene_objekte_aufgaben(aufgaben)
     unit_ids = sorted({u for a in offene for u in (a.get("property_ids") or []) if isinstance(u, int)})
     hinweise: list[str] = []
-    if args.urteile:
+    if args.einzeln:
+        liste = json.loads(Path(args.einzeln).read_text(encoding="utf-8"))["aufgaben"]
+        plan, hinweise = plane_einzeln(aufgaben, liste, f"{datetime.now():%d.%m.%Y}")
+    elif args.urteile:
         vorpruefung = json.loads(Path(args.urteile).read_text(encoding="utf-8"))
         gruppen = {g.strip() for g in args.gruppen.split(",") if g.strip()}
         zu_pruefen = sorted({e["id"] for f in vorpruefung.get("faelle", []) if f.get("gruppe") in gruppen

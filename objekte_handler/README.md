@@ -151,9 +151,14 @@ Review-Sitz 254958.
 | 45805677168, ohne Schreiben | Recklinghausen (Denise 04.10., weitergeleitete E-Mail) | Slack liefert den Mailtext gekürzt (`has_more`), die volle Fassung über `url_private_download`; beide Teaser-PDFs (EN/DE, je 5 MB) über `files-origin.slack.com` ladbar. Seitdem nur die DE-Fassung an die KI |
 | 45805784900, mit Schreiben | Unna | **teilweise**: Projekt 623542 „Logistikpark Unna“ gab es schon ohne Einheiten; 5 Einheiten angelegt (6581028, 6581032–6581035), Vorbereitung, Betreuer Marek, Flächen/Höhe/Bezug/Vermerk gefüllt, zurückgelesen. Im Connector scheiterten 3 Prüfaufgaben und zunächst die Ansprechpartner-Verknüpfung an „Too many subrequests“ – der Lauf war trotzdem grün. Seitdem meldet die KI solches unter `fehler`, und der Lauf wird rot |
 
-Offen nach der Unna-Probe: zwei Frasers-Firmenkontakte (35208811 „Frasers Property“ am Projekt, 17366464 „Frasers
-Property Industrial“ an den übrigen Frasers-Projekten) – vermutlich eine Dublette; Eigentümer an den Einheiten
-deshalb nicht verknüpft.
+Nach der Unna-Probe (26.11.2026, Freigabe Florian): Von zwei Frasers-Firmenkontakten ist 17366464 „Frasers Property
+Industrial“ der richtige (Adresse, 7 Mitarbeiter, Eigentümer an 6 Projekten und 7 Objekten); 35208811 „Frasers
+Property“ (angelegt 03.08.2026, ohne Daten) ist eine halbe Dublette. 17366464 ist über den Connector als Eigentümer
+an den 5 Einheiten verknüpft, live zurückgelesen. **Am Projekt 623542 nicht:** `set_project_owner` meldete
+`linked: true`, das Projekt zeigt aber weiter nur 35208811 (Relationship 8216018) – vermutlich nimmt Propstack
+am Projekt nur einen Eigentümer, und die Gegenprobe im Connector hält die Ablehnung für „schon verknüpft“.
+Im Projekt von Hand tauschen. Die vier überholten „Objekt fehlt“-Aufgaben vom 25.11. sind zu
+(`scripts/pruefaufgaben_einzeln_2026-11-26.json`, Protokoll `scripts/pruefaufgaben_geschlossen_2026-11-26.json`).
 
 ### Anweisung für das Gegenstück im Connector (`propstack-mcp`)
 

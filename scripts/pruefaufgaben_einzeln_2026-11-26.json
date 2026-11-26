@@ -1,0 +1,26 @@
+{
+ "stand": "26.11.2026",
+ "freigabe": "Florian, 26.11.2026: „ja, schließen“",
+ "aufgaben": [
+  {
+   "task_id": 162701376,
+   "titel": "Objekt fehlt in Propstack: bitte anlegen (Marek, Frasers Unna)",
+   "grund": "Über den objekte-handler angelegt – Projekt 623542 „Logistikpark Unna“ hat seit 26.11.2026 die Einheiten 6581028, 6581032–6581035 (Status Vorbereitung)."
+  },
+  {
+   "task_id": 162701447,
+   "titel": "Objekt fehlt in Propstack: Remscheid LIP Invest",
+   "grund": "Steht seit 20.03.2026 in Propstack (5159361, Am Weidenbroich 20-22, LIP Invest) – nichts anzulegen."
+  },
+  {
+   "task_id": 162701415,
+   "titel": "Objekt fehlt in Propstack: Hillwood Porta Westfalica",
+   "grund": "Steht in Propstack (5766203, 5766204); am 24.11.2026 zusätzlich von Hand angelegt (6572506, 6572508) – die Dubletten-Frage ist eine eigene Entscheidung."
+  },
+  {
+   "task_id": 162701431,
+   "titel": "Objekt fehlt in Propstack: Hillwood Kirchlengern (32)",
+   "grund": "Steht in Propstack (3158471, 3158472, 3158474); am 24.11.2026 zusätzlich von Hand angelegt (6572519–6572521) – die Dubletten-Frage ist eine eigene Entscheidung."
+  }
+ ]
+}

@@ -4,6 +4,7 @@ Die Zeilen sind so aufgebaut, wie GET /v1/activities und GET /v1/units?expand=1 
 19.11.2026 geliefert haben (gekürzt auf die genutzten Felder).
 """
 import importlib.util
+import json
 from pathlib import Path
 
 _PFAD = Path(__file__).resolve().parents[2] / "scripts" / "pruefaufgaben_aufraeumen.py"
@@ -330,3 +331,26 @@ def test_nachpruefung_im_repo_deckt_genau_die_klaeren_aufgaben():
         assert f["gruppe"] == "offen" or f["gruppe"] in skript.URTEIL_WORT, f["ort"]
         if f["gruppe"] == "eintragen":
             assert any(e["rolle"] == "eintragen" for e in f["einheiten"]), f["ort"]
+
+
+def test_einzeln_nur_was_heute_offen_ist():
+    """26.11.2026: vier „Objekt fehlt“-Aufgaben auf Ansage schließen – eine davon ist schon zu."""
+    aufgaben = [
+        {"id": 1, "activatable_id": 162701376, "title": "Objekt fehlt in Propstack: bitte anlegen", "done": False,
+         "original_created_at": "2026-11-25T11:57:10.853+01:00", "property_ids": []},
+        {"id": 2, "activatable_id": 162701447, "title": "Objekt fehlt in Propstack: Remscheid LIP Invest", "done": True,
+         "original_created_at": "2026-11-25T11:57:30.000+01:00", "property_ids": []},
+    ]
+    liste = [{"task_id": 162701376, "grund": "Über den objekte-handler angelegt (Projekt 623542)."},
+             {"task_id": 162701447, "grund": "Steht seit 20.03.2026 in Propstack (5159361)."},
+             {"task_id": 999, "grund": "gibt es nicht"}]
+    plan, hinweise = skript.plane_einzeln(aufgaben, liste, "26.11.2026")
+    assert [e["task_id"] for e in plan] == [162701376]
+    assert plan[0]["vermerk"] == "Aufgeräumt 26.11.2026: Über den objekte-handler angelegt (Projekt 623542).<br><br>"
+    assert len(hinweise) == 2
+
+
+def test_einzeln_liste_vom_26_11_ist_lesbar():
+    daten = json.loads((Path(__file__).resolve().parents[2] / "scripts/pruefaufgaben_einzeln_2026-11-26.json").read_text(encoding="utf-8"))
+    assert [a["task_id"] for a in daten["aufgaben"]] == [162701376, 162701447, 162701415, 162701431]
+    assert all(a["grund"] for a in daten["aufgaben"])
