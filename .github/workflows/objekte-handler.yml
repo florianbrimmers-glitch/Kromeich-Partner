@@ -87,9 +87,10 @@ jobs:
           THREAD_LOOKBACK_HOURS: ${{ github.event.inputs.thread_lookback_hours || '96' }}
           # Anlage über den Connector (objekte_handler/anlage.py). Ein über die Repo-Variable
           # OBJEKT_ANLAGE, für einen Probelauf über das Eingabefeld. Ohne das Secret
-          # PROPSTACK_MCP_SERVICE_SECRET endet eine Anlage mit Fehler (Lauf rot), nie still.
+          # SERVICE_TOKEN_SECRET endet eine Anlage mit Fehler (Lauf rot), nie still.
           OBJEKT_ANLAGE: ${{ github.event.inputs.objekt_anlage || vars.OBJEKT_ANLAGE || 'false' }}
-          PROPSTACK_MCP_SERVICE_SECRET: ${{ secrets.PROPSTACK_MCP_SERVICE_SECRET }}
+          # Repository-Secret heißt wie das Worker-Secret im Connector: SERVICE_TOKEN_SECRET (derselbe Wert)
+          PROPSTACK_MCP_SERVICE_SECRET: ${{ secrets.SERVICE_TOKEN_SECRET }}
           NUR_TS: ${{ github.event.inputs.nur_ts || '' }}
           # Entscheidungslog bleibt lokal auf dem Runner: bewusst kein Artefakt,
           # das füllte nur die Quota und meldete grüne Läufe rot.
