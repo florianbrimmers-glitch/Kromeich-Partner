@@ -206,6 +206,46 @@ def als_text(daten: dict) -> str:
     return "\n".join(zeilen)
 
 
+def fuer_seite(daten: dict) -> dict:
+    """Die Daten für seite/angebots-radar.html (liegt dort als radar.json neben der Seite)."""
+    gesuche = []
+    for g in daten["gesuche"]:
+        vorschlaege = []
+        for v in g["vorschlaege"]:
+            v = {k: wert for k, wert in v.items() if k not in ("punkte", "projekt_id", "miete_halle", "gruppe", "weitere_im_projekt")} \
+                | {"weitere": len(v["weitere_im_projekt"])}
+            vorschlaege.append(v)
+        gesuche.append({**g, "vorschlaege": vorschlaege})
+    return {**daten, "gesuche": gesuche}
+
+
+def als_nachricht(daten: dict, betreuer: str, grenze: int = 3500) -> str:
+    """Eine kurze Wochenmeldung für einen Betreuer (Slack-tauglich: schlichter Text, unter 4.000 Zeichen).
+    Nur frische Gesuche; je Gesuch die besten zwei Vorschläge, der Rest als Zahl. Leer, wenn es nichts gibt."""
+    eigene = [g for g in daten["gesuche"] if g["betreuer"] == betreuer and g["vorschlaege"] and not g["alt"]]
+    if not eigene:
+        return ""
+    summe = sum(len(g["vorschlaege"]) for g in eigene)
+    zeilen = [f"Angebots-Radar, Stand {date.fromisoformat(daten['stand']):%d.%m.%Y}: "
+              f"{_mz(summe, 'Vorschlag', 'Vorschläge')} für {_mz(len(eigene), 'Gesuch', 'Gesuche')} – Vorauswahl, noch nicht angeboten."]
+    for nr, g in enumerate(eigene):
+        block = ["", f"• {g['kontakt']}" + (f" ({g['firma']})" if g["firma"] else "") + f" – {g['wunsch']}"]
+        if g["noch_nicht_senden"]:
+            block.append("   Laut Notiz noch nicht an den Kunden senden.")
+        for v in g["vorschlaege"][:2]:
+            km = f", {v['entfernung_km']} km" if v["entfernung_km"] is not None else ""
+            pruefen = f" – prüfen: {v['pruefen'][0]}" if v["pruefen"] else ""
+            block.append(f"   – {v['bezeichnung']} ({v['ort']}{km}, {_m2(v['flaeche'])}){pruefen}")
+            block.append(f"     {v['url']}")
+        if len(g["vorschlaege"]) > 2:
+            block.append(f"   … und {_mz(len(g['vorschlaege']) - 2, 'weiterer', 'weitere')}")
+        if sum(len(z) + 1 for z in zeilen + block) > grenze:
+            zeilen += ["", f"… und {_mz(len(eigene) - nr, 'weiteres Gesuch', 'weitere Gesuche')} auf der Seite."]
+            break
+        zeilen += block
+    return "\n".join(zeilen)
+
+
 def fuer_vergleich(daten: dict) -> dict:
     """Der Lauf ohne Namen und Texte – nur was der spätere Vergleich braucht. So kann er im Repo liegen."""
     return {"stand": daten["stand"], "gesuche": [

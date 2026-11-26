@@ -22,7 +22,7 @@ python -m angebots_radar.main --vergleich angebots_radar/laeufe/2026-11-26.json 
 python -m angebots_radar.main --daten ORDNER        # gespeicherte Antworten lesen/ablegen (Entwickeln, zweite Auswertung)
 ```
 
-Umgebung: `PROPSTACK_API_KEY` oder `PROPSTACK_API_V1`. Tests: `pytest tests/angebots_radar -q` (99, ohne Netz).
+Umgebung: `PROPSTACK_API_KEY` oder `PROPSTACK_API_V1`. Tests: `pytest tests/angebots_radar -q` (101, ohne Netz).
 
 ## Ablauf
 
@@ -36,7 +36,7 @@ Umgebung: `PROPSTACK_API_KEY` oder `PROPSTACK_API_V1`. Tests: `pytest tests/ange
    inaktiv ist und in Vermarktung steht – oder Altbestand ohne Propstack-Status mit „Status Logistik“ = Aktiv
    (dieselbe Regel wie im Stresstest vom 19.11.). Es zählt die **Hallenfläche**, nicht die Objektart.
 3. **Abgleich** (`abgleich.py`), je Gesuch:
-   - Gebiet; bis 25 % (mindestens 5 km) über dem Umkreis gilt als „knapp außerhalb“ – Vorschlag mit Hinweis.
+   - Gebiet; bis 25 % über dem Umkreis (mindestens 5, höchstens 10 km) gilt als „knapp außerhalb“ – Vorschlag mit Hinweis.
    - Fläche: **passt** (±10 %), **teilbar**, **Kombination** (bis zu vier Einheiten eines Projekts, deren
      Summe passt), **größer** (bis zum Doppelten – Teilfläche erfragen).
    - Hallenhöhe: gepflegt und mehr als 0,5 m zu niedrig → raus; nicht gepflegt → „prüfen“.
@@ -64,12 +64,12 @@ ohne lesbare Fläche – und für Profile **ohne Gebiet** (dort wird nur gezähl
 | Suchprofile in Propstack | 271, davon 243 aktiv |
 | … davon Ankaufsprofile von Investoren (BUY) | 142 aktiv – laufen nicht durch den Abgleich |
 | Aktive Hallengesuche zur Miete, geprüft | **70** (ohne 7 Testprofile und 4 Profile, die an einem Kollegen hängen) |
-| … mit Vorschlägen | 58 – 31 „frisch“, 27 seit über 180 Tagen nicht bearbeitet |
-| Vorschläge gezeigt (höchstens 5 je Gesuch) | 279, über 210 verschiedene Einheiten |
-| Passende Objekte insgesamt | 2.859 – ohne Deckel wäre das eine weitere Liste, die niemand liest |
+| … mit Vorschlägen | 57 – 31 „frisch“, 26 seit über 180 Tagen nicht bearbeitet |
+| Vorschläge gezeigt (höchstens 5 je Gesuch) | 274, über 206 verschiedene Einheiten |
+| Passende Objekte insgesamt | 2.563 – ohne Deckel wäre das eine weitere Liste, die niemand liest |
 | Passende Flächen, die der Kontakt schon kennt | 82 (herausgenommen) |
 | Gesuche, deren Kontakt keinen einzigen Deal hat | 46 von 70; unter den frischen 16 von 33 |
-| „Nur neu“, 7 Tage (so sähe eine Wochenmeldung aus) | 15 Gesuche, 44 Vorschläge |
+| „Nur neu“, 7 Tage (so sähe eine Wochenmeldung aus) | 14 Gesuche, 41 Vorschläge |
 | Angebotsfähige Flächen | 1.310 (1.110 Vermarktung, 200 Altbestand) |
 
 Der dritte Wert von unten ist kein Beweis, dass nichts angeboten wurde – Angebote stehen nur teilweise als
@@ -97,8 +97,18 @@ weiß nur der Eigentümer.
   10.385). Für Propstacks Matching ist die Einheit damit „teilbar ab 10 m²“.
 - **174 Einheiten des Altbestands tragen die Objektart „APARTMENT“** (Import 01/2025), sind aber Hallen.
 - **10 Einheiten gelten als frei und tragen „Vermietungsstand 100 %“.**
-- **Suchprofile:** 6 aktive ohne lesbare Fläche, 2 ohne Gebiet, 7 Testprofile, 4 an Kollegen statt am Kunden;
+- **Suchprofile:** 6 aktive ohne lesbare Fläche, 3 ohne Gebiet, 7 Testprofile, 4 an Kollegen statt am Kunden;
   37 der 70 seit über einem halben Jahr nicht bearbeitet.
+
+## Seite und Rückmeldung
+
+`seite/angebots-radar.html` zeigt den Lauf als Arbeitsliste: Filter nach Betreuer, „nur Neues“, Suche, je
+Vorschlag „passt“/„prüfen“ und der Link nach Propstack. Die Daten liegen als `radar.json` daneben
+(`--seite radar.json`; mit Kundennamen, deshalb nicht im Repo). Veröffentlicht am 26.11.2026 als private
+Claude-Seite. Dort lässt sich je Vorschlag **„Angeboten“** oder **„Passt nicht“ mit Grund** anklicken; das
+wird in der Datenbank der Seite gespeichert (Sammlung `urteile`, Schlüssel `<Suchprofil>_<Einheit>`). Diese
+Urteile sind die zweite Messung neben `--vergleich`: Sie sagen nicht nur, ob angeboten wurde, sondern warum
+ein Vorschlag nichts taugte – daran werden die Regeln nachgezogen.
 
 ## Grenzen
 
@@ -114,12 +124,13 @@ weiß nur der Eigentümer.
 ## Betrieb – noch zu entscheiden
 
 Das Paket läuft bisher nur von Hand. Der Lauf vom 26.11.2026 liegt ohne Namen in `laeufe/2026-11-26.json`;
-`--vergleich` zählt später, für wie viele der 279 Vorschläge inzwischen ein Deal angelegt wurde. **Erst
+`--vergleich` zählt später, für wie viele der 274 Vorschläge inzwischen ein Deal angelegt wurde. **Erst
 diese Zahl sagt, ob das Radar wirkt** – der Stresstest vom 19.11. hat gezeigt, was passiert, wenn man
 Aktivität statt Wirkung misst.
 
 1. **Wohin?** Vorschlag: einmal pro Woche `--nur-neu` als Slack-Nachricht an den jeweiligen Betreuer (rund
-   15 Gesuche, 44 Vorschläge über alle; ohne KI, läuft als GitHub-Workflow wie die Handler). Nicht als
+   14 Gesuche, 41 Vorschläge über alle; ohne KI, läuft als GitHub-Workflow wie die Handler). Den Text dazu
+   liefert `--nur-neu --nachricht NAME` schon heute – gesendet wird nichts. Nicht als
    Propstack-Aufgaben – die liest niemand (Stresstest, Befund 1).
 2. **Vorauswahl als Deal?** Die Pipeline „300 Mieter“ hat die Stufe „Vorauswahl“. Vorschläge dort anzulegen
    brächte sie an den Ort, an dem Marek arbeitet – ist aber Schreiben an Live-Daten und braucht ein

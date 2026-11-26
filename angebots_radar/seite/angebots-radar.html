@@ -1,0 +1,458 @@
+<title>Angebots-Radar</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jomolhari&family=Poppins:wght@400;500;600&display=swap">
+<style>
+/* Layout: eine Arbeitsliste. Kopfband mit der Lage, darunter eine mitlaufende Filterzeile,
+   dann je Gesuch eine aufklappbare Zeile mit höchstens fünf Vorschlägen. Farben und Schriften
+   aus dem Propstack-Dashboard des Teams (weekly_report/dashboard). */
+:root {
+  --bg: #f6f7f2; --surface: #ffffff; --ink: #191919; --muted: #5a645d; --line: #e1e6da;
+  --brand: #0a2a1f; --brand-ink: #ffffff; --brand-muted: #b9c9bf; --signal: #bced09; --signal-ink: #0a2a1f;
+  --chip: #eef2e4; --focus: #2c634f; --link: #1d5a43;
+  --good: #0a6a1a; --good-bg: #e4f2df; --warn: #8a5200; --warn-bg: #fbf0d9; --bad: #9c2a20; --bad-bg: #f8e3e0;
+  --display: "Jomolhari", "Iowan Old Style", Georgia, serif;
+  --body: "Poppins", "Segoe UI", system-ui, sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d1813; --surface: #13231c; --ink: #edf1e8; --muted: #a2b0a6; --line: #24382e;
+    --brand: #0a2a1f; --brand-ink: #ffffff; --brand-muted: #b9c9bf; --signal: #bced09; --signal-ink: #0a2a1f;
+    --chip: #1c3027; --focus: #bced09; --link: #c2d076;
+    --good: #6fd67a; --good-bg: #173524; --warn: #f2b33d; --warn-bg: #3a2c10; --bad: #f08a80; --bad-bg: #3d1c19;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d1813; --surface: #13231c; --ink: #edf1e8; --muted: #a2b0a6; --line: #24382e;
+  --brand: #0a2a1f; --brand-ink: #ffffff; --brand-muted: #b9c9bf; --signal: #bced09; --signal-ink: #0a2a1f;
+  --chip: #1c3027; --focus: #bced09; --link: #c2d076;
+  --good: #6fd67a; --good-bg: #173524; --warn: #f2b33d; --warn-bg: #3a2c10; --bad: #f08a80; --bad-bg: #3d1c19;
+  color-scheme: dark;
+}
+
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.5; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--brand); }
+.innen { max-width: 62rem; margin-inline: auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+a { color: var(--link); text-underline-offset: 2px; }
+button, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* Kopfband */
+.kopf { background: var(--brand); color: var(--brand-ink); margin-top: calc(-1 * env(safe-area-inset-top, 0px)); padding-top: calc(env(safe-area-inset-top, 0px) + 1.75rem); padding-bottom: 1.5rem; }
+.kopf h1 { font-family: var(--display); font-weight: 400; font-size: clamp(1.9rem, 5vw, 2.6rem); line-height: 1.1; margin: 0; text-wrap: balance; }
+.kopf .stand { color: var(--brand-muted); font-size: .8rem; letter-spacing: .06em; text-transform: uppercase; margin: 0 0 .5rem; }
+.kopf .worum { color: var(--brand-muted); max-width: 44rem; margin: .75rem 0 0; }
+.kopf .worum strong { color: var(--brand-ink); font-weight: 500; }
+.zahlen { display: flex; flex-wrap: wrap; gap: .75rem 2rem; margin: 1.25rem 0 0; padding: 0; list-style: none; }
+.zahlen li { display: flex; flex-direction: column; min-width: 7.5rem; }
+.zahlen b { font-family: var(--display); font-weight: 400; font-size: 1.9rem; line-height: 1.1; color: var(--signal); font-variant-numeric: tabular-nums; }
+.zahlen span { color: var(--brand-muted); font-size: .8rem; }
+
+/* Filterzeile */
+.filter { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); border-bottom: 1px solid var(--line); }
+.filter .innen { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; padding-block: .6rem; }
+.chips { display: flex; flex-wrap: wrap; gap: .4rem; }
+.chip { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: .3rem .75rem; cursor: pointer; font-size: .85rem; white-space: nowrap; }
+.chip small { color: var(--muted); font-variant-numeric: tabular-nums; }
+.chip[aria-pressed="true"] { background: var(--brand); border-color: var(--brand); color: var(--brand-ink); }
+.chip[aria-pressed="true"] small { color: var(--brand-muted); }
+.filter input[type="search"] { flex: 1 1 11rem; min-width: 0; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: .35rem .9rem; }
+
+/* Abschnitte */
+main { padding-block: 1.25rem 3rem; display: flex; flex-direction: column; gap: 2rem; }
+h2 { font-family: var(--display); font-weight: 400; font-size: 1.45rem; line-height: 1.2; margin: 0 0 .25rem; text-wrap: balance; }
+.erklaerung { color: var(--muted); max-width: 44rem; margin: 0 0 .9rem; }
+.liste { display: flex; flex-direction: column; gap: .6rem; }
+.leer { color: var(--muted); padding: 1rem 0; }
+
+/* Ein Gesuch */
+.gesuch { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; }
+.gesuch > summary { list-style: none; cursor: pointer; padding: .8rem 1rem; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .15rem 1rem; align-items: start; }
+.gesuch > summary::-webkit-details-marker { display: none; }
+.gesuch .wer { font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
+.gesuch .wer .firma { font-weight: 400; color: var(--muted); }
+.gesuch .zaehler { display: flex; gap: .35rem; align-items: center; justify-self: end; }
+.gesuch .wunsch { grid-column: 1 / -1; min-width: 0; overflow-wrap: anywhere; }
+.gesuch .wann { grid-column: 1 / -1; color: var(--muted); font-size: .8rem; }
+.gesuch > summary::after { content: "Vorschläge zeigen"; grid-column: 1 / -1; color: var(--link); font-size: .8rem; text-decoration: underline; text-underline-offset: 2px; }
+.gesuch[open] > summary::after { content: "Zuklappen"; }
+.gesuch[open] > summary { border-bottom: 1px solid var(--line); }
+.pille { border-radius: 999px; padding: .1rem .55rem; font-size: .75rem; white-space: nowrap; background: var(--chip); font-variant-numeric: tabular-nums; }
+.pille.neu { background: var(--signal); color: var(--signal-ink); font-weight: 600; letter-spacing: .04em; }
+.pille.art-groesser, .pille.art-teilbar, .pille.art-kombination { background: var(--warn-bg); color: var(--warn); }
+.innenleben { padding: .8rem 1rem 1rem; display: flex; flex-direction: column; gap: .75rem; }
+.original { margin: 0; padding: .5rem .75rem; background: var(--chip); border-radius: 6px; color: var(--muted); font-size: .85rem; overflow-wrap: anywhere; }
+.achtung { margin: 0; padding: .5rem .75rem; background: var(--warn-bg); color: var(--warn); border-radius: 6px; font-weight: 500; }
+.lage { margin: 0; color: var(--muted); font-size: .85rem; }
+.lage a { white-space: nowrap; }
+
+/* Vorschläge */
+.vorschlaege { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.vorschlag { display: grid; grid-template-columns: 1.6rem minmax(0, 1fr); gap: 0 .5rem; padding: .75rem 0; border-top: 1px solid var(--line); }
+.vorschlag:first-child { border-top: 0; padding-top: .25rem; }
+.vorschlag .nr { font-family: var(--display); font-size: 1.15rem; color: var(--muted); line-height: 1.3; }
+.vorschlag .koerper { min-width: 0; display: flex; flex-direction: column; gap: .25rem; }
+.vorschlag .titel { font-weight: 500; overflow-wrap: anywhere; }
+.vorschlag .eck { display: flex; flex-wrap: wrap; gap: .3rem .6rem; align-items: center; font-size: .9rem; font-variant-numeric: tabular-nums; }
+.vorschlag .eck .flaeche { font-weight: 600; }
+.vorschlag p { margin: 0; font-size: .85rem; overflow-wrap: anywhere; }
+.vorschlag .passt b { color: var(--good); font-weight: 600; }
+.vorschlag .pruefen b { color: var(--warn); font-weight: 600; }
+.vorschlag .dazu { color: var(--muted); }
+.vorschlag.ist-angeboten .titel a, .vorschlag.ist-unpassend .titel a { color: var(--muted); }
+.vorschlag.ist-unpassend .titel { text-decoration: line-through; }
+
+/* Rückmeldung je Vorschlag – nur sichtbar, wenn die Seite speichern kann */
+.urteil { display: none; flex-wrap: wrap; gap: .4rem; align-items: center; margin-top: .25rem; }
+body.mit-rueckmeldung .urteil { display: flex; }
+.urteil button { border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: .25rem .6rem; cursor: pointer; font-size: .8rem; }
+.urteil button:disabled { opacity: .5; cursor: default; }
+.urteil button[aria-pressed="true"].ja { background: var(--good-bg); border-color: var(--good); color: var(--good); font-weight: 600; }
+.urteil button[aria-pressed="true"].nein { background: var(--bad-bg); border-color: var(--bad); color: var(--bad); font-weight: 600; }
+.urteil .gruende { display: flex; flex-wrap: wrap; gap: .3rem; flex-basis: 100%; }
+.urteil .vermerk { color: var(--muted); font-size: .8rem; }
+.meldung { margin: 0; color: var(--warn); font-size: .85rem; }
+
+/* Listen am Ende */
+.zeilen { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; }
+.zeilen li { padding: .5rem 0; border-top: 1px solid var(--line); overflow-wrap: anywhere; }
+.zeilen li:first-child { border-top: 0; }
+.zeilen .grund { color: var(--muted); font-size: .85rem; display: block; }
+.gruppe { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: .25rem 1rem; }
+.gruppe > summary { cursor: pointer; padding: .55rem 0; font-weight: 500; }
+.text { max-width: 44rem; display: flex; flex-direction: column; gap: .6rem; }
+.text p, .text ul { margin: 0; }
+.text ul { padding-left: 1.1rem; display: flex; flex-direction: column; gap: .35rem; }
+.fuss { color: var(--muted); font-size: .8rem; border-top: 1px solid var(--line); padding-top: 1rem; }
+@media (prefers-reduced-motion: no-preference) { .chip, .urteil button { transition: background-color .12s, border-color .12s; } }
+</style>
+
+<header class="kopf">
+  <div class="innen">
+    <p class="stand" id="stand">Stand 26.11.2026 · nur aus Propstack gelesen</p>
+    <h1>Angebots-Radar</h1>
+    <p class="worum">Je Gesuch die freien Flächen aus unserem Bestand, die passen und dem Kontakt <strong>noch nicht angeboten</strong> wurden. Eine Vorauswahl, kein Angebot: Was unter „prüfen“ steht, ist vor dem Versand zu klären.</p>
+    <ul class="zahlen" id="zahlen" aria-label="Überblick"></ul>
+  </div>
+</header>
+
+<div class="filter">
+  <div class="innen">
+    <div class="chips" id="betreuer" role="group" aria-label="Betreuer"></div>
+    <button class="chip" id="nur-neu" type="button" aria-pressed="false">Nur Neues <small>7 Tage</small></button>
+    <input type="search" id="suche" placeholder="Kontakt, Firma oder Ort" aria-label="Suchen nach Kontakt, Firma oder Ort">
+  </div>
+</div>
+
+<main class="innen">
+  <p class="meldung" id="meldung" hidden></p>
+
+  <section aria-labelledby="h-aktuell">
+    <h2 id="h-aktuell">Aktuelle Gesuche</h2>
+    <p class="erklaerung">In den letzten 180 Tagen bearbeitet, zuletzt bearbeitete zuerst. Höchstens fünf Vorschläge je Gesuch, der beste oben.</p>
+    <div class="liste" id="aktuell"><p class="leer">Die Vorschläge werden geladen.</p></div>
+  </section>
+
+  <section aria-labelledby="h-aelter">
+    <h2 id="h-aelter">Erst nachfragen</h2>
+    <p class="erklaerung">Diese Suchprofile hat seit über 180 Tagen niemand bearbeitet. Bevor hier etwas rausgeht: gilt das Gesuch noch?</p>
+    <div class="liste" id="aelter"></div>
+  </section>
+
+  <section aria-labelledby="h-ohne">
+    <h2 id="h-ohne">Ohne Vorschlag</h2>
+    <p class="erklaerung">Für diese aktiven Gesuche nennt das Radar nichts, und sagt warum.</p>
+    <div class="gruppe"><ul class="zeilen" id="ohne"></ul></div>
+  </section>
+
+  <section aria-labelledby="h-aufraeumen">
+    <h2 id="h-aufraeumen">Aufräumen in Propstack</h2>
+    <p class="erklaerung">Aktive Suchprofile, die so nicht abgeglichen werden können. Geändert wurde nichts.</p>
+    <div class="liste" id="aufraeumen"></div>
+  </section>
+
+  <section aria-labelledby="h-wie" class="text">
+    <h2 id="h-wie">Wie verlässlich ist das?</h2>
+    <p><strong>Gegenprobe an euren echten Angeboten.</strong> Von 54 Angeboten aus der Pipeline „300 Mieter“, die sich prüfen ließen, hätte das Radar 32 gefunden. Die übrigen 22 lagen alle außerhalb des Gebiets, das im Suchprofil eingezeichnet ist, bis zu 489 km. Fläche, Höhe und Bezugstermin haben kein einziges echtes Angebot ausgeschlossen.</p>
+    <p><strong>Stichprobe von Hand.</strong> 34 Vorschläge aus 12 zufälligen Gesuchen gegen die Objektdaten gelesen: 30 plausibel, 4 falsch. Beide Ursachen sind seitdem abgestellt. Plausibel heißt: Lage, Fläche, Höhe und Termin stimmen laut Propstack. Ob die Halle wirklich noch frei ist, weiß nur der Eigentümer.</p>
+    <p><strong>Was das Radar nicht sieht.</strong> Angebote, die nur per Mail rausgingen und weder als Deal noch in der Notiz stehen. Einen zweiten Bedarf desselben Kunden, für den es kein Suchprofil gibt. Und alles, was im Suchprofil nur zwischen den Zeilen steht.</p>
+  </section>
+
+  <section aria-labelledby="h-bestand" class="text">
+    <h2 id="h-bestand">Am Bestand aufgefallen</h2>
+    <ul>
+      <li><strong>267 angebotsfähige Einheiten haben keine Koordinaten</strong>, 245 davon stehen in Vermarktung. Jede Umkreissuche übersieht sie, auch das Matching in Propstack. Das Radar schätzt die Lage für 188 davon über Projekt, Postleitzahl oder Ort.</li>
+      <li><strong>Bei 152 Einheiten steht „Lagerfläche teilbar ab“ um den Faktor 1.000 zu klein</strong> im Feld, zum Beispiel 10.385 m² als 10,385.</li>
+      <li><strong>10 Einheiten gelten als frei und tragen „Vermietungsstand 100 %“.</strong> Vorschläge dazu tragen einen Hinweis und stehen hinten.</li>
+      <li><strong>174 Hallen des Altbestands stehen als Objektart „Apartment“</strong> in Propstack. Ein Filter nach Objektart verliert sie.</li>
+    </ul>
+  </section>
+
+  <p class="fuss">Erzeugt mit <code>python -m angebots_radar.main</code> aus dem Repo, ohne KI und ohne Schreibzugriff. Rückmeldungen auf dieser Seite („Angeboten“, „Passt nicht“) werden gespeichert und sind für alle sichtbar, die die Seite öffnen dürfen.</p>
+</main>
+
+<script>
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const zahl = (n) => Number(n).toLocaleString("de-DE");
+  const datum = (iso) => iso ? iso.slice(8, 10) + "." + iso.slice(5, 7) + "." + iso.slice(0, 4) : "";
+  const mz = (n, eins, viele) => zahl(n) + " " + (n === 1 ? eins : viele);
+  function el(tag, klasse, text) {
+    const e = document.createElement(tag);
+    if (klasse) e.className = klasse;
+    if (text !== undefined && text !== null) e.textContent = text;
+    return e;
+  }
+  function link(text, url) {
+    const a = el("a", null, text);
+    if (typeof url === "string" && url.startsWith("https://")) { a.href = url; a.target = "_blank"; a.rel = "noopener"; }
+    return a;
+  }
+
+  const GRUENDE = ["zu weit weg", "Fläche passt nicht", "nicht mehr frei", "passt fachlich nicht", "war schon angeboten", "anderes"];
+  const ARTEN = { "passt": "passt", "teilbar": "teilbar", "Kombination": "kombination", "größer": "groesser" };
+  const filter = { betreuer: "", neu: false, q: "" };
+  const karten = [];           // {knoten, gesuch, suchtext}
+  const zeilen = new Map();    // Schlüssel → {li, ja, nein, gruende, vermerk, daten}
+  let urteile = new Map();
+  let db = null;
+  let schreibbar = true;
+
+  try { filter.betreuer = localStorage.getItem("radar-betreuer") || ""; } catch (e) { /* ohne Speicher geht es auch */ }
+
+  // ---------- Aufbau ----------
+  function baueVorschlag(g, v, nr) {
+    const schluessel = g.id + "_" + v.einheiten[0];
+    const li = el("li", "vorschlag");
+    li.append(el("span", "nr", String(nr)));
+    const k = el("div", "koerper");
+    const titel = el("div", "titel");
+    titel.append(link(v.bezeichnung, v.url));
+    k.append(titel);
+
+    const eck = el("div", "eck");
+    eck.append(el("span", "flaeche", zahl(v.flaeche) + " m²"));
+    eck.append(el("span", null, v.ort + (v.entfernung_km !== null && v.entfernung_km !== undefined ? " · " + zahl(v.entfernung_km) + " km" : "")));
+    eck.append(el("span", "pille art-" + (ARTEN[v.art] || "passt"), v.art));
+    if (v.neu) eck.append(el("span", "pille neu", "NEU"));
+    k.append(eck);
+
+    if (v.gruende.length) { const p = el("p", "passt"); p.append(el("b", null, "passt: "), v.gruende.join("; ")); k.append(p); }
+    if (v.pruefen.length) { const p = el("p", "pruefen"); p.append(el("b", null, "prüfen: "), v.pruefen.join("; ")); k.append(p); }
+    const dazu = [];
+    if (v.eigentuemer) dazu.push(v.eigentuemer);
+    if (v.provision) dazu.push(v.provision);
+    if (v.bezug) dazu.push("Bezug laut Objekt: " + v.bezug);
+    if (v.weitere) dazu.push(mz(v.weitere, "weitere passende Einheit", "weitere passende Einheiten") + " im Projekt");
+    if (v.einheiten.length > 1) dazu.push("Einheiten " + v.einheiten.join(", "));
+    if (v.dubletten.length) dazu.push("Dublette in Propstack: " + v.dubletten.join(", "));
+    if (dazu.length) k.append(el("p", "dazu", dazu.join(" · ")));
+
+    const u = el("div", "urteil");
+    const ja = el("button", "ja", "Angeboten"); ja.type = "button"; ja.setAttribute("aria-pressed", "false");
+    const nein = el("button", "nein", "Passt nicht"); nein.type = "button"; nein.setAttribute("aria-pressed", "false");
+    const vermerk = el("span", "vermerk");
+    const gruende = el("div", "gruende"); gruende.hidden = true;
+    GRUENDE.forEach((grund) => {
+      const b = el("button", null, grund); b.type = "button";
+      b.addEventListener("click", () => speichere(schluessel, "passt_nicht", grund));
+      gruende.append(b);
+    });
+    ja.addEventListener("click", () => speichere(schluessel, ja.getAttribute("aria-pressed") === "true" ? null : "angeboten", ""));
+    nein.addEventListener("click", () => {
+      if (nein.getAttribute("aria-pressed") === "true") speichere(schluessel, null, "");
+      else gruende.hidden = !gruende.hidden;
+    });
+    u.append(ja, nein, vermerk, gruende);
+    k.append(u);
+    li.append(k);
+    zeilen.set(schluessel, { li, ja, nein, gruende, vermerk, daten: { gesuch: g.id, einheit: v.einheiten[0], bezeichnung: v.bezeichnung, ort: v.ort } });
+    return li;
+  }
+
+  function baueGesuch(g) {
+    const d = el("details", "gesuch");
+    const s = el("summary");
+    const wer = el("div", "wer", g.kontakt);
+    if (g.firma) wer.append(el("span", "firma", " · " + g.firma));
+    const zaehler = el("div", "zaehler");
+    if (g.vorschlaege.some((v) => v.neu)) zaehler.append(el("span", "pille neu", "NEU"));
+    zaehler.append(el("span", "pille", mz(g.vorschlaege.length, "Vorschlag", "Vorschläge")));
+    const wann = "Betreuer " + g.betreuer + " · Suchprofil vom " + datum(g.angelegt) + (g.bearbeitet && g.bearbeitet !== g.angelegt ? " · zuletzt bearbeitet " + datum(g.bearbeitet) : "");
+    s.append(wer, zaehler, el("div", "wunsch", g.wunsch), el("div", "wann", wann));
+    d.append(s);
+
+    const innen = el("div", "innenleben");
+    if (g.kurztext) innen.append(el("p", "original", "Aus dem Suchprofil: " + g.kurztext));
+    if (g.noch_nicht_senden) innen.append(el("p", "achtung", "Laut Notiz noch nicht an den Kunden senden. Nur Vorauswahl."));
+    const lage = el("p", "lage");
+    const teile = [mz(g.passend_gesamt, "passendes Objekt", "passende Objekte") + " insgesamt"];
+    if (g.schon_angeboten) teile.push(mz(g.schon_angeboten, "Fläche", "Flächen") + " schon angeboten und herausgenommen");
+    if (g.spaeter_frei) teile.push(mz(g.spaeter_frei, "wird", "werden") + " erst nach dem Bedarf frei");
+    lage.append(teile.join(" · ") + " · ", link("Kontakt in Propstack", g.url));
+    innen.append(lage);
+    const ol = el("ol", "vorschlaege");
+    g.vorschlaege.forEach((v, i) => ol.append(baueVorschlag(g, v, i + 1)));
+    innen.append(ol);
+    d.append(innen);
+
+    const suchtext = [g.kontakt, g.firma, g.wunsch, g.kurztext].concat(g.vorschlaege.map((v) => v.ort + " " + v.bezeichnung)).join(" ").toLowerCase();
+    karten.push({ knoten: d, gesuch: g, suchtext });
+    return d;
+  }
+
+  function baueListe(ziel, eintraege, grundFeld) {
+    eintraege.forEach((e) => {
+      const li = el("li");
+      li.append(link(e.kontakt + (e.firma ? " · " + e.firma : ""), "https://crm.propstack.de/app/contacts/" + e.kontakt_id));
+      li.append(el("span", "grund", (grundFeld ? e[grundFeld] + " · " : "") + "Betreuer " + e.betreuer + " · Suchprofil vom " + datum(e.angelegt) + (e.kurztext ? " · „" + e.kurztext + "“" : "")));
+      ziel.append(li);
+    });
+  }
+
+  function baue(daten) {
+    const k = daten.kopf;
+    const mit = daten.gesuche.filter((g) => g.vorschlaege.length);
+    const ohne = daten.gesuche.filter((g) => !g.vorschlaege.length);
+    $("stand").textContent = "Stand " + datum(daten.stand) + " · nur aus Propstack gelesen";
+
+    [[mit.length, "Gesuche mit Vorschlägen (von " + zahl(k.gesuche_geprueft) + " geprüften)"],
+     [k.vorschlaege_gezeigt, "Vorschläge, höchstens " + k.je_gesuch + " je Gesuch"],
+     [k.schon_angeboten, "passende Flächen schon angeboten, herausgenommen"],
+     [k.flaechen, "angebotsfähige Flächen im Bestand"]].forEach(([wert, text]) => {
+      const li = el("li"); li.append(el("b", null, zahl(wert)), el("span", null, text)); $("zahlen").append(li);
+    });
+
+    const namen = [...new Set(mit.map((g) => g.betreuer))].sort();
+    const chips = $("betreuer");
+    const chip = (name, anzahl) => {
+      const b = el("button", "chip", (name || "Alle") + " "); b.type = "button";
+      b.append(el("small", null, zahl(anzahl)));
+      b.dataset.name = name;
+      b.addEventListener("click", () => { filter.betreuer = name; try { localStorage.setItem("radar-betreuer", name); } catch (e) { /* egal */ } wendeFilterAn(); });
+      chips.append(b);
+    };
+    chip("", mit.length);
+    namen.forEach((n) => chip(n, mit.filter((g) => g.betreuer === n).length));
+    if (filter.betreuer && !namen.includes(filter.betreuer)) filter.betreuer = "";
+
+    $("aktuell").replaceChildren(...mit.filter((g) => !g.alt).map(baueGesuch));
+    $("aelter").replaceChildren(...mit.filter((g) => g.alt).map(baueGesuch));
+
+    ohne.forEach((g) => {
+      const grund = g.grund_ohne_vorschlag || "ohne Angabe";
+      const li = el("li");
+      li.append(link(g.kontakt + (g.firma ? " · " + g.firma : ""), g.url));
+      li.append(el("span", "grund", grund + " · Betreuer " + g.betreuer));
+      $("ohne").append(li);
+    });
+    if (!ohne.length) $("ohne").append(el("li", null, "Für jedes geprüfte Gesuch gibt es mindestens einen Vorschlag."));
+
+    const auf = daten.aufraeumen || {};
+    [["flaeche_fehlt", "Fläche nicht lesbar", "Weder im Text noch in den Feldern steht eine Hallenfläche. Ohne sie gibt es keinen Abgleich."],
+     ["gebiet_fehlt", "Kein Gebiet", "Ohne Ort, Umkreis oder Bundesland wären fünf Vorschläge aus Hunderten reiner Zufall."],
+     ["am_kollegen", "Hängt an einem Kollegen", "Das Suchprofil ist an einem von uns angelegt statt am Kunden."],
+     ["testprofil", "Testprofile", "Aktive Suchprofile an Testkontakten."],
+     ["laut_notiz_erledigt", "Laut Notiz erledigt", "Das Profil ist aktiv, die Notiz sagt etwas anderes."]].forEach(([schluessel, titel, text]) => {
+      const eintraege = auf[schluessel] || [];
+      if (!eintraege.length) return;
+      const d = el("details", "gruppe");
+      d.append(el("summary", null, titel + " (" + zahl(eintraege.length) + ")"));
+      d.append(el("p", "erklaerung", text));
+      const ul = el("ul", "zeilen");
+      baueListe(ul, eintraege, schluessel === "laut_notiz_erledigt" ? "hinweis" : null);
+      d.append(ul);
+      $("aufraeumen").append(d);
+    });
+    wendeFilterAn();
+    zeigeUrteile();
+  }
+
+  // ---------- Filter ----------
+  function wendeFilterAn() {
+    document.querySelectorAll("#betreuer .chip").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.name === filter.betreuer)));
+    $("nur-neu").setAttribute("aria-pressed", String(filter.neu));
+    const q = filter.q.trim().toLowerCase();
+    const sichtbar = { aktuell: 0, aelter: 0 };
+    karten.forEach(({ knoten, gesuch, suchtext }) => {
+      const zeige = (!filter.betreuer || gesuch.betreuer === filter.betreuer)
+        && (!filter.neu || gesuch.vorschlaege.some((v) => v.neu))
+        && (!q || suchtext.includes(q));
+      knoten.hidden = !zeige;
+      if (zeige) sichtbar[gesuch.alt ? "aelter" : "aktuell"] += 1;
+    });
+    [["aktuell", "Kein aktuelles Gesuch passt auf diese Auswahl."], ["aelter", "Kein älteres Gesuch passt auf diese Auswahl."]].forEach(([id, text]) => {
+      let leer = $(id).querySelector(":scope > .leer");
+      if (!sichtbar[id] && !leer) { leer = el("p", "leer", text); $(id).append(leer); }
+      if (leer) leer.hidden = sichtbar[id] > 0;
+    });
+  }
+  $("nur-neu").addEventListener("click", () => { filter.neu = !filter.neu; wendeFilterAn(); });
+  $("suche").addEventListener("input", (e) => { filter.q = e.target.value; wendeFilterAn(); });
+
+  // ---------- Rückmeldungen ----------
+  function melde(text) { const m = $("meldung"); m.textContent = text; m.hidden = !text; }
+
+  function zeigeUrteile() {
+    zeilen.forEach((z, schluessel) => {
+      const u = urteile.get(schluessel);
+      const art = u && typeof u.urteil === "string" ? u.urteil : "";
+      z.li.classList.toggle("ist-angeboten", art === "angeboten");
+      z.li.classList.toggle("ist-unpassend", art === "passt_nicht");
+      z.ja.setAttribute("aria-pressed", String(art === "angeboten"));
+      z.nein.setAttribute("aria-pressed", String(art === "passt_nicht"));
+      if (art) z.gruende.hidden = true;
+      const am = u && typeof u.am === "string" ? datum(u.am) : "";
+      z.vermerk.textContent = art === "angeboten" ? "angeboten" + (am ? " am " + am : "")
+        : art === "passt_nicht" ? (typeof u.grund === "string" && u.grund ? u.grund : "passt nicht") + (am ? " · " + am : "") : "";
+      [z.ja, z.nein].forEach((b) => { b.disabled = !schreibbar; });
+    });
+  }
+
+  async function speichere(schluessel, urteil, grund) {
+    const z = zeilen.get(schluessel);
+    if (!db || !z || !schreibbar) return;
+    const knoepfe = z.li.querySelectorAll(".urteil button");
+    knoepfe.forEach((b) => { b.disabled = true; });
+    try {
+      const ref = db.doc("urteile/" + schluessel);
+      if (urteil === null) await ref.delete();
+      else await ref.set({ urteil, grund, am: new Date().toISOString().slice(0, 10), gesuch: z.daten.gesuch, einheit: z.daten.einheit, bezeichnung: z.daten.bezeichnung, ort: z.daten.ort });
+      melde("");
+    } catch (e) {
+      if (e && e.code === "invalid_argument") { schreibbar = false; melde("Du kannst auf dieser Seite lesen, aber keine Rückmeldung speichern. Dafür braucht es die Freigabe als Mitwirkender."); }
+      else if (e && e.code === "quota_exceeded") melde("Der Speicher für Rückmeldungen ist voll. Bitte Florian Bescheid geben.");
+      else melde("Die Rückmeldung konnte nicht gespeichert werden. Bitte gleich noch einmal versuchen.");
+    } finally {
+      knoepfe.forEach((b) => { b.disabled = false; });
+      z.gruende.hidden = true;
+      zeigeUrteile();
+    }
+  }
+
+  function starteRueckmeldungen() {
+    if (!window.claude || typeof window.claude.use !== "function") return;
+    window.claude.use("db").then((ns) => {
+      if (!ns) return;
+      db = ns;
+      document.body.classList.add("mit-rueckmeldung");
+      const uhr = setTimeout(() => melde("Die gespeicherten Rückmeldungen sind gerade nicht erreichbar. Die Vorschläge stimmen trotzdem."), 10000);
+      db.collection("urteile").onSnapshot((snap) => {
+        if (!snap.metadata.fromCache) { clearTimeout(uhr); if ($("meldung").textContent.startsWith("Die gespeicherten")) melde(""); }
+        urteile = new Map(snap.docs.map((d) => [d.id, d.data() || {}]));
+        zeigeUrteile();
+      }, () => {
+        clearTimeout(uhr);
+        document.body.classList.remove("mit-rueckmeldung");
+        db = null;
+      });
+    });
+  }
+
+  // ---------- Start ----------
+  fetch("radar.json").then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
+    .then((daten) => { baue(daten); starteRueckmeldungen(); })
+    .catch(() => { $("aktuell").replaceChildren(el("p", "leer", "Die Vorschläge konnten nicht geladen werden. Bitte die Seite neu öffnen.")); });
+})();
+</script>

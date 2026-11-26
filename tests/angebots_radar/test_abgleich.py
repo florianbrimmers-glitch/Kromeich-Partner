@@ -8,7 +8,7 @@ from __future__ import annotations
 from datetime import date
 
 from angebots_radar.abgleich import GROESSER, KOMBINATION, PASST, TEILBAR, Abgleich, Angebote
-from angebots_radar.bericht import als_daten, als_text, vergleich
+from angebots_radar.bericht import als_daten, als_nachricht, als_text, fuer_seite, fuer_vergleich, vergleich
 from angebots_radar.bestand import ALTBESTAND, VERMARKTUNG, hallenflaeche, lade_bestand, verfuegbar_als
 from angebots_radar.gesuch import aus_suchprofil
 
@@ -211,6 +211,8 @@ def test_gebiet_ueber_orte_bundesland_und_ohne():
     # Ohne Gebiet wird gezählt, aber nichts gezeigt – fünf aus Hunderten wären Zufall
     ohne = a.pruefe(aus_suchprofil(suchprofil(text="~9.000 m² Hallenfläche")))
     assert ohne.vorschlaege == [] and ohne.grund_ohne_vorschlag.startswith("kein Gebiet im Suchprofil – 3 passende Objekte bundesweit")
+    alle_laender = ["Baden-Württemberg", "Bayern", "Berlin", "Brandenburg", "Bremen", "Hamburg", "Hessen", "Nordrhein-Westfalen"]
+    assert a.pruefe(aus_suchprofil(suchprofil(text="~9.000 m² Hallenfläche", laender=alle_laender))).vorschlaege == []
 
 
 def test_widerspruch_und_alter_stehen_als_hinweis_am_vorschlag():
@@ -270,3 +272,22 @@ def test_vergleich_zaehlt_nur_deals_nach_dem_lauf():
     assert vergleich(alt, [davor, fremd])["angeboten"] == 0
     ergebnis = vergleich(alt, [davor, danach])
     assert (ergebnis["vorschlaege"], ergebnis["angeboten"]) == (1, 1)
+
+
+def test_wochenmeldung_ist_kurz_und_nennt_nur_frische_gesuche():
+    daten = _daten()
+    assert als_nachricht(daten, "Marek Zimmermann") == ""          # das Gesuch ist seit März unberührt: erst nachfragen
+    daten["gesuche"][0]["alt"] = False
+    text = als_nachricht(daten, "Marek Zimmermann")
+    assert text.startswith("Angebots-Radar, Stand 26.11.2026: 1 Vorschlag für 1 Gesuch – Vorauswahl, noch nicht angeboten.")
+    assert "– Logistikhalle in (42) Remscheid – Am Weidenbroich 20-22 - Remscheid (Remscheid, 4 km, 8.875 m²) – prüfen: Höhe 8,6 m" in text
+    assert als_nachricht(daten, "Lena Klinnert") == ""
+
+
+def test_daten_fuer_seite_und_vergleich_tragen_nur_das_noetige():
+    daten = _daten()
+    seite = fuer_seite(daten)
+    v = seite["gesuche"][0]["vorschlaege"][0]
+    assert v["weitere"] == 0 and "punkte" not in v and v["url"].endswith("/5159361")
+    ohne_namen = fuer_vergleich(daten)
+    assert "Erika" not in str(ohne_namen) and ohne_namen["gesuche"][0]["kontakt"] == "Kontakt 28988960"

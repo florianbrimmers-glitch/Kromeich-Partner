@@ -152,16 +152,6 @@
     },
     {
      "einheiten": [
-      2778414
-     ],
-     "projekt_id": null,
-     "bezeichnung": "Marie-Curie-Straße 13  - Bergkamen",
-     "ort": "Bergkamen",
-     "art": "passt",
-     "punkte": 98.8
-    },
-    {
-     "einheiten": [
       5766185
      ],
      "projekt_id": null,
@@ -169,6 +159,16 @@
      "ort": "Bünde",
      "art": "teilbar",
      "punkte": 97.4
+    },
+    {
+     "einheiten": [
+      2778038
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Otto-Lilienthal-Straße 1  - Greven",
+     "ort": "Greven",
+     "art": "teilbar",
+     "punkte": 87.6
     }
    ]
   },
@@ -209,16 +209,6 @@
     },
     {
      "einheiten": [
-      5255730
-     ],
-     "projekt_id": 518707,
-     "bezeichnung": "City Dock Köln Ost – Unit 1.5",
-     "ort": "Köln",
-     "art": "passt",
-     "punkte": 128.9
-    },
-    {
-     "einheiten": [
       3949326
      ],
      "projekt_id": 411492,
@@ -226,6 +216,16 @@
      "ort": "Neuss",
      "art": "passt",
      "punkte": 128.7
+    },
+    {
+     "einheiten": [
+      6230569
+     ],
+     "projekt_id": 600772,
+     "bezeichnung": "Logistikhalle in (47) Rheinberg – An der Rheinberger Heide – Gewerbeeinheit Süd A",
+     "ort": "Rheinberg",
+     "art": "passt",
+     "punkte": 128.4
     }
    ]
   },
@@ -2277,16 +2277,6 @@
     },
     {
      "einheiten": [
-      3089154
-     ],
-     "projekt_id": null,
-     "bezeichnung": "Logistikentwicklung in (46) Oberhausen – Im Lekkerland 2 - Oberhausen",
-     "ort": "Oberhausen",
-     "art": "passt",
-     "punkte": 112.7
-    },
-    {
-     "einheiten": [
       2778298
      ],
      "projekt_id": null,
@@ -2297,13 +2287,25 @@
     },
     {
      "einheiten": [
-      6208827
+      2778179
      ],
-     "projekt_id": 599731,
-     "bezeichnung": "Logistikhalle in (76) Almelo (NL) – Newton, Warehouse 1 (24.208 m²)",
-     "ort": "Almelo",
+     "projekt_id": null,
+     "bezeichnung": "Rudolf-Diesel-Straße 1-3 - Bönen",
+     "ort": "Bönen",
      "art": "passt",
-     "punkte": 112.1
+     "punkte": 112.0
+    },
+    {
+     "einheiten": [
+      5766184,
+      6571928,
+      6571938
+     ],
+     "projekt_id": 566960,
+     "bezeichnung": "Logistikpark in (32) Bünde",
+     "ort": "Bünde",
+     "art": "Kombination",
+     "punkte": 112.0
     }
    ]
   },
@@ -3157,63 +3159,6 @@
      "ort": "Dortmund",
      "art": "Kombination",
      "punkte": 114.6
-    }
-   ]
-  },
-  {
-   "id": 11188703,
-   "kontakt_id": 22683116,
-   "kontakt": "Kontakt 22683116",
-   "vorschlaege": [
-    {
-     "einheiten": [
-      2804424
-     ],
-     "projekt_id": null,
-     "bezeichnung": "Neuwertige Halle direkt an der A45! – Industriegebiet Süd E 4 - Alzenau",
-     "ort": "Alzenau",
-     "art": "passt",
-     "punkte": 134.6
-    },
-    {
-     "einheiten": [
-      6310209
-     ],
-     "projekt_id": 606784,
-     "bezeichnung": "Tiefkühllager in (95) Marktredwitz – ca. 1.600 m² (–22 °C)",
-     "ort": "Marktredwitz",
-     "art": "passt",
-     "punkte": 134.5
-    },
-    {
-     "einheiten": [
-      4465845
-     ],
-     "projekt_id": 439534,
-     "bezeichnung": "UnternehmerPark Duisburg, Baumstraße (2. BA) - Unit 3.1",
-     "ort": "Duisburg",
-     "art": "passt",
-     "punkte": 134.3
-    },
-    {
-     "einheiten": [
-      6373973
-     ],
-     "projekt_id": 613125,
-     "bezeichnung": "Logistikhalle in (78) Gottmadingen – Halle 239",
-     "ort": "Gottmadingen",
-     "art": "passt",
-     "punkte": 134.2
-    },
-    {
-     "einheiten": [
-      3950929
-     ],
-     "projekt_id": 411492,
-     "bezeichnung": "Gewerbepark in (41) Neuss – Unit 3.1",
-     "ort": "Neuss",
-     "art": "passt",
-     "punkte": 134.1
     }
    ]
   }

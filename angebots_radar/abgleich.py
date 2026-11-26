@@ -35,10 +35,12 @@ GROESSER_BIS = 2.0                 # bis zum Doppelten der Obergrenze: „größ
 SPAETER_QUARTALE = 2               # Einheit wird mehr als zwei Quartale nach dem Bedarf frei: kein Vorschlag
 ORT_UMKREIS_KM = 8.0               # „Orte“ ohne Koordinaten: Ort selbst oder so nah an seiner Mitte
 # Der Umkreis im Suchprofil ist von Hand gezogen. Das Team bietet auch knapp dahinter an (Gesuch mit
-# 17 km: Angebote bei 17 und 20 km, 24.11.2026). Bis 25 % (mindestens 5 km) darüber gilt als
-# „knapp außerhalb“ – Vorschlag mit Abzug und Hinweis.
-KNAPP_FAKTOR, KNAPP_MIN_KM = 1.25, 5.0
+# 17 km: Angebote bei 17 und 20 km, 24.11.2026). Bis 25 % darüber – mindestens 5, höchstens 10 km –
+# gilt als „knapp außerhalb“: Vorschlag mit Abzug und Hinweis. Die Obergrenze, weil 25 % von einem
+# 114-km-Umkreis kein „knapp“ mehr sind.
+KNAPP_FAKTOR, KNAPP_MIN_KM, KNAPP_MAX_KM = 0.25, 5.0, 10.0
 ZUSCHLAG_GESCHAETZT_KM = 10.0      # Lage nur über PLZ-Gebiet geschätzt
+BUNDESWEIT_AB_LAENDERN = 8         # so viele Bundesländer angekreuzt: das Profil hat faktisch kein Gebiet
 KO_BESONDERHEITEN = ("Kühlung", "Kran", "Gleisanschluss")
 _PUNKTE_ART = {PASST: 100.0, TEILBAR: 85.0, KOMBINATION: 80.0, GROESSER: 50.0}
 
@@ -140,7 +142,7 @@ class Abgleich:
             if f.lat is None:
                 return False, None
             abstand = entfernung_km(g.lat, g.lng, f.lat, f.lng)
-            grenze = max(g.umkreis_km * KNAPP_FAKTOR, g.umkreis_km + KNAPP_MIN_KM)
+            grenze = g.umkreis_km + min(max(g.umkreis_km * KNAPP_FAKTOR, KNAPP_MIN_KM), KNAPP_MAX_KM)
             grenze += ZUSCHLAG_GESCHAETZT_KM if f.lage_geschaetzt == "PLZ-Gebiet" else 0
             return abstand <= grenze, abstand
         if g.gebiet == "Gebiet":
@@ -153,12 +155,12 @@ class Abgleich:
             for ort in g.orte:
                 schluessel = ort_schluessel(ort)
                 if eigener and eigener == schluessel:
-                    return True, 0.0
+                    return True, None
                 mitte = self.ortsmitten.get(schluessel)
                 if mitte and f.lat is not None:
                     abstand = entfernung_km(mitte[0], mitte[1], f.lat, f.lng)
                     beste = abstand if beste is None else min(beste, abstand)
-            return (beste is not None and beste <= ORT_UMKREIS_KM), beste
+            return (beste is not None and beste <= ORT_UMKREIS_KM), None      # eine Kilometerzahl hätte hier keinen klaren Bezugspunkt
         if g.gebiet == "Bundesland":
             return f.land in g.laender, None
         return True, None
@@ -369,9 +371,10 @@ class Abgleich:
             else:
                 je_schluessel[v.schluessel] = v
         e.vorschlaege = sorted(je_schluessel.values(), key=lambda v: -v.punkte)
-        if g.gebiet == "ohne" and e.vorschlaege:
+        if (g.gebiet == "ohne" or len(g.laender) >= BUNDESWEIT_AB_LAENDERN) and e.vorschlaege:
             # Ohne Gebiet ist jede Auswahl von fünf aus Hunderten Zufall (Stichprobe 26.11.2026: drei
             # Hallen in Bitterfeld, Duisburg und Dresden für ein Gesuch ohne Ort). Gezählt wird, gezeigt nicht.
+            # Dasselbe gilt für ein Profil, das alle 16 Bundesländer ankreuzt.
             e.grund_ohne_vorschlag = (f"kein Gebiet im Suchprofil – {len(e.vorschlaege)} passende Objekte bundesweit; "
                                       "Ort, Umkreis oder Bundesland eintragen")
             e.vorschlaege = []

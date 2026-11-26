@@ -5,6 +5,8 @@
   python -m angebots_radar.main --betreuer Marek      # nur die Gesuche dieses Betreuers
   python -m angebots_radar.main --nur-neu --tage 7    # nur, was seit sieben Tagen neu ist (Fläche oder Gesuch)
   python -m angebots_radar.main --json lauf.json      # Ergebnis zusätzlich als Datei
+  python -m angebots_radar.main --seite radar.json    # Daten für die Seite (seite/angebots-radar.html)
+  python -m angebots_radar.main --nur-neu --nachricht Marek   # so sähe die Wochenmeldung an einen Betreuer aus
   python -m angebots_radar.main --merken angebots_radar/laeufe/2026-11-26.json   # Vorschläge ohne Namen ablegen
   python -m angebots_radar.main --vergleich angebots_radar/laeufe/2026-11-26.json   # was wurde daraus?
 
@@ -25,7 +27,7 @@ from datetime import date
 from pathlib import Path
 
 from .abgleich import Abgleich, Angebote
-from .bericht import als_daten, als_text, fuer_vergleich, vergleich
+from .bericht import als_daten, als_nachricht, als_text, fuer_seite, fuer_vergleich, vergleich
 from .bestand import lade_bestand
 from .gesuch import aus_suchprofil, ist_hallengesuch
 from .propstack import Propstack
@@ -118,6 +120,8 @@ def main() -> int:
     ap.add_argument("--tage", type=int, default=7, help="was als neu gilt (Standard 7 Tage)")
     ap.add_argument("--je-gesuch", type=int, default=5, help="höchstens so viele Vorschläge je Gesuch (Standard 5)")
     ap.add_argument("--json", metavar="DATEI", help="Ergebnis als JSON schreiben")
+    ap.add_argument("--seite", metavar="DATEI", help="Daten für seite/angebots-radar.html schreiben (radar.json)")
+    ap.add_argument("--nachricht", metavar="BETREUER", help="statt des Berichts die kurze Wochenmeldung für diesen Betreuer ausgeben")
     ap.add_argument("--merken", metavar="DATEI", help="Vorschläge ohne Namen ablegen – für --vergleich in ein paar Wochen")
     ap.add_argument("--vergleich", metavar="DATEI", help="JSON eines früheren Laufs: was wurde daraus?")
     ap.add_argument("--daten", metavar="ORDNER", help="gespeicherte Antworten lesen bzw. dort ablegen")
@@ -137,7 +141,14 @@ def main() -> int:
 
     daten, _ = lauf(quelle, heute, set(args.gesuch) if args.gesuch else None, args.betreuer,
                     args.nur_neu, args.tage, args.je_gesuch)
-    print(als_text(daten))
+    if args.nachricht:
+        name = next((g["betreuer"] for g in daten["gesuche"] if args.nachricht.casefold() in g["betreuer"].casefold()), args.nachricht)
+        print(als_nachricht(daten, name) or f"Nichts Neues für {name}.")
+    else:
+        print(als_text(daten))
+    if args.seite:
+        Path(args.seite).write_text(json.dumps(fuer_seite(daten), ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        print(f"Seite: {args.seite}")
     if args.json:
         Path(args.json).write_text(json.dumps(daten, ensure_ascii=False, indent=1), encoding="utf-8")
         print(f"Geschrieben: {args.json}")
