@@ -141,6 +141,19 @@ Review-Sitz 254958.
    danach das Ergebnis in der Propstack-Oberfläche ansehen.
 5. Erst dann die Repo-Variable `OBJEKT_ANLAGE=true` setzen.
 
+### Proben am 26.11.2026 (live)
+
+| Lauf | Nachricht | Ergebnis |
+|---|---|---|
+| 45803027954, ohne Schreiben | Remscheid (Marek, Exposé) | „steht schon in Propstack“ (5159361); whoami zeigt `service: objekte-handler` und den Slack-ts |
+| 45803737220, mit Schreiben | Unna (Marek, „bitte anlegen“ 4 s nach dem Link) | **grün, nichts getan**: die KI ordnete „bitte anlegen“ ohne den Link als „kein Objektbezug“ ein (am 24.11. dieselbe Nachricht als „Objekt fehlt“). Seitdem läuft „bitte anlegen“ mit Material ohne KI-Einordnung |
+| 45805677168, ohne Schreiben | Recklinghausen (Denise 04.10., weitergeleitete E-Mail) | Slack liefert den Mailtext gekürzt (`has_more`), die volle Fassung über `url_private_download`; beide Teaser-PDFs (EN/DE, je 5 MB) über `files-origin.slack.com` ladbar. Seitdem nur die DE-Fassung an die KI |
+| 45805784900, mit Schreiben | Unna | **teilweise**: Projekt 623542 „Logistikpark Unna“ gab es schon ohne Einheiten; 5 Einheiten angelegt (6581028, 6581032–6581035), Vorbereitung, Betreuer Marek, Flächen/Höhe/Bezug/Vermerk gefüllt, zurückgelesen. Im Connector scheiterten 3 Prüfaufgaben und zunächst die Ansprechpartner-Verknüpfung an „Too many subrequests“ – der Lauf war trotzdem grün. Seitdem meldet die KI solches unter `fehler`, und der Lauf wird rot |
+
+Offen nach der Unna-Probe: zwei Frasers-Firmenkontakte (35208811 „Frasers Property“ am Projekt, 17366464 „Frasers
+Property Industrial“ an den übrigen Frasers-Projekten) – vermutlich eine Dublette; Eigentümer an den Einheiten
+deshalb nicht verknüpft.
+
 ### Anweisung für das Gegenstück im Connector (`propstack-mcp`)
 
 Der Handler ruft den Connector über die Claude-API auf (MCP-Connector, `mcp_servers` mit `authorization_token`).

@@ -286,6 +286,19 @@ def test_remscheid_existiert_schon(ki):
     assert "Exposé Objekt Remscheid - LIP Invest" in inhalt[-1]["text"]
 
 
+def test_fehler_und_verbrauch_aus_der_antwort(ki, caplog):
+    antworten, _ = ki
+    a = _antwort(WHOAMI + _tool("t1", "create_object"), json.dumps({
+        "ergebnis": "angelegt", "objekte": [{"id": 6581028, "art": "einheit"}], "offen": [],
+        "fehler": ["Prüfaufgabe nicht angelegt (Too many subrequests)"], "begruendung": "x"}))
+    a.usage = SimpleNamespace(input_tokens=41_000, output_tokens=3_200)
+    antworten.append(a)
+    caplog.set_level("INFO")
+    e = _lege_an()
+    assert e.fehler == ["Prüfaufgabe nicht angelegt (Too many subrequests)"]
+    assert "Verbrauch: 41000 Eingabe-, 3200 Ausgabe-Token" in caplog.text
+
+
 def test_angelegt_zaehlt_nur_mit_erfolgreichem_anlegeaufruf(ki):
     antworten, _ = ki
     antworten.append(_antwort(_tool("t1", "search_objects") + _tool("t2", "create_project") + _tool("t3", "create_object"),
@@ -454,6 +467,19 @@ def test_nicht_lesbares_material_macht_den_lauf_rot(handler, monkeypatch):
     main._process_message(RECKLINGHAUSEN, None, "lauf", report, [RECKLINGHAUSEN])
     assert len(gesehen["nicht"]) == 2 and len(report.fehler) == 2      # Mail + PDF: die KI erfährt es, der Lauf wird rot
     assert handler[0] == "aufgabe:Objekt fehlt in Propstack: CTPark Recklinghausen | Neuer Teaser verfügbar"
+
+
+def test_gescheiterte_tools_machen_den_lauf_rot(handler, monkeypatch):
+    """26.11.2026, Unna (Lauf 45805784900): 5 Einheiten angelegt, aber 3 Prüfaufgaben scheiterten im
+    Connector an „Too many subrequests“ – der Lauf war grün. Angelegt bleibt angelegt (✅, Antwort),
+    der Lauf wird rot."""
+    erg = anlage.Ergebnis("angelegt", objekte=[{"id": 6581028}],
+                          fehler=["Prüfaufgabe für Unit 2, 3 und 5 nicht angelegt (Too many subrequests)"])
+    monkeypatch.setattr(main.anlage, "lege_an", lambda *a, **k: erg)
+    report = RunReport()
+    main._process_message(BITTE_ANLEGEN, None, "lauf", report, [UNNA_LINK, BITTE_ANLEGEN])
+    assert "haken" in handler and report.angelegt == 1
+    assert report.fehler == [f"Nachricht {BITTE_ANLEGEN['ts']}: Connector – Prüfaufgabe für Unit 2, 3 und 5 nicht angelegt (Too many subrequests)"]
 
 
 def test_ausgeschaltet_bleibt_alles_wie_bisher(handler, monkeypatch):

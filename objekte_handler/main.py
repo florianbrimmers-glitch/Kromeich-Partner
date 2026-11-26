@@ -336,6 +336,8 @@ def _anlage(msg: dict, cls: Classification | None, context: str | None, nachbarn
 
     erg = anlage.lege_an(k, broker_id, broker_name, msg["ts"], permalink, pdf_inhalte)
     logger.info("Nachricht %s: Anlage %s – %s", msg["ts"], erg.ergebnis, erg.begruendung)
+    # Was technisch scheiterte (26.11.2026: „Too many subrequests“ bei 3 von 4 Prüfaufgaben), macht den Lauf rot
+    report.fehler.extend(f"Nachricht {msg['ts']}: Connector – {f}" for f in erg.fehler)
     if erg.ergebnis in ("angelegt", "teilweise", "existiert"):
         add_checkmark(msg["ts"])
         post_thread_reply(msg.get("thread_ts") or msg["ts"], anlage.antwort(erg, broker_name))
