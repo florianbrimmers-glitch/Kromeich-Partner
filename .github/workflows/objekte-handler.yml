@@ -35,7 +35,7 @@ on:
         required: false
         default: "96"
       objekt_anlage:
-        description: "Exposés/„bitte anlegen“ über den Propstack-Connector anlegen (leer = Repo-Variable OBJEKT_ANLAGE)"
+        description: "Exposés/„bitte anlegen“ über den Propstack-Connector anlegen (leer = Repo-Variable OBJEKT_ANLAGE, sonst an)"
         required: false
         default: ""
         type: choice
@@ -85,10 +85,11 @@ jobs:
           SCAN_HOURS: ${{ github.event.inputs.scan_from_hours || '50' }}
           SCAN_LATEST_HOURS: ${{ github.event.inputs.scan_to_hours || '0' }}
           THREAD_LOOKBACK_HOURS: ${{ github.event.inputs.thread_lookback_hours || '96' }}
-          # Anlage über den Connector (objekte_handler/anlage.py). Ein über die Repo-Variable
-          # OBJEKT_ANLAGE, für einen Probelauf über das Eingabefeld. Ohne das Secret
-          # SERVICE_TOKEN_SECRET endet eine Anlage mit Fehler (Lauf rot), nie still.
-          OBJEKT_ANLAGE: ${{ github.event.inputs.objekt_anlage || vars.OBJEKT_ANLAGE || 'false' }}
+          # Anlage über den Connector (objekte_handler/anlage.py) – an seit 26.11.2026 (Florian, nach
+          # den Proben Remscheid/Unna/Recklinghausen). Ausschalten ohne Code: Repo-Variable
+          # OBJEKT_ANLAGE=false. Ohne das Secret SERVICE_TOKEN_SECRET endet eine Anlage mit Fehler
+          # (Lauf rot), nie still.
+          OBJEKT_ANLAGE: ${{ github.event.inputs.objekt_anlage || vars.OBJEKT_ANLAGE || 'true' }}
           # Repository-Secret heißt wie das Worker-Secret im Connector: SERVICE_TOKEN_SECRET (derselbe Wert)
           PROPSTACK_MCP_SERVICE_SECRET: ${{ secrets.SERVICE_TOKEN_SECRET }}
           NUR_TS: ${{ github.event.inputs.nur_ts || '' }}

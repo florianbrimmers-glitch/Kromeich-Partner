@@ -45,7 +45,7 @@ Eigenständiges Paket – **kein Code-Sharing mit `src/`** (Visitenkarten-Pipeli
 | `SCAN_LATEST_HOURS` | nein | `0` | Obere Fenstergrenze (0 = bis jetzt), für Backfill |
 | `THREAD_LOOKBACK_HOURS` | nein | `96` | Wie weit zurück Threads nach neuen Replies durchsucht werden |
 | `DECISION_LOG_PATH` | nein | `objekte_decisions.jsonl` | Pfad des Entscheidungslogs |
-| `OBJEKT_ANLAGE` | nein | `false` | Objekte über den Connector anlegen (im Workflow: Repo-Variable `OBJEKT_ANLAGE` oder Eingabe). Im Dry-Run nie |
+| `OBJEKT_ANLAGE` | nein | `false` (Workflow: `true`) | Objekte über den Connector anlegen. Im Workflow an seit 26.11.2026; aus mit der Repo-Variable `OBJEKT_ANLAGE=false`. Im Dry-Run nie |
 | `PROPSTACK_MCP_SERVICE_SECRET` | für die Anlage | – | Secret zum Signieren des Service-Tokens. Im Workflow aus dem Repository-Secret `SERVICE_TOKEN_SECRET` – derselbe Wert und Name wie das Worker-Secret im Connector |
 | `PROPSTACK_MCP_URL` | nein | `https://propstack-mcp.kromeichpartner.workers.dev/mcp` | Adresse des Connectors |
 | `NUR_TS` | nein | – | Probelauf: nur diese eine Nachricht, auch wenn sie schon ein ✅ trägt |
@@ -139,7 +139,8 @@ Review-Sitz 254958.
    `nur_ts=1795600175.387459` (Remscheid). Erwartet: „Steht schon in Propstack“ mit 5159361, nichts angelegt.
 4. Probe mit Schreiben: eine echte offene Anfrage (z. B. Marek, 24.11.: Frasers Unna oder Marq Ense-Höingen),
    danach das Ergebnis in der Propstack-Oberfläche ansehen.
-5. Erst dann die Repo-Variable `OBJEKT_ANLAGE=true` setzen.
+5. Erst dann einschalten. **Erledigt am 26.11.2026:** im Workflow standardmäßig an (Florian: „bitte auch du“);
+   ausschalten ohne Code-Änderung mit der Repo-Variable `OBJEKT_ANLAGE=false`.
 
 ### Proben am 26.11.2026 (live)
 
