@@ -53,6 +53,8 @@ class Flaeche:
     miete_halle: float | None = None      # intern, €/m²
     merkmale: tuple[str, ...] = ()        # was die Einheit zu Besonderheiten sagt
     angelegt: str = ""                    # JJJJ-MM-TT
+    geaendert: str = ""                   # JJJJ-MM-TT
+    voll_vermietet_laut_feld: bool = False   # Custom-Feld „Vermietungsstand“ sagt 100 %
     betreuer: str = ""
 
     @property
@@ -204,6 +206,11 @@ def aus_einheit(unit: dict, gruppe: str, heute: date) -> Flaeche:
         miete_halle=zahl(custom(unit, "intern_mietpreis_hallenflache")),
         merkmale=_merkmale(unit),
         angelegt=str(skalar(unit.get("created_at")) or "")[:10],
+        geaendert=str(skalar(unit.get("updated_at")) or "")[:10],
+        # 26.11.2026: zehn Einheiten gelten als frei und tragen zugleich „100%“ (2019 steht in einer
+        # Bemerkung „nur noch Büroflächen vakant“). Welche Angabe stimmt, entscheidet ein Mensch –
+        # der Vorschlag bleibt, bekommt aber den Hinweis und rutscht nach hinten.
+        voll_vermietet_laut_feld=bool(re.match(r"\s*100\s?%", str(custom(unit, "vermietungsstand_einheiten") or ""))),
         betreuer=str(makler.get("name") or "").strip(),
     )
 

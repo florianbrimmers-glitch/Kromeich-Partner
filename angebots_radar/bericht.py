@@ -118,11 +118,14 @@ def als_daten(ergebnisse: list[Ergebnis], uebrige: list[Gesuch], kontakte: dict[
             aufraeumen["laut_notiz_erledigt"].append({**eintrag, "hinweis": g.erledigt_hinweis})
         elif g.kein_hallengesuch == "Testprofil":
             aufraeumen["testprofil"].append(eintrag)
+        elif g.kein_hallengesuch == "hängt an einem Kollegen":
+            aufraeumen["am_kollegen"].append(eintrag)
     for e in ergebnisse:
-        if e.grund_ohne_vorschlag.startswith("Fläche"):
+        if e.grund_ohne_vorschlag.startswith(("Fläche", "kein Gebiet")):
             g = e.gesuch
+            schluessel = "flaeche_fehlt" if e.grund_ohne_vorschlag.startswith("Fläche") else "gebiet_fehlt"
             name, firma = _wer(kontakte.get(g.kontakt_id, {}), g.kontakt_id)
-            aufraeumen["flaeche_fehlt"].append({
+            aufraeumen[schluessel].append({
                 "id": g.id, "kontakt_id": g.kontakt_id, "kontakt": name, "firma": firma, "angelegt": g.angelegt,
                 "kurztext": g.kurztext, "betreuer": makler.get(g.betreuer_id or 0) or "ohne Betreuer"})
     return {"stand": heute.isoformat(), "kopf": kopf, "gesuche": gesuche, "aufraeumen": dict(aufraeumen)}
@@ -185,7 +188,7 @@ def als_text(daten: dict) -> str:
     ohne = [g for g in daten["gesuche"] if not g["vorschlaege"] and g["grund_ohne_vorschlag"]]
     if ohne:
         zeilen += ["── Ohne Vorschlag " + "─" * 44, ""]
-        for grund, anzahl in Counter(g["grund_ohne_vorschlag"].split(":")[0] for g in ohne).most_common():
+        for grund, anzahl in Counter(g["grund_ohne_vorschlag"].split(":")[0].split(" – ")[0] for g in ohne).most_common():
             zeilen.append(f"  {anzahl}× {grund}")
         zeilen.append("")
     auf = daten["aufraeumen"]
@@ -193,12 +196,23 @@ def als_text(daten: dict) -> str:
         zeilen += ["── Aufräumen in Propstack " + "─" * 36, ""]
         for schluessel, titel in (("laut_notiz_erledigt", "Aktiv, aber laut Notiz erledigt"),
                                   ("flaeche_fehlt", "Aktiv, aber Fläche nicht lesbar – kein Abgleich möglich"),
+                                  ("gebiet_fehlt", "Aktiv, aber ohne Gebiet – Vorschläge wären Zufall"),
+                                  ("am_kollegen", "Suchprofil hängt an einem Kollegen statt am Kunden"),
                                   ("testprofil", "Testprofil ist aktiv")):
             for eintrag in auf.get(schluessel, []):
                 zeilen.append(f"  {titel}: {eintrag['kontakt']} – Suchprofil {eintrag['id']} ({eintrag['betreuer']})"
                               + (f" – „{eintrag['hinweis']}“" if eintrag.get("hinweis") else ""))
         zeilen.append("")
     return "\n".join(zeilen)
+
+
+def fuer_vergleich(daten: dict) -> dict:
+    """Der Lauf ohne Namen und Texte – nur was der spätere Vergleich braucht. So kann er im Repo liegen."""
+    return {"stand": daten["stand"], "gesuche": [
+        {"id": g["id"], "kontakt_id": g["kontakt_id"], "kontakt": f"Kontakt {g['kontakt_id']}", "vorschlaege": [
+            {"einheiten": v["einheiten"], "projekt_id": v["projekt_id"], "bezeichnung": v["bezeichnung"], "ort": v["ort"],
+             "art": v["art"], "punkte": v["punkte"]} for v in g["vorschlaege"]]}
+        for g in daten["gesuche"] if g["vorschlaege"]]}
 
 
 def vergleich(alt: dict, deals: list[dict]) -> dict:

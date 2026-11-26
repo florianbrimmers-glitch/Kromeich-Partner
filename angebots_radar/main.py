@@ -5,7 +5,8 @@
   python -m angebots_radar.main --betreuer Marek      # nur die Gesuche dieses Betreuers
   python -m angebots_radar.main --nur-neu --tage 7    # nur, was seit sieben Tagen neu ist (Fläche oder Gesuch)
   python -m angebots_radar.main --json lauf.json      # Ergebnis zusätzlich als Datei
-  python -m angebots_radar.main --vergleich lauf.json # was aus den Vorschlägen eines früheren Laufs wurde
+  python -m angebots_radar.main --merken angebots_radar/laeufe/2026-11-26.json   # Vorschläge ohne Namen ablegen
+  python -m angebots_radar.main --vergleich angebots_radar/laeufe/2026-11-26.json   # was wurde daraus?
 
 Die Einheiten zu laden dauert rund vier Minuten. `--daten ORDNER` liest stattdessen gespeicherte
 Antworten (einheiten.json, suchprofile.json, deals.json, kontakte.json, makler.json) und legt sie
@@ -24,7 +25,7 @@ from datetime import date
 from pathlib import Path
 
 from .abgleich import Abgleich, Angebote
-from .bericht import als_daten, als_text, vergleich
+from .bericht import als_daten, als_text, fuer_vergleich, vergleich
 from .bestand import lade_bestand
 from .gesuch import aus_suchprofil, ist_hallengesuch
 from .propstack import Propstack
@@ -73,12 +74,15 @@ def lauf(quelle: Quelle, heute: date, gesuch_ids: set[int] | None = None, betreu
         aktive = [g for g in aktive if betreuer.casefold() in (makler.get(g.betreuer_id or 0) or "").casefold()]
     ids = sorted({g.kontakt_id for g in aktive})
     kontakte = {int(k): v for k, v in quelle.hole("kontakte", lambda ps: ps.kontakte(ids)).items()}
-    # Testprofile: am Kontakt „Max Mustermann“/„Test Test“ oder an einem Kollegen selbst (26.11.2026: 6 aktive)
+    # Testprofile hängen an „Max Mustermann“/„Test Test“; andere Profile hängen an einem Kollegen statt
+    # am Kunden (26.11.2026: zusammen 11 aktive). Beides läuft nicht in den Abgleich, steht aber im Bericht.
     eigene = {name.casefold() for name in makler.values() if name}
     for g in aktive:
         name = (kontakte.get(g.kontakt_id, {}).get("name") or "").casefold()
-        if g.kein_hallengesuch is None and (re.search(r"mustermann|^test\b", name) or name in eigene):
+        if g.kein_hallengesuch is None and re.search(r"mustermann|^test\b", name):
             g.kein_hallengesuch = "Testprofil"
+        elif g.kein_hallengesuch is None and name in eigene:
+            g.kein_hallengesuch = "hängt an einem Kollegen"
 
     zu_pruefen = [g for g in aktive if ist_hallengesuch(g) and not g.erledigt_hinweis]
     uebrige = [g for g in aktive if g not in zu_pruefen]
@@ -114,6 +118,7 @@ def main() -> int:
     ap.add_argument("--tage", type=int, default=7, help="was als neu gilt (Standard 7 Tage)")
     ap.add_argument("--je-gesuch", type=int, default=5, help="höchstens so viele Vorschläge je Gesuch (Standard 5)")
     ap.add_argument("--json", metavar="DATEI", help="Ergebnis als JSON schreiben")
+    ap.add_argument("--merken", metavar="DATEI", help="Vorschläge ohne Namen ablegen – für --vergleich in ein paar Wochen")
     ap.add_argument("--vergleich", metavar="DATEI", help="JSON eines früheren Laufs: was wurde daraus?")
     ap.add_argument("--daten", metavar="ORDNER", help="gespeicherte Antworten lesen bzw. dort ablegen")
     ap.add_argument("--stand", metavar="JJJJ-MM-TT", help="Stichtag (Standard heute) – für gespeicherte Daten")
@@ -136,6 +141,9 @@ def main() -> int:
     if args.json:
         Path(args.json).write_text(json.dumps(daten, ensure_ascii=False, indent=1), encoding="utf-8")
         print(f"Geschrieben: {args.json}")
+    if args.merken:
+        Path(args.merken).write_text(json.dumps(fuer_vergleich(daten), ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+        print(f"Gemerkt: {args.merken}")
     return 0
 
 

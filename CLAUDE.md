@@ -14,6 +14,7 @@ alles, was dort automatisch liest und schreibt. Arbeitssprache in Code-Kommentar
 | `events_handler/` | Slack `#events` → Asana-Abschnitt „Events“ | scharf |
 | `personalkarussell_handler/` | Slack-Meldungen über Arbeitgeberwechsel → Propstack | Testbetrieb – vor dem Scharfschalten README lesen |
 | `weekly_report/` | Wochenreport und Dashboard-Daten | läuft als Claude-Routine über die Connectoren |
+| `angebots_radar/` | Vorauswahl je Gesuch: passende, noch nicht angebotene Flächen (nur lesend, ohne KI) | von Hand; Betrieb offen – README |
 | `propstack-mcp/` | Propstack-Connector (Cloudflare Worker, TypeScript) – darüber arbeitet das Team aus Claude | live, Deploy bei Push auf `main` |
 | `scripts/` | Einmal- und Prüfskripte; lesen standardmäßig nur, schreiben nur mit `--apply` | von Hand |
 
@@ -68,7 +69,10 @@ Alles hier ist an Live-Antworten geprüft (zuletzt 20.11.2026). Bei Zweifeln neu
   bei einer reinen Statusänderung. Bei zwei Altsätzen leerte Propstack dabei `total_floor_space` und nahm den Wert
   nicht wieder an (20.11.2026). Vor Sammeländerungen an Altbestand den Stand sichern.
 - `GET /v1/client_properties` (Deals): kein Feld `category`; verlorene Deals liefert die Liste nicht.
-  `deal_stage_chance` = 1.0 heißt Abschluss-Phase.
+  `deal_stage_chance` = 1.0 heißt Abschluss-Phase. Bei Projekt-Deals ist `property_id` leer, dann steht `project_id`.
+- `GET /v1/saved_queries` (Suchprofile, 26.11.2026): Gebiet in `lat`/`lng`/`radius` (Meter), `polygon` (Ecken als
+  [lng, lat]), `cities` oder `regions`. Das Custom-Feld `lagerflache` dort ist eine Untergrenze, kein Wunsch –
+  der steht im Text. Die Objektart einer Einheit taugt nicht als Filter: Der Altbestand steht als „APARTMENT“.
 - Die Kontaktsuche `q=` verlangt jedes Wort; `POST /v1/contacts` führt über die E-Mail zusammen.
 - Firmen und Verknüpfungen gehen nur über V2 (zweiter Schlüssel).
 

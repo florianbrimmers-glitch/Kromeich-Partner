@@ -124,6 +124,7 @@ class Abgleich:
         self.heute = heute
         self.jetzt = quartal_von(heute)
         self.neu_ab = (heute - timedelta(days=neu_tage)).isoformat()
+        self.veraltet_vor = (heute - timedelta(days=365)).isoformat()
         self.je_gesuch = je_gesuch
         mitten: dict[str, list] = defaultdict(list)
         for f in flaechen:
@@ -276,6 +277,13 @@ class Abgleich:
             punkte -= 10
             pruefen.append("Altbestand ohne Propstack-Status – Verfügbarkeit vor dem Angebot prüfen")
 
+        if erste.voll_vermietet_laut_feld:
+            punkte -= 15
+            pruefen.append("Feld „Vermietungsstand“ sagt 100 % – vor dem Angebot klären, ob die Fläche frei ist")
+        if erste.geaendert and erste.geaendert < self.veraltet_vor:
+            punkte -= 5
+            pruefen.append(f"Datensatz seit {erste.geaendert[5:7]}/{erste.geaendert[:4]} nicht geändert")
+
         neu = any(f.angelegt >= self.neu_ab for f in flaechen) or g.angelegt >= self.neu_ab
         if any(f.angelegt >= self.neu_ab for f in flaechen):
             punkte += 8
@@ -361,6 +369,13 @@ class Abgleich:
             else:
                 je_schluessel[v.schluessel] = v
         e.vorschlaege = sorted(je_schluessel.values(), key=lambda v: -v.punkte)
+        if g.gebiet == "ohne" and e.vorschlaege:
+            # Ohne Gebiet ist jede Auswahl von fünf aus Hunderten Zufall (Stichprobe 26.11.2026: drei
+            # Hallen in Bitterfeld, Duisburg und Dresden für ein Gesuch ohne Ort). Gezählt wird, gezeigt nicht.
+            e.grund_ohne_vorschlag = (f"kein Gebiet im Suchprofil – {len(e.vorschlaege)} passende Objekte bundesweit; "
+                                      "Ort, Umkreis oder Bundesland eintragen")
+            e.vorschlaege = []
+            return e
         if not e.vorschlaege:
             if e.ohne_nachweis:
                 namen = ", ".join(f"{name} ({zahl} passende Flächen ohne Nachweis)" for name, zahl in e.ohne_nachweis.items())

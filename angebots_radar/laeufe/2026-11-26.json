@@ -1,0 +1,3221 @@
+{
+ "stand": "2026-11-26",
+ "gesuche": [
+  {
+   "id": 12700731,
+   "kontakt_id": 16768448,
+   "kontakt": "Kontakt 16768448",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      5450968
+     ],
+     "projekt_id": 542329,
+     "bezeichnung": "Logistikpark in (06) Bitterfeld – Unit 2.1",
+     "ort": "Bitterfeld-Wolfen",
+     "art": "passt",
+     "punkte": 136.6
+    },
+    {
+     "einheiten": [
+      5451169
+     ],
+     "projekt_id": 542362,
+     "bezeichnung": "Logistikflächen in (06) Bitterfeld-Wolfen – Unit 3",
+     "ort": "Bitterfeld-Wolfen",
+     "art": "passt",
+     "punkte": 136.6
+    },
+    {
+     "einheiten": [
+      5425127
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikhalle in (06) Dessau-Roßlau – Brauereistraße 13 - Dessau-Roßlau",
+     "ort": "Dessau-Roßlau",
+     "art": "passt",
+     "punkte": 124.1
+    },
+    {
+     "einheiten": [
+      3735442
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikhalle am Leipziger Flughafen! – Paul-Thiersch-Straße 13 - Schkeuditz",
+     "ort": "Schkeuditz",
+     "art": "passt",
+     "punkte": 122.1
+    },
+    {
+     "einheiten": [
+      5451221
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikhalle in (06) Coswig mit Krahnbahnanlagen – Haide Feld 1 - Coswig (Anhalt)",
+     "ort": "Coswig (Anhalt)",
+     "art": "passt",
+     "punkte": 109.6
+    }
+   ]
+  },
+  {
+   "id": 12535622,
+   "kontakt_id": 34997364,
+   "kontakt": "Kontakt 34997364",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      4807608
+     ],
+     "projekt_id": 473227,
+     "bezeichnung": "Gewerbepark in Mülheim – Unit 3",
+     "ort": "Mülheim an der Ruhr",
+     "art": "passt",
+     "punkte": 140.8
+    },
+    {
+     "einheiten": [
+      2778102
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Im Freihafen 6 - Duisburg",
+     "ort": "Duisburg",
+     "art": "passt",
+     "punkte": 128.6
+    },
+    {
+     "einheiten": [
+      5758413
+     ],
+     "projekt_id": 566392,
+     "bezeichnung": "BTS Lager-/Logistik Mülheim, Neustadtstraße - Halle 3",
+     "ort": "Mülheim an der Ruhr",
+     "art": "passt",
+     "punkte": 128.3
+    },
+    {
+     "einheiten": [
+      6255116
+     ],
+     "projekt_id": 602668,
+     "bezeichnung": "Cross-Dock-Logistikhalle in (47) Duisburg-Rheinhausen – Gesamt",
+     "ort": "Duisburg",
+     "art": "passt",
+     "punkte": 126.3
+    },
+    {
+     "einheiten": [
+      2777859
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Lahnstraße 15 - Mülheim",
+     "ort": "Mülheim",
+     "art": "passt",
+     "punkte": 125.2
+    }
+   ]
+  },
+  {
+   "id": 12698289,
+   "kontakt_id": 35410359,
+   "kontakt": "Kontakt 35410359",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      6571938
+     ],
+     "projekt_id": 566960,
+     "bezeichnung": "Logistikhalle in (32) Bünde – Halle 3",
+     "ort": "Bünde",
+     "art": "passt",
+     "punkte": 133.4
+    },
+    {
+     "einheiten": [
+      2777929
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Erpestraße 50  - Bielefeld",
+     "ort": "Bielefeld",
+     "art": "passt",
+     "punkte": 106.9
+    },
+    {
+     "einheiten": [
+      2777896
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikhalle in (49) Melle – Neuerostraße 5 – Neuerostraße 5 - Melle",
+     "ort": "Melle",
+     "art": "teilbar",
+     "punkte": 104.5
+    },
+    {
+     "einheiten": [
+      2778414
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Marie-Curie-Straße 13  - Bergkamen",
+     "ort": "Bergkamen",
+     "art": "passt",
+     "punkte": 98.8
+    },
+    {
+     "einheiten": [
+      5766185
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikhalle in (32) Bünde – Halle 2 – Weseler Straße  – Halle 2",
+     "ort": "Bünde",
+     "art": "teilbar",
+     "punkte": 97.4
+    }
+   ]
+  },
+  {
+   "id": 12609568,
+   "kontakt_id": 27749025,
+   "kontakt": "Kontakt 27749025",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      4465875
+     ],
+     "projekt_id": 439534,
+     "bezeichnung": "UnternehmerPark Duisburg, Baumstraße (2. BA) - Unit 3.2",
+     "ort": "Duisburg",
+     "art": "passt",
+     "punkte": 130.1
+    },
+    {
+     "einheiten": [
+      5513364
+     ],
+     "projekt_id": 551141,
+     "bezeichnung": "Logistikpark in (45) Essen – Unit 3.1",
+     "ort": "Essen",
+     "art": "passt",
+     "punkte": 129.6
+    },
+    {
+     "einheiten": [
+      5766893
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikhalle in (49) Gelsenkirchen – Isoldenstraße 23a – Isoldenstraße 25 - Gelsenkirchen",
+     "ort": "Gelsenkirchen",
+     "art": "passt",
+     "punkte": 129.2
+    },
+    {
+     "einheiten": [
+      5255730
+     ],
+     "projekt_id": 518707,
+     "bezeichnung": "City Dock Köln Ost – Unit 1.5",
+     "ort": "Köln",
+     "art": "passt",
+     "punkte": 128.9
+    },
+    {
+     "einheiten": [
+      3949326
+     ],
+     "projekt_id": 411492,
+     "bezeichnung": "Gewerbepark in (41) Neuss – Unit 1.2",
+     "ort": "Neuss",
+     "art": "passt",
+     "punkte": 128.7
+    }
+   ]
+  },
+  {
+   "id": 12413119,
+   "kontakt_id": 30443021,
+   "kontakt": "Kontakt 30443021",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      3960663
+     ],
+     "projekt_id": 412259,
+     "bezeichnung": "Gewerbe- und Logistikpark in (44) Castrop-Rauxel – Logistik A",
+     "ort": "Castrop-Rauxel",
+     "art": "passt",
+     "punkte": 129.7
+    },
+    {
+     "einheiten": [
+      5675362,
+      5675359
+     ],
+     "projekt_id": 560425,
+     "bezeichnung": "Logistikfläche in (44) Dortmund",
+     "ort": "Dortmund",
+     "art": "Kombination",
+     "punkte": 116.6
+    },
+    {
+     "einheiten": [
+      2778178
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Deininghauser Weg 81-99 - Castrop-Rauxel",
+     "ort": "Castrop-Rauxel",
+     "art": "passt",
+     "punkte": 115.2
+    },
+    {
+     "einheiten": [
+      2778176
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Harpener Feld 34 - Bochum",
+     "ort": "Bochum",
+     "art": "passt",
+     "punkte": 113.2
+    },
+    {
+     "einheiten": [
+      5255684,
+      5255685
+     ],
+     "projekt_id": 518706,
+     "bezeichnung": "Gewerbepark in (58) Schwerte",
+     "ort": "Schwerte",
+     "art": "Kombination",
+     "punkte": 109.9
+    }
+   ]
+  },
+  {
+   "id": 10840921,
+   "kontakt_id": 28138655,
+   "kontakt": "Kontakt 28138655",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      5121205
+     ],
+     "projekt_id": 503126,
+     "bezeichnung": "Logistikflächen in (40) Düsseldorf – Unit 2",
+     "ort": "Düsseldorf",
+     "art": "passt",
+     "punkte": 139.1
+    },
+    {
+     "einheiten": [
+      2778306
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Gleisanschluss in Duisburg – Wörthstraße 171 - Duisburg",
+     "ort": "Duisburg",
+     "art": "passt",
+     "punkte": 138.4
+    },
+    {
+     "einheiten": [
+      2777970
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Xantener Straße 6 - Neuss",
+     "ort": "Neuss",
+     "art": "passt",
+     "punkte": 136.2
+    },
+    {
+     "einheiten": [
+      2778075
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Zum Gut Heiligendonk 16-20 - Düsseldorf",
+     "ort": "Düsseldorf",
+     "art": "passt",
+     "punkte": 134.1
+    },
+    {
+     "einheiten": [
+      5675134
+     ],
+     "projekt_id": 560422,
+     "bezeichnung": "Logistikhalle in (47) Duisburg – Unit 5",
+     "ort": "Duisburg",
+     "art": "passt",
+     "punkte": 133.3
+    }
+   ]
+  },
+  {
+   "id": 14044456,
+   "kontakt_id": 38775277,
+   "kontakt": "Kontakt 38775277",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      6373826
+     ],
+     "projekt_id": 613116,
+     "bezeichnung": "Logistikhalle in (44) Castrop-Rauxel – Halle 2",
+     "ort": "Castrop-Rauxel",
+     "art": "passt",
+     "punkte": 123.5
+    },
+    {
+     "einheiten": [
+      3089160
+     ],
+     "projekt_id": 566948,
+     "bezeichnung": "Logistikhalle in (45) Gelsenkirchen - Unit 1",
+     "ort": "Gelsenkirchen",
+     "art": "passt",
+     "punkte": 122.1
+    },
+    {
+     "einheiten": [
+      4807608
+     ],
+     "projekt_id": 473227,
+     "bezeichnung": "Gewerbepark in Mülheim – Unit 3",
+     "ort": "Mülheim an der Ruhr",
+     "art": "passt",
+     "punkte": 122.1
+    },
+    {
+     "einheiten": [
+      5800361
+     ],
+     "projekt_id": 569735,
+     "bezeichnung": "Logistikhalle in (45) Gladbeck - Unit 2",
+     "ort": "Gladbeck",
+     "art": "passt",
+     "punkte": 121.8
+    },
+    {
+     "einheiten": [
+      4917146
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikhalle in (44) Castrop-Rauxel – Klöckner Straße 55 - Castrop-Rauxel",
+     "ort": "Castrop-Rauxel",
+     "art": "passt",
+     "punkte": 121.1
+    }
+   ]
+  },
+  {
+   "id": 13969555,
+   "kontakt_id": 38123676,
+   "kontakt": "Kontakt 38123676",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      3875152
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikhalle in (47) Krefeld – Gesamtobjekt – Fegeteschstraße 4 - Krefeld",
+     "ort": "Krefeld",
+     "art": "passt",
+     "punkte": 135.1
+    },
+    {
+     "einheiten": [
+      3637203
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikfläche in (50) Pulheim – Industriestraße 20 - Pulheim",
+     "ort": "Pulheim",
+     "art": "passt",
+     "punkte": 131.8
+    },
+    {
+     "einheiten": [
+      5766488
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikhalle in (40) Ratingen – Halskestraße 11 - Ratingen",
+     "ort": "Ratingen",
+     "art": "passt",
+     "punkte": 127.9
+    },
+    {
+     "einheiten": [
+      5766918
+     ],
+     "projekt_id": 567026,
+     "bezeichnung": "Logistikhalle in (47) Willich – Siemensring 66-68 – Halle, EG (12.791 m²)",
+     "ort": "Willich",
+     "art": "passt",
+     "punkte": 127.4
+    },
+    {
+     "einheiten": [
+      6319231
+     ],
+     "projekt_id": 608039,
+     "bezeichnung": "Logistikhalle in (40) Hilden – Lise-Meitner-Straße – Gesamtobjekt",
+     "ort": "Hilden",
+     "art": "passt",
+     "punkte": 126.7
+    }
+   ]
+  },
+  {
+   "id": 13969787,
+   "kontakt_id": 37358237,
+   "kontakt": "Kontakt 37358237",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      4931987
+     ],
+     "projekt_id": 567024,
+     "bezeichnung": "Logistikhalle in (59) Bergkamen – Industriestraße 42 – Hallen, EG (4.600 m²)",
+     "ort": "Bergkamen",
+     "art": "passt",
+     "punkte": 124.0
+    },
+    {
+     "einheiten": [
+      2778077
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Industriestraße 10 - Bergkamen",
+     "ort": "Bergkamen",
+     "art": "passt",
+     "punkte": 114.1
+    },
+    {
+     "einheiten": [
+      2777990
+     ],
+     "projekt_id": null,
+     "bezeichnung": "58239 Schwerte",
+     "ort": "Schwerte",
+     "art": "passt",
+     "punkte": 95.6
+    },
+    {
+     "einheiten": [
+      2777955
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Siemensstraße 33 - Bönen",
+     "ort": "Bönen",
+     "art": "teilbar",
+     "punkte": 80.6
+    },
+    {
+     "einheiten": [
+      5769816
+     ],
+     "projekt_id": 567279,
+     "bezeichnung": "Logistikhalle in (58) Hagen – Unit 1",
+     "ort": "Hagen",
+     "art": "teilbar",
+     "punkte": 80.0
+    }
+   ]
+  },
+  {
+   "id": 13707692,
+   "kontakt_id": 25393942,
+   "kontakt": "Kontakt 25393942",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      4931987
+     ],
+     "projekt_id": 567024,
+     "bezeichnung": "Logistikhalle in (59) Bergkamen – Industriestraße 42 – Hallen, EG (4.600 m²)",
+     "ort": "Bergkamen",
+     "art": "passt",
+     "punkte": 134.0
+    },
+    {
+     "einheiten": [
+      2778089
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikhalle in (44) Dortmund – Strümpenbusch 3 - Dortmund",
+     "ort": "Dortmund",
+     "art": "passt",
+     "punkte": 125.9
+    },
+    {
+     "einheiten": [
+      6260937
+     ],
+     "projekt_id": 412259,
+     "bezeichnung": "Gewerbehalle in (44) Castrop-Rauxel – Urban Logistics B1 – Unit 3",
+     "ort": "Dortmund",
+     "art": "passt",
+     "punkte": 122.0
+    },
+    {
+     "einheiten": [
+      2778414
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Marie-Curie-Straße 13  - Bergkamen",
+     "ort": "Bergkamen",
+     "art": "passt",
+     "punkte": 121.0
+    },
+    {
+     "einheiten": [
+      6373826
+     ],
+     "projekt_id": 613116,
+     "bezeichnung": "Logistikhalle in (44) Castrop-Rauxel – Halle 2",
+     "ort": "Castrop-Rauxel",
+     "art": "passt",
+     "punkte": 120.6
+    }
+   ]
+  },
+  {
+   "id": 13583578,
+   "kontakt_id": 21833880,
+   "kontakt": "Kontakt 21833880",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      5231702
+     ],
+     "projekt_id": 516623,
+     "bezeichnung": "SCHLE99: Logistikflaeche in (51) Leverkusen – Unit 1",
+     "ort": "Leverkusen",
+     "art": "passt",
+     "punkte": 124.7
+    },
+    {
+     "einheiten": [
+      6230830
+     ],
+     "projekt_id": 600873,
+     "bezeichnung": "Logistikhalle in (53) Bornheim – Ottostraße – Unit 1",
+     "ort": "Bornheim",
+     "art": "passt",
+     "punkte": 124.6
+    },
+    {
+     "einheiten": [
+      3637171
+     ],
+     "projekt_id": 392014,
+     "bezeichnung": "Logistikfläche Köln-Eifeltor – 002",
+     "ort": "Köln",
+     "art": "passt",
+     "punkte": 123.8
+    },
+    {
+     "einheiten": [
+      5206459
+     ],
+     "projekt_id": 511936,
+     "bezeichnung": "Logistikhalle in (51) Köln – Unit 1",
+     "ort": "Köln",
+     "art": "passt",
+     "punkte": 123.6
+    },
+    {
+     "einheiten": [
+      2777970
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Xantener Straße 6 - Neuss",
+     "ort": "Neuss",
+     "art": "passt",
+     "punkte": 122.4
+    }
+   ]
+  },
+  {
+   "id": 13557759,
+   "kontakt_id": 37451495,
+   "kontakt": "Kontakt 37451495",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      5766483
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikhalle in (55) Nieder – Olm, Nieder-Olm – Am Giener 2 - Nieder-Olm",
+     "ort": "Nieder-Olm",
+     "art": "passt",
+     "punkte": 116.5
+    },
+    {
+     "einheiten": [
+      5288054,
+      5288055
+     ],
+     "projekt_id": 524707,
+     "bezeichnung": "Logistikhalle in (56) Pfalzfeld",
+     "ort": "Pfalzfeld",
+     "art": "Kombination",
+     "punkte": 115.8
+    },
+    {
+     "einheiten": [
+      5823374
+     ],
+     "projekt_id": 567343,
+     "bezeichnung": "Logistikhalle in (65) Frankfurt am Main - XL – Multi-Use-Halle",
+     "ort": "Frankfurt am Main",
+     "art": "teilbar",
+     "punkte": 98.0
+    },
+    {
+     "einheiten": [
+      2777916
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Auf den zwanzig Äckern  - Herleshausen",
+     "ort": "Herleshausen",
+     "art": "teilbar",
+     "punkte": 95.0
+    },
+    {
+     "einheiten": [
+      2777922
+     ],
+     "projekt_id": null,
+     "bezeichnung": "37293 Herleshausen",
+     "ort": "Herleshausen",
+     "art": "passt",
+     "punkte": 90.5
+    }
+   ]
+  },
+  {
+   "id": 13529888,
+   "kontakt_id": 22797044,
+   "kontakt": "Kontakt 22797044",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      3468732
+     ],
+     "projekt_id": 383038,
+     "bezeichnung": "Logistikfläche im Westviertel von Essen – 002",
+     "ort": "Essen",
+     "art": "passt",
+     "punkte": 125.8
+    },
+    {
+     "einheiten": [
+      4163359
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Business Park Essen – Münchener Straße 100-106 - Essen",
+     "ort": "Essen",
+     "art": "passt",
+     "punkte": 122.9
+    },
+    {
+     "einheiten": [
+      4465875
+     ],
+     "projekt_id": 439534,
+     "bezeichnung": "UnternehmerPark Duisburg, Baumstraße (2. BA) - Unit 3.2",
+     "ort": "Duisburg",
+     "art": "passt",
+     "punkte": 120.7
+    },
+    {
+     "einheiten": [
+      2778570
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Münchener Straße 104 - Essen",
+     "ort": "Essen",
+     "art": "passt",
+     "punkte": 114.7
+    },
+    {
+     "einheiten": [
+      5766893
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikhalle in (49) Gelsenkirchen – Isoldenstraße 23a – Isoldenstraße 25 - Gelsenkirchen",
+     "ort": "Gelsenkirchen",
+     "art": "passt",
+     "punkte": 113.6
+    }
+   ]
+  },
+  {
+   "id": 13521072,
+   "kontakt_id": 22801979,
+   "kontakt": "Kontakt 22801979",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      6230569
+     ],
+     "projekt_id": 600772,
+     "bezeichnung": "Logistikhalle in (47) Rheinberg – An der Rheinberger Heide – Gewerbeeinheit Süd A",
+     "ort": "Rheinberg",
+     "art": "passt",
+     "punkte": 134.4
+    },
+    {
+     "einheiten": [
+      4465875
+     ],
+     "projekt_id": 439534,
+     "bezeichnung": "UnternehmerPark Duisburg, Baumstraße (2. BA) - Unit 3.2",
+     "ort": "Duisburg",
+     "art": "passt",
+     "punkte": 123.7
+    },
+    {
+     "einheiten": [
+      4466217
+     ],
+     "projekt_id": 439766,
+     "bezeichnung": "Logistikhallen im Ruhrgebiet – 006",
+     "ort": "Wesel",
+     "art": "passt",
+     "punkte": 119.5
+    },
+    {
+     "einheiten": [
+      2778065
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Baumstraße 33-50 - Duisburg",
+     "ort": "Duisburg",
+     "art": "passt",
+     "punkte": 113.1
+    },
+    {
+     "einheiten": [
+      2778158
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Duisburger Straße 375 - Oberhausen",
+     "ort": "Oberhausen",
+     "art": "teilbar",
+     "punkte": 92.4
+    }
+   ]
+  },
+  {
+   "id": 13498801,
+   "kontakt_id": 37297673,
+   "kontakt": "Kontakt 37297673",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      6572508
+     ],
+     "projekt_id": 566963,
+     "bezeichnung": "Logistikhalle in (32) Porta Westfalica – Halle 1 – Halle 3",
+     "ort": "Porta Westfalica",
+     "art": "passt",
+     "punkte": 143.0
+    },
+    {
+     "einheiten": [
+      6571928
+     ],
+     "projekt_id": 566960,
+     "bezeichnung": "Logistikhalle in (32) Bünde – Halle 2",
+     "ort": "Bünde",
+     "art": "passt",
+     "punkte": 140.0
+    },
+    {
+     "einheiten": [
+      6230831
+     ],
+     "projekt_id": 600873,
+     "bezeichnung": "Logistikhalle in (53) Bornheim – Ottostraße – Unit 2",
+     "ort": "Bornheim",
+     "art": "passt",
+     "punkte": 134.9
+    },
+    {
+     "einheiten": [
+      3922848
+     ],
+     "projekt_id": 410923,
+     "bezeichnung": "Logistikpark in Köln Ost – Unit 2.1",
+     "ort": "Köln",
+     "art": "passt",
+     "punkte": 134.7
+    },
+    {
+     "einheiten": [
+      3158471
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikhalle in (32) Kirchlengern – 002 – Hamerkampstraße  – 002",
+     "ort": "Kirchlengern",
+     "art": "passt",
+     "punkte": 134.4
+    }
+   ]
+  },
+  {
+   "id": 13449471,
+   "kontakt_id": 25323799,
+   "kontakt": "Kontakt 25323799",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      6208799
+     ],
+     "projekt_id": 599724,
+     "bezeichnung": "Logistikhalle in (41) Culemborg (NL) – A (34.956 m²)",
+     "ort": "Culemborg",
+     "art": "passt",
+     "punkte": 132.8
+    },
+    {
+     "einheiten": [
+      3089154
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikentwicklung in (46) Oberhausen – Im Lekkerland 2 - Oberhausen",
+     "ort": "Oberhausen",
+     "art": "passt",
+     "punkte": 127.7
+    },
+    {
+     "einheiten": [
+      5770423
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikhalle in (47) Duisburg – Neubauprojekt Logistik², logport I – Marseiller Straße 14 - Duisburg",
+     "ort": "Duisburg",
+     "art": "passt",
+     "punkte": 113.8
+    },
+    {
+     "einheiten": [
+      5885795,
+      5867211,
+      5885787
+     ],
+     "projekt_id": 574933,
+     "bezeichnung": "Logistikflächen in (46) Bottrop",
+     "ort": "Bottrop",
+     "art": "Kombination",
+     "punkte": 97.9
+    },
+    {
+     "einheiten": [
+      2778105
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Oberschlesienstraße 17 - Krefeld",
+     "ort": "Krefeld",
+     "art": "teilbar",
+     "punkte": 78.0
+    }
+   ]
+  },
+  {
+   "id": 13120808,
+   "kontakt_id": 32222595,
+   "kontakt": "Kontakt 32222595",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      5766893
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikhalle in (49) Gelsenkirchen – Isoldenstraße 23a – Isoldenstraße 25 - Gelsenkirchen",
+     "ort": "Gelsenkirchen",
+     "art": "passt",
+     "punkte": 113.6
+    }
+   ]
+  },
+  {
+   "id": 12918639,
+   "kontakt_id": 32222588,
+   "kontakt": "Kontakt 32222588",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      4931987
+     ],
+     "projekt_id": 567024,
+     "bezeichnung": "Logistikhalle in (59) Bergkamen – Industriestraße 42 – Hallen, EG (4.600 m²)",
+     "ort": "Bergkamen",
+     "art": "passt",
+     "punkte": 125.5
+    },
+    {
+     "einheiten": [
+      2778077
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Industriestraße 10 - Bergkamen",
+     "ort": "Bergkamen",
+     "art": "passt",
+     "punkte": 115.7
+    },
+    {
+     "einheiten": [
+      2777955
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Siemensstraße 33 - Bönen",
+     "ort": "Bönen",
+     "art": "teilbar",
+     "punkte": 86.4
+    },
+    {
+     "einheiten": [
+      2778408
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Wahrbrink 25  - Werne",
+     "ort": "Werne",
+     "art": "teilbar",
+     "punkte": 75.9
+    },
+    {
+     "einheiten": [
+      2778037
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Industriestraße 1  - Lünen",
+     "ort": "Lünen",
+     "art": "teilbar",
+     "punkte": 65.0
+    }
+   ]
+  },
+  {
+   "id": 12760395,
+   "kontakt_id": 16768625,
+   "kontakt": "Kontakt 16768625",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      2777873
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Regaliert im Ruhrgebiet – Märkische Straße 10 - Bochum",
+     "ort": "Bochum",
+     "art": "passt",
+     "punkte": 129.5
+    },
+    {
+     "einheiten": [
+      2778032
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Kippdorfstraße 6-24 - Remscheid",
+     "ort": "Remscheid",
+     "art": "passt",
+     "punkte": 128.2
+    },
+    {
+     "einheiten": [
+      2778011
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Mettmanner Straße 79 - Wuppertal",
+     "ort": "Wuppertal",
+     "art": "passt",
+     "punkte": 127.1
+    },
+    {
+     "einheiten": [
+      2777874
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Dolomitstraße  - Hagen",
+     "ort": "Hagen",
+     "art": "passt",
+     "punkte": 115.8
+    },
+    {
+     "einheiten": [
+      2778179
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Rudolf-Diesel-Straße 1-3 - Bönen",
+     "ort": "Bönen",
+     "art": "passt",
+     "punkte": 114.7
+    }
+   ]
+  },
+  {
+   "id": 11575982,
+   "kontakt_id": 30768474,
+   "kontakt": "Kontakt 30768474",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      6319231
+     ],
+     "projekt_id": 608039,
+     "bezeichnung": "Logistikhalle in (40) Hilden – Lise-Meitner-Straße – Gesamtobjekt",
+     "ort": "Hilden",
+     "art": "passt",
+     "punkte": 133.9
+    },
+    {
+     "einheiten": [
+      5766918
+     ],
+     "projekt_id": 567026,
+     "bezeichnung": "Logistikhalle in (47) Willich – Siemensring 66-68 – Halle, EG (12.791 m²)",
+     "ort": "Willich",
+     "art": "passt",
+     "punkte": 131.5
+    },
+    {
+     "einheiten": [
+      3637203
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikfläche in (50) Pulheim – Industriestraße 20 - Pulheim",
+     "ort": "Pulheim",
+     "art": "passt",
+     "punkte": 131.2
+    },
+    {
+     "einheiten": [
+      5121205
+     ],
+     "projekt_id": 503126,
+     "bezeichnung": "Logistikflächen in (40) Düsseldorf – Unit 2",
+     "ort": "Düsseldorf",
+     "art": "passt",
+     "punkte": 131.0
+    },
+    {
+     "einheiten": [
+      5766488
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikhalle in (40) Ratingen – Halskestraße 11 - Ratingen",
+     "ort": "Ratingen",
+     "art": "passt",
+     "punkte": 130.5
+    }
+   ]
+  },
+  {
+   "id": 12701675,
+   "kontakt_id": 35418723,
+   "kontakt": "Kontakt 35418723",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      5772941
+     ],
+     "projekt_id": 567478,
+     "bezeichnung": "Logistikhalle in (28) Oyten – Logistikneubau Achim/Oyten – Margarete-Steiff-Straße  - Oyten",
+     "ort": "Oyten",
+     "art": "passt",
+     "punkte": 112.4
+    },
+    {
+     "einheiten": [
+      2777878
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Zum Panrepel 39-43 - Bremen",
+     "ort": "Bremen",
+     "art": "teilbar",
+     "punkte": 75.0
+    },
+    {
+     "einheiten": [
+      2778046
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Louis-Krages-Straße 30-38 - Bremen",
+     "ort": "Bremen",
+     "art": "teilbar",
+     "punkte": 70.0
+    }
+   ]
+  },
+  {
+   "id": 12488331,
+   "kontakt_id": 34865659,
+   "kontakt": "Kontakt 34865659",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      5768786
+     ],
+     "projekt_id": 567182,
+     "bezeichnung": "Logistikhalle in (45) Essen – DC2-DC3, Unit 2",
+     "ort": "Essen",
+     "art": "passt",
+     "punkte": 149.0
+    },
+    {
+     "einheiten": [
+      5032924
+     ],
+     "projekt_id": 497053,
+     "bezeichnung": "Lagerhalle in (47) Duisburg – 1.2",
+     "ort": "Duisburg",
+     "art": "passt",
+     "punkte": 143.4
+    },
+    {
+     "einheiten": [
+      6248669
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Lagerhalle in (45) Mülheim an der Ruhr – Weseler Straße 44 a - Mülheim an der Ruhr",
+     "ort": "Mülheim an der Ruhr",
+     "art": "passt",
+     "punkte": 139.8
+    },
+    {
+     "einheiten": [
+      6312984
+     ],
+     "projekt_id": 607108,
+     "bezeichnung": "Gewerbehalle in (45) Gelsenkirchen – Halle 7 (4 Units ab ca. 404 m²)",
+     "ort": "Gelsenkirchen",
+     "art": "passt",
+     "punkte": 136.3
+    },
+    {
+     "einheiten": [
+      4465845
+     ],
+     "projekt_id": 439534,
+     "bezeichnung": "UnternehmerPark Duisburg, Baumstraße (2. BA) - Unit 3.1",
+     "ort": "Duisburg",
+     "art": "passt",
+     "punkte": 128.5
+    }
+   ]
+  },
+  {
+   "id": 12543261,
+   "kontakt_id": 34651678,
+   "kontakt": "Kontakt 34651678",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      5255684
+     ],
+     "projekt_id": 518706,
+     "bezeichnung": "Gewerbepark in (58) Schwerte – Unit 1",
+     "ort": "Schwerte",
+     "art": "passt",
+     "punkte": 135.3
+    },
+    {
+     "einheiten": [
+      5675356
+     ],
+     "projekt_id": 560425,
+     "bezeichnung": "Logistikhalle in (44) Dortmund – DC4A Unit 1",
+     "ort": "Dortmund",
+     "art": "passt",
+     "punkte": 135.3
+    },
+    {
+     "einheiten": [
+      3089160
+     ],
+     "projekt_id": 566948,
+     "bezeichnung": "Logistikhalle in (45) Gelsenkirchen - Unit 1",
+     "ort": "Gelsenkirchen",
+     "art": "passt",
+     "punkte": 134.0
+    },
+    {
+     "einheiten": [
+      4917146
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikhalle in (44) Castrop-Rauxel – Klöckner Straße 55 - Castrop-Rauxel",
+     "ort": "Castrop-Rauxel",
+     "art": "passt",
+     "punkte": 133.6
+    },
+    {
+     "einheiten": [
+      5159361
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikhalle in (42) Remscheid – Am Weidenbroich 20-22 - Remscheid",
+     "ort": "Remscheid",
+     "art": "passt",
+     "punkte": 133.1
+    }
+   ]
+  },
+  {
+   "id": 12506442,
+   "kontakt_id": 20619993,
+   "kontakt": "Kontakt 20619993",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      6319232
+     ],
+     "projekt_id": 608040,
+     "bezeichnung": "Logistikhalle in (47) Grefrath – Halle G01",
+     "ort": "Grefrath",
+     "art": "teilbar",
+     "punkte": 102.9
+    },
+    {
+     "einheiten": [
+      2778374
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Karl-Arnold-Straße 24  - Willich",
+     "ort": "Willich",
+     "art": "passt",
+     "punkte": 94.7
+    },
+    {
+     "einheiten": [
+      5568526,
+      5145653
+     ],
+     "projekt_id": 507085,
+     "bezeichnung": "Logistikpark Krefeld",
+     "ort": "Krefeld",
+     "art": "Kombination",
+     "punkte": 90.8
+    },
+    {
+     "einheiten": [
+      2811019
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Vogelsrather Weg 7 - Schwalmtal",
+     "ort": "Schwalmtal",
+     "art": "teilbar",
+     "punkte": 90.7
+    },
+    {
+     "einheiten": [
+      2777840
+     ],
+     "projekt_id": null,
+     "bezeichnung": ">11.000 qm Hallenfläche inkl. Bürofläche – Dieselstraße 72-90 - Mönchengladbach",
+     "ort": "Mönchengladbach",
+     "art": "teilbar",
+     "punkte": 80.0
+    }
+   ]
+  },
+  {
+   "id": 12314625,
+   "kontakt_id": 32633963,
+   "kontakt": "Kontakt 32633963",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      3875152
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikhalle in (47) Krefeld – Gesamtobjekt – Fegeteschstraße 4 - Krefeld",
+     "ort": "Krefeld",
+     "art": "passt",
+     "punkte": 122.2
+    },
+    {
+     "einheiten": [
+      2778082
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Höherweg 277 - Düsseldorf",
+     "ort": "Düsseldorf",
+     "art": "passt",
+     "punkte": 121.9
+    },
+    {
+     "einheiten": [
+      5301767,
+      5301725,
+      5301747
+     ],
+     "projekt_id": 526885,
+     "bezeichnung": "Gewerbepark in (40) Düsseldorf-Flingern – Phase 2",
+     "ort": "Düsseldorf",
+     "art": "Kombination",
+     "punkte": 116.0
+    },
+    {
+     "einheiten": [
+      2778289
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Reisholzer Bahnstraße 2 - Düsseldorf",
+     "ort": "Düsseldorf",
+     "art": "passt",
+     "punkte": 111.7
+    },
+    {
+     "einheiten": [
+      5121205,
+      5121159
+     ],
+     "projekt_id": 503126,
+     "bezeichnung": "Logistikflächen in (40) Düsseldorf",
+     "ort": "Düsseldorf",
+     "art": "Kombination",
+     "punkte": 111.7
+    }
+   ]
+  },
+  {
+   "id": 12132402,
+   "kontakt_id": 16768428,
+   "kontakt": "Kontakt 16768428",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      6372893
+     ],
+     "projekt_id": 608040,
+     "bezeichnung": "Logistikhalle in (47) Grefrath – Halle G02",
+     "ort": "Grefrath",
+     "art": "passt",
+     "punkte": 136.6
+    },
+    {
+     "einheiten": [
+      5568526
+     ],
+     "projekt_id": 507085,
+     "bezeichnung": "Logistikpark in (47) Krefeld – Unit 03",
+     "ort": "Krefeld",
+     "art": "passt",
+     "punkte": 136.3
+    },
+    {
+     "einheiten": [
+      5568937
+     ],
+     "projekt_id": 553979,
+     "bezeichnung": "Logistikpark in (41) Neuss – Unit 6",
+     "ort": "Neuss",
+     "art": "passt",
+     "punkte": 134.5
+    },
+    {
+     "einheiten": [
+      2778492
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Willicher Damm 145 - Mönchengladbach",
+     "ort": "Mönchengladbach",
+     "art": "passt",
+     "punkte": 130.6
+    },
+    {
+     "einheiten": [
+      2777863
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Mühlenstraße 121 - Korschenbroich",
+     "ort": "Korschenbroich",
+     "art": "passt",
+     "punkte": 130.0
+    }
+   ]
+  },
+  {
+   "id": 12074462,
+   "kontakt_id": 16768539,
+   "kontakt": "Kontakt 16768539",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      5475018,
+      5475019,
+      5475015
+     ],
+     "projekt_id": 545170,
+     "bezeichnung": "Logistikflächen in (49) Osnabrück – Business Park Hellern-Nord",
+     "ort": "Osnabrück",
+     "art": "Kombination",
+     "punkte": 103.9
+    }
+   ]
+  },
+  {
+   "id": 12007016,
+   "kontakt_id": 29862543,
+   "kontakt": "Kontakt 29862543",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      5768784
+     ],
+     "projekt_id": 567182,
+     "bezeichnung": "Logistikhalle in (45) Essen – DC2-DC3, Unit 1",
+     "ort": "Essen",
+     "art": "passt",
+     "punkte": 139.7
+    },
+    {
+     "einheiten": [
+      6312986
+     ],
+     "projekt_id": 607108,
+     "bezeichnung": "Gewerbehalle in (45) Gelsenkirchen – Halle 8 (2 Units ab ca. 558 m²)",
+     "ort": "Gelsenkirchen",
+     "art": "passt",
+     "punkte": 133.5
+    },
+    {
+     "einheiten": [
+      3468818
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikfläche Westviertel Essen – Westendhof 3 - Essen",
+     "ort": "Essen",
+     "art": "passt",
+     "punkte": 129.4
+    },
+    {
+     "einheiten": [
+      5766893
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikhalle in (49) Gelsenkirchen – Isoldenstraße 23a – Isoldenstraße 25 - Gelsenkirchen",
+     "ort": "Gelsenkirchen",
+     "art": "passt",
+     "punkte": 126.7
+    },
+    {
+     "einheiten": [
+      3468817
+     ],
+     "projekt_id": 383071,
+     "bezeichnung": "Logistikfläche im Westviertel von Essen II – 002",
+     "ort": "Essen",
+     "art": "passt",
+     "punkte": 125.9
+    }
+   ]
+  },
+  {
+   "id": 12541114,
+   "kontakt_id": 35012218,
+   "kontakt": "Kontakt 35012218",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      5475018
+     ],
+     "projekt_id": 545170,
+     "bezeichnung": "Business Park OSNA Osnabrück - Unit 4",
+     "ort": "Osnabrück",
+     "art": "passt",
+     "punkte": 124.8
+    },
+    {
+     "einheiten": [
+      5255793
+     ],
+     "projekt_id": 518713,
+     "bezeichnung": "Logistikhalle in (44) Castrop-Rauxel – Unit 1",
+     "ort": "Castrop-Rauxel",
+     "art": "passt",
+     "punkte": 108.6
+    },
+    {
+     "einheiten": [
+      2777850
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Kruppstraße 37  - Ahlen",
+     "ort": "Ahlen",
+     "art": "passt",
+     "punkte": 108.5
+    },
+    {
+     "einheiten": [
+      6260934
+     ],
+     "projekt_id": 412259,
+     "bezeichnung": "Gewerbe- und Logistikpark in (44) Castrop-Rauxel – Urban Logistics A",
+     "ort": "Dortmund",
+     "art": "passt",
+     "punkte": 108.3
+    },
+    {
+     "einheiten": [
+      2778037
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Industriestraße 1  - Lünen",
+     "ort": "Lünen",
+     "art": "passt",
+     "punkte": 106.3
+    }
+   ]
+  },
+  {
+   "id": 12399109,
+   "kontakt_id": 32687230,
+   "kontakt": "Kontakt 32687230",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      6372893
+     ],
+     "projekt_id": 608040,
+     "bezeichnung": "Logistikhalle in (47) Grefrath – Halle G02",
+     "ort": "Grefrath",
+     "art": "passt",
+     "punkte": 141.8
+    },
+    {
+     "einheiten": [
+      5568526
+     ],
+     "projekt_id": 507085,
+     "bezeichnung": "Logistikpark in (47) Krefeld – Unit 03",
+     "ort": "Krefeld",
+     "art": "passt",
+     "punkte": 140.8
+    },
+    {
+     "einheiten": [
+      5568937
+     ],
+     "projekt_id": 553979,
+     "bezeichnung": "Logistikpark in (41) Neuss – Unit 6",
+     "ort": "Neuss",
+     "art": "passt",
+     "punkte": 139.8
+    },
+    {
+     "einheiten": [
+      3961946
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikhalle Gatherhof in Düsseldorf – Am Gatherhof 57 - Düsseldorf",
+     "ort": "Düsseldorf",
+     "art": "passt",
+     "punkte": 137.1
+    },
+    {
+     "einheiten": [
+      2778216
+     ],
+     "projekt_id": 567053,
+     "bezeichnung": "Logistikhalle in (40) Hilden – Im Hülsenfeld 1, Autohaus und Werkstatt (3.250 m²)",
+     "ort": "Hilden",
+     "art": "passt",
+     "punkte": 135.3
+    }
+   ]
+  },
+  {
+   "id": 12399640,
+   "kontakt_id": 32687230,
+   "kontakt": "Kontakt 32687230",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      5770036
+     ],
+     "projekt_id": 567347,
+     "bezeichnung": "Logistikhalle in (65) Schwalbach am Taunus – Unit 2",
+     "ort": "Schwalbach am Taunus",
+     "art": "passt",
+     "punkte": 144.2
+    },
+    {
+     "einheiten": [
+      6373955
+     ],
+     "projekt_id": 613119,
+     "bezeichnung": "Logistikhalle in (65) Kriftel – Lager",
+     "ort": "Kriftel",
+     "art": "passt",
+     "punkte": 131.8
+    },
+    {
+     "einheiten": [
+      2804419
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Lager-und Logistikhalle mit Gleisanschluss – Kasteler Straße 45 - Wiesbaden",
+     "ort": "Wiesbaden",
+     "art": "passt",
+     "punkte": 130.4
+    },
+    {
+     "einheiten": [
+      2804400
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Mitten in Wiesbaden - Gewerbeimmobilie mit Büro- und Verkaufsräumen – Hohenstaufenstraße 8 - Wiesbaden",
+     "ort": "Wiesbaden",
+     "art": "passt",
+     "punkte": 129.8
+    },
+    {
+     "einheiten": [
+      5770039
+     ],
+     "projekt_id": 567348,
+     "bezeichnung": "Logistikhalle in (65) Wiesbaden – Unit 1",
+     "ort": "Wiesbaden",
+     "art": "passt",
+     "punkte": 125.6
+    }
+   ]
+  },
+  {
+   "id": 8776988,
+   "kontakt_id": 16768431,
+   "kontakt": "Kontakt 16768431",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      6373826
+     ],
+     "projekt_id": 613116,
+     "bezeichnung": "Logistikhalle in (44) Castrop-Rauxel – Halle 2",
+     "ort": "Castrop-Rauxel",
+     "art": "passt",
+     "punkte": 142.2
+    },
+    {
+     "einheiten": [
+      4931987
+     ],
+     "projekt_id": 567024,
+     "bezeichnung": "Logistikhalle in (59) Bergkamen – Industriestraße 42 – Hallen, EG (4.600 m²)",
+     "ort": "Bergkamen",
+     "art": "passt",
+     "punkte": 133.8
+    },
+    {
+     "einheiten": [
+      5675360
+     ],
+     "projekt_id": 560425,
+     "bezeichnung": "Logistikhalle in (44) Dortmund – DC4B Unit 1",
+     "ort": "Dortmund",
+     "art": "passt",
+     "punkte": 133.7
+    },
+    {
+     "einheiten": [
+      2778241
+     ],
+     "projekt_id": 567020,
+     "bezeichnung": "Logistikhalle in (44) Herne – Neubau: Friedrich der Große, Einheit 1 (6.100 m²)",
+     "ort": "Herne",
+     "art": "passt",
+     "punkte": 130.5
+    },
+    {
+     "einheiten": [
+      6260935
+     ],
+     "projekt_id": 412259,
+     "bezeichnung": "Gewerbe- und Logistikpark in (44) Castrop-Rauxel – Urban Logistics B1 – Unit 1",
+     "ort": "Dortmund",
+     "art": "passt",
+     "punkte": 125.6
+    }
+   ]
+  },
+  {
+   "id": 10627866,
+   "kontakt_id": 16768458,
+   "kontakt": "Kontakt 16768458",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      2778350
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Hubert-Wollenberg-Straße 3 - Ratingen",
+     "ort": "Ratingen",
+     "art": "passt",
+     "punkte": 123.3
+    },
+    {
+     "einheiten": [
+      3949359
+     ],
+     "projekt_id": 411492,
+     "bezeichnung": "Gewerbepark in (41) Neuss – Unit 2.2",
+     "ort": "Neuss",
+     "art": "passt",
+     "punkte": 119.3
+    },
+    {
+     "einheiten": [
+      2778535
+     ],
+     "projekt_id": 566388,
+     "bezeichnung": "UnternehmerPark Neuss, Bataverstraße 78-80 - Haus 1",
+     "ort": "Neuss",
+     "art": "passt",
+     "punkte": 116.6
+    },
+    {
+     "einheiten": [
+      6332363,
+      6332412
+     ],
+     "projekt_id": 375481,
+     "bezeichnung": "Gewerbepark in (40) Düsseldorf-Flingern",
+     "ort": "Düsseldorf",
+     "art": "Kombination",
+     "punkte": 112.0
+    },
+    {
+     "einheiten": [
+      2777937
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Bremer Straße 68  - Düsseldorf",
+     "ort": "Düsseldorf",
+     "art": "passt",
+     "punkte": 111.9
+    }
+   ]
+  },
+  {
+   "id": 11072931,
+   "kontakt_id": 28988960,
+   "kontakt": "Kontakt 28988960",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      5159361
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikhalle in (42) Remscheid – Am Weidenbroich 20-22 - Remscheid",
+     "ort": "Remscheid",
+     "art": "passt",
+     "punkte": 141.0
+    },
+    {
+     "einheiten": [
+      5059655
+     ],
+     "projekt_id": 501013,
+     "bezeichnung": "Gewerbepark in (42) Wuppertal – Unit 1",
+     "ort": "Wuppertal",
+     "art": "passt",
+     "punkte": 136.5
+    },
+    {
+     "einheiten": [
+      5121205
+     ],
+     "projekt_id": 503126,
+     "bezeichnung": "Logistikflächen in (40) Düsseldorf – Unit 2",
+     "ort": "Düsseldorf",
+     "art": "passt",
+     "punkte": 134.0
+    },
+    {
+     "einheiten": [
+      5675038
+     ],
+     "projekt_id": 560418,
+     "bezeichnung": "Logistikhalle in (45) Hattingen – Unit 4",
+     "ort": "Hattingen",
+     "art": "passt",
+     "punkte": 124.9
+    },
+    {
+     "einheiten": [
+      5206460
+     ],
+     "projekt_id": 511936,
+     "bezeichnung": "Logistikhalle in (51) Köln – Unit 2",
+     "ort": "Köln",
+     "art": "passt",
+     "punkte": 123.0
+    }
+   ]
+  },
+  {
+   "id": 11192543,
+   "kontakt_id": 29391392,
+   "kontakt": "Kontakt 29391392",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      5301757
+     ],
+     "projekt_id": 526885,
+     "bezeichnung": "Logistikhalle in (40) Düsseldorf-Flingern – Phase 2, Unit 3 (5.059 m²) – Phase 2 – Unit 3",
+     "ort": "Düsseldorf",
+     "art": "passt",
+     "punkte": 140.1
+    },
+    {
+     "einheiten": [
+      5121159
+     ],
+     "projekt_id": 503126,
+     "bezeichnung": "Logistikflächen in (40) Düsseldorf – Unit 1",
+     "ort": "Düsseldorf",
+     "art": "passt",
+     "punkte": 138.5
+    },
+    {
+     "einheiten": [
+      2778209
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Gewerbefläche in (40) Düsseldorf – Reisholzer Werftstraße 52 – Reisholzer Werftstraße 52 - Düsseldorf",
+     "ort": "Düsseldorf",
+     "art": "passt",
+     "punkte": 137.3
+    },
+    {
+     "einheiten": [
+      6255116
+     ],
+     "projekt_id": 602668,
+     "bezeichnung": "Cross-Dock-Logistikhalle in (47) Duisburg-Rheinhausen – Gesamt",
+     "ort": "Duisburg",
+     "art": "passt",
+     "punkte": 137.3
+    },
+    {
+     "einheiten": [
+      4727837
+     ],
+     "projekt_id": null,
+     "bezeichnung": "befestigte Außenfläche – Siemensring 41 - Willich",
+     "ort": "Willich",
+     "art": "passt",
+     "punkte": 132.3
+    }
+   ]
+  },
+  {
+   "id": 10392272,
+   "kontakt_id": 22385142,
+   "kontakt": "Kontakt 22385142",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      2778146
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Schönes Objekt in Düsseldorf – Fichtenstraße 33 - Düsseldorf",
+     "ort": "Düsseldorf",
+     "art": "passt",
+     "punkte": 133.9
+    },
+    {
+     "einheiten": [
+      5768784
+     ],
+     "projekt_id": 567182,
+     "bezeichnung": "Logistikhalle in (45) Essen – DC2-DC3, Unit 1",
+     "ort": "Essen",
+     "art": "passt",
+     "punkte": 131.8
+    },
+    {
+     "einheiten": [
+      5769421
+     ],
+     "projekt_id": 567220,
+     "bezeichnung": "Logistikhalle in (40) Düsseldorf – Airport, 16 EG",
+     "ort": "Düsseldorf",
+     "art": "passt",
+     "punkte": 129.3
+    },
+    {
+     "einheiten": [
+      6263719
+     ],
+     "projekt_id": 603282,
+     "bezeichnung": "Gewerbehalle in (40) Düsseldorf – Kappeler Straße – Halle 9 (Einzelhandel Möbel)",
+     "ort": "Düsseldorf",
+     "art": "passt",
+     "punkte": 124.5
+    },
+    {
+     "einheiten": [
+      5766719
+     ],
+     "projekt_id": 567014,
+     "bezeichnung": "Gewerbepark in (40) Ratingen – D4",
+     "ort": "Ratingen",
+     "art": "passt",
+     "punkte": 122.7
+    }
+   ]
+  },
+  {
+   "id": 10614062,
+   "kontakt_id": 27330122,
+   "kontakt": "Kontakt 27330122",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      3637203
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikfläche in (50) Pulheim – Industriestraße 20 - Pulheim",
+     "ort": "Pulheim",
+     "art": "passt",
+     "punkte": 127.0
+    },
+    {
+     "einheiten": [
+      6255115
+     ],
+     "projekt_id": 602667,
+     "bezeichnung": "Logistikhalle in (41) Mönchengladbach – Regiopark – Gesamt",
+     "ort": "Mönchengladbach",
+     "art": "passt",
+     "punkte": 125.2
+    },
+    {
+     "einheiten": [
+      2777871
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Zeißstraße 4 - Kerpen",
+     "ort": "Kerpen",
+     "art": "passt",
+     "punkte": 121.6
+    },
+    {
+     "einheiten": [
+      2777970
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Xantener Straße 6 - Neuss",
+     "ort": "Neuss",
+     "art": "passt",
+     "punkte": 119.8
+    },
+    {
+     "einheiten": [
+      3637171
+     ],
+     "projekt_id": 392014,
+     "bezeichnung": "Logistikfläche Köln-Eifeltor – 002",
+     "ort": "Köln",
+     "art": "passt",
+     "punkte": 119.8
+    }
+   ]
+  },
+  {
+   "id": 10721143,
+   "kontakt_id": 26426121,
+   "kontakt": "Kontakt 26426121",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      2778069
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Zechenstraße 34 - Gelsenkirchen",
+     "ort": "Gelsenkirchen",
+     "art": "passt",
+     "punkte": 146.7
+    },
+    {
+     "einheiten": [
+      2778447
+     ],
+     "projekt_id": 567019,
+     "bezeichnung": "Logistikhalle in (45) Gelsenkirchen – Neubau an der Emscherstraße, Einheit 1 (2.975 m²)",
+     "ort": "Gelsenkirchen",
+     "art": "passt",
+     "punkte": 146.5
+    },
+    {
+     "einheiten": [
+      6312984
+     ],
+     "projekt_id": 607108,
+     "bezeichnung": "Gewerbehalle in (45) Gelsenkirchen – Halle 7 (4 Units ab ca. 404 m²)",
+     "ort": "Gelsenkirchen",
+     "art": "passt",
+     "punkte": 142.2
+    },
+    {
+     "einheiten": [
+      2778129
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikhalle in (45) Essen – Nünningstraße 1 - Essen",
+     "ort": "Essen",
+     "art": "passt",
+     "punkte": 135.2
+    },
+    {
+     "einheiten": [
+      4516633
+     ],
+     "projekt_id": 444683,
+     "bezeichnung": "Lagerhalle in Bochum – 003  Lagerhallen - Bochum",
+     "ort": "Bochum",
+     "art": "passt",
+     "punkte": 134.3
+    }
+   ]
+  },
+  {
+   "id": 10883482,
+   "kontakt_id": 22683131,
+   "kontakt": "Kontakt 22683131",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      3637088
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikfläche Pulheim – Donatusstraße  - Pulheim",
+     "ort": "Pulheim",
+     "art": "passt",
+     "punkte": 132.6
+    },
+    {
+     "einheiten": [
+      5761424
+     ],
+     "projekt_id": 566623,
+     "bezeichnung": "Gewerbepark in (50) Frechen - Unit 2.3",
+     "ort": "Frechen",
+     "art": "passt",
+     "punkte": 131.4
+    },
+    {
+     "einheiten": [
+      5255735
+     ],
+     "projekt_id": 518707,
+     "bezeichnung": "City Dock Köln Ost – Unit 1.10",
+     "ort": "Köln",
+     "art": "passt",
+     "punkte": 128.2
+    },
+    {
+     "einheiten": [
+      2778050
+     ],
+     "projekt_id": 567017,
+     "bezeichnung": "Logistikhalle in (50) Pulheim – Donatusstraße 127-129, Unit 1 (1.798 m²)",
+     "ort": "Pulheim",
+     "art": "passt",
+     "punkte": 126.7
+    },
+    {
+     "einheiten": [
+      4514337
+     ],
+     "projekt_id": 444212,
+     "bezeichnung": "UnternehmerPark Köln, Brucknerstraße - Unit 6+7",
+     "ort": "Köln",
+     "art": "passt",
+     "punkte": 126.2
+    }
+   ]
+  },
+  {
+   "id": 10920963,
+   "kontakt_id": 16768428,
+   "kontakt": "Kontakt 16768428",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      5301725
+     ],
+     "projekt_id": 526885,
+     "bezeichnung": "Logistikhalle in (40) Düsseldorf-Flingern – Phase 2, Unit 1 (5.098 m²) – Phase 2 – Unit 1",
+     "ort": "Düsseldorf",
+     "art": "passt",
+     "punkte": 140.2
+    },
+    {
+     "einheiten": [
+      5121159
+     ],
+     "projekt_id": 503126,
+     "bezeichnung": "Logistikflächen in (40) Düsseldorf – Unit 1",
+     "ort": "Düsseldorf",
+     "art": "passt",
+     "punkte": 139.1
+    },
+    {
+     "einheiten": [
+      4727837
+     ],
+     "projekt_id": null,
+     "bezeichnung": "befestigte Außenfläche – Siemensring 41 - Willich",
+     "ort": "Willich",
+     "art": "passt",
+     "punkte": 130.5
+    },
+    {
+     "einheiten": [
+      6255116
+     ],
+     "projekt_id": 602668,
+     "bezeichnung": "Cross-Dock-Logistikhalle in (47) Duisburg-Rheinhausen – Gesamt",
+     "ort": "Duisburg",
+     "art": "passt",
+     "punkte": 128.5
+    },
+    {
+     "einheiten": [
+      2777941
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Am Schürmannshütt 23 - Moers",
+     "ort": "Moers",
+     "art": "passt",
+     "punkte": 125.9
+    }
+   ]
+  },
+  {
+   "id": 10651480,
+   "kontakt_id": 17272050,
+   "kontakt": "Kontakt 17272050",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      6569346
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikhalle in (59) Ense - Hoeingen – Harkortstraße 1 - Ense",
+     "ort": "Ense",
+     "art": "passt",
+     "punkte": 141.5
+    },
+    {
+     "einheiten": [
+      3960663
+     ],
+     "projekt_id": 412259,
+     "bezeichnung": "Gewerbe- und Logistikpark in (44) Castrop-Rauxel – Logistik A",
+     "ort": "Castrop-Rauxel",
+     "art": "passt",
+     "punkte": 134.3
+    },
+    {
+     "einheiten": [
+      5578878
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikhalle in (45) Gelsenkirchen – Am Schlachthof 4A - Gelsenkirchen",
+     "ort": "Gelsenkirchen",
+     "art": "passt",
+     "punkte": 132.1
+    },
+    {
+     "einheiten": [
+      4479900
+     ],
+     "projekt_id": 440425,
+     "bezeichnung": "Logistikpark Köln – 002",
+     "ort": "Köln",
+     "art": "passt",
+     "punkte": 129.9
+    },
+    {
+     "einheiten": [
+      5675034
+     ],
+     "projekt_id": 560418,
+     "bezeichnung": "Logistikhalle in (45) Hattingen – Unit 1",
+     "ort": "Hattingen",
+     "art": "passt",
+     "punkte": 129.4
+    }
+   ]
+  },
+  {
+   "id": 10646889,
+   "kontakt_id": 17221995,
+   "kontakt": "Kontakt 17221995",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      6569346
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikhalle in (59) Ense - Hoeingen – Harkortstraße 1 - Ense",
+     "ort": "Ense",
+     "art": "passt",
+     "punkte": 130.1
+    },
+    {
+     "einheiten": [
+      2777873
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Regaliert im Ruhrgebiet – Märkische Straße 10 - Bochum",
+     "ort": "Bochum",
+     "art": "passt",
+     "punkte": 113.5
+    },
+    {
+     "einheiten": [
+      3089154
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikentwicklung in (46) Oberhausen – Im Lekkerland 2 - Oberhausen",
+     "ort": "Oberhausen",
+     "art": "passt",
+     "punkte": 112.7
+    },
+    {
+     "einheiten": [
+      2778298
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Lingener Damm 244-248 - Rheine",
+     "ort": "Rheine",
+     "art": "passt",
+     "punkte": 112.3
+    },
+    {
+     "einheiten": [
+      6208827
+     ],
+     "projekt_id": 599731,
+     "bezeichnung": "Logistikhalle in (76) Almelo (NL) – Newton, Warehouse 1 (24.208 m²)",
+     "ort": "Almelo",
+     "art": "passt",
+     "punkte": 112.1
+    }
+   ]
+  },
+  {
+   "id": 10615682,
+   "kontakt_id": 26426561,
+   "kontakt": "Kontakt 26426561",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      3949306
+     ],
+     "projekt_id": 411492,
+     "bezeichnung": "Gewerbepark in (41) Neuss – Unit 1.1",
+     "ort": "Neuss",
+     "art": "passt",
+     "punkte": 132.8
+    },
+    {
+     "einheiten": [
+      2778146
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Schönes Objekt in Düsseldorf – Fichtenstraße 33 - Düsseldorf",
+     "ort": "Düsseldorf",
+     "art": "passt",
+     "punkte": 132.1
+    },
+    {
+     "einheiten": [
+      4163362
+     ],
+     "projekt_id": 567052,
+     "bezeichnung": "Gewerbefläche in (41) Neuss – Business Triangle, Bussardweg 2, EG-1. OG (743 m²)",
+     "ort": "Neuss",
+     "art": "passt",
+     "punkte": 131.0
+    },
+    {
+     "einheiten": [
+      2777882
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Gewerbepark Airport in Düsseldorf – Wanheimer Straße 55 - Düsseldorf",
+     "ort": "Düsseldorf",
+     "art": "passt",
+     "punkte": 128.9
+    },
+    {
+     "einheiten": [
+      6263719
+     ],
+     "projekt_id": 603282,
+     "bezeichnung": "Gewerbehalle in (40) Düsseldorf – Kappeler Straße – Halle 9 (Einzelhandel Möbel)",
+     "ort": "Düsseldorf",
+     "art": "passt",
+     "punkte": 127.6
+    }
+   ]
+  },
+  {
+   "id": 9687162,
+   "kontakt_id": 25177599,
+   "kontakt": "Kontakt 25177599",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      5033352
+     ],
+     "projekt_id": 567220,
+     "bezeichnung": "Logistikhalle in (40) Düsseldorf – Airport, 18-20 EG",
+     "ort": "Düsseldorf",
+     "art": "passt",
+     "punkte": 137.7
+    },
+    {
+     "einheiten": [
+      5768786
+     ],
+     "projekt_id": 567182,
+     "bezeichnung": "Logistikhalle in (45) Essen – DC2-DC3, Unit 2",
+     "ort": "Essen",
+     "art": "passt",
+     "punkte": 124.4
+    },
+    {
+     "einheiten": [
+      6230819,
+      6230820
+     ],
+     "projekt_id": 600872,
+     "bezeichnung": "Gewerbepark in (40) Ratingen – Halskestraße / Harkortstraße",
+     "ort": "Ratingen",
+     "art": "Kombination",
+     "punkte": 119.0
+    },
+    {
+     "einheiten": [
+      5513326,
+      5513364
+     ],
+     "projekt_id": 551141,
+     "bezeichnung": "Logistikpark in (45) Essen -Westendstraße",
+     "ort": "Essen",
+     "art": "Kombination",
+     "punkte": 116.5
+    },
+    {
+     "einheiten": [
+      2777857
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Westendstraße 15 - Essen",
+     "ort": "Essen",
+     "art": "teilbar",
+     "punkte": 85.0
+    }
+   ]
+  },
+  {
+   "id": 7624519,
+   "kontakt_id": 18513923,
+   "kontakt": "Kontakt 18513923",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      2777856
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Rochusstraße  - Korschenbroich",
+     "ort": "Korschenbroich",
+     "art": "passt",
+     "punkte": 115.9
+    },
+    {
+     "einheiten": [
+      6230551,
+      6230550
+     ],
+     "projekt_id": 600772,
+     "bezeichnung": "Logistikpark in (47) Rheinberg – An der Rheinberger Heide",
+     "ort": "Rheinberg",
+     "art": "Kombination",
+     "punkte": 97.3
+    },
+    {
+     "einheiten": [
+      2778105
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Oberschlesienstraße 17 - Krefeld",
+     "ort": "Krefeld",
+     "art": "teilbar",
+     "punkte": 89.2
+    },
+    {
+     "einheiten": [
+      2778539
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Hansaallee 321  - Düsseldorf",
+     "ort": "Düsseldorf",
+     "art": "teilbar",
+     "punkte": 75.3
+    }
+   ]
+  },
+  {
+   "id": 11799262,
+   "kontakt_id": 31165476,
+   "kontakt": "Kontakt 31165476",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      5766893
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikhalle in (49) Gelsenkirchen – Isoldenstraße 23a – Isoldenstraße 25 - Gelsenkirchen",
+     "ort": "Gelsenkirchen",
+     "art": "passt",
+     "punkte": 130.8
+    },
+    {
+     "einheiten": [
+      5643150
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Lagerhalle in (44) Bochum – Herner Straße  150 - Bochum",
+     "ort": "Bochum",
+     "art": "passt",
+     "punkte": 122.5
+    },
+    {
+     "einheiten": [
+      5255793
+     ],
+     "projekt_id": 518713,
+     "bezeichnung": "Logistikhalle in (44) Castrop-Rauxel – Unit 1",
+     "ort": "Castrop-Rauxel",
+     "art": "teilbar",
+     "punkte": 107.3
+    },
+    {
+     "einheiten": [
+      6312984
+     ],
+     "projekt_id": 607108,
+     "bezeichnung": "Gewerbehalle in (45) Gelsenkirchen – Halle 7 (4 Units ab ca. 404 m²)",
+     "ort": "Gelsenkirchen",
+     "art": "teilbar",
+     "punkte": 106.2
+    },
+    {
+     "einheiten": [
+      2778101
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Pommernstraße 19  - Gelsenkirchen",
+     "ort": "Gelsenkirchen",
+     "art": "teilbar",
+     "punkte": 96.4
+    }
+   ]
+  },
+  {
+   "id": 11656279,
+   "kontakt_id": 30768831,
+   "kontakt": "Kontakt 30768831",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      5059655
+     ],
+     "projekt_id": 501013,
+     "bezeichnung": "Gewerbepark in (42) Wuppertal – Unit 1",
+     "ort": "Wuppertal",
+     "art": "passt",
+     "punkte": 146.4
+    },
+    {
+     "einheiten": [
+      5798585
+     ],
+     "projekt_id": 569588,
+     "bezeichnung": "Logistikhalle in (50) Frechen – Köln-Frechen – Unit 4",
+     "ort": "Frechen",
+     "art": "passt",
+     "punkte": 135.7
+    },
+    {
+     "einheiten": [
+      3107420
+     ],
+     "projekt_id": null,
+     "bezeichnung": "9850 m² zentral logistisch gut gelegen – Im Freihafen 4 - Duisburg",
+     "ort": "Duisburg",
+     "art": "passt",
+     "punkte": 134.5
+    },
+    {
+     "einheiten": [
+      3960663
+     ],
+     "projekt_id": 412259,
+     "bezeichnung": "Gewerbe- und Logistikpark in (44) Castrop-Rauxel – Logistik A",
+     "ort": "Castrop-Rauxel",
+     "art": "passt",
+     "punkte": 134.5
+    },
+    {
+     "einheiten": [
+      3637155
+     ],
+     "projekt_id": 392014,
+     "bezeichnung": "Logistikfläche Köln-Eifeltor – 001",
+     "ort": "Köln",
+     "art": "passt",
+     "punkte": 134.2
+    }
+   ]
+  },
+  {
+   "id": 11571673,
+   "kontakt_id": 30603562,
+   "kontakt": "Kontakt 30603562",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      5450968
+     ],
+     "projekt_id": 542329,
+     "bezeichnung": "Logistikpark in (06) Bitterfeld – Unit 2.1",
+     "ort": "Bitterfeld-Wolfen",
+     "art": "passt",
+     "punkte": 124.9
+    },
+    {
+     "einheiten": [
+      2778209
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Gewerbefläche in (40) Düsseldorf – Reisholzer Werftstraße 52 – Reisholzer Werftstraße 52 - Düsseldorf",
+     "ort": "Düsseldorf",
+     "art": "passt",
+     "punkte": 124.4
+    },
+    {
+     "einheiten": [
+      5451169
+     ],
+     "projekt_id": 542362,
+     "bezeichnung": "Logistikflächen in (06) Bitterfeld-Wolfen – Unit 3",
+     "ort": "Bitterfeld-Wolfen",
+     "art": "passt",
+     "punkte": 124.4
+    },
+    {
+     "einheiten": [
+      5770034
+     ],
+     "projekt_id": 567347,
+     "bezeichnung": "Logistikhalle in (65) Schwalbach am Taunus – Unit 1",
+     "ort": "Schwalbach am Taunus",
+     "art": "passt",
+     "punkte": 124.4
+    },
+    {
+     "einheiten": [
+      5769805
+     ],
+     "projekt_id": 575428,
+     "bezeichnung": "Logistikhalle in (15) Mittenwalde – Unit 2",
+     "ort": "Mittenwalde",
+     "art": "passt",
+     "punkte": 124.3
+    }
+   ]
+  },
+  {
+   "id": 11730703,
+   "kontakt_id": 22760083,
+   "kontakt": "Kontakt 22760083",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      5451010
+     ],
+     "projekt_id": 542329,
+     "bezeichnung": "Logistikpark in (06) Bitterfeld – Unit 2.4",
+     "ort": "Bitterfeld-Wolfen",
+     "art": "passt",
+     "punkte": 144.3
+    },
+    {
+     "einheiten": [
+      5425127
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikhalle in (06) Dessau-Roßlau – Brauereistraße 13 - Dessau-Roßlau",
+     "ort": "Dessau-Roßlau",
+     "art": "passt",
+     "punkte": 136.9
+    },
+    {
+     "einheiten": [
+      5769815
+     ],
+     "projekt_id": 567278,
+     "bezeichnung": "Logistikhalle in (06) Schkopau – Unit 1",
+     "ort": "Schkopau",
+     "art": "teilbar",
+     "punkte": 96.8
+    },
+    {
+     "einheiten": [
+      5451169
+     ],
+     "projekt_id": 542362,
+     "bezeichnung": "Logistikflächen in (06) Bitterfeld-Wolfen – Unit 3",
+     "ort": "Bitterfeld-Wolfen",
+     "art": "größer",
+     "punkte": 83.1
+    },
+    {
+     "einheiten": [
+      3735442
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikhalle am Leipziger Flughafen! – Paul-Thiersch-Straße 13 - Schkeuditz",
+     "ort": "Schkeuditz",
+     "art": "größer",
+     "punkte": 66.9
+    }
+   ]
+  },
+  {
+   "id": 11680900,
+   "kontakt_id": 22668773,
+   "kontakt": "Kontakt 22668773",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      6571938
+     ],
+     "projekt_id": 566960,
+     "bezeichnung": "Logistikhalle in (32) Bünde – Halle 3",
+     "ort": "Bünde",
+     "art": "passt",
+     "punkte": 134.8
+    },
+    {
+     "einheiten": [
+      6373761
+     ],
+     "projekt_id": 613115,
+     "bezeichnung": "Logistikhalle in (50) Wesseling – Gesamtfläche",
+     "ort": "Wesseling",
+     "art": "passt",
+     "punkte": 129.9
+    },
+    {
+     "einheiten": [
+      2778209
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Gewerbefläche in (40) Düsseldorf – Reisholzer Werftstraße 52 – Reisholzer Werftstraße 52 - Düsseldorf",
+     "ort": "Düsseldorf",
+     "art": "passt",
+     "punkte": 128.2
+    },
+    {
+     "einheiten": [
+      5301757
+     ],
+     "projekt_id": 526885,
+     "bezeichnung": "Logistikhalle in (40) Düsseldorf-Flingern – Phase 2, Unit 3 (5.059 m²) – Phase 2 – Unit 3",
+     "ort": "Düsseldorf",
+     "art": "passt",
+     "punkte": 126.5
+    },
+    {
+     "einheiten": [
+      2778447
+     ],
+     "projekt_id": 567019,
+     "bezeichnung": "Logistikhalle in (45) Gelsenkirchen – Neubau an der Emscherstraße, Einheit 1 (2.975 m²)",
+     "ort": "Gelsenkirchen",
+     "art": "passt",
+     "punkte": 125.9
+    }
+   ]
+  },
+  {
+   "id": 11680956,
+   "kontakt_id": 28826411,
+   "kontakt": "Kontakt 28826411",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      2778146
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Schönes Objekt in Düsseldorf – Fichtenstraße 33 - Düsseldorf",
+     "ort": "Düsseldorf",
+     "art": "passt",
+     "punkte": 158.8
+    },
+    {
+     "einheiten": [
+      2777882
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Gewerbepark Airport in Düsseldorf – Wanheimer Straße 55 - Düsseldorf",
+     "ort": "Düsseldorf",
+     "art": "passt",
+     "punkte": 154.7
+    },
+    {
+     "einheiten": [
+      6230818
+     ],
+     "projekt_id": 600872,
+     "bezeichnung": "Logistikhalle in (40) Ratingen – Halskestraße – Einheit 1.184 m² – RED 6709",
+     "ort": "Ratingen",
+     "art": "passt",
+     "punkte": 153.1
+    },
+    {
+     "einheiten": [
+      2778377
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikhalle in (40) Ratingen – Harkortstraße 12-32 – Harkortstraße 12-32 - Ratingen",
+     "ort": "Ratingen",
+     "art": "passt",
+     "punkte": 149.7
+    },
+    {
+     "einheiten": [
+      4465875
+     ],
+     "projekt_id": 439534,
+     "bezeichnung": "UnternehmerPark Duisburg, Baumstraße (2. BA) - Unit 3.2",
+     "ort": "Duisburg",
+     "art": "passt",
+     "punkte": 145.8
+    }
+   ]
+  },
+  {
+   "id": 11680967,
+   "kontakt_id": 25323749,
+   "kontakt": "Kontakt 25323749",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      5810802
+     ],
+     "projekt_id": 570125,
+     "bezeichnung": "Logistikhalle in (21) Stelle – Gebäude A1, EG",
+     "ort": "Stelle",
+     "art": "passt",
+     "punkte": 137.9
+    },
+    {
+     "einheiten": [
+      5770429
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikhalle in (21) Hamburg – Halle Neuländer Kamp 7 – Neuländer Kamp 7 - Hamburg",
+     "ort": "Hamburg",
+     "art": "passt",
+     "punkte": 137.3
+    },
+    {
+     "einheiten": [
+      6159440
+     ],
+     "projekt_id": 596720,
+     "bezeichnung": "Logistikhalle in (22) Wedel - Unit 7",
+     "ort": "Wedel",
+     "art": "passt",
+     "punkte": 137.2
+    },
+    {
+     "einheiten": [
+      6254938
+     ],
+     "projekt_id": 602654,
+     "bezeichnung": "Logistikhalle in (22) Norderstedt - Bestandsimmobilie – Nordportbogen 4 - Norderstedt",
+     "ort": "Norderstedt",
+     "art": "passt",
+     "punkte": 132.9
+    },
+    {
+     "einheiten": [
+      5769401
+     ],
+     "projekt_id": 567216,
+     "bezeichnung": "Logistikhalle in (21) Buxtehude – 13-15 EG (3529 m²)",
+     "ort": "Buxtehude",
+     "art": "passt",
+     "punkte": 131.2
+    }
+   ]
+  },
+  {
+   "id": 11680985,
+   "kontakt_id": 23395168,
+   "kontakt": "Kontakt 23395168",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      4934596
+     ],
+     "projekt_id": 488242,
+     "bezeichnung": "Logistikhalle in (52) Stolberg – Unit 1",
+     "ort": "Stolberg",
+     "art": "passt",
+     "punkte": 153.3
+    },
+    {
+     "einheiten": [
+      5482308
+     ],
+     "projekt_id": 546290,
+     "bezeichnung": "Logistikhalle mit Batterielagerung in (49) Ibbenbüren – Unit 2",
+     "ort": "Ibbenbüren",
+     "art": "passt",
+     "punkte": 153.2
+    },
+    {
+     "einheiten": [
+      6230830
+     ],
+     "projekt_id": 600873,
+     "bezeichnung": "Logistikhalle in (53) Bornheim – Ottostraße – Unit 1",
+     "ort": "Bornheim",
+     "art": "passt",
+     "punkte": 152.3
+    },
+    {
+     "einheiten": [
+      6230550
+     ],
+     "projekt_id": 600772,
+     "bezeichnung": "Logistikhalle in (47) Rheinberg – An der Rheinberger Heide – Halle A",
+     "ort": "Rheinberg",
+     "art": "passt",
+     "punkte": 152.1
+    },
+    {
+     "einheiten": [
+      6572520
+     ],
+     "projekt_id": 371785,
+     "bezeichnung": "Logistikhalle in (32) Kirchlengern – 001 – 003",
+     "ort": "Kirchlengern",
+     "art": "passt",
+     "punkte": 152.0
+    }
+   ]
+  },
+  {
+   "id": 11585096,
+   "kontakt_id": 30642043,
+   "kontakt": "Kontakt 30642043",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      6572519
+     ],
+     "projekt_id": 371785,
+     "bezeichnung": "Logistikhalle in (32) Kirchlengern – 001 – 002",
+     "ort": "Kirchlengern",
+     "art": "passt",
+     "punkte": 160.7
+    },
+    {
+     "einheiten": [
+      3637203
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikfläche in (50) Pulheim – Industriestraße 20 - Pulheim",
+     "ort": "Pulheim",
+     "art": "passt",
+     "punkte": 154.0
+    },
+    {
+     "einheiten": [
+      3154203
+     ],
+     "projekt_id": 370830,
+     "bezeichnung": "Logistikflächen in (46) Emmerich an der A3 und A57! – Unit 1",
+     "ort": "Emmerich am Rhein",
+     "art": "passt",
+     "punkte": 152.5
+    },
+    {
+     "einheiten": [
+      5675038
+     ],
+     "projekt_id": 560418,
+     "bezeichnung": "Logistikhalle in (45) Hattingen – Unit 4",
+     "ort": "Hattingen",
+     "art": "passt",
+     "punkte": 152.3
+    },
+    {
+     "einheiten": [
+      3089160
+     ],
+     "projekt_id": 566948,
+     "bezeichnung": "Logistikhalle in (45) Gelsenkirchen - Unit 1",
+     "ort": "Gelsenkirchen",
+     "art": "passt",
+     "punkte": 147.7
+    }
+   ]
+  },
+  {
+   "id": 11611033,
+   "kontakt_id": 16768428,
+   "kontakt": "Kontakt 16768428",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      2778024
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikhalle in (50) Bergheim – Ben-Cammarata-Straße 2 - Bergheim",
+     "ort": "Bergheim",
+     "art": "passt",
+     "punkte": 137.7
+    },
+    {
+     "einheiten": [
+      6208823
+     ],
+     "projekt_id": 599729,
+     "bezeichnung": "Logistikhalle in (60) Herkenbosch (NL) – Unit 2 (29.962 m²)",
+     "ort": "Herkenbosch",
+     "art": "passt",
+     "punkte": 133.8
+    },
+    {
+     "einheiten": [
+      3089154
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikentwicklung in (46) Oberhausen – Im Lekkerland 2 - Oberhausen",
+     "ort": "Oberhausen",
+     "art": "passt",
+     "punkte": 132.8
+    },
+    {
+     "einheiten": [
+      2777960
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Curiestraße  - Wesseling",
+     "ort": "Wesseling",
+     "art": "passt",
+     "punkte": 124.3
+    },
+    {
+     "einheiten": [
+      5675036,
+      5675035,
+      5675034
+     ],
+     "projekt_id": 560418,
+     "bezeichnung": "Logistikfläche in (45) Hattingen",
+     "ort": "Hattingen",
+     "art": "Kombination",
+     "punkte": 123.8
+    }
+   ]
+  },
+  {
+   "id": 11575985,
+   "kontakt_id": 22140267,
+   "kontakt": "Kontakt 22140267",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      2778024
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikhalle in (50) Bergheim – Ben-Cammarata-Straße 2 - Bergheim",
+     "ort": "Bergheim",
+     "art": "passt",
+     "punkte": 135.0
+    },
+    {
+     "einheiten": [
+      3089154
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikentwicklung in (46) Oberhausen – Im Lekkerland 2 - Oberhausen",
+     "ort": "Oberhausen",
+     "art": "passt",
+     "punkte": 129.8
+    },
+    {
+     "einheiten": [
+      6208823
+     ],
+     "projekt_id": 599729,
+     "bezeichnung": "Logistikhalle in (60) Herkenbosch (NL) – Unit 2 (29.962 m²)",
+     "ort": "Herkenbosch",
+     "art": "passt",
+     "punkte": 127.8
+    },
+    {
+     "einheiten": [
+      2778032
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Kippdorfstraße 6-24 - Remscheid",
+     "ort": "Remscheid",
+     "art": "passt",
+     "punkte": 115.6
+    },
+    {
+     "einheiten": [
+      2777913
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Zum Strothebach 11  - Bad",
+     "ort": "Bad",
+     "art": "passt",
+     "punkte": 115.0
+    }
+   ]
+  },
+  {
+   "id": 11596576,
+   "kontakt_id": 22140257,
+   "kontakt": "Kontakt 22140257",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      2778024
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikhalle in (50) Bergheim – Ben-Cammarata-Straße 2 - Bergheim",
+     "ort": "Bergheim",
+     "art": "passt",
+     "punkte": 135.0
+    },
+    {
+     "einheiten": [
+      3089154
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Logistikentwicklung in (46) Oberhausen – Im Lekkerland 2 - Oberhausen",
+     "ort": "Oberhausen",
+     "art": "passt",
+     "punkte": 129.8
+    },
+    {
+     "einheiten": [
+      2778032
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Kippdorfstraße 6-24 - Remscheid",
+     "ort": "Remscheid",
+     "art": "passt",
+     "punkte": 115.6
+    },
+    {
+     "einheiten": [
+      2777913
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Zum Strothebach 11  - Bad",
+     "ort": "Bad",
+     "art": "passt",
+     "punkte": 115.0
+    },
+    {
+     "einheiten": [
+      5675362,
+      5675359,
+      5675361,
+      5675358
+     ],
+     "projekt_id": 560425,
+     "bezeichnung": "Logistikfläche in (44) Dortmund",
+     "ort": "Dortmund",
+     "art": "Kombination",
+     "punkte": 114.6
+    }
+   ]
+  },
+  {
+   "id": 11188703,
+   "kontakt_id": 22683116,
+   "kontakt": "Kontakt 22683116",
+   "vorschlaege": [
+    {
+     "einheiten": [
+      2804424
+     ],
+     "projekt_id": null,
+     "bezeichnung": "Neuwertige Halle direkt an der A45! – Industriegebiet Süd E 4 - Alzenau",
+     "ort": "Alzenau",
+     "art": "passt",
+     "punkte": 134.6
+    },
+    {
+     "einheiten": [
+      6310209
+     ],
+     "projekt_id": 606784,
+     "bezeichnung": "Tiefkühllager in (95) Marktredwitz – ca. 1.600 m² (–22 °C)",
+     "ort": "Marktredwitz",
+     "art": "passt",
+     "punkte": 134.5
+    },
+    {
+     "einheiten": [
+      4465845
+     ],
+     "projekt_id": 439534,
+     "bezeichnung": "UnternehmerPark Duisburg, Baumstraße (2. BA) - Unit 3.1",
+     "ort": "Duisburg",
+     "art": "passt",
+     "punkte": 134.3
+    },
+    {
+     "einheiten": [
+      6373973
+     ],
+     "projekt_id": 613125,
+     "bezeichnung": "Logistikhalle in (78) Gottmadingen – Halle 239",
+     "ort": "Gottmadingen",
+     "art": "passt",
+     "punkte": 134.2
+    },
+    {
+     "einheiten": [
+      3950929
+     ],
+     "projekt_id": 411492,
+     "bezeichnung": "Gewerbepark in (41) Neuss – Unit 3.1",
+     "ort": "Neuss",
+     "art": "passt",
+     "punkte": 134.1
+    }
+   ]
+  }
+ ]
+}

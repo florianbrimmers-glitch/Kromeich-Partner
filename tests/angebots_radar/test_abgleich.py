@@ -208,7 +208,24 @@ def test_gebiet_ueber_orte_bundesland_und_ohne():
     ids = lambda profil: sorted(v.erste.id for v in a.pruefe(aus_suchprofil(profil)).vorschlaege)   # noqa: E731
     assert ids(suchprofil(text="~9.000 m² Hallenfläche", orte=["Köln"])) == [1, 2]
     assert ids(suchprofil(text="~9.000 m² Hallenfläche", laender=["Nordrhein-Westfalen"])) == [1, 2]
-    assert ids(suchprofil(text="~9.000 m² Hallenfläche")) == [1, 2, 3]                        # deutschlandweit
+    # Ohne Gebiet wird gezählt, aber nichts gezeigt – fünf aus Hunderten wären Zufall
+    ohne = a.pruefe(aus_suchprofil(suchprofil(text="~9.000 m² Hallenfläche")))
+    assert ohne.vorschlaege == [] and ohne.grund_ohne_vorschlag.startswith("kein Gebiet im Suchprofil – 3 passende Objekte bundesweit")
+
+
+def test_widerspruch_und_alter_stehen_als_hinweis_am_vorschlag():
+    """Stichprobe 26.11.2026: Eine Halle am Flughafen Mönchengladbach gilt als frei, trägt aber
+    „Vermietungsstand 100%“. Nicht nach Regel auflösen – nennen und nach hinten stellen."""
+    g = aus_suchprofil(suchprofil(text="▪️ ~9.000 m² Hallenfläche", lat=51.15, lng=7.27, radius=20000))
+    widerspruch = einheit(id=1, strasse="Flughafenstraße", vermietungsstand_einheiten="100%")
+    frisch = einheit(id=2, strasse="Neue Straße")
+    alt = einheit(id=3, strasse="Alte Straße")
+    alt["updated_at"] = "2025-04-22T10:00:00+02:00"
+    frisch["updated_at"] = widerspruch["updated_at"] = "2026-10-01T10:00:00+02:00"
+    e = abgleich([widerspruch, frisch, alt]).pruefe(g)
+    assert [v.erste.id for v in e.vorschlaege] == [2, 3, 1]
+    assert any("Vermietungsstand“ sagt 100 %" in p for p in e.vorschlaege[2].pruefen)
+    assert "Datensatz seit 04/2025 nicht geändert" in e.vorschlaege[1].pruefen
 
 
 def test_altbestand_steht_hinten_und_traegt_den_hinweis():
