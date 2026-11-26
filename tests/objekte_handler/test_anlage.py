@@ -21,6 +21,31 @@ MAREK = "U092XRXSY3X"
 UNNA_LINK = {"ts": "1795513641.524429", "user": MAREK,
              "text": "<https://www.fraserspropertyindustrial.com/de/objekt/germany/unna22.html|fraserspropertyindustrial.com/de/objekt/germany/unna22.html>"}
 BITTE_ANLEGEN = {"ts": "1795513645.740279", "user": MAREK, "text": "bitte anlegen"}
+UNNA_URL = "https://www.fraserspropertyindustrial.com/de/objekt/germany/unna22.html"
+MARQ_LINK = {"ts": "1795513770.693139", "user": MAREK,
+             "text": "<https://marqlogistics.com/en-de/property/marq-logistics-ense-hoeingen|marqlogistics.com/en-de/property/marq-logistics-ense-hoeingen>"}
+BITTE_ANLEGEN_MARQ = {"ts": "1795513776.599219", "user": MAREK, "text": "bitte anlegen"}
+DENISE = "U0806EX3EFL"
+# 04.10.2026: Denise leitet das Angebot als E-Mail in den Kanal weiter, Text „bitte anlegen“.
+# Felder der E-Mail-Datei nach der Slack-Doku (file object, „Email properties“).
+RECKLINGHAUSEN = {
+    "ts": "1791107185.325199", "user": DENISE, "text": "bitte anlegen",
+    "files": [{
+        "id": "F0C6KRT6VJN", "name": "CTPark Recklinghausen | Neuer Teaser verfügbar",
+        "title": "CTPark Recklinghausen | Neuer Teaser verfügbar", "mimetype": "text/html",
+        "filetype": "email", "mode": "email", "size": 10_171_187,
+        "subject": "CTPark Recklinghausen | Neuer Teaser verfügbar",
+        "from": [{"address": "vermietung@ctp.example", "name": "CTP Germany", "original": "CTP Germany <vermietung@ctp.example>"}],
+        "plain_text": "Sehr geehrte Damen und Herren, anbei der neue Teaser für den CTPark Recklinghausen …",
+        "has_more": True,
+        "url_private": "https://files.slack.com/files-pri/T07GCS7CDTJ-F0C6KRT6VJN/fwd",
+        "attachments": [{"filename": "CTPark_Recklinghausen_Teaser.pdf", "mimetype": "application/pdf",
+                         "size": 9_400_000, "url": "https://files.slack.com/files-email/T07GCS7CDTJ-F0C6KRT6VJN/teaser.pdf",
+                         "slack_file_id": "F0C6KRT6VJP"},
+                        {"filename": "logo.png", "mimetype": "image/png", "size": 12_000,
+                         "url": "https://files.slack.com/files-email/T07GCS7CDTJ-F0C6KRT6VJN/logo.png"}],
+    }],
+}
 REMSCHEID = {
     "ts": "1795600175.387459", "user": MAREK, "text": "Exposé Objekt Remscheid - LIP Invest",
     "files": [{"id": "F0CLNJLLG75", "name": "Remscheid_Exposé.pdf", "mimetype": "application/pdf", "size": 2_831_155,
@@ -62,6 +87,74 @@ def test_exposé_pdf_kommt_mit():
     k = anlage.kontext(REMSCHEID, [REMSCHEID, SCHON_ANGELEGT], None)
     assert [d.name for d in k.dateien] == ["Remscheid_Exposé.pdf"]
     assert k.vorher == []        # die Folgenachricht „schon angelegt“ zählt nicht als Material
+
+
+@pytest.mark.parametrize("text, erwartet", [
+    ("bitte anlegen", True),                                            # Marek 24.11., Denise 04.10.
+    ("Bitte anlegen!", True),
+    ("bitte in Propstack anlegen", True),
+    ("bitte Objekt anlegen", True),
+    ("<@U092XRXSY3X> bitte anlegen", True),
+    ("anlegen bitte", True),
+    # Mehr als ein Anlegeauftrag – das bleibt bei der KI:
+    ("<@U0A75JTEQRX|Marlene Jung> bitte Research Aufgaben für Ratingen &amp; Bergheim anlegen", False),
+    ("@marek: Bitte anlegen und an Baaske  senden, bitte kurze Info an mich, wen erfolgt", False),
+    ("bitte Objekt &amp; Provisionsvereinbarung anlegen", False),
+    ("Hab ich schon ordentlich angelegt", False),
+    ("", False),
+])
+def test_ist_auftrag(text, erwartet):
+    assert anlage.ist_auftrag(text) is erwartet
+
+
+def test_davor_endet_am_vorigen_auftrag():
+    """24.11.2026, 10:47–10:49: Unna-Link, „bitte anlegen“, Ense-Höingen-Link, „bitte anlegen“.
+    Der zweite Auftrag gehört nur zu Ense-Höingen – 15 Minuten allein reichen als Grenze nicht."""
+    kanal = [UNNA_LINK, BITTE_ANLEGEN, MARQ_LINK, BITTE_ANLEGEN_MARQ]
+    assert anlage.vorher(BITTE_ANLEGEN_MARQ, kanal) == [MARQ_LINK]
+    assert anlage.vorher(BITTE_ANLEGEN, kanal) == [UNNA_LINK]
+
+
+def test_thread_antwort_nimmt_nichts_aus_dem_kanal():
+    antwort = {**BITTE_ANLEGEN, "ts": "1795513700.000100", "thread_ts": "1795400000.000100"}
+    assert anlage.vorher(antwort, [UNNA_LINK, BITTE_ANLEGEN]) == []
+
+
+def test_bitte_anlegen_geht_ohne_ki_nur_mit_material():
+    """26.11.2026, Probe 45803737220: Die KI ordnete „bitte anlegen“ ohne den Link davor als „kein
+    Objektbezug“ ein (am 24.11. dieselbe Nachricht als „Objekt fehlt“)."""
+    assert anlage.auftrag_ohne_ki(BITTE_ANLEGEN, [UNNA_LINK, BITTE_ANLEGEN]) is True
+    assert anlage.auftrag_ohne_ki(BITTE_ANLEGEN, [BITTE_ANLEGEN]) is False          # nichts zum Anlegen da
+    assert anlage.auftrag_ohne_ki(RECKLINGHAUSEN, [RECKLINGHAUSEN]) is True         # Material hängt dran
+    assert anlage.auftrag_ohne_ki(UNNA_LINK, [UNNA_LINK]) is False                  # ein Link ist kein Auftrag
+
+
+def test_weitergeleitete_mail_ist_material():
+    k = anlage.kontext(RECKLINGHAUSEN, [RECKLINGHAUSEN], None)
+    assert [(m.betreff, m.von, m.vollstaendig) for m in k.mails] == [
+        ("CTPark Recklinghausen | Neuer Teaser verfügbar", "CTP Germany", False)]
+    assert [d.name for d in k.dateien] == ["CTPark_Recklinghausen_Teaser.pdf"]     # das Logo nicht
+
+
+def test_mail_ohne_text_ist_kein_expose():
+    """Eine weitergeleitete E-Mail ohne Text ist meist ein Eigentümer-Newsletter – kein Anlegen."""
+    nur_mail = {**RECKLINGHAUSEN, "text": ""}
+    assert anlage.pdfs(nur_mail, mit_mail=False) == []
+    assert anlage.ist_anlagefall(nur_mail, None) is False
+
+
+def test_html_der_mail_wird_text():
+    html = ("<html><head><style>p{color:red}</style></head><body><p>CTPark Recklinghausen</p>"
+            "<table><tr><td>Halle</td><td>12.500 m²</td></tr></table>Gruß<br>CTP</body></html>")
+    assert anlage.html_zu_text(html) == "CTPark Recklinghausen\nHalle 12.500 m²\nGruß\nCTP"
+
+
+def test_mailtext_geht_an_die_ki():
+    k = anlage.kontext(RECKLINGHAUSEN, [RECKLINGHAUSEN], None)
+    k.mails[0].text = "Halle 12.500 m², verfügbar ab Q3"
+    text = anlage._nachricht(k, "Denise Kromeich", "https://slack/p", [])[0]["content"][-1]["text"]
+    assert "Weitergeleitete E-Mail – Betreff: CTPark Recklinghausen | Neuer Teaser verfügbar – Von: CTP Germany" in text
+    assert "Halle 12.500 m², verfügbar ab Q3" in text
 
 
 # --- Betreuer und Zugang ------------------------------------------------------------------
@@ -283,7 +376,8 @@ def test_unklar_faellt_auf_die_aufgabe_zurueck(handler, monkeypatch):
     monkeypatch.setattr(main.anlage, "lege_an", lambda *a, **k: anlage.Ergebnis("unklar", begruendung="Link nicht lesbar"))
     report = RunReport()
     main._process_message(BITTE_ANLEGEN, None, "lauf", report, [UNNA_LINK, BITTE_ANLEGEN])
-    assert handler[0] == "aufgabe:Objekt fehlt in Propstack: Remscheid LIP Invest" and report.stufe_b == 1
+    # „bitte anlegen“ läuft ohne KI-Einordnung – die Aufgabe nennt dann den Link
+    assert handler[0] == f"aufgabe:Objekt fehlt in Propstack: {UNNA_URL}" and report.stufe_b == 1
 
 
 def test_fehler_beim_anlegen_macht_den_lauf_rot_ohne_haken(handler, monkeypatch):
@@ -296,10 +390,53 @@ def test_fehler_beim_anlegen_macht_den_lauf_rot_ohne_haken(handler, monkeypatch)
 
 
 def test_no_write_ruft_die_ki_nicht_auf(handler, monkeypatch):
+    """Der Lese-Lauf lädt das Material (lesen ist erlaubt, die Probe soll es zeigen), schreibt nichts."""
     monkeypatch.setenv("NO_WRITE", "true")
     monkeypatch.setattr(main.anlage, "lege_an", lambda *a, **k: pytest.fail("kein Aufruf im Lese-Lauf"))
     main._process_message(REMSCHEID, None, "lauf", RunReport(), [REMSCHEID])
-    assert handler == []
+    assert handler == ["pdf"]
+
+
+def test_bitte_anlegen_wird_ohne_ki_angelegt(handler, monkeypatch):
+    monkeypatch.setattr(main, "classify_message", lambda text, ctx: pytest.fail("keine KI-Einordnung nötig"))
+    gesehen = {}
+    def lege_an(k, broker_id, name, ts, permalink, pdfs):
+        gesehen.update(links=k.links, vorher=k.vorher, broker=broker_id)
+        return anlage.Ergebnis("angelegt", objekte=[{"id": 1, "art": "einheit"}])
+    monkeypatch.setattr(main.anlage, "lege_an", lege_an)
+    report = RunReport()
+    main._process_message(BITTE_ANLEGEN, None, "lauf", report, [UNNA_LINK, BITTE_ANLEGEN])
+    assert gesehen == {"links": [UNNA_URL], "vorher": [UNNA_LINK["text"]], "broker": 387451}
+    assert report.angelegt == 1 and "haken" in handler
+
+
+def test_mail_wird_vollstaendig_gelesen(handler, monkeypatch):
+    monkeypatch.setattr(main, "download_text", lambda url: "<p>Halle 12.500 m²</p><p>Recklinghausen</p>")
+    gesehen = {}
+    def lege_an(k, broker_id, name, ts, permalink, pdfs):
+        gesehen.update(text=k.mails[0].text, pdfs=[d.name for d, _ in pdfs], nicht=k.nicht_lesbar)
+        return anlage.Ergebnis("angelegt", objekte=[{"id": 2}])
+    monkeypatch.setattr(main.anlage, "lege_an", lege_an)
+    report = RunReport()
+    main._process_message(RECKLINGHAUSEN, None, "lauf", report, [RECKLINGHAUSEN])
+    assert gesehen == {"text": "Halle 12.500 m²\nRecklinghausen", "pdfs": ["CTPark_Recklinghausen_Teaser.pdf"], "nicht": []}
+    assert report.fehler == []
+
+
+def test_nicht_lesbares_material_macht_den_lauf_rot(handler, monkeypatch):
+    def kaputt(url):
+        raise RuntimeError("Slack leitete auf kromeichpartner.slack.com um – fehlt dem Bot files:read?")
+    monkeypatch.setattr(main, "download_text", kaputt)
+    monkeypatch.setattr(main, "download_file", kaputt)
+    gesehen = {}
+    def lege_an(k, *a):
+        gesehen["nicht"] = k.nicht_lesbar
+        return anlage.Ergebnis("unklar", begruendung="Material nicht lesbar")
+    monkeypatch.setattr(main.anlage, "lege_an", lege_an)
+    report = RunReport()
+    main._process_message(RECKLINGHAUSEN, None, "lauf", report, [RECKLINGHAUSEN])
+    assert len(gesehen["nicht"]) == 2 and len(report.fehler) == 2      # die KI erfährt es, der Lauf wird rot
+    assert handler[0] == "aufgabe:Objekt fehlt in Propstack: CTPark Recklinghausen | Neuer Teaser verfügbar"
 
 
 def test_ausgeschaltet_bleibt_alles_wie_bisher(handler, monkeypatch):
