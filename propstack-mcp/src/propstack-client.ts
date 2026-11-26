@@ -385,10 +385,7 @@ export class PropstackClient {
 					signal: AbortSignal.timeout(this.timeoutMs),
 				});
 			} catch (error) {
-				throw new PropstackError(
-					`Propstack nicht erreichbar (${(error as Error).message}). Status der Änderung unklar – bitte in Propstack prüfen, bevor erneut gespeichert wird.`,
-					0,
-				);
+				throw PropstackClient.networkError(error, " Status der Änderung unklar – bitte in Propstack prüfen, bevor erneut gespeichert wird.");
 			}
 			if (response.status === 429 && attempt < this.maxRetries) {
 				await this.sleep(retryDelayMs(attempt, response.headers.get("retry-after")));
@@ -421,10 +418,7 @@ export class PropstackClient {
 					signal: AbortSignal.timeout(Math.max(this.timeoutMs, 60_000)),
 				});
 			} catch (error) {
-				throw new PropstackError(
-					`Propstack nicht erreichbar (${(error as Error).message}). Status unklar – bitte in Propstack prüfen, bevor erneut hochgeladen wird.`,
-					0,
-				);
+				throw PropstackClient.networkError(error, " Status unklar – bitte in Propstack prüfen, bevor erneut hochgeladen wird.");
 			}
 			if (response.status === 429 && attempt < this.maxRetries) {
 				await this.sleep(retryDelayMs(attempt, response.headers.get("retry-after")));
@@ -442,6 +436,23 @@ export class PropstackClient {
 				return {};
 			}
 		}
+	}
+
+	/**
+	 * Cloudflare lässt je Aufruf nur eine begrenzte Zahl Unteraufrufe zu (Workers Free: 50, einschließlich D1 und KV).
+	 * Ist die Grenze erreicht, wirft fetch(), bevor die Anfrage das Haus verlässt – es wurde also nichts gespeichert.
+	 * Live 26.11.2026 (Einheiten 6581032 ff.) hieß das „Propstack nicht erreichbar … Status der Änderung unklar“ –
+	 * irreführend. Andere Netzfehler bleiben unklar.
+	 */
+	private static networkError(error: unknown, unclear: string): PropstackError {
+		const message = (error as Error)?.message ?? String(error);
+		if (/too many subrequests/i.test(message)) {
+			return new PropstackError(
+				"Cloudflare-Grenze für Unteraufrufe je Aufruf erreicht – diese Anfrage wurde nicht abgeschickt (nichts gespeichert), die weiteren Schritte dieses Aufrufs auch nicht.",
+				0,
+			);
+		}
+		return new PropstackError(`Propstack nicht erreichbar (${message}).${unclear}`, 0);
 	}
 
 	private countRequest(): void {
@@ -466,7 +477,7 @@ export class PropstackClient {
 					signal: AbortSignal.timeout(timeoutMs),
 				});
 			} catch (error) {
-				throw new PropstackError(`Propstack nicht erreichbar: ${(error as Error).message}`, 0);
+				throw PropstackClient.networkError(error, "");
 			}
 
 			if (response.status === 429 && attempt < this.maxRetries) {

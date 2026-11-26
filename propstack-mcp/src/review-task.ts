@@ -32,6 +32,32 @@ export interface ReviewTaskInput {
 	now?: Date;
 }
 
+// Welche Projekte eine Prüfaufgabe des Connectors haben (Live-Befund 26.11.2026, Projekt 623542: Unit 1 verwies auf
+// „die Prüfaufgabe des Projekts“ – die gab es nicht). create_project merkt sich die Aufgabe, create_object fragt nach.
+const projectReviewKey = (projectId: number) => `review-task:project:${projectId}`;
+const PROJECT_REVIEW_TTL_SECONDS = 90 * 24 * 3600;
+
+/** Prüfaufgabe eines Projekts merken. Best effort – scheitert es, legen die Einheiten eigene Aufgaben an. */
+export async function rememberProjectReviewTask(kv: KVNamespace | undefined, projectId: number, taskId: number): Promise<void> {
+	if (!kv) return;
+	try {
+		await kv.put(projectReviewKey(projectId), String(taskId), { expirationTtl: PROJECT_REVIEW_TTL_SECONDS });
+	} catch (error) {
+		console.error("Prüfaufgabe des Projekts nicht gemerkt", error);
+	}
+}
+
+/** Die Prüfaufgabe, die der Connector für dieses Projekt angelegt hat – oder null, wenn keine bekannt ist. */
+export async function projectReviewTask(kv: KVNamespace | undefined, projectId: number): Promise<number | null> {
+	if (!kv) return null;
+	try {
+		const value = Number(await kv.get(projectReviewKey(projectId)));
+		return Number.isInteger(value) && value > 0 ? value : null;
+	} catch {
+		return null;
+	}
+}
+
 export interface ReviewTaskResult {
 	id?: number;
 	assigned_to?: string;
