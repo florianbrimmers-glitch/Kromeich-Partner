@@ -36,6 +36,7 @@ import os
 import re
 import time
 from dataclasses import dataclass, field
+from html.parser import HTMLParser
 
 import anthropic
 
@@ -51,8 +52,19 @@ MAX_PDF_BYTES = 30 * 1024 * 1024
 MAX_RUNDEN = 6
 TOKEN_GUELTIG_SEKUNDEN = 30 * 60
 
+MAX_MAIL_ZEICHEN = 30_000
+
 _LINK = re.compile(r"<(https?://[^|>\s]+)(?:\|[^>]*)?>")
 _EXPOSE = re.compile(r"expos", re.IGNORECASE)
+# „bitte anlegen“ als ganze Nachricht (Marek 24.11.2026, Denise 04.10.2026) – mit oder ohne
+# „Objekt“, „in Propstack“, Erwähnung davor. Alles, was mehr sagt („… und an Baaske senden“,
+# „Research-Aufgaben anlegen“), entscheidet weiter die KI.
+_ERWAEHNUNG = re.compile(r"<[@!#][^>]*>|(?<!\w)@[\w.äöüß-]+:?", re.IGNORECASE)
+_AUFTRAG = re.compile(
+    r"^(?:bitte\s+)?(?:(?:das|dieses|die|diese)\s+)?(?:objekte?|projekte?|fl(?:ä|ae)chen?|halle)?\s*"
+    r"(?:(?:in|im)\s+(?:ps|propstack)\s+)?anlegen(?:\s*,?\s*bitte)?[\s.!:)-]*$",
+    re.IGNORECASE,
+)
 ERGEBNISSE = ("angelegt", "teilweise", "existiert", "unklar")
 
 
@@ -65,6 +77,18 @@ class Datei:
 
 
 @dataclass
+class Mail:
+    """Eine in den Kanal weitergeleitete E-Mail (Slack-Datei vom Typ „email“). Denise leitet
+    Angebote so weiter, mit „bitte anlegen“ als Text (04.10.2026: CTPark Recklinghausen, JLL,
+    BGO)."""
+    betreff: str
+    von: str
+    text: str
+    url: str | None = None          # HTML-Fassung, wenn Slack den Text nur gekürzt mitliefert
+    vollstaendig: bool = True
+
+
+@dataclass
 class Kontext:
     text: str
     autor: str | None
@@ -73,6 +97,8 @@ class Kontext:
     thread: str | None = None
     links: list[str] = field(default_factory=list)
     dateien: list[Datei] = field(default_factory=list)
+    mails: list[Mail] = field(default_factory=list)
+    nicht_lesbar: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -86,11 +112,27 @@ class Ergebnis:
 
 # --- Welche Nachrichten ---------------------------------------------------------------
 
-def pdfs(msg: dict) -> list[Datei]:
+def _ist_mail(f: dict) -> bool:
+    return f.get("filetype") == "email" or f.get("mode") == "email"
+
+
+def _ist_pdf(mimetype: str | None, name: str) -> bool:
+    return mimetype == "application/pdf" or name.lower().endswith(".pdf")
+
+
+def pdfs(msg: dict, mit_mail: bool = True) -> list[Datei]:
+    """PDFs der Nachricht – mit mit_mail auch die, die an einer weitergeleiteten E-Mail hängen.
+    Eine E-Mail ohne Text ist meist ein Eigentümer-Newsletter, kein Exposé zum Anlegen."""
     out = []
     for f in msg.get("files") or []:
+        if _ist_mail(f):
+            for a in (f.get("attachments") or []) if mit_mail else []:
+                name = a.get("filename") or a.get("name") or "anhang.pdf"
+                if _ist_pdf(a.get("mimetype"), name) and a.get("url"):
+                    out.append(Datei(name=name, mimetype="application/pdf", url=a["url"], groesse=int(a.get("size") or 0)))
+            continue
         name = f.get("name") or f.get("title") or "datei.pdf"
-        if f.get("mimetype") != "application/pdf" and not name.lower().endswith(".pdf"):
+        if not _ist_pdf(f.get("mimetype"), name):
             continue
         url = f.get("url_private_download") or f.get("url_private")
         if url:
@@ -98,11 +140,105 @@ def pdfs(msg: dict) -> list[Datei]:
     return out
 
 
+def mails(msg: dict) -> list[Mail]:
+    out = []
+    for f in msg.get("files") or []:
+        if not _ist_mail(f):
+            continue
+        von = ", ".join(a.get("name") or a.get("address") or "" for a in f.get("from") or [] if isinstance(a, dict))
+        text = f.get("plain_text") or ""
+        out.append(Mail(
+            betreff=f.get("subject") or f.get("title") or f.get("name") or "",
+            von=von,
+            text=text,
+            url=f.get("url_private_download") or f.get("url_private"),
+            vollstaendig=bool(text) and not f.get("has_more"),
+        ))
+    return out
+
+
+class _NurText(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.teile: list[str] = []
+        self._weg = 0
+
+    _BLOCK = ("br", "p", "div", "tr", "li", "h1", "h2", "h3", "table")
+
+    def handle_starttag(self, tag, attrs):
+        if tag in ("style", "script", "head"):
+            self._weg += 1
+        elif tag in self._BLOCK:
+            self.teile.append("\n")
+        elif tag in ("td", "th"):
+            self.teile.append(" ")
+
+    def handle_endtag(self, tag):
+        if tag in ("style", "script", "head") and self._weg:
+            self._weg -= 1
+        elif tag in self._BLOCK:
+            self.teile.append("\n")
+
+    def handle_data(self, data):
+        if not self._weg:
+            self.teile.append(data)
+
+
+def html_zu_text(html: str) -> str:
+    p = _NurText()
+    p.feed(html)
+    zeilen = (" ".join(z.split()) for z in "".join(p.teile).splitlines())
+    return "\n".join(z for z in zeilen if z)
+
+
+def ist_auftrag(text: str | None) -> bool:
+    """Die ganze Nachricht ist ein „bitte anlegen“ – das Objekt steht im Material daneben."""
+    rest = " ".join(_ERWAEHNUNG.sub(" ", text or "").split())
+    return bool(_AUFTRAG.match(rest))
+
+
+def hat_material(msg: dict) -> bool:
+    return bool(links(msg.get("text")) or pdfs(msg) or mails(msg))
+
+
+def ist_thread_antwort(msg: dict) -> bool:
+    return msg.get("thread_ts", msg.get("ts")) != msg.get("ts")
+
+
+def vorher(msg: dict, nachbarn: list[dict]) -> list[dict]:
+    """Die Kanal-Nachrichten desselben Autors direkt davor (höchstens 15 Minuten): „Link“ und
+    „bitte anlegen“ kommen oft getrennt. Schluss bei einer Nachricht von jemand anderem und bei
+    einem früheren „bitte anlegen“ – das hatte sein eigenes Material (Marek 24.11.2026: Unna
+    um 10:47, Ense-Höingen um 10:49). Für eine Thread-Antwort ist der Thread der Kontext."""
+    if ist_thread_antwort(msg):
+        return []
+    ts = float(msg["ts"])
+    frueher = sorted(
+        (n for n in nachbarn if not ist_thread_antwort(n) and float(n.get("ts") or 0) < ts),
+        key=lambda n: float(n["ts"]), reverse=True,
+    )
+    out = []
+    for n in frueher:
+        if ts - float(n["ts"]) > VORHER_SEKUNDEN or n.get("user") != msg.get("user") or ist_auftrag(n.get("text")):
+            break
+        out.append(n)
+    return out[::-1]
+
+
+def auftrag_ohne_ki(msg: dict, nachbarn: list[dict]) -> bool:
+    """„bitte anlegen“ mit Material in der Nachricht selbst oder direkt davor: anlegen, ohne die
+    KI erst raten zu lassen. Am 24.11. hielt sie „bitte anlegen“ für „Objekt fehlt“, am 26.11.
+    dieselbe Nachricht für „kein Objektbezug“ – sie bekam den Link davor nicht zu sehen."""
+    if not ist_auftrag(msg.get("text")):
+        return False
+    return hat_material(msg) or any(hat_material(n) for n in vorher(msg, nachbarn))
+
+
 def ist_anlagefall(msg: dict, typ: str | None) -> bool:
     """„Objekt fehlt / bitte anlegen“ – oder ein Exposé als PDF, auch ohne Text."""
     if typ == "fehlt_in_ps":
         return True
-    dateien = pdfs(msg)
+    dateien = pdfs(msg, mit_mail=False)
     if not dateien:
         return False
     if not (msg.get("text") or "").strip():
@@ -116,25 +252,18 @@ def links(text: str | None) -> list[str]:
 
 def kontext(msg: dict, nachbarn: list[dict], thread: str | None) -> Kontext:
     """Material zu einer Nachricht. nachbarn: die Kanal-Nachrichten des Laufs (Thread-Parents)."""
-    ts = float(msg["ts"])
-    autor = msg.get("user")
-    vorher = [
-        n for n in nachbarn
-        if n.get("user") == autor and n.get("ts") != msg["ts"]
-        and 0 < ts - float(n.get("ts", "0")) <= VORHER_SEKUNDEN
-        and n.get("thread_ts", n.get("ts")) == n.get("ts")          # nur Kanal-Nachrichten, keine Antworten
-    ]
-    vorher.sort(key=lambda n: float(n["ts"]))
+    davor = vorher(msg, nachbarn)
     k = Kontext(
         text=(msg.get("text") or "").strip(),
-        autor=autor,
-        datum=time.strftime("%d.%m.%Y %H:%M", time.gmtime(ts)) + " UTC",
-        vorher=[(n.get("text") or "").strip() for n in vorher if (n.get("text") or "").strip()],
+        autor=msg.get("user"),
+        datum=time.strftime("%d.%m.%Y %H:%M", time.gmtime(float(msg["ts"]))) + " UTC",
+        vorher=[(n.get("text") or "").strip() for n in davor if (n.get("text") or "").strip()],
         thread=thread,
     )
-    for quelle in [*vorher, msg]:
+    for quelle in [*davor, msg]:
         k.links.extend(links(quelle.get("text")))
         k.dateien.extend(pdfs(quelle))
+        k.mails.extend(mails(quelle))
     k.links = list(dict.fromkeys(k.links))
     return k
 
@@ -183,7 +312,7 @@ SYSTEM = """Du arbeitest für Kromeich & Partner, Makler für Logistikimmobilien
 
 0. Rufe als Erstes whoami auf.
 
-1. LESEN: Bestimme aus Exposé, verlinkter Seite (web_fetch) und Text: Adresse(n) mit Ort, Eigentümer bzw. Anbieter, Projektname, die Einheiten mit Hallen-, Büro- und Mezzaninefläche, Verfügbarkeit, Hallenhöhe, Tore. Preise und Provision nur, wenn sie im Material stehen.
+1. LESEN: Bestimme aus Exposé, weitergeleiteter E-Mail, verlinkter Seite (web_fetch) und Text: Adresse(n) mit Ort, Eigentümer bzw. Anbieter, Projektname, die Einheiten mit Hallen-, Büro- und Mezzaninefläche, Verfügbarkeit, Hallenhöhe, Tore. Preise und Provision nur, wenn sie im Material stehen.
 2. PRÜFEN, BEVOR DU ANLEGST: Suche mit search_objects nach Straße und Ort, nach Ort und Eigentümer und nach dem Projektnamen; lies Treffer mit get_object bzw. get_project. Gibt es das Objekt mit diesen Einheiten schon, legst du NICHTS an (Ergebnis „existiert“). Fehlen in einem vorhandenen Projekt nur einzelne Einheiten, legst du nur diese an.
 3. ANLEGEN: Projekt (bei mehreren Einheiten oder einem Park) mit create_project, je Einheit create_object mit status_id 163673 (Vorbereitung). Kein active, keine öffentlichen Preise (public_price_confirmed), kein allow_duplicate_reason. Nichts erfinden: Was nicht im Material steht, bleibt leer und gehört in „offen“. Eigentümer nur verknüpfen, wenn search_contacts genau einen passenden Kontakt findet. Lies jedes angelegte Objekt mit get_object zurück. Was ein Ergebnis unter service_hinweise meldet, gehört ebenfalls in „offen“.
 4. Blockiert die Dublettenprüfung, gibt es das Objekt vermutlich schon: nicht umgehen, sondern prüfen und „existiert“ melden. Ändere keine vorhandenen Objekte.
@@ -203,13 +332,18 @@ def _nachricht(k: Kontext, autor_name: str, permalink: str, pdf_inhalte: list[tu
         f"Text:\n{k.text or '(kein Text, nur Datei)'}",
     ]
     if k.vorher:
-        teile.append("Unmittelbar davor vom selben Autor:\n" + "\n---\n".join(k.vorher))
+        teile.append("Unmittelbar davor vom selben Autor (meist das Objekt zum Auftrag):\n" + "\n---\n".join(k.vorher))
     if k.thread:
         teile.append(f"Thread:\n{k.thread}")
     if k.links:
         teile.append("Links:\n" + "\n".join(k.links))
+    for m in k.mails:
+        kopf = f"Weitergeleitete E-Mail – Betreff: {m.betreff}" + (f" – Von: {m.von}" if m.von else "")
+        teile.append(f"{kopf}\n{m.text[:MAX_MAIL_ZEICHEN] or '(Text nicht lesbar)'}")
     if pdf_inhalte:
         teile.append("Anhänge: " + ", ".join(d.name for d, _ in pdf_inhalte))
+    if k.nicht_lesbar:
+        teile.append("Nicht lesbar (gehört in „offen“): " + ", ".join(k.nicht_lesbar))
     inhalt: list[dict] = [
         {"type": "document", "source": {"type": "base64", "media_type": "application/pdf",
                                          "data": base64.standard_b64encode(daten).decode()},

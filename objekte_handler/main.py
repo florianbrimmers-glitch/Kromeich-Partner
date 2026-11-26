@@ -35,6 +35,7 @@ from .vollzug import vollzugsmeldung
 from .slack_gateway import (
     add_checkmark,
     download_file,
+    download_text,
     fetch_channel_messages,
     fetch_thread_replies,
     get_bot_user_id,
@@ -294,17 +295,44 @@ def _anlage(msg: dict, cls: Classification | None, context: str | None, nachbarn
     profil = {} if autor in config.SLACK_ZU_PROPSTACK else user_profile(autor)
     broker_id, broker_name = anlage.betreuer(profil, _brokers(), autor)
     permalink = get_permalink(msg["ts"]) or ""
-    if config.no_write():
-        logger.info("[NO_WRITE] Würde über den Connector anlegen lassen: Betreuer %s, %d PDF, Links %s, davor %d Nachricht(en)",
-                    broker_name, len(k.dateien), k.links, len(k.vorher))
-        return ["NO_WRITE: Anlage nicht ausgeführt"]
+    if cls is None:
+        # „bitte anlegen“ ohne KI-Einordnung: fällt es auf die Aufgabe zurück, soll sie sagen, worum es geht
+        cls = Classification(typ=MessageType.FEHLT_IN_PS, confidence=1.0,
+                             objekt_name=(k.links[0] if k.links else None) or (k.mails[0].betreff if k.mails else None)
+                             or (k.dateien[0].name if k.dateien else None))
 
+    # Material lesen – auch im Lese-Lauf (NO_WRITE), damit die Probe zeigt, was Slack wirklich liefert
+    for quelle in [msg, *anlage.vorher(msg, nachbarn)]:
+        for f in quelle.get("files") or []:
+            logger.info("Datei %s: %s, filetype=%s, %s B, Felder %s, Anhänge %s", f.get("id"), f.get("mimetype"),
+                        f.get("filetype"), f.get("size"), sorted(f),
+                        [(a.get("filename"), a.get("mimetype"), a.get("size"), sorted(a)) for a in f.get("attachments") or []])
+    for m in k.mails:
+        if not m.vollstaendig and m.url:
+            try:
+                m.text = anlage.html_zu_text(download_text(m.url))
+                m.vollstaendig = True
+            except Exception as e:
+                k.nicht_lesbar.append(f"E-Mail „{m.betreff}“: {e}")
     pdf_inhalte = []
     for datei in k.dateien:
         if datei.groesse > anlage.MAX_PDF_BYTES:
-            logger.warning("PDF %s ist zu groß (%d Bytes) – nicht mitgegeben", datei.name, datei.groesse)
+            k.nicht_lesbar.append(f"{datei.name}: zu groß ({datei.groesse} Bytes)")
             continue
-        pdf_inhalte.append((datei, download_file(datei.url)))
+        try:
+            pdf_inhalte.append((datei, download_file(datei.url)))
+        except Exception as e:
+            k.nicht_lesbar.append(f"{datei.name}: {e}")
+    logger.info("Material: Betreuer %s | davor %d | Links %s | PDF %s | E-Mails %s | nicht lesbar %s",
+                broker_name, len(k.vorher), k.links,
+                [f"{d.name} ({len(b)} B)" for d, b in pdf_inhalte],
+                [f"{m.betreff} ({len(m.text)} Zeichen{'' if m.vollstaendig else ', gekürzt'})" for m in k.mails],
+                k.nicht_lesbar)
+    # Was nicht gelesen werden konnte, macht den Lauf rot – auch wenn die Anlage trotzdem gelingt.
+    report.fehler.extend(f"Nachricht {msg['ts']}: nicht lesbar – {x}" for x in k.nicht_lesbar)
+    if config.no_write():
+        logger.info("[NO_WRITE] Würde über den Connector anlegen lassen – KI nicht aufgerufen")
+        return ["NO_WRITE: Anlage nicht ausgeführt"]
 
     erg = anlage.lege_an(k, broker_id, broker_name, msg["ts"], permalink, pdf_inhalte)
     logger.info("Nachricht %s: Anlage %s – %s", msg["ts"], erg.ergebnis, erg.begruendung)
@@ -346,6 +374,11 @@ def _process_message(msg: dict, context: str | None, run_id: str, report: RunRep
 
         if not text:
             # Nur eine Datei, kein Text – kommt hierher nur bei eingeschalteter Anlage (Exposé-PDF)
+            record.ausgefuehrte_aktionen = _anlage(msg, None, context, nachbarn or [], report)
+            return
+
+        if config.objekt_anlage() and anlage.auftrag_ohne_ki(msg, nachbarn or []):
+            logger.info("Nachricht %s: „bitte anlegen“ mit Material – Anlage ohne Einordnung durch die KI", msg["ts"])
             record.ausgefuehrte_aktionen = _anlage(msg, None, context, nachbarn or [], report)
             return
 
@@ -432,7 +465,7 @@ def run_pipeline() -> RunReport:
             report.bereits_verarbeitet += 1
             continue
 
-        if not (msg.get("text") or "").strip() and not (config.objekt_anlage() and anlage.pdfs(msg)):
+        if not (msg.get("text") or "").strip() and not (config.objekt_anlage() and anlage.pdfs(msg, mit_mail=False)):
             logger.info("Kein Text – übersprungen")
             report.ignoriert += 1
             continue

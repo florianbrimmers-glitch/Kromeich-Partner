@@ -214,6 +214,16 @@ def download_file(url: str) -> bytes:
     return response.content
 
 
+def download_text(url: str) -> str:
+    """Text einer Slack-Datei, die selbst HTML ist (weitergeleitete E-Mail). Eine Umleitung auf
+    einen anderen Host ist die Anmeldeseite – dann fehlt dem Bot der Zugriff."""
+    response = httpx.get(url, headers=_headers(), timeout=60.0, follow_redirects=True)
+    response.raise_for_status()
+    if response.url.host != httpx.URL(url).host:
+        raise RuntimeError(f"Slack leitete auf {response.url.host} um – fehlt dem Bot files:read?")
+    return response.text
+
+
 def user_profile(user_id: str | None) -> dict:
     """Profil eines Slack-Nutzers (users.info). E-Mail nur mit Scope users:read.email –
     ohne ihn bleibt der Name, über den der Betreuer gesucht wird."""
