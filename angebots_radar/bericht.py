@@ -6,13 +6,28 @@ Slack-Nachricht und den späteren Vergleich („was wurde aus den Vorschlägen?�
 from __future__ import annotations
 
 from collections import Counter, defaultdict
-from datetime import date
+from datetime import date, datetime, timezone
 
 from .abgleich import Ergebnis, Vorschlag
 from .felder import quartal_text
-from .gesuch import Gesuch
+from .gesuch import AUS_TEXT_AUSGESCHLOSSEN, Gesuch
 
 ALT_TAGE = 180        # so lange nicht bearbeitet: erst nachfragen, ob das Gesuch noch gilt
+
+
+def _tag(text: str | None) -> str:
+    """„06.03.2026“ aus „2026-03-06“; fehlt das Datum, steht das da, statt den Lauf abzubrechen."""
+    try:
+        return f"{date.fromisoformat((text or '')[:10]):%d.%m.%Y}"
+    except ValueError:
+        return "ohne Datum"
+
+
+def _tage_seit(text: str | None, heute: date) -> int | None:
+    try:
+        return (heute - date.fromisoformat((text or "")[:10])).days
+    except ValueError:
+        return None
 
 
 def _mz(anzahl, einzahl: str, mehrzahl: str) -> str:
@@ -95,7 +110,7 @@ def als_daten(ergebnisse: list[Ergebnis], uebrige: list[Gesuch], kontakte: dict[
             "betreuer": makler.get(g.betreuer_id or 0) or "ohne Betreuer",
             "angelegt": g.angelegt,
             "bearbeitet": g.bearbeitet,
-            "alt": (heute - date.fromisoformat(g.bearbeitet or g.angelegt)).days > ALT_TAGE,
+            "alt": (_tage_seit(g.bearbeitet or g.angelegt, heute) or 0) > ALT_TAGE,
             "wunsch": _wunsch(g),
             "kurztext": g.kurztext,
             "noch_nicht_senden": g.noch_nicht_senden,
@@ -120,6 +135,13 @@ def als_daten(ergebnisse: list[Ergebnis], uebrige: list[Gesuch], kontakte: dict[
             aufraeumen["testprofil"].append(eintrag)
         elif g.kein_hallengesuch == "hängt an einem Kollegen":
             aufraeumen["am_kollegen"].append(eintrag)
+        elif g.kein_hallengesuch == "Kontakt gibt es nicht mehr":
+            aufraeumen["kontakt_fehlt"].append(eintrag)
+        elif g.kein_hallengesuch in AUS_TEXT_AUSGESCHLOSSEN:
+            # Aus dem Text als Ankauf, Grundstück oder Freifläche gelesen – das kann falsch sein.
+            # Deshalb steht jedes dieser Profile im Bericht, statt still zu fehlen. Ankaufsprofile
+            # und andere Objektarten ergeben sich aus den Feldern des Profils; die zählt nur der Kopf.
+            aufraeumen["nicht_abgeglichen"].append({**eintrag, "hinweis": g.kein_hallengesuch})
     for e in ergebnisse:
         if e.grund_ohne_vorschlag.startswith(("Fläche", "kein Gebiet")):
             g = e.gesuch
@@ -134,7 +156,7 @@ def als_daten(ergebnisse: list[Ergebnis], uebrige: list[Gesuch], kontakte: dict[
 def als_text(daten: dict) -> str:
     kopf = daten["kopf"]
     zeilen = [
-        f"Angebots-Radar, Stand {date.fromisoformat(daten['stand']):%d.%m.%Y} – nur gelesen",
+        f"Angebots-Radar, Stand {_tag(daten['stand'])} – nur gelesen",
         f"{kopf['gesuche_geprueft']} aktive Hallengesuche gegen {kopf['flaechen']} angebotsfähige Flächen "
         f"({kopf['flaechen_geschaetzt']} mit geschätzter Lage, {kopf['flaechen_ohne_lage']} ohne jede Lage).",
         f"{kopf['gesuche_mit_vorschlag']} Gesuche mit Vorschlägen, {kopf['vorschlaege_gezeigt']} Vorschläge gezeigt "
@@ -154,8 +176,8 @@ def als_text(daten: dict) -> str:
             betreuer = g["betreuer"]
             zeilen += [f"══ {betreuer} " + "═" * max(3, 60 - len(betreuer)), ""]
         firma = f" ({g['firma']})" if g["firma"] else ""
-        zeilen.append(f"▶ {g['kontakt']}{firma} – Suchprofil {g['id']} vom {date.fromisoformat(g['angelegt']):%d.%m.%Y}"
-                      + (f", zuletzt bearbeitet {date.fromisoformat(g['bearbeitet']):%d.%m.%Y}" if g["bearbeitet"] != g["angelegt"] else ""))
+        zeilen.append(f"▶ {g['kontakt']}{firma} – Suchprofil {g['id']} vom {_tag(g['angelegt'])}"
+                      + (f", zuletzt bearbeitet {_tag(g['bearbeitet'])}" if g["bearbeitet"] and g["bearbeitet"] != g["angelegt"] else ""))
         zeilen.append(f"  Gesucht: {g['wunsch']}")
         if g["noch_nicht_senden"]:
             zeilen.append("  ACHTUNG: laut Notiz noch nicht an den Kunden senden – nur Vorauswahl.")
@@ -198,7 +220,9 @@ def als_text(daten: dict) -> str:
                                   ("flaeche_fehlt", "Aktiv, aber Fläche nicht lesbar – kein Abgleich möglich"),
                                   ("gebiet_fehlt", "Aktiv, aber ohne Gebiet – Vorschläge wären Zufall"),
                                   ("am_kollegen", "Suchprofil hängt an einem Kollegen statt am Kunden"),
-                                  ("testprofil", "Testprofil ist aktiv")):
+                                  ("kontakt_fehlt", "Suchprofil hängt an einem Kontakt, den es nicht mehr gibt"),
+                                  ("testprofil", "Testprofil ist aktiv"),
+                                  ("nicht_abgeglichen", "Nicht abgeglichen – laut Text kein Hallengesuch zur Miete")):
             for eintrag in auf.get(schluessel, []):
                 zeilen.append(f"  {titel}: {eintrag['kontakt']} – Suchprofil {eintrag['id']} ({eintrag['betreuer']})"
                               + (f" – „{eintrag['hinweis']}“" if eintrag.get("hinweis") else ""))
@@ -226,7 +250,7 @@ def als_nachricht(daten: dict, betreuer: str, grenze: int = 3500) -> str:
     if not eigene:
         return ""
     summe = sum(len(g["vorschlaege"]) for g in eigene)
-    zeilen = [f"Angebots-Radar, Stand {date.fromisoformat(daten['stand']):%d.%m.%Y}: "
+    zeilen = [f"Angebots-Radar, Stand {_tag(daten['stand'])}: "
               f"{_mz(summe, 'Vorschlag', 'Vorschläge')} für {_mz(len(eigene), 'Gesuch', 'Gesuche')} – Vorauswahl, noch nicht angeboten."]
     for nr, g in enumerate(eigene):
         block = ["", f"• {g['kontakt']}" + (f" ({g['firma']})" if g["firma"] else "") + f" – {g['wunsch']}"]
@@ -247,29 +271,50 @@ def als_nachricht(daten: dict, betreuer: str, grenze: int = 3500) -> str:
 
 
 def fuer_vergleich(daten: dict) -> dict:
-    """Der Lauf ohne Namen und Texte – nur was der spätere Vergleich braucht. So kann er im Repo liegen."""
-    return {"stand": daten["stand"], "gesuche": [
+    """Der Lauf ohne Namen und Texte – nur was der spätere Vergleich braucht. So kann er im Repo liegen.
+    `erzeugt` ist der Zeitpunkt, zu dem die Deals gelesen wurden: Was danach angelegt wird, zählt."""
+    return {"stand": daten["stand"], "erzeugt": daten.get("kopf", {}).get("erzeugt"), "gesuche": [
         {"id": g["id"], "kontakt_id": g["kontakt_id"], "kontakt": f"Kontakt {g['kontakt_id']}", "vorschlaege": [
-            {"einheiten": v["einheiten"], "projekt_id": v["projekt_id"], "bezeichnung": v["bezeichnung"], "ort": v["ort"],
+            {"einheiten": v["einheiten"], "dubletten": v["dubletten"], "weitere_im_projekt": v["weitere_im_projekt"],
+             "projekt_id": v["projekt_id"], "bezeichnung": v["bezeichnung"], "ort": v["ort"],
              "art": v["art"], "punkte": v["punkte"]} for v in g["vorschlaege"]]}
         for g in daten["gesuche"] if g["vorschlaege"]]}
 
 
+def _zeitpunkt(text) -> datetime | None:
+    try:
+        zeit = datetime.fromisoformat(str(text))
+    except ValueError:
+        return None
+    return zeit if zeit.tzinfo else zeit.replace(tzinfo=timezone.utc)
+
+
 def vergleich(alt: dict, deals: list[dict]) -> dict:
-    """Was wurde aus früheren Vorschlägen? Zählt, für wie viele es heute einen Deal des Kontakts
-    zur Einheit oder zu ihrem Projekt gibt, der NACH dem alten Lauf angelegt wurde."""
-    seit = alt["stand"]
-    je_kontakt_einheit = {(d.get("client_id"), d.get("property_id")) for d in deals
-                          if d.get("property_id") and str(d.get("created_at") or "")[:10] > seit}
-    je_kontakt_projekt = {(d.get("client_id"), d.get("project_id")) for d in deals
-                          if d.get("project_id") and str(d.get("created_at") or "")[:10] > seit}
-    vorschlaege = angeboten = 0
+    """Was wurde aus früheren Vorschlägen? Zählt, für wie viele es einen Deal des Kontakts gibt, der
+    NACH dem alten Lauf angelegt wurde – getrennt nach „genau diese Einheit“ (auch ihr zweiter
+    Datensatz) und „nur dasselbe Projekt“ (Projekt-Deal oder eine andere Einheit daraus). Das zweite
+    ist der schwächere Beleg: Der Kontakt kann das Projekt auch ohne den Vorschlag bekommen haben.
+
+    Gezählt wird ab dem Zeitpunkt des Laufs, nicht ab dem Folgetag – sonst fehlt alles, was am
+    Nachmittag desselben Tages angelegt wurde. Ältere Läufe ohne Zeitpunkt zählen ab ihrem Tag."""
+    seit = _zeitpunkt(alt.get("erzeugt")) or _zeitpunkt(alt["stand"] + "T00:00:00+01:00")
+    neue = [d for d in deals if (zeit := _zeitpunkt(d.get("created_at"))) and zeit > seit]
+    einheit_deals = {(d.get("client_id"), d.get("property_id")) for d in neue if d.get("property_id")}
+    projekt_deals = {(d.get("client_id"), d.get("project_id")) for d in neue if d.get("project_id")}
+    vorschlaege = 0
     treffer = []
     for g in alt["gesuche"]:
+        kontakt = g["kontakt_id"]
         for v in g["vorschlaege"]:
             vorschlaege += 1
-            if any((g["kontakt_id"], e) in je_kontakt_einheit for e in v["einheiten"]) or \
-                    (v["projekt_id"] and (g["kontakt_id"], v["projekt_id"]) in je_kontakt_projekt):
-                angeboten += 1
-                treffer.append({"gesuch": g["id"], "kontakt": g["kontakt"], "bezeichnung": v["bezeichnung"], "ort": v["ort"]})
-    return {"seit": seit, "vorschlaege": vorschlaege, "angeboten": angeboten, "treffer": treffer}
+            ueber = None
+            if any((kontakt, e) in einheit_deals for e in v["einheiten"] + v.get("dubletten", [])):
+                ueber = "Einheit"
+            elif (v.get("projekt_id") and (kontakt, v["projekt_id"]) in projekt_deals) or \
+                    any((kontakt, e) in einheit_deals for e in v.get("weitere_im_projekt", [])):
+                ueber = "Projekt"
+            if ueber:
+                treffer.append({"gesuch": g["id"], "kontakt": g["kontakt"], "bezeichnung": v["bezeichnung"], "ort": v["ort"], "ueber": ueber})
+    return {"seit": alt["stand"], "genau": bool(alt.get("erzeugt")), "vorschlaege": vorschlaege, "angeboten": len(treffer),
+            "ueber_einheit": sum(1 for t in treffer if t["ueber"] == "Einheit"),
+            "ueber_projekt": sum(1 for t in treffer if t["ueber"] == "Projekt"), "treffer": treffer}

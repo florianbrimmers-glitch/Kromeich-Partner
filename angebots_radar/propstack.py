@@ -63,16 +63,27 @@ class Propstack:
         rows = daten if isinstance(daten, list) else (daten or {}).get("data", [])
         return {int(b["id"]): str(b.get("name") or "").strip() for b in rows if isinstance(b, dict) and b.get("id")}
 
-    def kontakte(self, ids: list[int]) -> dict[int, dict]:
-        """Name und Firma je Kontakt. Ein Kontakt, der sich nicht lesen lässt, fehlt im Ergebnis –
-        der Bericht nennt dann die Nummer."""
+    def kontakte(self, ids: list[int]) -> tuple[dict[int, dict], list[int], list[int]]:
+        """(Name und Firma je Kontakt, nicht gefunden, nicht lesbar).
+
+        „Nicht gefunden“ (404) ist ein Befund: Das Suchprofil hängt an einem Kontakt, den es nicht
+        mehr gibt. „Nicht lesbar“ (alles andere) ist ein Fehler des Laufs – ohne den Namen lässt
+        sich nicht prüfen, ob das Profil ein Testprofil ist, und der Lauf darf nicht grün enden."""
         out: dict[int, dict] = {}
+        nicht_gefunden: list[int] = []
+        fehler: list[int] = []
         for kontakt_id in ids:
             try:
                 daten = self._get(f"/contacts/{kontakt_id}")
-            except httpx.HTTPStatusError:
+            except httpx.HTTPStatusError as exc:
+                (nicht_gefunden if exc.response.status_code == 404 else fehler).append(kontakt_id)
+                continue
+            except httpx.HTTPError:
+                fehler.append(kontakt_id)
                 continue
             if isinstance(daten, dict):
                 out[kontakt_id] = {"name": str(daten.get("name") or "").strip(), "firma": str(daten.get("company") or "").strip()}
+            else:
+                fehler.append(kontakt_id)
             time.sleep(0.1)
-        return out
+        return out, nicht_gefunden, fehler

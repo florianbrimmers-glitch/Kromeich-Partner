@@ -30,7 +30,7 @@ WERMELSKIRCHEN = suchprofil(
 
 
 def einheit(id=5159361, name="Am Weidenbroich 20-22 - Remscheid", titel="Logistikhalle in (42) Remscheid",
-            strasse="Am Weidenbroich", plz="42897", ort="Remscheid", region="Nordrhein-Westfalen",
+            strasse="Am Weidenbroich", hausnummer=None, plz="42897", ort="Remscheid", region="Nordrhein-Westfalen",
             lat=51.1518004, lng=7.2728677, projekt_id=None, projekt_titel=None, status=163674, vermietet=False,
             archiviert=False, typ="INDUSTRY", kategorie="HALL", gesamt=None, frei_ab=None, angelegt="2026-03-20",
             eigentuemer_kontakt=None, makler="Marek Zimmermann", provision="Provisionsfrei", **custom) -> dict:
@@ -38,7 +38,7 @@ def einheit(id=5159361, name="Am Weidenbroich 20-22 - Remscheid", titel="Logisti
     custom.setdefault("lagerflache", 8875.0)
     return {
         "id": id, "name": name, "title": {"label": "Überschrift", "value": titel},
-        "street": strasse, "zip_code": plz, "city": ort, "region": region, "lat": lat, "lng": lng,
+        "street": strasse, "house_number": hausnummer, "zip_code": plz, "city": ort, "region": region, "lat": lat, "lng": lng,
         "project_id": projekt_id, "project": {"title": projekt_titel} if projekt_titel else None,
         "rented": {"label": "Vermietet", "value": vermietet}, "archived": archiviert,
         "property_status": {"id": status, "name": "Vermarktung"} if status else None,

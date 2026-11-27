@@ -21,7 +21,8 @@ def custom(row: dict, key: str):
 
 
 def zahl(value) -> float | None:
-    """Zahl aus einem Feldwert: 7575.0, "7.575 m²", "12", "9,5"."""
+    """Zahl aus einem Feldwert: 7575.0, "7.575 m²", "6.858,32 m²", "12", "9,5".
+    Ein einzelner Punkt vor genau drei Ziffern ist ein Tausenderpunkt („8.000“ = 8000)."""
     if isinstance(value, bool):
         return None
     if isinstance(value, (int, float)):
@@ -32,8 +33,10 @@ def zahl(value) -> float | None:
     if not m:
         return None
     raw = m.group().rstrip(".,")
-    if re.fullmatch(r"\d{1,3}([.,]\d{3})+", raw):
-        return float(re.sub(r"[.,]", "", raw))
+    if re.fullmatch(r"\d{1,3}(\.\d{3})+(,\d+)?", raw):          # 6.858,32
+        return float(raw.replace(".", "").replace(",", "."))
+    if re.fullmatch(r"\d{1,3}(,\d{3})+(\.\d+)?", raw):          # 6,858.32
+        return float(raw.replace(",", ""))
     try:
         return float(raw.replace(",", "."))
     except ValueError:
@@ -70,8 +73,8 @@ _PLZ_LAND = {
     "Nordrhein-Westfalen": "32 33 40 41 42 44 45 46 47 48 50 51 52 53 57 58 59",
     "Niedersachsen": "21 26 27 29 30 31 37 38 49",
     "Hessen": "34 35 36 60 61 63 64 65",
-    "Rheinland-Pfalz": "54 55 56 67 76",
-    "Baden-Württemberg": "68 69 70 71 72 73 74 75 77 78 79 88 89",
+    "Rheinland-Pfalz": "54 55 56 67",
+    "Baden-Württemberg": "68 69 70 71 72 73 74 75 76 77 78 79 88 89",   # 76: Karlsruhe; 767/768 liegen in RLP
     "Bayern": "80 81 82 83 84 85 86 87 90 91 92 93 94 95 96 97",
     "Saarland": "66",
     "Berlin": "10 12 13",
@@ -87,18 +90,70 @@ _PLZ_LAND = {
 PLZ_ZU_LAND = {plz: land for land, liste in _PLZ_LAND.items() for plz in liste.split()}
 
 
+def plz5(text: str | None) -> str:
+    """Fünfstellige PLZ aus einem Feld. Vier Ziffern allein sind eine ostdeutsche PLZ ohne führende Null („4451“)."""
+    roh = (text or "").strip()
+    if re.fullmatch(r"\d{4}", roh):
+        return "0" + roh
+    m = re.search(r"(?<!\d)(\d{5})(?!\d)", roh)
+    return m.group(1) if m else ""
+
+
 def bundesland(region: str | None, plz: str | None) -> str | None:
     if region and region.strip() in _PLZ_LAND:
         return region.strip()
-    plz = re.sub(r"\D", "", plz or "")
-    return PLZ_ZU_LAND.get(plz[:2]) if len(plz) == 5 else None
+    plz = plz5(plz)
+    return PLZ_ZU_LAND.get(plz[:2]) if plz else None
+
+
+# Ortsnamen. „Köln-Ossendorf“ und „Köln“ sollen zusammenfinden, „Mülheim an der Ruhr“ und „Mülheim“
+# auch – „Frankfurt (Oder)“ und „Frankfurt am Main“ aber nicht, und „Neu-Ulm“ ist nicht „Neu-Isenburg“.
+_ORT_VORSILBEN = {"neu", "alt", "groß", "gross", "klein", "bad", "sankt", "st", "st.", "ober", "unter", "nieder", "hohen", "markt"}
+_ORT_ZUSATZ = re.compile(r"\(([^)]+)\)|\s+(?:an der|am|a\.\s?d\.|ob der|in der|im|bei|vor der)\s+(\S+)")
 
 
 def ort_schluessel(ort: str | None) -> str:
-    """„Köln-Ossendorf“ und „Köln“ sollen zusammenfinden, „Mülheim an der Ruhr“ und „Mülheim“ auch."""
+    """Grundname plus unterscheidender Zusatz: „köln“ (aus „Köln-Ossendorf“), „mülheim ruhr“,
+    „frankfurt oder“, „frankfurt main“, „halle saale“, „neu-ulm“. Ein Ortsteil hinter dem
+    Bindestrich fällt weg, außer der Name beginnt mit einer Vorsilbe wie „Neu-“ oder „Bad “."""
     text = (ort or "").strip().casefold()
-    text = re.split(r"\s*[-/(,]\s*|\s+(?:an der|am|a\.d\.|bei|ob der|in der|im)\s+", text)[0]
-    return text.strip()
+    if not text:
+        return ""
+    zusatz = ""
+    if m := _ORT_ZUSATZ.search(text):
+        zusatz = re.sub(r"[^a-zäöüß]", "", (m.group(1) or m.group(2) or ""))
+        text = text[:m.start()]
+    text = re.split(r"\s*[/,]\s*", text)[0].strip()
+    teile = text.split("-")
+    if len(teile) > 1 and teile[0].strip() not in _ORT_VORSILBEN:
+        text = teile[0].strip()
+    return f"{text} {zusatz}".strip()
+
+
+def gleiche_ortsschluessel(ka: str, kb: str) -> bool:
+    if not ka or not kb:
+        return False
+    if ka == kb:
+        return True
+    grund_a, _, zusatz_a = ka.partition(" ")
+    grund_b, _, zusatz_b = kb.partition(" ")
+    # „bad lippspringe“ hat auch ein Leerzeichen: nur als Zusatz werten, was nicht hinter einer Vorsilbe steht
+    if grund_a in _ORT_VORSILBEN or grund_b in _ORT_VORSILBEN:
+        return False
+    return grund_a == grund_b and (not zusatz_a or not zusatz_b)
+
+
+def gleicher_ort(a: str | None, b: str | None) -> bool:
+    """Gleicher Ort – auch wenn nur einer den Zusatz trägt („Mülheim“ und „Mülheim an der Ruhr“).
+    Tragen beide einen und er unterscheidet sich, sind es zwei Orte."""
+    return gleiche_ortsschluessel(ort_schluessel(a), ort_schluessel(b))
+
+
+def ort_grundname(ort: str | None) -> str:
+    """Der Name, wie er in einer Notiz steht: „mülheim“, „frankfurt“, „bad oeynhausen“, „neu-ulm“."""
+    schluessel = ort_schluessel(ort)
+    grund, _, _ = schluessel.partition(" ")
+    return schluessel if grund in _ORT_VORSILBEN else grund
 
 
 # --- Zeitpunkte: „ab wann“ im Gesuch, „Bezug“ an der Einheit -------------------------------
@@ -108,8 +163,16 @@ _MONATE = {"januar": 1, "jan": 1, "februar": 2, "feb": 2, "märz": 3, "maerz": 3
            "mai": 5, "juni": 6, "jun": 6, "juli": 7, "jul": 7, "august": 8, "aug": 8, "september": 9, "sep": 9,
            "sept": 9, "oktober": 10, "okt": 10, "november": 11, "nov": 11, "dezember": 12, "dez": 12}
 _JAHRESTEIL = {"anfang": 1, "frühjahr": 2, "fruehjahr": 2, "mitte": 3, "sommer": 3, "herbst": 4, "ende": 4, "winter": 4}
-_SOFORT = re.compile(r"\b(sofort|asap|kurzfristig|zeitnah|ab jetzt)\b", re.IGNORECASE)
+_SOFORT = re.compile(r"(?<!nicht )(?<!kein )\b(sofort|asap|kurzfristig|zeitnah|ab jetzt|schnellstm(?:ö|oe)glich)\b(?!\s+nicht)", re.IGNORECASE)
 _VERFUEGBAR = re.compile(r"verf(?:ü|ue)gbar", re.IGNORECASE)
+_NICHT_VERFUEGBAR = re.compile(r"\bnicht\b[^,;.]*verf(?:ü|ue)gbar", re.IGNORECASE)     # „nicht sofort verfügbar“
+# Eine Jahreszahl allein ist nur dann ein Termin, wenn sie nicht das Baujahr ist
+_KEIN_TERMINJAHR = re.compile(r"(?:baujahr|bj\.?|erbaut|gebaut|neubau|saniert|modernisiert|kernsaniert|seit)\s*:?\s*$", re.IGNORECASE)
+_KEINE_FRIST = re.compile(r"(?:laufzeit|mietdauer|mietzeit|vertragsdauer|f(?:ü|ue)r|mindestens|mind\.?)\s*(?:von\s*)?(?:ca\.?\s*)?$", re.IGNORECASE)
+# Baubeginn ist kein Bezugstermin („Baubeginn ab Q2 2026“) – außer der Text nennt auch das Ende
+_NUR_BAUBEGINN = re.compile(r"baubeginn|baustart|spatenstich", re.IGNORECASE)
+_BAUENDE = re.compile(r"fertig|bezug|verf(?:ü|ue)gbar|\bbis\b|(?:ü|ue)bergabe", re.IGNORECASE)
+_ROEMISCH = {"i": 1, "ii": 2, "iii": 3, "iv": 4}
 
 
 def _jahr(text: str) -> int:
@@ -120,45 +183,70 @@ def _alle_quartale(t: str, heute: date | None) -> list[tuple[int, int]]:
     funde: list[tuple[int, int]] = []
     for m in re.finditer(r"\bQ\s?([1-4])\s*[/ .-]?\s*(20\d\d|\d\d)\b", t, re.IGNORECASE):
         funde.append((_jahr(m.group(2)), int(m.group(1))))
-    for m in re.finditer(r"\b(20\d\d)-(\d\d)-\d\d\b", t):
+    for m in re.finditer(r"\b([1-4]|i{1,3}|iv)\.?\s*Quartal\s+(20\d\d)\b", t, re.IGNORECASE):     # „2. Quartal 2027“
+        funde.append((int(m.group(2)), _ROEMISCH.get(m.group(1).casefold()) or int(m.group(1))))
+    for m in re.finditer(r"(?<![\d.,/])([1-4])\.?\s?Q\.?\s*(20\d\d|\d\d)\b|\bQuartal\s+([1-4])\s*/\s*(20\d\d)\b", t, re.IGNORECASE):
+        funde.append((_jahr(m.group(2) or m.group(4)), int(m.group(1) or m.group(3))))                 # „2.Q 2027“, „2Q27“, „Quartal 2/2027“
+    for m in re.finditer(r"\b(?:([12])\.?\s*Halbjahr|H([12]))\s*[/ ]?\s*(20\d\d)\b", t, re.IGNORECASE):  # „2. Halbjahr 2027“, „H2 2027“
+        funde.append((int(m.group(3)), 1 if (m.group(1) or m.group(2)) == "1" else 3))
+    for m in re.finditer(r"\bJahres(ende|anfang|mitte|beginn)\s+(20\d\d)\b", t, re.IGNORECASE):
+        funde.append((int(m.group(2)), {"ende": 4, "anfang": 1, "beginn": 1, "mitte": 3}[m.group(1).casefold()]))
+    for m in re.finditer(r"\bKW\s?(\d{1,2})\s*[/ ]\s*(20\d\d)\b", t, re.IGNORECASE):               # „KW 10/2027“
+        funde.append((int(m.group(2)), min(4, (int(m.group(1)) - 1) // 13 + 1)))
+    for m in re.finditer(r"(?<!\d)(20\d\d)-(\d\d)-\d\d(?!\d)", t):                                # auch „2026-10-01T00:00“
         funde.append((int(m.group(1)), (int(m.group(2)) + 2) // 3))
     for m in re.finditer(r"\b\d{1,2}\.(\d{1,2})\.(20\d\d|\d\d)\b", t):
         if 1 <= int(m.group(1)) <= 12:
             funde.append((_jahr(m.group(2)), (int(m.group(1)) + 2) // 3))
-    for m in re.finditer(r"(?<![\dQq.])(0?[1-9]|1[0-2])\s?/\s?(20\d\d)\b", t):   # nicht die 3 aus „Q3/2027“
-        funde.append((int(m.group(2)), (int(m.group(1)) + 2) // 3))
+    for m in re.finditer(r"(?<![\d/])(\d{1,2})/(\d{1,2})/(20\d\d)\b", t):                           # „10/1/2026“
+        erster, zweiter = int(m.group(1)), int(m.group(2))
+        monat = erster if (zweiter == 1 and erster <= 12) or zweiter > 12 else zweiter       # 10/1 = 1. Oktober
+        if 1 <= monat <= 12:
+            funde.append((int(m.group(3)), (monat + 2) // 3))
+    for m in re.finditer(r"(?<![\dQq./-])(0?[1-9]|1[0-2])\s?[/.-]\s?(20\d\d)\b", t):                 # „07/2026“, „07-2026“, „07.2026“; nicht „Q3/2027“, „KW 10/2027“
+        if not re.search(r"(?:KW|Quartal)\s?$", t[:m.start()], re.IGNORECASE):
+            funde.append((int(m.group(2)), (int(m.group(1)) + 2) // 3))
     for m in re.finditer(r"\b([A-Za-zäÄü]{3,9})\.?\s+(20\d\d)\b", t):
         wort = m.group(1).casefold()
         if wort in _MONATE:
             funde.append((int(m.group(2)), (_MONATE[wort] + 2) // 3))
         elif wort in _JAHRESTEIL:
             funde.append((int(m.group(2)), _JAHRESTEIL[wort]))
-    if heute and (m := re.search(r"\b(\d{1,2})(?:\s*-\s*(\d{1,2}))?\s*Monate\b", t)):
+    if heute and (m := re.search(r"\b(\d{1,2})(?:\s*-\s*(\d{1,2}))?\s*Monate\b", t)) and not _KEINE_FRIST.search(t[:m.start()]):
         monate = int(m.group(2) or m.group(1))        # „12-14 Monate ab Mietvertrag“: der spätere Wert
         ziel = heute.year * 12 + (heute.month - 1) + monate
         funde.append((ziel // 12, (ziel % 12) // 3 + 1))
-    if not funde and (m := re.search(r"(?<![\d.,/])(20[2-4]\d)(?![\d.,/])", t)):
+    if not funde and (m := re.search(r"(?<![\d.,/-])(20[2-4]\d)(?![\d.,/-])", t)) and not _KEIN_TERMINJAHR.search(t[:m.start()]):
         funde.append((int(m.group(1)), 1))
     return funde
 
 
 def quartal(text: str | None, heute: date | None = None, spaetestes: bool = False) -> tuple[int, int] | None:
-    """(Jahr, Quartal) aus „Q3 2026“, „Q2/2027“, „Sommer 2027“, „Ende 2028“, „07/2026“, „01.12.2026“,
-    „März 2027“, „2026-04-01“, mit `heute` auch „ca. 15 Monate nach Mietvertragsabschluss“.
-    SOFORT für „ab sofort“, „kurzfristig“, „zeitnah“ – das gilt auch, wenn daneben ein Datum steht
-    („Ab sofort, spätestens Sommer 2026“). Sonst das früheste genannte Quartal, mit `spaetestes`
-    das späteste (Bezug einer Einheit: „Bauzeit Feb 2027 bis Jan 2028“). „… verfügbar“ ohne
-    Datum zählt als sofort („laut Flächenupdate August 2026 verfügbar“ nennt aber ein Datum).
-    None = nicht lesbar („auf Anfrage“, „Quartal“, „nach Absprache“)."""
+    """(Jahr, Quartal) aus „Q3 2026“, „Q2/2027“, „2. Halbjahr 2027“, „Sommer 2027“, „Ende 2028“,
+    „07/2026“, „01.12.2026“, „März 2027“, „2026-04-01“, „KW 10/2027“, mit `heute` auch „ca. 15 Monate
+    nach Mietvertragsabschluss“. SOFORT für „ab sofort“, „kurzfristig“, „zeitnah“.
+
+    Zwei Lesarten:
+    - Gesuch (Standard): Der früheste Termin zählt, und „sofort“ schlägt jedes Datum
+      („Ab sofort, spätestens Sommer 2026“).
+    - Einheit (`spaetestes`): Der späteste Termin zählt, und ein genanntes Datum schlägt „sofort“
+      („Halle 12 Monate nach Mietvertrag, Büros sofort“; „Bauzeit Feb 2027 bis Jan 2028“).
+    „… verfügbar“ ohne Datum zählt als sofort. None = nicht lesbar („auf Anfrage“, „Quartal“,
+    „nach Absprache“, „nicht verfügbar“, „Baubeginn ab Q2 2026“)."""
     if not text:
         return None
     t = text.strip()
-    if _SOFORT.search(t):
+    if _NUR_BAUBEGINN.search(t) and not _BAUENDE.search(t):
+        return None
+    sofort = bool(_SOFORT.search(t))
+    if sofort and not spaetestes:
         return SOFORT
     funde = _alle_quartale(t, heute)
     if funde:
         return max(funde) if spaetestes else min(funde)
-    return SOFORT if _VERFUEGBAR.search(t) else None
+    if sofort:
+        return SOFORT
+    return SOFORT if _VERFUEGBAR.search(t) and not _NICHT_VERFUEGBAR.search(t) else None
 
 
 def quartal_von(tag: date) -> tuple[int, int]:

@@ -15,7 +15,8 @@ gelesen am 26.11.2026):
   den Feldern kaum beantworten, und der Bericht sagt das, statt zwölf ungekühlte Hallen zu nennen.
 - „Schon angeboten“ heißt: Es gibt einen Deal des Kontakts zur Einheit oder zu ihrem Projekt (egal
   in welcher Stufe, auch Absage), die Einheit steht mit ID in der Notiz des Suchprofils, oder ihre
-  Straße steht dort hinter „Angeboten:“.
+  Straße steht dort hinter „Angeboten:“. Steht dieselbe Halle zweimal in Propstack, gilt ein
+  Angebot zu einem der beiden Datensätze für beide (bestand.fasse_zwillinge).
 """
 from __future__ import annotations
 
@@ -26,7 +27,8 @@ from datetime import date, timedelta
 from itertools import combinations
 
 from .bestand import ALTBESTAND, VERMARKTUNG, Flaeche
-from .felder import SOFORT, entfernung_km, im_polygon, ort_schluessel, quartal_text, quartal_von, quartale_zwischen
+from .felder import (SOFORT, entfernung_km, gleiche_ortsschluessel, im_polygon, ort_grundname, ort_schluessel,
+                     quartal_text, quartal_von, quartale_zwischen)
 from .gesuch import WUNSCH, Gesuch
 
 PASST, TEILBAR, KOMBINATION, GROESSER = "passt", "teilbar", "Kombination", "größer"
@@ -41,6 +43,8 @@ ORT_UMKREIS_KM = 8.0               # „Orte“ ohne Koordinaten: Ort selbst ode
 KNAPP_FAKTOR, KNAPP_MIN_KM, KNAPP_MAX_KM = 0.25, 5.0, 10.0
 ZUSCHLAG_GESCHAETZT_KM = 10.0      # Lage nur über PLZ-Gebiet geschätzt
 BUNDESWEIT_AB_LAENDERN = 8         # so viele Bundesländer angekreuzt: das Profil hat faktisch kein Gebiet
+BUNDESWEIT_GRAD = (5.0, 7.0)       # ein gezeichnetes Gebiet über mehr als 5° Breite und 7° Länge ist Deutschland
+BUNDESWEIT_UMKREIS_KM = 300.0
 KO_BESONDERHEITEN = ("Kühlung", "Kran", "Gleisanschluss")
 _PUNKTE_ART = {PASST: 100.0, TEILBAR: 85.0, KOMBINATION: 80.0, GROESSER: 50.0}
 
@@ -57,6 +61,7 @@ class Vorschlag:
     neu: bool = False
     weitere_im_projekt: list[int] = field(default_factory=list)    # IDs weiterer passender Einheiten
     dubletten: list[int] = field(default_factory=list)             # dieselbe Halle ein zweites Mal in Propstack
+    neue_flaeche: bool = False                                     # eine der Einheiten ist neu im Bestand
 
     @property
     def erste(self) -> Flaeche:
@@ -97,25 +102,94 @@ class Angebote:
         return a
 
     def kennt(self, kontakt_id: int, f: Flaeche) -> bool:
-        return f.id in self.einheiten.get(kontakt_id, ()) or (
-            f.projekt_id is not None and f.projekt_id in self.projekte.get(kontakt_id, ()))
+        """Deal zur Einheit, zu ihrem Projekt – oder zum zweiten Datensatz derselben Halle."""
+        einheiten = self.einheiten.get(kontakt_id, ())
+        if f.id in einheiten or any(z in einheiten for z in f.zwillinge):
+            return True
+        projekte = self.projekte.get(kontakt_id, ())
+        return any(p in projekte for p in (f.projekt_id, *f.zwillings_projekte) if p is not None)
 
 
-def _in_notiz_angeboten(g: Gesuch, f: Flaeche) -> bool:
-    if f.id in g.genannte_einheiten:
+def _norm(text: str) -> str:
+    t = re.sub(r"str\.|strasse\b", "straße", (text or "").casefold())
+    return re.sub(r"[ \t]+", " ", t)
+
+
+def _ganzes_wort(wort: str, text: str) -> re.Match | None:
+    return re.search(rf"(?<![\w-]){re.escape(wort)}(?![\w-])", text) if wort else None
+
+
+def _hausnummern(text: str) -> set[int]:
+    """„30“ → {30}, „49-53“ → {49 … 53}, „12a“ → {12}."""
+    m = re.search(r"(\d+)\s*[a-z]?(?:\s*[-–/]\s*(\d+))?\s*[a-z]?\s*$", (text or "").casefold())
+    if not m:
+        return set()
+    von, bis = int(m.group(1)), int(m.group(2) or m.group(1))
+    return set(range(von, bis + 1)) if von <= bis <= von + 60 else {von}
+
+
+_EINHEIT_NR = re.compile(r"\b(?:unit|halle|einheit|geb(?:ä|ae)ude)\s*([\d.]+)")
+# Ortsnamen, die in einer Notiz auch etwas anderes heißen
+_KEIN_ORTSHINWEIS = {"halle", "hof", "lage"}
+
+
+def _in_notiz_angeboten(g: Gesuch, f: Flaeche, bekannte_orte: frozenset[str] = frozenset(),
+                        eindeutige_orte: frozenset[str] = frozenset()) -> bool:
+    """Steht die Fläche schon in der Notiz des Suchprofils? Mit ID – oder hinter „Angeboten:“, so wie
+    das Team es schreibt (Suchprofil 11656279, gelesen 26.11.2026): „Teilungsweg 30, Essen“,
+    „Im Freihafen 4“, „Märkische Straße Bochum“, „Herne Prologis“, „Herten Unit 2.1 und 2.2“.
+
+    Der Straßenname zählt als Ganzes und als ganzes Wort („Hafenstraße“ steckt nicht in
+    „Rheinhafenstraße“, und „Industriestraße“ gibt es in jeder Stadt). Nennt die Zeile eine
+    Hausnummer, eine andere Stadt oder eine andere Unit, ist es eine andere Fläche. Ein Ort allein
+    („Dorfen“) zählt nur, wenn es dort genau ein Objekt im Bestand gibt."""
+    if f.id in g.genannte_einheiten or any(z in g.genannte_einheiten for z in f.zwillinge):
         return True
     if not g.angeboten_text:
         return False
-    text = g.angeboten_text.casefold()
-    # Straße: das erste Wort mit Gewicht („Teilungsweg 30, Essen“, „Klöcknerstraße 55“)
-    wort = re.split(r"[\s,]+", f.strasse.strip())[0].casefold() if f.strasse else ""
-    if len(wort) >= 7 and not wort[0].isdigit() and wort in text:
-        return True
-    # „Herne Prologis“, „Mileway Oberhausen“: Ort und Eigentümer in derselben Zeile
-    ort = ort_schluessel(f.ort)
+    ort = ort_grundname(f.ort)
+    strasse = re.sub(r"[\s,]*\d+\s*[a-z]?(?:\s*[-–/]\s*\d+\s*[a-z]?)?\s*$", "", _norm(f.strasse)).strip(" ,")
+    if not strasse or strasse[0].isdigit() or strasse in ("straße", ort) or strasse in bekannte_orte \
+            or (len(strasse) < 6 and " " not in strasse):
+        strasse = ""
+    hausnummern = _hausnummern(f.hausnummer) or _hausnummern(f.strasse)
     eigner = re.split(r"[\s,(]+", f.eigentuemer.strip())[0].casefold() if f.eigentuemer else ""
-    if len(ort) >= 4 and len(eigner) >= 4:
-        return any(ort in zeile and eigner in zeile for zeile in re.split(r"[\n/]+", text))
+    einheit = _EINHEIT_NR.search(f.kennung)
+    for zeile in re.split(r"[\n;]+", _norm(g.angeboten_text)):
+        genannt = _EINHEIT_NR.search(zeile)
+        if genannt and einheit:                                   # „Industriering 21 Unit 2“ ist nicht Unit 1
+            nummern = {genannt.group(1).rstrip(".")} | {n.rstrip(".") for n in re.findall(r"\bund\s+([\d.]+)", zeile[genannt.end():])}
+            if einheit.group(1).rstrip(".") not in nummern:
+                continue
+        nennt_ort = bool(_ganzes_wort(ort, zeile)) and ort not in _KEIN_ORTSHINWEIS
+        if nennt_ort and zeile.strip(" .,-") == ort and ort in eindeutige_orte:
+            return True
+        if strasse and (m := _ganzes_wort(strasse, zeile)):
+            nummer = re.match(r"\s*(\d+)", zeile[m.end():])
+            if nummer and hausnummern and int(nummer.group(1)) not in hausnummern:
+                continue
+            if not nennt_ort and any(_ganzes_wort(o, zeile) for o in bekannte_orte if o != ort and o not in _KEIN_ORTSHINWEIS):
+                continue
+            return True
+        if nennt_ort and len(ort) >= 4:
+            if len(eigner) >= 4 and _ganzes_wort(eigner, zeile):   # „Herne Prologis“, „Mileway Oberhausen“
+                return True
+            if genannt and einheit:                               # „Herten Unit 2.1 und 2.2“
+                return True
+    return False
+
+
+def _bundesweit(g: Gesuch) -> bool:
+    """Hat das Profil faktisch kein Gebiet? Dann ist jede Auswahl von fünf aus Hunderten Zufall."""
+    if g.gebiet == "ohne":
+        return True
+    if g.gebiet == "Bundesland":
+        return len(g.laender) >= BUNDESWEIT_AB_LAENDERN
+    if g.gebiet == "Gebiet":
+        breiten, laengen = [p[1] for p in g.polygon], [p[0] for p in g.polygon]
+        return max(breiten) - min(breiten) > BUNDESWEIT_GRAD[0] and max(laengen) - min(laengen) > BUNDESWEIT_GRAD[1]
+    if g.gebiet == "Umkreis":
+        return g.umkreis_km >= BUNDESWEIT_UMKREIS_KM
     return False
 
 
@@ -133,6 +207,21 @@ class Abgleich:
             if f.lat is not None and not f.lage_geschaetzt and f.ort:
                 mitten[ort_schluessel(f.ort)].append((f.lat, f.lng))
         self.ortsmitten = {ort: (sum(p[0] for p in ps) / len(ps), sum(p[1] for p in ps) / len(ps)) for ort, ps in mitten.items()}
+        self.bekannte_orte = frozenset(ort_grundname(f.ort) for f in flaechen if f.ort) - {""}
+        je_ort: dict[str, set] = defaultdict(set)
+        for f in flaechen:
+            je_ort[ort_grundname(f.ort)].add(("p", f.projekt_id) if f.projekt_id else ("e", f.id))
+        self.eindeutige_orte = frozenset(ort for ort, objekte in je_ort.items() if ort and len(objekte) == 1)
+        self._mitte_je_ort: dict[str, tuple[float, float] | None] = {}
+
+    def _ortsmitte(self, ort: str) -> tuple[float, float] | None:
+        """Mitte eines Orts aus dem Bestand. „Mülheim“ findet „Mülheim an der Ruhr“, „Frankfurt (Oder)“
+        aber nicht „Frankfurt am Main“."""
+        if ort not in self._mitte_je_ort:
+            schluessel = ort_schluessel(ort)
+            self._mitte_je_ort[ort] = self.ortsmitten.get(schluessel) or next(
+                (mitte for k, mitte in self.ortsmitten.items() if gleiche_ortsschluessel(k, schluessel)), None)
+        return self._mitte_je_ort[ort]
 
     # --- Gebiet ---------------------------------------------------------------------------
 
@@ -153,10 +242,9 @@ class Abgleich:
             eigener = ort_schluessel(f.ort)
             beste = None
             for ort in g.orte:
-                schluessel = ort_schluessel(ort)
-                if eigener and eigener == schluessel:
+                if gleiche_ortsschluessel(eigener, ort_schluessel(ort)):
                     return True, None
-                mitte = self.ortsmitten.get(schluessel)
+                mitte = self._ortsmitte(ort)
                 if mitte and f.lat is not None:
                     abstand = entfernung_km(mitte[0], mitte[1], f.lat, f.lng)
                     beste = abstand if beste is None else min(beste, abstand)
@@ -225,6 +313,11 @@ class Abgleich:
             gruende.append(f"{len(flaechen)} Einheiten im selben Projekt, zusammen {_m2(summe)}")
         if art == GROESSER:
             pruefen.append("größer als gesucht – Teilfläche beim Eigentümer erfragen")
+        for f in flaechen:
+            if f.flaeche_gesamt:
+                pruefen.append(f"frei sind {_m2(f.flaeche)} von {_m2(f.flaeche_gesamt)} (Feld „Lagerfläche verfügbar“)")
+            if f.flaeche_hinweis:
+                pruefen.append(f"Fläche unklar: Lagerfläche {_m2(f.flaeche)}, {f.flaeche_hinweis}")
 
         if abstand is not None and g.gebiet == "Umkreis" and g.umkreis_km:
             punkte += 15 * max(0.0, 1 - abstand / g.umkreis_km)
@@ -243,16 +336,22 @@ class Abgleich:
             pruefen.append(hinweis)
 
         if g.rampen_min is not None:
-            rampen = sum(f.rampen for f in flaechen if f.rampen) if any(f.rampen for f in flaechen) else None
+            werte = [f.rampen for f in flaechen if f.rampen is not None]
+            rampen = sum(werte) if werte else None
+            tore = sum(f.tore_ebenerdig or 0 for f in flaechen)
             if rampen is None:
                 punkte -= 2
                 pruefen.append(f"Rampen nicht gepflegt (gewünscht {_komma(g.rampen_min)})")
             elif rampen >= g.rampen_min:
                 punkte += 5
                 gruende.append(f"{_komma(rampen)} {'Rampe' if rampen == 1 else 'Rampen'}")
+            elif rampen == 0:
+                punkte -= 8
+                pruefen.append(f"keine Rampen laut Objekt (gewünscht {_komma(g.rampen_min)})"
+                               + (f", {_komma(tore)} ebenerdige {'Tor' if tore == 1 else 'Tore'}" if tore else ""))
             else:
                 punkte -= 8
-                pruefen.append(f"nur {_komma(rampen)} Rampen gepflegt (gewünscht {_komma(g.rampen_min)})")
+                pruefen.append(f"nur {_komma(rampen)} {'Rampe' if rampen == 1 else 'Rampen'} gepflegt (gewünscht {_komma(g.rampen_min)})")
 
         _, grund, hinweis = self._zeit(g, erste)
         if grund:
@@ -286,12 +385,13 @@ class Abgleich:
             punkte -= 5
             pruefen.append(f"Datensatz seit {erste.geaendert[5:7]}/{erste.geaendert[:4]} nicht geändert")
 
-        neu = any(f.angelegt >= self.neu_ab for f in flaechen) or g.angelegt >= self.neu_ab
-        if any(f.angelegt >= self.neu_ab for f in flaechen):
+        neue_flaeche = any(f.angelegt >= self.neu_ab for f in flaechen)
+        if neue_flaeche:
             punkte += 8
             gruende.append("neu im Bestand")
         return Vorschlag(art=art, flaechen=flaechen, summe=summe, entfernung_km=abstand, punkte=round(punkte, 1),
-                         gruende=gruende, pruefen=pruefen, neu=neu)
+                         gruende=gruende, pruefen=pruefen, neu=neue_flaeche or g.angelegt >= self.neu_ab,
+                         dubletten=[z for f in flaechen for z in f.zwillinge], neue_flaeche=neue_flaeche)
 
     # --- Der Abgleich für ein Gesuch ------------------------------------------------------
 
@@ -339,7 +439,7 @@ class Abgleich:
                     for b in fehlt:
                         e.ohne_nachweis[b] = e.ohne_nachweis.get(b, 0) + 1
                 continue
-            if self.angebote.kennt(g.kontakt_id, f) or _in_notiz_angeboten(g, f):
+            if self.angebote.kennt(g.kontakt_id, f) or _in_notiz_angeboten(g, f, self.bekannte_orte, self.eindeutige_orte):
                 if art:
                     e.schon_angeboten += 1
                 continue
@@ -354,27 +454,24 @@ class Abgleich:
                 abstand = next((a for f, a in teile if f is kombi[0]), None)
                 vorschlaege.append(self._bewerte(g, KOMBINATION, kombi, abstand))
 
-        # Je Projekt nur der beste Vorschlag; die übrigen passenden Einheiten werden genannt.
-        # Dieselbe Halle zweimal in Propstack (gleiche Straße, gleicher Ort, gleiche Fläche) zählt
-        # einmal – die Dublette wird genannt (24.11.2026: sieben Hillwood-Einheiten doppelt angelegt).
+        # Je Projekt nur der beste Vorschlag; die übrigen passenden Einheiten werden genannt. Ist eine
+        # davon neu im Bestand, bleibt das sichtbar – sonst verschwindet sie im Lauf „nur neu“ hinter
+        # einer älteren Einheit desselben Projekts.
         je_schluessel: dict = {}
-        je_halle: dict = {}
         for v in sorted(vorschlaege, key=lambda v: -v.punkte):
-            halle = (ort_schluessel(v.erste.ort), v.erste.strasse.casefold(), round(v.summe)) if v.erste.strasse else None
-            if halle and halle in je_halle and je_halle[halle].schluessel != v.schluessel:
-                je_halle[halle].dubletten.extend(f.id for f in v.flaechen)
-                continue
-            if halle:
-                je_halle.setdefault(halle, v)
-            if v.schluessel in je_schluessel:
-                je_schluessel[v.schluessel].weitere_im_projekt.extend(f.id for f in v.flaechen)
-            else:
+            kopf = je_schluessel.get(v.schluessel)
+            if kopf is None:
                 je_schluessel[v.schluessel] = v
+                continue
+            kopf.weitere_im_projekt.extend(f.id for f in v.flaechen)
+            if v.neue_flaeche and not kopf.neue_flaeche:
+                kopf.neue_flaeche = kopf.neu = True
+                kopf.gruende.append("weitere Einheit im Projekt neu im Bestand")
         e.vorschlaege = sorted(je_schluessel.values(), key=lambda v: -v.punkte)
-        if (g.gebiet == "ohne" or len(g.laender) >= BUNDESWEIT_AB_LAENDERN) and e.vorschlaege:
+        if _bundesweit(g) and e.vorschlaege:
             # Ohne Gebiet ist jede Auswahl von fünf aus Hunderten Zufall (Stichprobe 26.11.2026: drei
             # Hallen in Bitterfeld, Duisburg und Dresden für ein Gesuch ohne Ort). Gezählt wird, gezeigt nicht.
-            # Dasselbe gilt für ein Profil, das alle 16 Bundesländer ankreuzt.
+            # Dasselbe gilt für ein Profil, das alle 16 Bundesländer ankreuzt oder ganz Deutschland umrandet.
             e.grund_ohne_vorschlag = (f"kein Gebiet im Suchprofil – {len(e.vorschlaege)} passende Objekte bundesweit; "
                                       "Ort, Umkreis oder Bundesland eintragen")
             e.vorschlaege = []

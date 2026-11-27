@@ -10,9 +10,10 @@ from datetime import date
 
 import pytest
 
-from angebots_radar.felder import SOFORT, bundesland, im_polygon, ort_schluessel, quartal
+from angebots_radar.felder import SOFORT, bundesland, gleicher_ort, im_polygon, ort_schluessel, plz5, quartal, zahl
 from angebots_radar.gesuch import (
-    aus_suchprofil, besonderheiten_aus_text, flaeche_aus_text, hoehe_aus_text, ist_hallengesuch, rampen_aus_text,
+    ab_wann_aus_text, aus_suchprofil, besonderheiten_aus_text, erledigt_aus_text, flaeche_aus_text, hoehe_aus_text,
+    ist_hallengesuch, rampen_aus_text,
 )
 
 from .zeilen import WERMELSKIRCHEN, suchprofil
@@ -189,6 +190,177 @@ def test_gebiete():
     viereck = [[6.0, 51.0], [7.0, 51.0], [7.0, 52.0], [6.0, 52.0]]            # Ecken als [lng, lat]
     assert im_polygon(51.5, 6.5, viereck) and not im_polygon(50.9, 6.5, viereck)
     assert ort_schluessel("Köln-Ossendorf") == ort_schluessel("Köln") == "köln"
-    assert ort_schluessel("Mülheim an der Ruhr") == "mülheim"
+    assert ort_schluessel("Mülheim an der Ruhr") == "mülheim ruhr" and gleicher_ort("Mülheim", "Mülheim an der Ruhr")
     assert bundesland("Nordrhein-Westfalen", None) == "Nordrhein-Westfalen"
     assert bundesland(None, "42897") == "Nordrhein-Westfalen" and bundesland(None, "Deutschland") is None
+
+
+# --- Befunde des unabhängigen Prüflaufs vom 26.11.2026 -----------------------------------------
+# Ein zweiter Durchgang hat die Lesefunktionen mit rund 600 erdachten und echten Eingaben
+# beschossen. Was dabei falsch herauskam, steht hier – jeweils mit dem Ergebnis von vorher.
+
+@pytest.mark.parametrize("text, erwartet", [
+    ("Büro 300 m², Halle 5.000 m²", (5000, 5000)),                               # vorher 300: die erste Zahl der Zeile
+    ("500 m² Büro und 3.000 m² Lager", (3000, 3000)),
+    ("Grundstück 20.000 m² mit Halle 8.000 m²", (8000, 8000)),                   # vorher 20.000
+    ("Erweiterung von 2.000 m² auf 6.000 m² Hallenfläche", (6000, 6000)),
+    ("aktuell 1.500 m² Halle in Dortmund, sucht 3.000 m²", (3000, 3000)),        # vorher 1.500: der heutige Bestand
+    ("Halle 3.000 m² (aktuell 1.500 m² in Dortmund)", (3000, 3000)),
+    ("Lager ab 01.07.2026 – 5.000 m²", (5000, 5000)),                            # vorher 2026–5.000
+    ("Kundengesuch: Halle ab 2027 - 10.000 m² in Köln", (10000, 10000)),
+    ("Sucht 2027 Halle in Köln", None),                                          # vorher 2.027 m²
+    ("PLZ 40764 Lager gesucht", None),                                           # vorher 40.764 m²
+    ("Halle für 5.000 Paletten", None),
+    ("ca. 5.000 Palettenstellplätze, Halle ca. 6.000 m²", (6000, 6000)),
+    ("Sucht Lager in Köln, Budget ca. 30k im Monat", None),                      # vorher 30.000 m²
+    ("Lager für 20k Artikel (SKU)", None),
+    ("Halle 20k qm", (20000, 20000)),
+    ("5-7k Halle", (5000, 7000)),
+    ("Miete max. 6,50 €/m² für 4.000 m²", (4000, 4000)),
+    ("Lagerfläche: 12.500,00 m²", (12500, 12500)),                               # vorher nicht lesbar
+    ("mind. 2.500 m² bis max. 5.000 m² Halle", (2500, 5000)),
+    ("Halle zwischen 2.500 und 5.000 m²", (2500, 5000)),
+    ("Mindestfläche von 1750 m² für die Einrichtung", (1750, None)),             # vorher 1.750 als fester Wert
+    ("Hallenfläche > 3.000 m²", (3000, None)),
+    ("Lager unter 3.000 m²", (None, 3000)),
+    ("Lager nicht größer als 3.000 m²", (None, 3000)),
+    ("Mind. 1.000 m², gewünscht 5.000 - 10.000 m² Lager", (5000, 10000)),        # die Spanne schlägt den Einzelwert
+])
+def test_flaeche_befunde_des_prueflaufs(text, erwartet):
+    assert flaeche_aus_text(text) == erwartet
+
+
+def test_bis_zu_mit_hoeherer_untergrenze_ergibt_keinen_verdrehten_korridor():
+    """Vorher: „bis zu 20.000 m²“ mit Untergrenze 25.000 ergab 25.000–20.000 und damit nie einen Treffer."""
+    g = aus_suchprofil(suchprofil(text="Lagermöglichkeit für bis zu 20.000m²", lagerflache=25000.0))
+    assert (g.flaeche_von, g.flaeche_bis) == (10000, 20000)
+    vertauscht = aus_suchprofil(suchprofil(text="", industrial_area=9000, industrial_area_to=6000))
+    assert (vertauscht.flaeche_von, vertauscht.flaeche_bis) == (6000, 9000)
+
+
+@pytest.mark.parametrize("text, hoehe", [
+    ("Höhe mind. 12,20m", 12.2),                       # vorher 20: die zwei Ziffern hinter dem Komma
+    ("UKB: 10,00 m", 10.0),
+    ("Tore Höhe 4,5m", None),                          # vorher 4,5 als Hallenhöhe
+    ("Torhöhe 4,5 m\nHallenhöhe 10 m", 10.0),
+    ("Rampenhöhe 1,20 m, Hallenhöhe 10 m", 10.0),
+    ("Bürohöhe 3 m\nHalle 10 m UKB", 10.0),
+    ("Raumhöhe Büro 3 m", None),
+    ("Deckenhöhe max. 6 m", None),                     # eine Obergrenze ist kein Mindestmaß
+    ("Höhe: zwischen 8 und 10 m", 8.0),
+    ("lichte Höhe 6 Metern", 6.0),
+])
+def test_hoehe_befunde_des_prueflaufs(text, hoehe):
+    assert hoehe_aus_text(text) == hoehe
+
+
+@pytest.mark.parametrize("text, ziel, rampen", [
+    ("1 Rampe je 800 m²", 8000, 10),                   # vorher 1
+    ("1,5 Rampen je 1.000 m²", 8000, 12),              # vorher 40
+    ("mind. 1 Rampe / 1.000 m²", 5000, 5),             # „ / “ ist hier kein Zeilentrenner
+    ("1 Rampentor je 1.000 m²", 5000, 5),
+    ("Rampen: 4", None, 4),
+    ("Anzahl Rampentore: 6", None, 6),
+    ("2026 Rampen erneuert", None, None),              # vorher 26
+    ("Rampe 1,20 m hoch", None, None),
+    ("0 Rampen", None, None),
+    ("keine Rampen nötig", None, None),
+])
+def test_rampen_befunde_des_prueflaufs(text, ziel, rampen):
+    assert rampen_aus_text(text, ziel) == rampen
+
+
+def test_rampen_je_1000_rechnen_mit_dem_wunsch_nicht_mit_der_untergrenze():
+    """Vorher: „~10.000 m², 1 Rampe je 1.000 m²“ ergab 8 Rampen, weil mit 80 % des Wunsches gerechnet wurde."""
+    g = aus_suchprofil(suchprofil(text="▪️ ~10.000 m² Hallenfläche\n▪️ 1 Rampe je 1.000 m²", lagerflache=8000.0))
+    assert (g.flaeche_von, g.flaeche_ziel, g.rampen_min) == (8000, 10000, 10)
+
+
+@pytest.mark.parametrize("text, erwartet", [
+    ("Kühlung ja, Gefahrgut nein", ["Kühlung"]),                                 # vorher beides verworfen
+    ("Kühlung erforderlich, Sprinkler nicht erforderlich", ["Kühlung"]),
+    ("Kran zwingend, Gleisanschluss nicht nötig", ["Kran"]),
+    ("Kein Kran, aber Gleisanschluss zwingend", ["Gleisanschluss"]),
+    ("Kühlung zwingend, gerne mit Rampe", ["Kühlung"]),                          # vorher nur „Wunsch“
+    ("WGK 3 erforderlich, Kühlung nicht", ["Gefahrgut/WGK/Batterie"]),
+    ("Gefahrgut (nein)", []),
+    ("weder Kühlung noch Kran", []),
+    ("Kühlung wird nicht gebraucht", []),
+    ("Lebensmittel (ungekühlt)", []),                                            # vorher Kühlung als Bedingung
+    ("Ungekühltes Lager", []),
+    ("Lagerung von Kühlschränken", []),
+    ("Herr Kühl sucht Halle", []),
+    ("Lagerung von Krankenhausbetten", []),                                      # vorher Kran
+    ("Am Gleis 5", []),
+    ("Tel. TK-Anlage", []),
+    ("Heizung: mind. 12 Grad Temperatur", []),
+    ("Kranbahn wäre schön", ["Kran (Wunsch)"]),
+    ("24 / 7 Betrieb", ["24/7"]),                                                # vorher an „ / “ zerschnitten
+    ("24/7 k. A.", []),
+])
+def test_besonderheiten_befunde_des_prueflaufs(text, erwartet):
+    assert besonderheiten_aus_text(text) == erwartet
+
+
+@pytest.mark.parametrize("text, erledigt", [
+    ("Kunde hat noch nichts angemietet", False),                                 # vorher „erledigt“ – das Gegenteil
+    ("Hat bereits 3.000 m² angemietet und sucht eine Erweiterung", False),
+    ("Besichtigung abgesagt, neuer Termin folgt", False),
+    ("Kein Bedarf an Büroflächen", False),
+    ("Exposé nicht mehr aktuell, neues angefordert", False),
+    ("Die haben Herne von Prologis angemietet", True),
+    ("Kunde hat abgesagt", True),
+    ("Gesuch ist nicht mehr aktuell", True),
+    ("Kein Bedarf mehr", True),
+    ("Hat sich erledigt", True),
+])
+def test_erledigt_liest_nicht_das_gegenteil(text, erledigt):
+    assert bool(erledigt_aus_text(text)) is erledigt
+
+
+def test_bezugstermin_nur_aus_zeilen_die_danach_klingen():
+    assert ab_wann_aus_text("Start der Suche: 01.09.2026\nMietbeginn 01.04.2027") == (2027, 2)     # vorher Q3 2026
+    assert ab_wann_aus_text("Profil angelegt am 01.03.2026") is None
+    assert ab_wann_aus_text("Halle in Köln, ab sofort") == SOFORT
+
+
+def test_ids_und_ueberschrift_in_der_notiz():
+    """„(ID 4807608)“ zählt wie „Einheit 4807608“. Und nur die Überschrift schneidet die Notiz ab –
+    „Kunde sucht passende Flächen in Köln“ ist der Wunsch selbst (vorher fehlte danach die Fläche)."""
+    g = aus_suchprofil(suchprofil(notiz="Schon gezeigt: Log Plaza (ID 4807608) und https://crm.propstack.de/app/portfolio/properties/5674869"))
+    assert g.genannte_einheiten == [4807608, 5674869]
+    g = aus_suchprofil(suchprofil(text="Kunde sucht passende Flächen in Köln, Halle 5.000 m²"))
+    assert (g.flaeche_von, g.flaeche_bis) == (4000, 6250)
+
+
+def test_angeboten_liste_endet_an_der_leerzeile():
+    g = aus_suchprofil(suchprofil(notiz="Angeboten: Teilungsweg 30\n\nKunde sitzt heute in der Industriestraße in Neuss"))
+    assert g.angeboten_text == "Teilungsweg 30"
+
+
+@pytest.mark.parametrize("text, spaetestes, erwartet", [
+    ("nicht verfügbar", True, None),                                 # vorher „sofort“
+    ("nicht sofort verfügbar", True, None),
+    ("derzeit vermietet, kurzfristig nicht verfügbar", True, None),
+    ("Bauabschnitt II, Baubeginn ab Q2 2026", True, None),           # Baubeginn ist kein Bezug
+    ("Baubeginn Q1 2027, Fertigstellung Q4 2027", True, (2027, 4)),
+    ("Halle 12 Monate nach Mietvertragsunterzeichnung, Bueros sofort", True, (2027, 4)),    # vorher „sofort“
+    ("Laufzeit 36 Monate, ab sofort", True, SOFORT),
+    ("erbaut 2020", True, None),
+    ("2. Halbjahr 2027", True, (2027, 3)),
+    ("2. Quartal 2027", True, (2027, 2)),
+    ("KW 10/2027", True, (2027, 1)),                                 # vorher Oktober
+    ("2026-10-01T00:00:00+02:00", True, (2026, 4)),
+    ("1/1/2027", True, (2027, 1)),
+    ("07.2026", True, (2026, 3)),
+])
+def test_quartal_befunde_des_prueflaufs(text, spaetestes, erwartet):
+    assert quartal(text, HEUTE, spaetestes) == erwartet
+
+
+def test_zahl_plz_und_orte():
+    assert zahl("6.858,32 m²") == 6858.32 and zahl("7.575 m²") == 7575 and zahl("9,5") == 9.5      # vorher None
+    assert plz5("4451") == "04451" and plz5("Deutschland") == ""
+    assert bundesland(None, "4451") == "Sachsen" and bundesland(None, "76137") == "Baden-Württemberg"
+    assert not gleicher_ort("Frankfurt (Oder)", "Frankfurt am Main") and gleicher_ort("Frankfurt", "Frankfurt am Main")
+    assert not gleicher_ort("Neu-Ulm", "Neu-Isenburg") and gleicher_ort("Köln-Ossendorf", "Köln")

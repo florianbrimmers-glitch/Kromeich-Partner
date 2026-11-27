@@ -175,13 +175,16 @@ body.mit-rueckmeldung .urteil { display: flex; }
     <h2 id="h-wie">Wie verlässlich ist das?</h2>
     <p><strong>Gegenprobe an euren echten Angeboten.</strong> Von 54 Angeboten aus der Pipeline „300 Mieter“, die sich prüfen ließen, hätte das Radar 32 gefunden. Die übrigen 22 lagen alle außerhalb des Gebiets, das im Suchprofil eingezeichnet ist, bis zu 489 km. Fläche, Höhe und Bezugstermin haben kein einziges echtes Angebot ausgeschlossen.</p>
     <p><strong>Stichprobe von Hand.</strong> 34 Vorschläge aus 12 zufälligen Gesuchen gegen die Objektdaten gelesen: 30 plausibel, 4 falsch. Beide Ursachen sind seitdem abgestellt. Plausibel heißt: Lage, Fläche, Höhe und Termin stimmen laut Propstack. Ob die Halle wirklich noch frei ist, weiß nur der Eigentümer.</p>
+    <p><strong>Zweiter Durchgang gegen die eigenen Regeln.</strong> Ein unabhängiger Prüflauf hat die Lesefunktionen mit rund 600 Eingaben beschossen und 26 Fehler und Schwächen belegt. Die schwersten: Eine doppelt angelegte Halle galt als neu. Ein Angebot zum zweiten Datensatz derselben Halle wurde nicht erkannt. „Frei ab sofort“ stand bei Hallen, deren Bezug „auf Anfrage“ lautet. Und bei 170 Einheiten wurden die ebenerdigen Tore als Rampen gezählt. Alle 26 sind behoben und als Testfall festgehalten. Die Gegenprobe oben ist danach unverändert.</p>
     <p><strong>Was das Radar nicht sieht.</strong> Angebote, die nur per Mail rausgingen und weder als Deal noch in der Notiz stehen. Einen zweiten Bedarf desselben Kunden, für den es kein Suchprofil gibt. Und alles, was im Suchprofil nur zwischen den Zeilen steht.</p>
   </section>
 
   <section aria-labelledby="h-bestand" class="text">
     <h2 id="h-bestand">Am Bestand aufgefallen</h2>
     <ul>
-      <li><strong>267 angebotsfähige Einheiten haben keine Koordinaten</strong>, 245 davon stehen in Vermarktung. Jede Umkreissuche übersieht sie, auch das Matching in Propstack. Das Radar schätzt die Lage für 188 davon über Projekt, Postleitzahl oder Ort.</li>
+      <li><strong>267 angebotsfähige Einheiten haben keine Koordinaten</strong>, 245 davon stehen in Vermarktung. Jede Umkreissuche übersieht sie, auch das Matching in Propstack. Das Radar schätzt die Lage für 192 davon über Projekt, Postleitzahl oder Ort.</li>
+      <li><strong>11 Hallen stehen zweimal in Propstack</strong>, in Kirchlengern, Bünde, Porta Westfalica und Rheine: einmal ohne und einmal mit Projekt. Das Radar zählt sie einmal.</li>
+      <li><strong>Bei 31 Einheiten ist nur ein Teil der Lagerfläche frei</strong>, zum Beispiel 3.919 von 14.086 m². Abgeglichen wird der freie Teil, die Gesamtfläche steht als Hinweis dabei.</li>
       <li><strong>Bei 152 Einheiten steht „Lagerfläche teilbar ab“ um den Faktor 1.000 zu klein</strong> im Feld, zum Beispiel 10.385 m² als 10,385.</li>
       <li><strong>10 Einheiten gelten als frei und tragen „Vermietungsstand 100 %“.</strong> Vorschläge dazu tragen einen Hinweis und stehen hinten.</li>
       <li><strong>174 Hallen des Altbestands stehen als Objektart „Apartment“</strong> in Propstack. Ein Filter nach Objektart verliert sie.</li>
@@ -355,6 +358,8 @@ body.mit-rueckmeldung .urteil { display: flex; }
      ["gebiet_fehlt", "Kein Gebiet", "Ohne Ort, Umkreis oder Bundesland wären fünf Vorschläge aus Hunderten reiner Zufall."],
      ["am_kollegen", "Hängt an einem Kollegen", "Das Suchprofil ist an einem von uns angelegt statt am Kunden."],
      ["testprofil", "Testprofile", "Aktive Suchprofile an Testkontakten."],
+     ["kontakt_fehlt", "Kontakt nicht mehr abrufbar", "Das Suchprofil ist aktiv, der Kontakt dazu lässt sich in Propstack nicht mehr öffnen."],
+     ["nicht_abgeglichen", "Laut Text kein Hallengesuch", "Der Text liest sich als Ankauf, Grundstück oder Freifläche. Diese Profile laufen nicht durch den Abgleich. Wenn das bei einem nicht stimmt, bitte melden."],
      ["laut_notiz_erledigt", "Laut Notiz erledigt", "Das Profil ist aktiv, die Notiz sagt etwas anderes."]].forEach(([schluessel, titel, text]) => {
       const eintraege = auf[schluessel] || [];
       if (!eintraege.length) return;
@@ -362,7 +367,7 @@ body.mit-rueckmeldung .urteil { display: flex; }
       d.append(el("summary", null, titel + " (" + zahl(eintraege.length) + ")"));
       d.append(el("p", "erklaerung", text));
       const ul = el("ul", "zeilen");
-      baueListe(ul, eintraege, schluessel === "laut_notiz_erledigt" ? "hinweis" : null);
+      baueListe(ul, eintraege, schluessel === "laut_notiz_erledigt" || schluessel === "nicht_abgeglichen" ? "hinweis" : null);
       d.append(ul);
       $("aufraeumen").append(d);
     });

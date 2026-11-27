@@ -73,6 +73,10 @@ Alles hier ist an Live-Antworten geprüft (zuletzt 20.11.2026). Bei Zweifeln neu
 - `GET /v1/saved_queries` (Suchprofile, 26.11.2026): Gebiet in `lat`/`lng`/`radius` (Meter), `polygon` (Ecken als
   [lng, lat]), `cities` oder `regions`. Das Custom-Feld `lagerflache` dort ist eine Untergrenze, kein Wunsch –
   der steht im Text. Die Objektart einer Einheit taugt nicht als Filter: Der Altbestand steht als „APARTMENT“.
+- Einheiten, drei Fallen (27.11.2026, nur gelesen): Rampen stehen in `ramepntore` (Text, „11 Stk.“) –
+  `anzahl_rampentore_2` ist „Ebenerdige Tore“. Der Bezug steht in `free_from`, `bezug` (teils nur „Quartal“/„Datum“)
+  und `bezug_datum`; der Text gilt, das Datum ist oft alt. „Lagerfläche verfügbar“ ist Freitext und kann weit
+  unter „Lagerfläche“ liegen.
 - Die Kontaktsuche `q=` verlangt jedes Wort; `POST /v1/contacts` führt über die E-Mail zusammen.
 - Firmen und Verknüpfungen gehen nur über V2 (zweiter Schlüssel).
 

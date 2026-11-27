@@ -23,7 +23,7 @@ import json
 import os
 import re
 import sys
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from .abgleich import Abgleich, Angebote
@@ -39,6 +39,7 @@ class Quelle:
     def __init__(self, ordner: str | None):
         self.ordner = Path(ordner) if ordner else None
         self._ps: Propstack | None = None
+        self.gelesen_um: dict[str, datetime] = {}
 
     def _propstack(self) -> Propstack:
         if self._ps is None:
@@ -51,12 +52,37 @@ class Quelle:
     def hole(self, name: str, laden):
         datei = self.ordner / f"{name}.json" if self.ordner else None
         if datei and datei.exists():
+            self.gelesen_um[name] = datetime.fromtimestamp(datei.stat().st_mtime, tz=timezone.utc)
             return json.loads(datei.read_text(encoding="utf-8"))
         daten = laden(self._propstack())
+        self.gelesen_um[name] = datetime.now(timezone.utc)
         if datei:
             self.ordner.mkdir(parents=True, exist_ok=True)
             datei.write_text(json.dumps(daten, ensure_ascii=False), encoding="utf-8")
         return daten
+
+    def kontakte(self, ids: list[int]) -> tuple[dict[int, dict], list[int], list[int]]:
+        """(Kontakte, nicht gefunden, nicht lesbar). Der Zwischenspeicher wird ergänzt, nicht
+        vorausgesetzt: Liegt dort nur ein Teil (ein früherer Lauf mit --gesuch), werden die fehlenden
+        nachgeladen – sonst liefe ein Testprofil ohne Namen als echtes Gesuch durch den Abgleich."""
+        datei = self.ordner / "kontakte.json" if self.ordner else None
+        bekannt = {int(k): v for k, v in json.loads(datei.read_text(encoding="utf-8")).items()} if datei and datei.exists() else {}
+        fehlen = [i for i in ids if i not in bekannt]
+        nicht_gefunden: list[int] = []
+        fehler: list[int] = []
+        if fehlen:
+            if self.ordner and not (os.environ.get("PROPSTACK_API_KEY") or os.environ.get("PROPSTACK_API_V1")):
+                fehler = fehlen                                   # ohne Schlüssel nicht nachladbar: sagen, nicht raten
+            else:
+                neue, nicht_gefunden, fehler = self._propstack().kontakte(fehlen)
+                bekannt.update(neue)
+                for kontakt_id in nicht_gefunden:
+                    bekannt[kontakt_id] = {"name": "", "firma": "", "fehlt": True}
+                if datei:
+                    self.ordner.mkdir(parents=True, exist_ok=True)
+                    datei.write_text(json.dumps({str(k): v for k, v in bekannt.items()}, ensure_ascii=False), encoding="utf-8")
+        nicht_gefunden = [i for i in ids if bekannt.get(i, {}).get("fehlt")]
+        return {i: bekannt[i] for i in ids if i in bekannt and not bekannt[i].get("fehlt")}, nicht_gefunden, fehler
 
 
 def lauf(quelle: Quelle, heute: date, gesuch_ids: set[int] | None = None, betreuer: str | None = None,
@@ -75,13 +101,15 @@ def lauf(quelle: Quelle, heute: date, gesuch_ids: set[int] | None = None, betreu
     if betreuer:
         aktive = [g for g in aktive if betreuer.casefold() in (makler.get(g.betreuer_id or 0) or "").casefold()]
     ids = sorted({g.kontakt_id for g in aktive})
-    kontakte = {int(k): v for k, v in quelle.hole("kontakte", lambda ps: ps.kontakte(ids)).items()}
+    kontakte, kontakt_fehlt, kontakt_nicht_lesbar = quelle.kontakte(ids)
     # Testprofile hängen an „Max Mustermann“/„Test Test“; andere Profile hängen an einem Kollegen statt
     # am Kunden (26.11.2026: zusammen 11 aktive). Beides läuft nicht in den Abgleich, steht aber im Bericht.
     eigene = {name.casefold() for name in makler.values() if name}
     for g in aktive:
         name = (kontakte.get(g.kontakt_id, {}).get("name") or "").casefold()
-        if g.kein_hallengesuch is None and re.search(r"mustermann|^test\b", name):
+        if g.kontakt_id in kontakt_fehlt:
+            g.kein_hallengesuch = "Kontakt gibt es nicht mehr"
+        elif g.kein_hallengesuch is None and re.search(r"mustermann|^test\b", name):
             g.kein_hallengesuch = "Testprofil"
         elif g.kein_hallengesuch is None and name in eigene:
             g.kein_hallengesuch = "hängt an einem Kollegen"
@@ -108,6 +136,8 @@ def lauf(quelle: Quelle, heute: date, gesuch_ids: set[int] | None = None, betreu
         "nur_neu": nur_neu,
         "tage": tage,
         "kein_hallengesuch": sum(1 for g in uebrige if g.kein_hallengesuch),
+        "erzeugt": (quelle.gelesen_um.get("deals") or datetime.now(timezone.utc)).isoformat(timespec="seconds"),
+        "kontakte_nicht_lesbar": kontakt_nicht_lesbar,
     }
     return als_daten(ergebnisse, uebrige, kontakte, makler, heute, kopf, je_gesuch, nur_neu), deals
 
@@ -134,9 +164,11 @@ def main() -> int:
         alt = json.loads(Path(args.vergleich).read_text(encoding="utf-8"))
         ergebnis = vergleich(alt, quelle.hole("deals", lambda ps: ps.deals()))
         print(f"Lauf vom {date.fromisoformat(ergebnis['seit']):%d.%m.%Y}: {ergebnis['vorschlaege']} Vorschläge, "
-              f"davon seither {ergebnis['angeboten']} als Deal angelegt.")
+              f"davon seither {ergebnis['angeboten']} als Deal angelegt – {ergebnis['ueber_einheit']} zur vorgeschlagenen Einheit, "
+              f"{ergebnis['ueber_projekt']} nur zum selben Projekt."
+              + ("" if ergebnis["genau"] else " (Älterer Lauf ohne Uhrzeit: gezählt ab seinem Tag.)"))
         for t in ergebnis["treffer"]:
-            print(f"  {t['kontakt']} – {t['bezeichnung']} ({t['ort']})")
+            print(f"  {t['kontakt']} – {t['bezeichnung']} ({t['ort']}) – über {t['ueber']}")
         return 0
 
     daten, _ = lauf(quelle, heute, set(args.gesuch) if args.gesuch else None, args.betreuer,
@@ -155,6 +187,11 @@ def main() -> int:
     if args.merken:
         Path(args.merken).write_text(json.dumps(fuer_vergleich(daten), ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
         print(f"Gemerkt: {args.merken}")
+    if nicht_lesbar := daten["kopf"]["kontakte_nicht_lesbar"]:
+        # Kein grüner Lauf mit Fehlern: Ohne Namen ist nicht geprüft, ob das Profil ein Testprofil ist.
+        print(f"FEHLER: {len(nicht_lesbar)} Kontakte nicht lesbar ({', '.join(map(str, nicht_lesbar[:10]))}"
+              f"{' …' if len(nicht_lesbar) > 10 else ''}) – ihre Gesuche stehen ohne Namen im Bericht.", file=sys.stderr)
+        return 1
     return 0
 
 
